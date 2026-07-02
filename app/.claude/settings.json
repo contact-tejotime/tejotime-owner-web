@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx create-expo-app@latest .tejotmp --no-install)",
+      "Bash(echo \"===EXIT $?===\")",
+      "Bash(npx expo *)",
+      "Bash(tee /private/tmp/claude-501/-Users-jayghori-Documents-TejoTime-Project-TejoTime-Mobile/05db870a-3b1f-42b3-8c5d-51f17b449b7f/scratchpad/expo.log)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:8081)",
+      "Bash(pkill -f \"expo start\")",
+      "Bash(pkill -f \"metro\")",
+      "Bash(python3 -c ' *)",
+      "Bash(node -e \"console.log\\(require\\('./package.json'\\).dependencies['expo-blur'] || 'NOT FOUND'\\)\")",
+      "Bash(grep -iA6 \"splash\")",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('app.json','utf8'\\)\\); console.log\\('app.json valid JSON'\\)\")",
+      "Bash(find . -name \"*.dc.html\" -not -path \"*/node_modules/*\")",
+      "Bash(ls -la \"TejoTime Owner App.dc.html\")",
+      "Bash(file assets/images/*)"
+    ]
+  }
+}
