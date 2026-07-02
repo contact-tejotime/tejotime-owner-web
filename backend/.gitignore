@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# env files (never commit real secrets)
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*

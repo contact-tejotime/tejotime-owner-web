@@ -1,33 +1,52 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import type { Socket } from 'socket.io-client';
 
+import { AppointmentEntry, Customer, ServiceVM, Staff } from '@/data/sample';
+import { SeatGroupVM, CardVM } from '@/lib/queue';
+import { api, ApiError, getAccessToken, initSession, setOnAuthFail } from '@/lib/api';
+import { connectOwner } from '@/lib/socket';
 import {
-  AppointmentEntry,
-  appointments as seedAppts,
-  customers as seedCustomers,
-  QueueEntry,
-  queue as seedQueue,
-  services as seedServices,
-  Service,
-  Staff,
-  staff as seedStaff,
-} from '@/data/sample';
-import { estMins, soonestSeat } from '@/lib/queue';
+  mapAppointment,
+  mapCustomer,
+  mapSeats,
+  mapService,
+  mapStaff,
+  Money,
+} from '@/lib/mappers';
 
 export type TabId = 'dashboard' | 'queue' | 'appointments' | 'customers' | 'settings';
 export type Plan = 'free' | 'premium';
 type Sheet = 'walkin' | null;
 export type WalkInPosition = 'end' | 'next';
+
 type WalkIn = {
   name: string;
   phone: string;
-  service: string | null;
+  service: string | null; // service name
   position: WalkInPosition;
   staffId: string; // 'auto' | staff id
   error: string;
 };
 
+export interface DashboardKpis {
+  todaysAppointments: number;
+  activeNow: number;
+  waitingNow: number;
+  checkInCount: number;
+  completed: number;
+  revenue: Money;
+}
+
+interface BusinessInfo {
+  id?: string;
+  name: string;
+  area?: string;
+  slug?: string;
+}
+
 type State = {
   authed: boolean;
+  authLoading: boolean;
   userId: string;
   password: string;
   loginError: string;
@@ -36,23 +55,26 @@ type State = {
   plan: Plan;
   sheet: Sheet;
   qr: boolean;
-  detail: QueueEntry | null;
-  dragId: number | null;
+  detailId: string | null;
+  dragId: string | null;
   toast: string;
-  completed: number;
   walkin: WalkIn;
   search: string;
+  business: BusinessInfo | null;
+  seats: SeatGroupVM[];
+  services: ServiceVM[];
   staff: Staff[];
-  queue: QueueEntry[];
   appts: AppointmentEntry[];
-  customers: typeof seedCustomers;
-  services: Service[];
+  customers: Customer[];
+  customerMeta: { shown: number; total: number; lockedCount: number };
+  dashboard: DashboardKpis | null;
 };
 
 type Store = State & {
   setUserId: (v: string) => void;
   setPassword: (v: string) => void;
   signIn: () => void;
+  signOut: () => void;
   setTab: (id: TabId) => void;
   setQueueStaff: (id: string) => void;
   setSearch: (v: string) => void;
@@ -66,24 +88,45 @@ type Store = State & {
   setWalkinStaff: (id: string) => void;
   pickService: (name: string) => void;
   addWalkin: () => void;
-  openDetail: (item: QueueEntry) => void;
+  openDetail: (id: string) => void;
   closeDetail: () => void;
-  startService: (id: number) => void;
-  checkout: (id: number) => void;
-  noShow: (id: number) => void;
-  reassign: (id: number, staffId: string) => void;
-  extendService: (id: number, label: string, mins: number) => void;
-  setDragId: (id: number | null) => void;
-  moveWithinSeat: (staffId: string, id: number, toIndex: number) => void;
+  startService: (id: string) => void;
+  checkout: (id: string) => void;
+  noShow: (id: string) => void;
+  reassign: (id: string, staffId: string) => void;
+  extendService: (id: string, label: string, mins: number) => void;
+  setDragId: (id: string | null) => void;
+  moveWithinSeat: (staffId: string, id: string, toIndex: number) => void;
+  commitMove: (staffId: string, id: string) => void;
   checkInAppt: (a: AppointmentEntry) => void;
   upgrade: () => void;
 };
 
+const emptyWalkin: WalkIn = { name: '', phone: '', service: null, position: 'end', staffId: 'auto', error: '' };
+
 const AppStateContext = createContext<Store | null>(null);
+
+/** Local optimistic reorder of a seat's waiting cards (instant drag feedback). */
+function reorderSeat(seat: SeatGroupVM, id: string, toIndex: number): SeatGroupVM {
+  const serving = seat.cards.filter((c) => !c.isWaiting);
+  const waiting = seat.cards.filter((c) => c.isWaiting);
+  const ids = waiting.map((c) => c.id);
+  const order = ids.filter((x) => x !== id);
+  const clamped = Math.max(0, Math.min(order.length, toIndex));
+  order.splice(clamped, 0, id);
+  const byId: Record<string, CardVM> = {};
+  waiting.forEach((c) => (byId[c.id] = c));
+  const newServing = serving.map((c, i) => ({ ...c, pos: i + 1 }));
+  const newWaiting = order
+    .map((x, i) => (byId[x] ? { ...byId[x], pos: serving.length + i + 1 } : null))
+    .filter(Boolean) as CardVM[];
+  return { ...seat, cards: [...newServing, ...newWaiting] };
+}
 
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [s, setS] = useState<State>({
     authed: false,
+    authLoading: true,
     userId: '',
     password: '',
     loginError: '',
@@ -92,52 +135,219 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     plan: 'free',
     sheet: null,
     qr: false,
-    detail: null,
+    detailId: null,
     dragId: null,
     toast: '',
-    completed: 11,
-    walkin: { name: '', phone: '', service: null, position: 'end', staffId: 'auto', error: '' },
+    walkin: { ...emptyWalkin },
     search: '',
-    staff: seedStaff.map((st) => ({ ...st })),
-    queue: seedQueue.map((q) => ({ ...q })),
-    appts: seedAppts.map((a) => ({ ...a })),
-    customers: seedCustomers.map((c) => ({ ...c })),
-    services: seedServices.map((sv) => ({ ...sv })),
+    business: null,
+    seats: [],
+    services: [],
+    staff: [],
+    appts: [],
+    customers: [],
+    customerMeta: { shown: 0, total: 0, lockedCount: 0 },
+    dashboard: null,
   });
 
+  const socketRef = useRef<Socket | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const patch = useCallback((fn: (p: State) => Partial<State>) => setS((p) => ({ ...p, ...fn(p) })), []);
+
   const showToast = useCallback((msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setS((p) => ({ ...p, toast: msg }));
     toastTimer.current = setTimeout(() => setS((p) => ({ ...p, toast: '' })), 2200);
   }, []);
 
-  const seatName = useCallback(
-    (list: Staff[], staffId: string) => list.find((st) => st.id === staffId)?.name ?? '',
-    [],
-  );
+  // ---------- loaders ----------
+  const loadQueue = useCallback(async () => {
+    try {
+      const r = await api.getQueue();
+      setS((p) => ({ ...p, seats: mapSeats(r.seats) }));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const loadServices = useCallback(async () => {
+    try {
+      const r = await api.getServices();
+      setS((p) => ({ ...p, services: r.data.map(mapService) }));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const loadStaff = useCallback(async () => {
+    try {
+      const r = await api.getStaff();
+      setS((p) => ({ ...p, staff: r.data.map(mapStaff) }));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const loadAppointments = useCallback(async () => {
+    try {
+      const r = await api.getAppointments();
+      const appts = r.data
+        .filter((a: any) => a.status === 'pending' || a.status === 'confirmed')
+        .map(mapAppointment);
+      setS((p) => ({ ...p, appts }));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const loadCustomers = useCallback(async (search?: string) => {
+    try {
+      const r = await api.getCustomers(search);
+      setS((p) => ({
+        ...p,
+        customers: r.data.map(mapCustomer),
+        customerMeta: r.meta ?? { shown: 0, total: 0, lockedCount: 0 },
+        plan: r.plan ?? p.plan,
+      }));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const loadDashboard = useCallback(async () => {
+    try {
+      const r = await api.getDashboard();
+      setS((p) => ({ ...p, dashboard: r.kpis }));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const loadBusiness = useCallback(async () => {
+    try {
+      const r = await api.getBusiness();
+      setS((p) => ({ ...p, business: { id: r.id, name: r.name, area: r.area, slug: r.slug }, plan: r.plan ?? p.plan }));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const bootstrap = useCallback(async () => {
+    await Promise.all([
+      loadQueue(),
+      loadServices(),
+      loadStaff(),
+      loadAppointments(),
+      loadCustomers(),
+      loadDashboard(),
+      loadBusiness(),
+    ]);
+  }, [loadQueue, loadServices, loadStaff, loadAppointments, loadCustomers, loadDashboard, loadBusiness]);
+
+  const connectSocket = useCallback(() => {
+    const token = getAccessToken();
+    if (!token) return;
+    socketRef.current?.close();
+    const sock = connectOwner(token);
+    socketRef.current = sock;
+    sock.on('queue:snapshot', (d: any) => setS((p) => ({ ...p, seats: mapSeats(d.seats) })));
+    sock.on('appointment:created', () => {
+      loadAppointments();
+      loadDashboard();
+    });
+    sock.on('appointment:checked_in', () => {
+      loadAppointments();
+      loadDashboard();
+      loadQueue();
+    });
+    sock.on('appointment:updated', () => loadAppointments());
+    sock.on('subscription:updated', (d: any) => {
+      setS((p) => ({ ...p, plan: d.plan }));
+      loadCustomers();
+    });
+    sock.on('notification:new', (d: any) => showToast(d?.body ?? 'New notification'));
+  }, [loadAppointments, loadDashboard, loadQueue, loadCustomers, showToast]);
+
+  const teardown = useCallback(() => {
+    socketRef.current?.close();
+    socketRef.current = null;
+  }, []);
+
+  // ---------- session restore on mount ----------
+  useEffect(() => {
+    let alive = true;
+    setOnAuthFail(() => {
+      teardown();
+      setS((p) => ({ ...p, authed: false, authLoading: false }));
+    });
+    (async () => {
+      const has = await initSession();
+      if (has) {
+        try {
+          const me: any = await api.me();
+          if (!alive) return;
+          setS((p) => ({
+            ...p,
+            authed: true,
+            authLoading: false,
+            business: me.business ? { id: me.business.id, name: me.business.name, slug: me.business.slug } : null,
+            plan: me.business?.plan ?? 'free',
+          }));
+          connectSocket();
+          bootstrap();
+          return;
+        } catch {
+          /* fall through to logged-out */
+        }
+      }
+      if (alive) setS((p) => ({ ...p, authLoading: false }));
+    })();
+    return () => {
+      alive = false;
+      teardown();
+      setOnAuthFail(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const store = useMemo<Store>(() => {
-    const patch = (fn: (p: State) => Partial<State>) => setS((p) => ({ ...p, ...fn(p) }));
     return {
       ...s,
       setUserId: (v) => patch(() => ({ userId: v, loginError: '' })),
       setPassword: (v) => patch(() => ({ password: v, loginError: '' })),
-      signIn: () =>
-        setS((p) =>
-          !p.userId.trim() || !p.password.trim()
-            ? { ...p, loginError: 'Enter your user ID and password' }
-            : { ...p, authed: true, loginError: '' },
-        ),
-      setTab: (id) => patch(() => ({ tab: id, detail: null })),
+      signIn: async () => {
+        if (!s.userId.trim() || !s.password.trim()) {
+          patch(() => ({ loginError: 'Enter your user ID and password' }));
+          return;
+        }
+        patch(() => ({ loginError: '', authLoading: true }));
+        try {
+          const res: any = await api.login(s.userId.trim(), s.password);
+          setS((p) => ({
+            ...p,
+            authed: true,
+            authLoading: false,
+            loginError: '',
+            password: '',
+            business: res.business ? { id: res.business.id, name: res.business.name, slug: res.business.slug } : null,
+            plan: res.business?.plan ?? 'free',
+          }));
+          connectSocket();
+          bootstrap();
+        } catch (e) {
+          patch(() => ({ loginError: (e as ApiError)?.message ?? 'Sign in failed', authLoading: false }));
+        }
+      },
+      signOut: async () => {
+        await api.logout().catch(() => {});
+        teardown();
+        setS((p) => ({ ...p, authed: false, userId: '', password: '' }));
+      },
+      setTab: (id) => patch(() => ({ tab: id, detailId: null })),
       setQueueStaff: (id) => patch(() => ({ queueStaff: id })),
-      setSearch: (v) => patch(() => ({ search: v })),
+      setSearch: (v) => {
+        patch(() => ({ search: v }));
+        if (searchTimer.current) clearTimeout(searchTimer.current);
+        searchTimer.current = setTimeout(() => loadCustomers(v || undefined), 300);
+      },
       openAlerts: () => showToast('No new notifications'),
-      openWalkin: () =>
-        patch(() => ({
-          sheet: 'walkin',
-          walkin: { name: '', phone: '', service: null, position: 'end', staffId: 'auto', error: '' },
-        })),
+      openWalkin: () => patch(() => ({ sheet: 'walkin', walkin: { ...emptyWalkin } })),
       closeWalkin: () => patch(() => ({ sheet: null })),
       openQr: () => patch(() => ({ qr: true })),
       closeQr: () => patch(() => ({ qr: false })),
@@ -145,138 +355,116 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setWalkinPosition: (position) => patch((p) => ({ walkin: { ...p.walkin, position } })),
       setWalkinStaff: (staffId) => patch((p) => ({ walkin: { ...p.walkin, staffId } })),
       pickService: (name) => patch((p) => ({ walkin: { ...p.walkin, service: name, error: '' } })),
-      addWalkin: () =>
-        setS((p) => {
-          const w = p.walkin;
-          if (!w.name.trim()) return { ...p, walkin: { ...w, error: 'Enter a customer name' } };
-          if (!w.service) return { ...p, walkin: { ...w, error: 'Pick a service' } };
-          const staffId = w.staffId === 'auto' ? soonestSeat(p.queue, p.staff, p.services) : w.staffId;
-          const item: QueueEntry = {
-            id: Date.now(),
+      addWalkin: async () => {
+        const w = s.walkin;
+        if (!w.name.trim()) return patch(() => ({ walkin: { ...w, error: 'Enter a customer name' } }));
+        if (!w.service) return patch(() => ({ walkin: { ...w, error: 'Pick a service' } }));
+        const serviceId = s.services.find((sv) => sv.name === w.service)?.id ?? null;
+        try {
+          const res: any = await api.addWalkin({
             name: w.name.trim(),
-            service: w.service,
-            time: 'Just now',
-            status: 'waiting',
-            wait: 0,
-            staffId,
-            src: 'walk-in',
-          };
-          const queue = [...p.queue];
-          if (w.position === 'next') {
-            let idx = queue.findIndex((q) => q.staffId === staffId && q.status === 'waiting');
-            if (idx < 0) idx = queue.length;
-            queue.splice(idx, 0, item);
-          } else {
-            let last = -1;
-            queue.forEach((q, i) => {
-              if (q.staffId === staffId && (q.status === 'waiting' || q.status === 'in-service')) last = i;
-            });
-            queue.splice(last + 1, 0, item);
-          }
-          const nm = seatName(p.staff, staffId);
-          showToast((w.position === 'next' ? 'Added as next' : 'Added to queue') + (nm ? ` · ${nm}` : ''));
-          return { ...p, queue, sheet: null };
-        }),
-      openDetail: (item) => patch(() => ({ detail: item })),
-      closeDetail: () => patch(() => ({ detail: null })),
-      startService: (id) => {
-        patch((p) => ({
-          queue: p.queue.map((q) => (q.id === id ? { ...q, status: 'in-service', wait: 0 } : q)),
-          detail: null,
-        }));
-        showToast('Service started');
-      },
-      checkout: (id) =>
-        setS((p) => {
-          const done = p.queue.find((q) => q.id === id);
-          const seat = done?.staffId;
-          const queue = p.queue.map((q) => (q.id === id ? { ...q, status: 'completed' as const } : q));
-          let promotedName: string | null = null;
-          if (seat && !queue.some((q) => q.staffId === seat && q.status === 'in-service')) {
-            const nextIdx = queue.findIndex((q) => q.staffId === seat && q.status === 'waiting');
-            if (nextIdx >= 0) {
-              queue[nextIdx] = { ...queue[nextIdx], status: 'in-service', wait: 0 };
-              promotedName = queue[nextIdx].name.split(' ')[0];
-            }
-          }
-          const nm = seat ? seatName(p.staff, seat) : '';
-          setTimeout(
-            () => showToast(promotedName ? `${promotedName} now in service · ${nm}` : 'Checked out'),
-            0,
-          );
-          return { ...p, queue, completed: p.completed + 1, detail: null };
-        }),
-      noShow: (id) => {
-        patch((p) => ({
-          queue: p.queue.map((q) => (q.id === id ? { ...q, status: 'no-show' } : q)),
-          detail: null,
-        }));
-        showToast('Marked no-show');
-      },
-      reassign: (id, staffId) =>
-        setS((p) => {
-          const item = p.queue.find((q) => q.id === id);
-          if (!item) return p;
-          const rest = p.queue.filter((q) => q.id !== id);
-          let last = -1;
-          rest.forEach((q, i) => {
-            if (q.staffId === staffId && (q.status === 'waiting' || q.status === 'in-service')) last = i;
+            phone: w.phone.trim() || undefined,
+            serviceId,
+            staffId: w.staffId,
+            position: w.position,
           });
-          const moved: QueueEntry = { ...item, staffId, status: 'waiting' };
-          rest.splice(last + 1, 0, moved);
-          showToast(`Moved to ${seatName(p.staff, staffId)}`);
-          return { ...p, queue: rest, detail: { ...moved } };
-        }),
-      extendService: (id, label, mins) => {
-        patch((p) => ({
-          queue: p.queue.map((q) => {
-            if (q.id !== id) return q.status === 'waiting' ? { ...q, wait: q.wait + mins } : q;
-            const has = q.service.toLowerCase().includes(label.toLowerCase());
-            return { ...q, service: has ? q.service : `${q.service} + ${label}`, extra: (q.extra || 0) + mins };
-          }),
-        }));
-        showToast(`+${mins} min · ${label} added`);
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), sheet: null }));
+          showToast(w.position === 'next' ? 'Added as next' : 'Added to queue');
+          loadDashboard();
+        } catch (e) {
+          patch(() => ({ walkin: { ...s.walkin, error: (e as ApiError)?.message ?? 'Could not add' } }));
+        }
+      },
+      openDetail: (id) => patch(() => ({ detailId: id })),
+      closeDetail: () => patch(() => ({ detailId: null })),
+      startService: async (id) => {
+        try {
+          const res: any = await api.startService(id);
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null }));
+          showToast('Service started');
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Could not start');
+        }
+      },
+      checkout: async (id) => {
+        try {
+          const res: any = await api.checkout(id);
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null }));
+          showToast(res.promoted ? `${String(res.promoted.name).split(' ')[0]} now in service` : 'Checked out');
+          loadDashboard();
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Could not check out');
+        }
+      },
+      noShow: async (id) => {
+        try {
+          const res: any = await api.noShow(id);
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null }));
+          showToast('Marked no-show');
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Error');
+        }
+      },
+      reassign: async (id, staffId) => {
+        try {
+          const res: any = await api.reassign(id, staffId);
+          setS((p) => ({ ...p, seats: mapSeats(res.seats) }));
+          const nm = s.staff.find((st) => st.id === staffId)?.name ?? '';
+          showToast(`Moved${nm ? ` to ${nm}` : ''}`);
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Error');
+        }
+      },
+      extendService: async (id, label, mins) => {
+        try {
+          const res: any = await api.extend(id, label, mins);
+          setS((p) => ({ ...p, seats: mapSeats(res.seats) }));
+          showToast(`+${mins} min · ${label} added`);
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Error');
+        }
       },
       setDragId: (id) => patch(() => ({ dragId: id })),
       moveWithinSeat: (staffId, id, toIndex) =>
-        setS((p) => {
-          const slots: number[] = [];
-          p.queue.forEach((x, i) => {
-            if (x.staffId === staffId && x.status === 'waiting') slots.push(i);
-          });
-          const ids = slots.map((i) => p.queue[i].id);
-          const order = ids.filter((x) => x !== id);
-          const clamped = Math.max(0, Math.min(order.length, toIndex));
-          order.splice(clamped, 0, id);
-          const byId: Record<number, QueueEntry> = {};
-          p.queue.forEach((x) => (byId[x.id] = x));
-          const out = [...p.queue];
-          slots.forEach((pos, k) => (out[pos] = byId[order[k]]));
-          return { ...p, queue: out };
-        }),
-      checkInAppt: (a) => {
-        patch((p) => {
-          const staffId = soonestSeat(p.queue, p.staff, p.services);
-          const item: QueueEntry = {
-            id: a.id,
-            name: a.name,
-            service: a.service,
-            time: 'Just arrived',
-            status: 'waiting',
-            wait: 0,
-            staffId,
-            src: 'online',
-          };
-          return { queue: [...p.queue, item], appts: p.appts.filter((x) => x.id !== a.id), tab: 'queue' };
-        });
-        showToast(`${a.name} added to queue`);
+        setS((p) => ({
+          ...p,
+          seats: p.seats.map((g) => (g.id === staffId ? reorderSeat(g, id, toIndex) : g)),
+        })),
+      commitMove: async (staffId, id) => {
+        const seat = s.seats.find((g) => g.id === staffId);
+        const waiting = seat ? seat.cards.filter((c) => c.isWaiting) : [];
+        const idx = waiting.findIndex((c) => c.id === id);
+        if (idx < 0) return;
+        try {
+          const res: any = await api.move(id, idx);
+          setS((p) => ({ ...p, seats: mapSeats(res.seats) }));
+        } catch {
+          loadQueue();
+        }
       },
-      upgrade: () => {
-        patch(() => ({ plan: 'premium' }));
-        showToast('Welcome to Premium');
+      checkInAppt: async (a) => {
+        try {
+          await api.checkIn(a.id);
+          setS((p) => ({ ...p, appts: p.appts.filter((x) => x.id !== a.id), tab: 'queue' }));
+          showToast(`${a.name} added to queue`);
+          loadQueue();
+          loadDashboard();
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Could not check in');
+        }
+      },
+      upgrade: async () => {
+        try {
+          await api.upgrade();
+          setS((p) => ({ ...p, plan: 'premium' }));
+          showToast('Welcome to Premium');
+          loadCustomers(s.search || undefined);
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Upgrade failed');
+        }
       },
     };
-  }, [s, showToast, seatName]);
+  }, [s, patch, showToast, connectSocket, bootstrap, teardown, loadCustomers, loadDashboard, loadQueue]);
 
   return <AppStateContext.Provider value={store}>{children}</AppStateContext.Provider>;
 }
@@ -285,10 +473,4 @@ export function useAppState(): Store {
   const ctx = useContext(AppStateContext);
   if (!ctx) throw new Error('useAppState must be used within AppStateProvider');
   return ctx;
-}
-
-/** Estimated minutes helper bound to the current service list. */
-export function useEstMins() {
-  const { services } = useAppState();
-  return (item: QueueEntry) => estMins(item, services);
 }

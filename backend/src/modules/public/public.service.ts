@@ -1,0 +1,327 @@
+import { supabase } from '../../db/supabase';
+import { callRpc } from '../../db/rpc';
+import { env } from '../../config/env';
+import { Errors } from '../../domain/errors';
+import { money } from '../../domain/money';
+import { normalizePhone } from '../../lib/phone';
+import { dayjs } from '../../lib/time';
+import { buildSeatGroups, soonestSeat, ticketPosition } from '../../lib/queue-engine';
+import { emitToOwners } from '../../realtime/emitters';
+import { ticketKey } from '../auth/token.service';
+import { findOrCreateCustomer } from '../customers/customer.repo';
+import { loadQueueContext } from '../queue/queue.context';
+import { broadcastQueue } from '../queue/queue.service';
+
+async function resolveBusiness(slug: string) {
+  const { data } = await supabase.from('business').select('*').eq('slug', slug).eq('is_active', true).maybeSingle();
+  if (!data) throw Errors.notFound('Business not found');
+  return data;
+}
+
+function fmtTime(t: string | null): string {
+  if (!t) return '';
+  return dayjs(`2000-01-01 ${t}`, 'YYYY-MM-DD HH:mm:ss').format('h:mm A').replace(':00', '');
+}
+
+function computeOpenStatus(hours: any[], tz: string) {
+  const now = dayjs().tz(tz);
+  const today = hours.find((h) => h.day_of_week === now.day());
+  if (!today || today.is_closed) return { isOpen: false, closesAt: null, label: 'Closed today' };
+  const opens = dayjs.tz(`${now.format('YYYY-MM-DD')} ${today.opens_at}`, tz);
+  const closes = dayjs.tz(`${now.format('YYYY-MM-DD')} ${today.closes_at}`, tz);
+  const isOpen = now.isAfter(opens) && now.isBefore(closes);
+  return {
+    isOpen,
+    closesAt: today.closes_at,
+    label: isOpen ? `Open now · till ${fmtTime(today.closes_at)}` : `Opens ${fmtTime(today.opens_at)}`,
+  };
+}
+
+function liveAvailability(ctx: Awaited<ReturnType<typeof loadQueueContext>>) {
+  const groups = buildSeatGroups(ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
+  const clears = groups.map((g) => g.clearMinutes);
+  const waitMinutes = clears.length ? Math.min(...clears) : 0;
+  const queueCount = ctx.engineEntries.filter((e) => e.status === 'waiting').length;
+  return { groups, waitMinutes, queueCount };
+}
+
+export async function getMicrosite(slug: string) {
+  const b = await resolveBusiness(slug);
+  // Single round-trip wave: hours/amenities/gallery run alongside the queue context,
+  // which already loads active services (reused below instead of a duplicate query).
+  const [{ data: hours }, { data: amenities }, { data: gallery }, ctx] = await Promise.all([
+    supabase.from('business_hour').select('*').eq('business_id', b.id).order('day_of_week'),
+    supabase.from('amenity').select('*').eq('business_id', b.id).order('position'),
+    supabase.from('gallery_image').select('*').eq('business_id', b.id).order('position'),
+    loadQueueContext(b.id),
+  ]);
+  const services = ctx.serviceRows;
+  const reviews: any[] = []; // review collection deferred (docs/17 Q27)
+
+  const { groups, waitMinutes, queueCount } = liveAvailability(ctx);
+
+  const staffDTO = ctx.staffRows.map((s) => {
+    const g = groups.find((x) => x.id === s.id);
+    return {
+      id: s.id,
+      name: s.name,
+      roleLabel: s.role_label,
+      busy: !!g?.serving,
+      queueCount: g?.waitingCount ?? 0,
+      waitLabel: g && g.clearMinutes > 0 ? `~${g.clearMinutes}m` : 'Free',
+    };
+  });
+
+  return {
+    id: b.id,
+    slug: b.slug,
+    name: b.name,
+    tagline: b.tagline,
+    description: b.description,
+    category: b.category,
+    area: b.area,
+    address: b.address,
+    rating: Number(b.rating ?? 0),
+    reviewCount: b.review_count,
+    establishedYear: b.established_year,
+    openStatus: computeOpenStatus(hours ?? [], b.timezone),
+    hours: (hours ?? []).map((h) => ({
+      dayOfWeek: h.day_of_week,
+      label: h.is_closed ? 'Closed' : `${fmtTime(h.opens_at)} – ${fmtTime(h.closes_at)}`,
+      isClosed: h.is_closed,
+    })),
+    amenities: (amenities ?? []).map((a) => a.label),
+    gallery: (gallery ?? []).map((g) => g.url),
+    services: (services ?? []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      durationMinutes: s.duration_minutes,
+      price: money(s.price_paise, s.currency),
+    })),
+    staff: staffDTO,
+    reviews: ((reviews as any[]) ?? []).map((r) => ({ stars: r.rating, text: r.text, authorName: r.author_name })),
+    live: { waitMinutes, queueCount },
+    payments: b.payments ?? [],
+  };
+}
+
+export async function getAvailability(slug: string) {
+  const b = await resolveBusiness(slug);
+  const ctx = await loadQueueContext(b.id);
+  const { waitMinutes, queueCount } = liveAvailability(ctx);
+  return { waitMinutes, queueCount, updatedAt: new Date().toISOString() };
+}
+
+export async function getStaffAvailability(slug: string) {
+  const b = await resolveBusiness(slug);
+  const ctx = await loadQueueContext(b.id);
+  const { groups } = liveAvailability(ctx);
+  return {
+    staff: ctx.staffRows.map((s) => {
+      const g = groups.find((x) => x.id === s.id);
+      return {
+        id: s.id,
+        name: s.name,
+        roleLabel: s.role_label,
+        busy: !!g?.serving,
+        queueCount: g?.waitingCount ?? 0,
+        waitLabel: g && g.clearMinutes > 0 ? `~${g.clearMinutes}m` : 'Free',
+      };
+    }),
+  };
+}
+
+export async function getSlots(slug: string, date: string, serviceId?: string, staffId?: string) {
+  const b = await resolveBusiness(slug);
+  const tz = b.timezone;
+  const day = dayjs.tz(date, tz);
+  const { data: hours } = await supabase
+    .from('business_hour')
+    .select('*')
+    .eq('business_id', b.id)
+    .eq('day_of_week', day.day())
+    .maybeSingle();
+  if (!hours || hours.is_closed) return { date, slots: [] };
+
+  let duration = env.BOOKING_SLOT_MINUTES;
+  if (serviceId) {
+    const { data: svc } = await supabase.from('service').select('duration_minutes').eq('id', serviceId).maybeSingle();
+    if (svc) duration = svc.duration_minutes;
+  }
+
+  const open = dayjs.tz(`${date} ${hours.opens_at}`, tz);
+  const close = dayjs.tz(`${date} ${hours.closes_at}`, tz);
+  const step = env.BOOKING_SLOT_MINUTES;
+
+  // Existing bookings to exclude (per staff if specified).
+  let taken = new Set<string>();
+  let bq = supabase
+    .from('appointment')
+    .select('scheduled_start_at, staff_id')
+    .eq('business_id', b.id)
+    .in('status', ['pending', 'confirmed'])
+    .gte('scheduled_start_at', open.utc().toISOString())
+    .lte('scheduled_start_at', close.utc().toISOString());
+  if (staffId) bq = bq.eq('staff_id', staffId);
+  const { data: booked } = await bq;
+  taken = new Set((booked ?? []).map((a) => dayjs(a.scheduled_start_at).toISOString()));
+
+  const now = dayjs().tz(tz);
+  const slots: { startAt: string; label: string }[] = [];
+  let cursor = open;
+  while (cursor.add(duration, 'minute').isBefore(close.add(1, 'second'))) {
+    const iso = cursor.utc().toISOString();
+    if (cursor.isAfter(now) && !taken.has(iso)) {
+      slots.push({ startAt: iso, label: cursor.format('h:mm A') });
+    }
+    cursor = cursor.add(step, 'minute');
+  }
+  return { date, slots };
+}
+
+function ticketSocket(businessId: string, ticketId: string) {
+  return { namespace: '/customer', room: `ticket:${ticketId}`, ticketKey: ticketKey(ticketId), businessId };
+}
+
+export async function joinQueue(
+  slug: string,
+  input: { serviceId: string; name: string; phone: string; preferredStaffId?: string },
+) {
+  const b = await resolveBusiness(slug);
+  const ctx = await loadQueueContext(b.id);
+
+  const { data: svc } = await supabase
+    .from('service')
+    .select('id, name')
+    .eq('id', input.serviceId)
+    .eq('business_id', b.id)
+    .maybeSingle();
+  if (!svc) throw Errors.notFound('Service not found');
+
+  let staffId = input.preferredStaffId && input.preferredStaffId !== 'any' ? input.preferredStaffId : null;
+  if (staffId && !ctx.staffRows.find((s) => s.id === staffId)) staffId = null;
+  if (!staffId) staffId = soonestSeat(ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
+
+  const phone = normalizePhone(input.phone);
+  const customerId = await findOrCreateCustomer(b.id, input.name, phone);
+
+  const result = await callRpc<{ id: string; token: string }>('queue_add', {
+    p_business_id: b.id,
+    p_name: input.name,
+    p_phone: phone,
+    p_service_id: svc.id,
+    p_staff_id: staffId,
+    p_position: 'end',
+    p_source: 'online',
+    p_preferred_staff_id: input.preferredStaffId && input.preferredStaffId !== 'any' ? input.preferredStaffId : null,
+    p_appointment_id: null,
+    p_customer_id: customerId,
+  });
+
+  emitToOwners(b.id, 'queue:entry.created', { entryId: result.id, seatId: staffId, source: 'online' });
+  await broadcastQueue(b.id);
+
+  const fresh = await loadQueueContext(b.id);
+  const pos = ticketPosition(result.id, fresh.engineEntries, fresh.engineStaff, fresh.engineServices);
+  const staffName = ctx.staffRows.find((s) => s.id === staffId)?.name ?? null;
+
+  return {
+    ticketId: result.id,
+    token: result.token,
+    ahead: pos.ahead,
+    waitMinutes: pos.waitMinutes,
+    status: pos.status ?? 'waiting',
+    staffName,
+    serviceName: svc.name,
+    socket: ticketSocket(b.id, result.id),
+  };
+}
+
+export async function bookSlot(
+  slug: string,
+  input: { serviceId: string; name: string; phone: string; preferredStaffId?: string; slotStart: string },
+) {
+  const b = await resolveBusiness(slug);
+  const { data: svc } = await supabase
+    .from('service')
+    .select('id, name, duration_minutes')
+    .eq('id', input.serviceId)
+    .eq('business_id', b.id)
+    .maybeSingle();
+  if (!svc) throw Errors.notFound('Service not found');
+
+  const phone = normalizePhone(input.phone);
+  const customerId = await findOrCreateCustomer(b.id, input.name, phone);
+  const staffId = input.preferredStaffId && input.preferredStaffId !== 'any' ? input.preferredStaffId : null;
+  const start = new Date(input.slotStart);
+  const end = new Date(start.getTime() + svc.duration_minutes * 60_000);
+
+  const { data, error } = await supabase
+    .from('appointment')
+    .insert({
+      business_id: b.id,
+      customer_id: customerId,
+      customer_name: input.name,
+      customer_phone: phone,
+      service_id: svc.id,
+      service_name: svc.name,
+      staff_id: staffId,
+      scheduled_start_at: start.toISOString(),
+      scheduled_end_at: end.toISOString(),
+      status: 'confirmed',
+      source: 'online',
+    })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+
+  emitToOwners(b.id, 'appointment:created', {
+    appointment: { id: data.id, customerName: data.customer_name, serviceName: data.service_name, scheduledStartAt: data.scheduled_start_at, status: data.status },
+  });
+
+  return {
+    appointmentId: data.id,
+    serviceName: svc.name,
+    scheduledStartAt: data.scheduled_start_at,
+    status: 'confirmed',
+    staffName: staffId ? (await supabase.from('staff').select('name').eq('id', staffId).maybeSingle()).data?.name : null,
+  };
+}
+
+export async function getTicket(ticketId: string) {
+  const { data: entry } = await supabase.from('queue_entry').select('*').eq('id', ticketId).maybeSingle();
+  if (!entry) throw Errors.notFound('Ticket not found');
+
+  if (!['waiting', 'in_service'].includes(entry.status)) {
+    return {
+      ticketId,
+      token: entry.token,
+      ahead: 0,
+      waitMinutes: 0,
+      status: entry.status,
+      isYourTurn: entry.status === 'in_service',
+      progressPct: entry.status === 'completed' || entry.status === 'in_service' ? 100 : 0,
+    };
+  }
+
+  const ctx = await loadQueueContext(entry.business_id);
+  const pos = ticketPosition(ticketId, ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
+  const isYourTurn = pos.status === 'in_service';
+  return {
+    ticketId,
+    token: entry.token,
+    ahead: pos.ahead,
+    waitMinutes: pos.waitMinutes,
+    status: pos.status ?? entry.status,
+    isYourTurn,
+    progressPct: isYourTurn ? 100 : 0,
+  };
+}
+
+export async function leaveTicket(ticketId: string) {
+  const { data: entry } = await supabase.from('queue_entry').select('business_id, status').eq('id', ticketId).maybeSingle();
+  if (!entry) throw Errors.notFound('Ticket not found');
+  await callRpc('queue_leave', { p_business_id: entry.business_id, p_entry_id: ticketId });
+  await broadcastQueue(entry.business_id);
+  return { ok: true, ticketId };
+}

@@ -5,8 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { initials } from '@/lib/format';
-import { buildSeatGroups, flatCards } from '@/lib/queue';
+import { flatCards } from '@/lib/queue';
 import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -43,20 +42,17 @@ export function DetailPanel() {
   const { colors, radius, fontFamily, fontSize } = useTheme();
   const resolveColor = useServiceColor();
   const store = useAppState();
-  const d = store.detail;
-  const open = !!d;
 
-  // Resolve the live entry + its computed card (pos / seat / source).
-  const live = d ? store.queue.find((q) => q.id === d.id) ?? d : null;
-  const cards = live ? flatCards(buildSeatGroups(store.queue, store.staff, store.services)) : [];
-  const card = live ? cards.find((c) => c.id === live.id) : undefined;
-  const seat = live ? store.staff.find((st) => st.id === live.staffId) : undefined;
+  // Resolve the live card from the current seat groups.
+  const cards = flatCards(store.seats);
+  const card = store.detailId ? cards.find((c) => c.id === store.detailId) : undefined;
+  const open = !!card;
+  const seat = card ? store.staff.find((st) => st.id === card.staffId) : undefined;
   const seatColor = seat ? resolveColor(seat.color) : colors.textSubtle;
-  const extra = live?.extra ?? 0;
 
   return (
     <Modal transparent visible={open} animationType="fade" onRequestClose={store.closeDetail}>
-      {live && (
+      {card && (
         <View style={{ flex: 1, backgroundColor: colors.surfacePage }}>
           <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
@@ -69,10 +65,10 @@ export function DetailPanel() {
             <View style={{ flex: 1, paddingHorizontal: 20 }}>
               <View style={{ alignItems: 'center', gap: 10, paddingTop: 8, paddingBottom: 18 }}>
                 <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontFamily: fontFamily.bold, fontSize: 26, color: colors.primarySoftFg }}>{initials(live.name)}</Text>
+                  <Text style={{ fontFamily: fontFamily.bold, fontSize: 26, color: colors.primarySoftFg }}>{card.initials}</Text>
                 </View>
-                <Text style={{ fontFamily: fontFamily.bold, fontSize: fontSize.h4, color: colors.textStrong }}>{live.name}</Text>
-                <StatusBadge status={live.status} />
+                <Text style={{ fontFamily: fontFamily.bold, fontSize: fontSize.h4, color: colors.textStrong }}>{card.name}</Text>
+                <StatusBadge status={card.status} />
               </View>
 
               <View style={{ gap: 10 }}>
@@ -83,16 +79,16 @@ export function DetailPanel() {
                   </View>
                 </Row>
                 <Row label="Service">
-                  <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodyMd, color: colors.textStrong }}>{live.service}</Text>
+                  <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodyMd, color: colors.textStrong }}>{card.service}</Text>
                 </Row>
                 <Row label="Source">
                   <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodyMd, color: colors.textStrong }}>
-                    {live.src === 'online' ? 'Booked online' : 'Walk-in'}
+                    {card.online ? 'Booked online' : 'Walk-in'}
                   </Text>
                 </Row>
                 <Row label="Position">
                   <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodyMd, color: colors.textStrong }}>
-                    #{card?.pos ?? '—'} in {seat?.name ?? 'this'}&apos;s line
+                    #{card.pos} in {seat?.name ?? 'this'}&apos;s line
                   </Text>
                 </Row>
               </View>
@@ -108,18 +104,18 @@ export function DetailPanel() {
                 backgroundColor: colors.surfaceCard,
                 gap: 10,
               }}>
-              {live.status === 'waiting' && (
+              {card.status === 'waiting' && (
                 <>
                   <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodySm, color: colors.textBody }}>
                     Move to another seat
                   </Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 2 }}>
                     {store.staff
-                      .filter((st) => st.id !== live.staffId)
+                      .filter((st) => st.id !== card.staffId)
                       .map((st) => (
                         <Pressable
                           key={st.id}
-                          onPress={() => store.reassign(live.id, st.id)}
+                          onPress={() => store.reassign(card.id, st.id)}
                           style={{
                             flexDirection: 'row',
                             alignItems: 'center',
@@ -136,15 +132,15 @@ export function DetailPanel() {
                         </Pressable>
                       ))}
                   </View>
-                  <Button variant="primary" size="lg" fullWidth onPress={() => store.startService(live.id)}>
+                  <Button variant="primary" size="lg" fullWidth onPress={() => store.startService(card.id)}>
                     Start service
                   </Button>
-                  <Button variant="outline" fullWidth onPress={() => store.noShow(live.id)}>
+                  <Button variant="outline" fullWidth onPress={() => store.noShow(card.id)}>
                     Mark no-show
                   </Button>
                 </>
               )}
-              {live.status === 'in-service' && (
+              {card.status === 'in-service' && (
                 <>
                   <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodySm, color: colors.textBody }}>
                     Customer changed their mind? Add to this service
@@ -153,7 +149,7 @@ export function DetailPanel() {
                     {EXTRAS.map((e) => (
                       <Pressable
                         key={e.label}
-                        onPress={() => store.extendService(live.id, e.label, e.mins)}
+                        onPress={() => store.extendService(card.id, e.label, e.mins)}
                         style={{
                           flexDirection: 'row',
                           alignItems: 'center',
@@ -172,15 +168,7 @@ export function DetailPanel() {
                       </Pressable>
                     ))}
                   </View>
-                  {extra > 0 && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.warningSoft, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 9 }}>
-                      <Icon name="clock" size={15} color={colors.warningSoftFg} />
-                      <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodySm, color: colors.warningSoftFg }}>
-                        Service extended · +{extra} min added · queue updated
-                      </Text>
-                    </View>
-                  )}
-                  <Button variant="primary" size="lg" fullWidth onPress={() => store.checkout(live.id)}>
+                  <Button variant="primary" size="lg" fullWidth onPress={() => store.checkout(card.id)}>
                     Complete &amp; start next
                   </Button>
                 </>

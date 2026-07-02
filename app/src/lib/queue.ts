@@ -43,7 +43,7 @@ export function soonestSeat(queue: QueueEntry[], staff: Staff[], services: Servi
 }
 
 export type CardVM = {
-  id: number;
+  id: string;
   name: string;
   service: string;
   status: QueueEntry['status'];
@@ -69,6 +69,7 @@ export type SeatGroupVM = {
   subLine: string;
   waitBadge: string;
   waitN: number;
+  clearMinutes: number;
   free: boolean;
   empty: boolean;
   cards: CardVM[];
@@ -136,6 +137,7 @@ export function buildSeatGroups(
         : 'Available · ready for walk-in',
       waitBadge: waits.length > 0 ? `${waits.length} waiting` : 'Free',
       waitN: waits.length,
+      clearMinutes: clearM,
       free: waits.length === 0,
       empty: items.length === 0,
       cards: [...servCards, ...waitCards],

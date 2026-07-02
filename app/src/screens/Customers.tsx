@@ -10,21 +10,17 @@ import { Input } from '@/components/ui/Input';
 import { useAppState } from '@/state/store';
 import { useTheme } from '@/theme/ThemeProvider';
 
-const FREE_LIMIT = 2;
-
 export function Customers() {
   const { colors, dark, radius, fontFamily, fontSize, shadow } = useTheme();
   const store = useAppState();
   const isPremium = store.plan === 'premium';
 
-  const q = store.search.toLowerCase();
-  const matched = store.customers.filter(
-    (c) => !q || c.name.toLowerCase().includes(q) || c.phone.includes(q),
-  );
-  const shown = isPremium ? matched : matched.slice(0, FREE_LIMIT);
-  const lockedPreview = isPremium ? [] : matched.slice(FREE_LIMIT);
-  const lockedCount = isPremium ? 0 : Math.max(0, store.customers.length - FREE_LIMIT);
-  const subtitle = isPremium ? '312 total' : `Free trial · latest ${shown.length} shown`;
+  // Search + plan gating are enforced server-side; the store holds the shown set.
+  const shown = store.customers;
+  const lockedCount = store.customerMeta.lockedCount;
+  const total = store.customerMeta.total;
+  const subtitle = isPremium ? `${total} total` : `Free trial · latest ${shown.length} shown`;
+  const placeholders = Array.from({ length: Math.min(lockedCount, 2) }, (_, i) => ({ id: `lock-${i}` }));
 
   return (
     <>
@@ -71,15 +67,15 @@ export function Customers() {
           {lockedCount > 0 && (
             <View style={{ borderRadius: radius.lg, overflow: 'hidden', marginTop: 2 }}>
               <View style={{ gap: 12, opacity: 0.3 }} pointerEvents="none">
-                {lockedPreview.map((c) => (
+                {placeholders.map((c) => (
                   <CustomerCard
                     key={c.id}
-                    name={c.name}
-                    phone={c.phone}
+                    name="••••••••"
+                    phone="+91 ••••• •••••"
                     meta={[
-                      { label: 'Visits', value: c.visits },
-                      { label: 'Last visit', value: c.last },
-                      { label: 'Spend', value: c.spend },
+                      { label: 'Visits', value: '•' },
+                      { label: 'Last visit', value: '•' },
+                      { label: 'Spend', value: '•' },
                     ]}
                   />
                 ))}

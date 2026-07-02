@@ -6,7 +6,8 @@ import { StatCard } from '@/components/cards/StatCard';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
-import { buildSeatGroups, flatCards } from '@/lib/queue';
+import { flatCards } from '@/lib/queue';
+import { formatMoney } from '@/lib/mappers';
 import { useAppState } from '@/state/store';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -16,15 +17,14 @@ export function Dashboard() {
   const { colors } = useTheme();
   const store = useAppState();
 
-  const active = store.queue.filter((q) => q.status === 'waiting' || q.status === 'in-service');
-  const groups = buildSeatGroups(store.queue, store.staff, store.services);
-  const queuePreview = flatCards(groups).slice(0, 3);
+  const queuePreview = flatCards(store.seats).slice(0, 3);
+  const d = store.dashboard;
 
   const kpis = [
-    { key: 'appts', label: "Today's appts", value: String(store.appts.length + store.queue.length), delta: '+4' },
-    { key: 'active', label: 'Active', value: String(active.length), delta: undefined },
-    { key: 'checkin', label: 'Check in', value: String(store.queue.length), delta: undefined },
-    { key: 'revenue', label: "Today's revenue", value: '₹18.4k', delta: '+12%' },
+    { key: 'appts', label: "Today's appts", value: d ? String(d.todaysAppointments) : '—', delta: undefined },
+    { key: 'active', label: 'Active', value: d ? String(d.activeNow) : '—', delta: undefined },
+    { key: 'checkin', label: 'Check in', value: d ? String(d.checkInCount) : '—', delta: undefined },
+    { key: 'revenue', label: "Today's revenue", value: d ? formatMoney(d.revenue) : '—', delta: undefined },
   ];
 
   return (
@@ -71,10 +71,9 @@ export function Dashboard() {
           Active queue
         </SectionTitle>
         <View style={{ gap: 8 }}>
-          {queuePreview.map((c) => {
-            const entry = store.queue.find((q) => q.id === c.id);
-            return <QueueCard key={c.id} card={c} onPress={() => entry && store.openDetail(entry)} />;
-          })}
+          {queuePreview.map((c) => (
+            <QueueCard key={c.id} card={c} onPress={() => store.openDetail(c.id)} />
+          ))}
         </View>
 
         <SectionTitle>Today&apos;s summary</SectionTitle>

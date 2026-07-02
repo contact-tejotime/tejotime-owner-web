@@ -4,7 +4,7 @@ import { LayoutChangeEvent, PanResponder, Pressable, ScrollView, Text, View } fr
 import { QueueCard } from '@/components/cards/QueueCard';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import { CardVM, buildSeatGroups, SeatGroupVM } from '@/lib/queue';
+import { CardVM, SeatGroupVM } from '@/lib/queue';
 import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -40,6 +40,8 @@ function DraggableCard({
   setDragId.current = store.setDragId;
   const moveWithinSeat = useRef(store.moveWithinSeat);
   moveWithinSeat.current = store.moveWithinSeat;
+  const commitMove = useRef(store.commitMove);
+  commitMove.current = store.commitMove;
 
   const disarm = () => {
     if (armTimer.current) clearTimeout(armTimer.current);
@@ -47,9 +49,11 @@ function DraggableCard({
   };
   const endDrag = () => {
     disarm();
+    const wasDragging = dragging.current;
     dragging.current = false;
     armed.current = false;
     setDragId.current(null);
+    if (wasDragging) commitMove.current(live.current.staffId, live.current.id); // persist final order
   };
 
   const responder = useRef(
@@ -155,9 +159,9 @@ export function Queue() {
   const store = useAppState();
   const scrollAt = useRef(0);
 
-  const groupsAll = buildSeatGroups(store.queue, store.staff, store.services);
-  const active = store.queue.filter((q) => q.status === 'waiting' || q.status === 'in-service');
-  const waitingCount = store.queue.filter((q) => q.status === 'waiting').length;
+  const groupsAll = store.seats;
+  const activeCount = groupsAll.reduce((n, g) => n + g.cards.length, 0);
+  const waitingCount = groupsAll.reduce((n, g) => n + g.waitN, 0);
   const allView = store.queueStaff === 'all';
   const groups = groupsAll.filter((g) => allView || store.queueStaff === g.id);
 
@@ -168,7 +172,7 @@ export function Queue() {
   const summary =
     store.dragId != null
       ? 'Drop to reorder this seat'
-      : `${store.staff.length} seats · ${active.length} in queue`;
+      : `${groupsAll.length} seats · ${activeCount} in queue`;
 
   return (
     <>
@@ -265,7 +269,6 @@ export function Queue() {
                   <SeatHeader group={g} />
                   <View style={{ gap: 10 }}>
                     {g.cards.map((c) => {
-                      const entry = store.queue.find((q) => q.id === c.id);
                       if (c.isWaiting) {
                         waitIdx += 1;
                         return (
@@ -274,12 +277,12 @@ export function Queue() {
                             card={c}
                             index={waitIdx}
                             count={waitCount}
-                            onOpen={() => entry && store.openDetail(entry)}
+                            onOpen={() => store.openDetail(c.id)}
                             scrollAt={scrollAt}
                           />
                         );
                       }
-                      return <QueueCard key={c.id} card={c} showSeat={false} onPress={() => entry && store.openDetail(entry)} />;
+                      return <QueueCard key={c.id} card={c} showSeat={false} onPress={() => store.openDetail(c.id)} />;
                     })}
                     {g.empty && (
                       <View style={{ borderWidth: 1, borderColor: colors.borderDefault, borderStyle: 'dashed', borderRadius: radius.lg, padding: 14 }}>

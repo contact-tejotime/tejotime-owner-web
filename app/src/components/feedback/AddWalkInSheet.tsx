@@ -6,7 +6,6 @@ import { ServiceCard } from '@/components/cards/ServiceCard';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Input } from '@/components/ui/Input';
-import { estMins, soonestSeat } from '@/lib/queue';
 import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -18,15 +17,24 @@ export function AddWalkInSheet() {
   const store = useAppState();
   const open = store.sheet === 'walkin';
 
-  const autoSeat = soonestSeat(store.queue, store.staff, store.services);
+  const seatById = Object.fromEntries(store.seats.map((g) => [g.id, g]));
+  let autoSeat = store.staff[0]?.id ?? '';
+  let bestLoad = Infinity;
+  store.staff.forEach((st) => {
+    const load = seatById[st.id]?.clearMinutes ?? 0;
+    if (load < bestLoad) {
+      bestLoad = load;
+      autoSeat = st.id;
+    }
+  });
   const autoName = store.staff.find((st) => st.id === autoSeat)?.name ?? '';
 
   const staffOptions = [
     { id: 'auto', name: 'Any seat', initial: '✦', sub: `Soonest free · ${autoName}`, color: colors.textSubtle },
     ...store.staff.map((st) => {
-      const items = store.queue.filter((q) => q.staffId === st.id && (q.status === 'waiting' || q.status === 'in-service'));
-      const w = items.filter((q) => q.status === 'waiting').length;
-      const load = items.reduce((m, q) => m + estMins(q, store.services), 0);
+      const g = seatById[st.id];
+      const w = g?.waitN ?? 0;
+      const load = g?.clearMinutes ?? 0;
       return {
         id: st.id,
         name: st.name,
