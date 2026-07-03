@@ -5,7 +5,7 @@
   "description": "TejoTime backend — Express + Supabase + Socket.IO (no ORM).",
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
