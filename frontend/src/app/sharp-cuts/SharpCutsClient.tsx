@@ -5,7 +5,7 @@ import type { CSSProperties } from "react";
 import type { Socket } from "socket.io-client";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/Button";
-import { publicApi, type Microsite, type Slot, type Ticket } from "@/lib/api";
+import { publicApi, type Microsite, type MicrositeStaff, type Slot, type Ticket } from "@/lib/api";
 import { connectCustomer, type CustomerAuth } from "@/lib/socket";
 import "./salon.css";
 
@@ -42,6 +42,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
   const [navSolid, setNavSolid] = useState(false);
   const [liveWait, setLiveWait] = useState(initialSite.live.waitMinutes);
   const [liveCount, setLiveCount] = useState(initialSite.live.queueCount);
+  const [liveStaff, setLiveStaff] = useState<MicrositeStaff[]>(initialSite.staff ?? []);
 
   const [joinOpen, setJoinOpen] = useState(false);
   const [mode, setMode] = useState<"queue" | "book">("queue");
@@ -75,10 +76,17 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
   }, []);
 
   // ---- realtime: availability (+ poll fallback) ----
+  const stopTicketPoll = () => {
+    if (ticketPoll.current) clearInterval(ticketPoll.current);
+    ticketPoll.current = null;
+  };
   const bindSocket = (s: Socket) => {
     s.on("availability:updated", (d: { waitMinutes: number; queueCount: number }) => {
       setLiveWait(d.waitMinutes);
       setLiveCount(d.queueCount);
+    });
+    s.on("staff:availability", (d: { staff: MicrositeStaff[] }) => {
+      if (d.staff) setLiveStaff(d.staff);
     });
     s.on("ticket:updated", (d: { ahead: number; waitMinutes: number; status: string; isYourTurn?: boolean }) => {
       setTicket((prev) => (prev ? { ...prev, ahead: d.ahead, waitMinutes: d.waitMinutes, status: d.status } : prev));
@@ -90,6 +98,13 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
     });
     s.on("ticket:cancelled", () => {
       setTicket((prev) => (prev ? { ...prev, status: "cancelled" } : prev));
+      setJustTurn(false);
+      stopTicketPoll();
+    });
+    s.on("ticket:completed", () => {
+      setTicket((prev) => (prev ? { ...prev, status: "completed", ahead: 0 } : prev));
+      setJustTurn(false);
+      stopTicketPoll();
     });
   };
 
@@ -109,6 +124,10 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
           setLiveWait(a.waitMinutes);
           setLiveCount(a.queueCount);
         })
+        .catch(() => {});
+      publicApi
+        .getStaffAvailability(SLUG)
+        .then((r) => setLiveStaff(r.staff))
         .catch(() => {});
     }, 15000);
     return () => {
@@ -133,7 +152,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
     dur: `${s.durationMinutes} min`,
     price: Math.round(s.price.amount / 100),
   }));
-  const barbers = (site.staff ?? []).map((s, i) => ({
+  const barbers = liveStaff.map((s, i) => ({
     id: s.id,
     name: s.name,
     role: s.roleLabel ?? "",
@@ -149,10 +168,6 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
   const yearsOpen = Math.max(1, new Date().getFullYear() - establishedYear);
 
   // ---- modal control ----
-  const stopTicketPoll = () => {
-    if (ticketPoll.current) clearInterval(ticketPoll.current);
-    ticketPoll.current = null;
-  };
   const startTicketPoll = (id: string) => {
     stopTicketPoll();
     ticketPoll.current = setInterval(() => {
@@ -290,7 +305,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
     return step >= 3 ? "var(--primary)" : "var(--surface-sunken)";
   };
 
-  const progressPct = justTurn
+  const progressPct = justTurn || ticket?.status === "completed"
     ? "100%"
     : ticket && initialAhead > 0
       ? `${Math.max(0, Math.round((1 - ticket.ahead / initialAhead) * 100))}%`
@@ -702,16 +717,28 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
                     </div>
                   </div>
                   <h3 style={{ font: "var(--fw-extrabold) 22px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>
-                    {mode === "book" ? "You're booked!" : justTurn ? "It's your turn!" : "You're in the queue!"}
+                    {mode === "book"
+                      ? "You're booked!"
+                      : ticket?.status === "completed"
+                        ? "All done — thanks for visiting!"
+                        : ticket?.status === "cancelled"
+                          ? "You've left the queue"
+                          : justTurn
+                            ? "It's your turn!"
+                            : "You're in the queue!"}
                   </h3>
                   <p style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 18px" }}>
                     {mode === "book"
                       ? booking
                         ? `${booking.serviceName} · ${new Date(booking.scheduledStartAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`
                         : "See you at your slot."
-                      : justTurn
-                        ? "Head to the chair — see you inside."
-                        : "We'll text you when you're 2 away."}
+                      : ticket?.status === "completed"
+                        ? "Your service is complete. See you next time!"
+                        : ticket?.status === "cancelled"
+                          ? "You're no longer in the queue."
+                          : justTurn
+                            ? "Head to the chair — see you inside."
+                            : "We'll text you when you're 2 away."}
                   </p>
 
                   {mode === "queue" && ticket && (
@@ -735,7 +762,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
                   )}
 
                   <Button variant="primary" fullWidth onClick={closeJoin}>Done</Button>
-                  {mode === "queue" && ticket && (
+                  {mode === "queue" && ticket && ticket.status !== "completed" && ticket.status !== "cancelled" && (
                     <div onClick={leaveQueue} style={{ font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--error)", marginTop: 14, cursor: "pointer" }}>Leave queue</div>
                   )}
                 </div>

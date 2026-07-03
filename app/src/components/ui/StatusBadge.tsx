@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Animated, Text, View } from 'react-native';
 
 import { useTheme } from '@/theme/ThemeProvider';
@@ -51,7 +51,7 @@ export function StatusBadge({ status }: { status: StatusKind }) {
   const t = tonePair(s.tone, colors);
   const live = status === 'in-service' || status === 'serving' || status === 'waiting';
 
-  const pulse = useRef(new Animated.Value(0)).current;
+  const [pulse] = useState(() => new Animated.Value(0));
   useEffect(() => {
     if (!live) return;
     const loop = Animated.loop(

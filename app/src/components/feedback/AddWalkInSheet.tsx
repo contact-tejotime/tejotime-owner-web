@@ -10,8 +10,24 @@ import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
 import { useTheme } from '@/theme/ThemeProvider';
 
-export function AddWalkInSheet() {
+function SegButton({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
   const { colors, radius, fontFamily, fontSize, shadow } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        { flex: 1, alignItems: 'center', borderRadius: radius.md, paddingVertical: 10 },
+        on ? { backgroundColor: colors.surfaceCard, ...shadow.xs } : null,
+      ]}>
+      <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodySm, color: on ? colors.primary : colors.textMuted }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+export function AddWalkInSheet() {
+  const { colors, radius, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
   const resolveColor = useServiceColor();
   const store = useAppState();
@@ -44,19 +60,6 @@ export function AddWalkInSheet() {
       };
     }),
   ];
-
-  const SegButton = ({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) => (
-    <Pressable
-      onPress={onPress}
-      style={[
-        { flex: 1, alignItems: 'center', borderRadius: radius.md, paddingVertical: 10 },
-        on ? { backgroundColor: colors.surfaceCard, ...shadow.xs } : null,
-      ]}>
-      <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodySm, color: on ? colors.primary : colors.textMuted }}>
-        {label}
-      </Text>
-    </Pressable>
-  );
 
   return (
     <Modal transparent visible={open} animationType="slide" onRequestClose={store.closeWalkin}>

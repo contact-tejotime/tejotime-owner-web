@@ -127,6 +127,21 @@ export async function broadcastQueue(businessId: string): Promise<void> {
   const waitMinutes = clears.length ? Math.min(...clears) : 0;
   emitToPublic(businessId, 'availability:updated', { waitMinutes, queueCount: summary.waitingCount });
 
+  // Per-barber live availability (drives the microsite "Our team" cards). Same
+  // shape as GET /public/businesses/:slug/staff, so the client reuses it directly.
+  const staff = ctx.staffRows.map((s) => {
+    const g = groups.find((x) => x.id === s.id);
+    return {
+      id: s.id,
+      name: s.name,
+      roleLabel: s.role_label,
+      busy: !!g?.serving,
+      queueCount: g?.waitingCount ?? 0,
+      waitLabel: g && g.clearMinutes > 0 ? `~${g.clearMinutes}m` : 'Free',
+    };
+  });
+  emitToPublic(businessId, 'staff:availability', { staff });
+
   await processTicketBroadcasts(businessId, ctx);
 }
 
@@ -249,6 +264,9 @@ export async function checkout(businessId: string, entryId: string) {
     promoted: r.promoted,
     visitId: r.visit_id,
   });
+  // The finished entry drops out of the active set, so broadcastQueue can no
+  // longer reach its ticket room — push the terminal event directly here.
+  emitToTicket(entryId, 'ticket:completed', { visitId: r.visit_id });
   await broadcastQueue(businessId);
   const view = await getQueueView(businessId, { view: 'grouped' });
   return { promoted: r.promoted, ...view };
@@ -256,6 +274,8 @@ export async function checkout(businessId: string, entryId: string) {
 
 export async function noShow(businessId: string, entryId: string) {
   const r = await callRpc('queue_no_show', { p_business_id: businessId, p_entry_id: entryId });
+  // Terminal push to the now-inactive entry's ticket room (broadcastQueue skips it).
+  emitToTicket(entryId, 'ticket:cancelled', { reason: 'no_show' });
   return mutateAndReturn(businessId, 'queue:entry.no_show', { entryId, seatId: r.staff_id });
 }
 
@@ -297,5 +317,7 @@ export async function moveWithinSeat(businessId: string, entryId: string, toInde
 
 export async function cancelEntry(businessId: string, entryId: string) {
   const r = await callRpc('queue_leave', { p_business_id: businessId, p_entry_id: entryId });
+  // Terminal push to the now-inactive entry's ticket room (broadcastQueue skips it).
+  emitToTicket(entryId, 'ticket:cancelled', { reason: 'removed' });
   return mutateAndReturn(businessId, 'queue:entry.removed', { entryId, seatId: r.staff_id });
 }

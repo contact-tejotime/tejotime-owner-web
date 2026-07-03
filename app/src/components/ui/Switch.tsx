@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Animated, Pressable } from 'react-native';
 
 import { useTheme } from '@/theme/ThemeProvider';
@@ -18,7 +18,7 @@ export function Switch({
   disabled?: boolean;
 }) {
   const { colors, radius, shadow } = useTheme();
-  const anim = useRef(new Animated.Value(checked ? 1 : 0)).current;
+  const [anim] = useState(() => new Animated.Value(checked ? 1 : 0));
 
   useEffect(() => {
     Animated.timing(anim, {

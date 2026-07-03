@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { LayoutChangeEvent, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { QueueCard } from '@/components/cards/QueueCard';
@@ -35,13 +35,17 @@ function DraggableCard({
 
   // Live refs so the once-created responder always reads current values.
   const live = useRef({ id: card.id, staffId: card.staffId, index });
-  live.current = { id: card.id, staffId: card.staffId, index };
   const setDragId = useRef(store.setDragId);
-  setDragId.current = store.setDragId;
   const moveWithinSeat = useRef(store.moveWithinSeat);
-  moveWithinSeat.current = store.moveWithinSeat;
   const commitMove = useRef(store.commitMove);
-  commitMove.current = store.commitMove;
+
+  // Refresh those refs after each commit (not during render — react-hooks/refs).
+  useEffect(() => {
+    live.current = { id: card.id, staffId: card.staffId, index };
+    setDragId.current = store.setDragId;
+    moveWithinSeat.current = store.moveWithinSeat;
+    commitMove.current = store.commitMove;
+  });
 
   const disarm = () => {
     if (armTimer.current) clearTimeout(armTimer.current);
@@ -56,7 +60,10 @@ function DraggableCard({
     if (wasDragging) commitMove.current(live.current.staffId, live.current.id); // persist final order
   };
 
-  const responder = useRef(
+  // Created once. Its callbacks read the refs above only during gestures (never
+  // during render), so passing refs here is safe — the rule can't prove that.
+  // eslint-disable-next-line react-hooks/refs
+  const [responder] = useState(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       // Arm a long-press without capturing, so taps and scrolling still work.
@@ -84,7 +91,7 @@ function DraggableCard({
       onPanResponderRelease: endDrag,
       onPanResponderTerminate: endDrag,
     }),
-  ).current;
+  );
 
   return (
     <View

@@ -6,7 +6,7 @@ import { money } from '../../domain/money';
 import { normalizePhone } from '../../lib/phone';
 import { dayjs } from '../../lib/time';
 import { buildSeatGroups, soonestSeat, ticketPosition } from '../../lib/queue-engine';
-import { emitToOwners } from '../../realtime/emitters';
+import { emitToOwners, emitToTicket } from '../../realtime/emitters';
 import { ticketKey } from '../auth/token.service';
 import { findOrCreateCustomer } from '../customers/customer.repo';
 import { loadQueueContext } from '../queue/queue.context';
@@ -322,6 +322,8 @@ export async function leaveTicket(ticketId: string) {
   const { data: entry } = await supabase.from('queue_entry').select('business_id, status').eq('id', ticketId).maybeSingle();
   if (!entry) throw Errors.notFound('Ticket not found');
   await callRpc('queue_leave', { p_business_id: entry.business_id, p_entry_id: ticketId });
+  // Terminal push so a ticket open on another device flips (broadcastQueue skips the now-inactive entry).
+  emitToTicket(ticketId, 'ticket:cancelled', { reason: 'left' });
   await broadcastQueue(entry.business_id);
   return { ok: true, ticketId };
 }

@@ -99,6 +99,7 @@ export interface BookBody extends JoinBody {
 export const publicApi = {
   getMicrosite: (slug: string) => req<Microsite>(`/public/businesses/${slug}`),
   getAvailability: (slug: string) => req<Availability>(`/public/businesses/${slug}/availability`),
+  getStaffAvailability: (slug: string) => req<{ staff: MicrositeStaff[] }>(`/public/businesses/${slug}/staff`),
   getSlots: (slug: string, params: { date: string; serviceId?: string; staffId?: string }) => {
     const q = new URLSearchParams({ date: params.date });
     if (params.serviceId) q.set("serviceId", params.serviceId);
