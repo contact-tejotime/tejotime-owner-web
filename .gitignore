@@ -59,3 +59,6 @@ expo-env.d.ts
 # generated native folders
 ios/
 android/
+
+backend/.env.render
+frontend/.env.render
