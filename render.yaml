@@ -1,0 +1,97 @@
+# Render Blueprint — deploys the TejoTime API + customer web as two Node web services.
+# Both run as persistent processes, so Socket.IO realtime and node-cron work unchanged.
+# Spec: https://render.com/docs/blueprint-spec   Guide: ./DEPLOY.md
+#
+# Secrets/URLs are marked `sync: false` — enter them in the Render dashboard (never committed).
+# Reuse the secret values from backend/.env verbatim so the already-seeded demo login works.
+
+services:
+  # ---------- Backend: Express + Socket.IO + node-cron ----------
+  - type: web
+    name: tejotime-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      - key: LOG_LEVEL
+        value: info
+      - key: DEFAULT_TIMEZONE
+        value: Asia/Kolkata
+      - key: DEFAULT_CURRENCY
+        value: INR
+      - key: SUPABASE_STORAGE_BUCKET
+        value: media
+      - key: JWT_ACCESS_TTL
+        value: "900"
+      - key: JWT_REFRESH_TTL
+        value: "2592000"
+      - key: FREE_PLAN_CUSTOMER_LIMIT
+        value: "2"
+      - key: TWO_AWAY_THRESHOLD
+        value: "2"
+      - key: TICKET_ABANDON_HOURS
+        value: "4"
+      - key: BOOKING_SLOT_MINUTES
+        value: "30"
+      - key: OTP_ENABLED
+        value: "false"
+      - key: PAYMENTS_ENABLED
+        value: "false"
+      - key: SMS_ENABLED
+        value: "false"
+      - key: EMAIL_ENABLED
+        value: "false"
+      # --- secrets: paste from backend/.env in the Render dashboard ---
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: CUSTOMER_TOKEN_SECRET
+        sync: false
+      - key: TICKET_URL_HMAC_SECRET
+        sync: false
+      - key: PASSWORD_PEPPER
+        sync: false
+      - key: OTP_PEPPER
+        sync: false
+      # --- cross-service URLs: set after the first deploy, then redeploy ---
+      - key: APP_BASE_URL
+        sync: false   # https://tejotime-api.onrender.com
+      - key: PUBLIC_WEB_URL
+        sync: false   # https://tejotime-web.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false   # https://tejotime-web.onrender.com
+
+  # ---------- Frontend: Next.js 16 customer microsite (SSR) ----------
+  - type: web
+    name: tejotime-web
+    runtime: node
+    rootDir: frontend
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      # NEXT_PUBLIC_* are baked at BUILD time — set them, then redeploy the web service.
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false   # https://tejotime-api.onrender.com/api/v1
+      - key: NEXT_PUBLIC_SOCKET_URL
+        sync: false   # https://tejotime-api.onrender.com
