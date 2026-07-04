@@ -49,6 +49,8 @@ export function DetailPanel() {
   const open = !!card;
   const seat = card ? store.staff.find((st) => st.id === card.staffId) : undefined;
   const seatColor = seat ? resolveColor(seat.color) : colors.textSubtle;
+  const seatGroup = card ? store.seats.find((g) => g.id === card.staffId) : undefined;
+  const seatBusy = !!seatGroup?.serving;
 
   return (
     <Modal transparent visible={open} animationType="fade" onRequestClose={store.closeDetail}>
@@ -132,7 +134,13 @@ export function DetailPanel() {
                         </Pressable>
                       ))}
                   </View>
-                  <Button variant="primary" size="lg" fullWidth onPress={() => store.startService(card.id)}>
+                  {seatBusy && (
+                    <Text style={{ fontFamily: fontFamily.regular, fontSize: fontSize.bodySm, color: colors.textMuted, lineHeight: 20 }}>
+                      {seat?.name ?? 'This seat'} is already serving {seatGroup?.servingName ?? 'someone'}. Complete that
+                      service first, or move this customer to another seat.
+                    </Text>
+                  )}
+                  <Button variant="primary" size="lg" fullWidth disabled={seatBusy} onPress={() => store.startService(card.id)}>
                     Start service
                   </Button>
                   <Button variant="outline" fullWidth onPress={() => store.noShow(card.id)}>

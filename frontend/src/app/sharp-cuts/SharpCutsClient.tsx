@@ -90,6 +90,9 @@ const sameDigits = (a: string, b: string) => a.replace(/\D/g, "") === b.replace(
  *  Anything else — completed, cancelled, no_show — means there's no active entry. */
 const isActive = (s?: string | null) => s === "waiting" || s === "in_service";
 
+/** Leave is only allowed while waiting — not once service has started. */
+const canLeaveQueue = (s?: string | null) => s === "waiting";
+
 type View = "flow" | "already" | "blocked" | "left" | "track";
 
 export default function SharpCutsClient({ initialSite }: { initialSite: Microsite }) {
@@ -169,6 +172,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
     s.on("ticket:updated", (d: { ahead: number; waitMinutes: number; status: string; isYourTurn?: boolean }) => {
       setTicket((prev) => (prev ? { ...prev, ahead: d.ahead, waitMinutes: d.waitMinutes, status: d.status } : prev));
       if (d.isYourTurn) setJustTurn(true);
+      if (d.status === "in_service") setConfirmLeave(false);
       // Terminal states normally arrive via ticket:cancelled/ticket:completed, but if an
       // update ever carries a non-active status, treat the entry as gone.
       if (!isActive(d.status)) {
@@ -1303,7 +1307,9 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
                       {mode === "queue" && ticket && isActive(ticket.status) && !confirmLeave && (
                         <>
                           <Button variant="primary" fullWidth onClick={closeJoin}>Done</Button>
-                          <div onClick={askLeave} style={{ font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--error)", marginTop: 14, cursor: "pointer" }}>Leave queue</div>
+                          {canLeaveQueue(ticket.status) && (
+                            <div onClick={askLeave} style={{ font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--error)", marginTop: 14, cursor: "pointer" }}>Leave queue</div>
+                          )}
                         </>
                       )}
                       {(mode === "book" || !ticket || !isActive(ticket.status)) && !confirmLeave && (
@@ -1431,14 +1437,20 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
                   {!confirmLeave ? (
                     <>
                       <Button variant="primary" fullWidth onClick={closeJoin}>Track my turn</Button>
-                      <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-                        <div style={{ flex: 1 }}>
+                      {canLeaveQueue(ticket?.status) ? (
+                        <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+                          <div style={{ flex: 1 }}>
+                            <Button variant="outline" fullWidth onClick={joinDifferent}>Different number</Button>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <Button variant="ghost" fullWidth onClick={askLeave}>Leave queue</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ marginTop: 10 }}>
                           <Button variant="outline" fullWidth onClick={joinDifferent}>Different number</Button>
                         </div>
-                        <div style={{ flex: 1 }}>
-                          <Button variant="ghost" fullWidth onClick={askLeave}>Leave queue</Button>
-                        </div>
-                      </div>
+                      )}
                     </>
                   ) : (
                     <LeaveConfirm token={ticket?.token ?? held?.token ?? ""} onStay={cancelLeave} onLeave={confirmLeaveQueue} />

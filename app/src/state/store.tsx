@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import type { Socket } from 'socket.io-client';
 
 import { AppointmentEntry, Customer, ServiceVM, Staff } from '@/data/sample';
-import { SeatGroupVM, CardVM } from '@/lib/queue';
+import { SeatGroupVM, CardVM, flatCards } from '@/lib/queue';
 import { api, ApiError, getAccessToken, initSession, setOnAuthFail } from '@/lib/api';
 import { connectOwner } from '@/lib/socket';
 import {
@@ -383,7 +383,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null }));
           showToast('Service started');
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Could not start');
+          const err = e as ApiError;
+          if (err.code === 'SEAT_BUSY') {
+            const card = flatCards(s.seats).find((c) => c.id === id);
+            const seat = s.staff.find((st) => st.id === card?.staffId);
+            const seatGroup = s.seats.find((g) => g.id === card?.staffId);
+            showToast(
+              `${seat?.name ?? 'This seat'} is already serving ${seatGroup?.servingName?.split(' ')[0] ?? 'someone'}. Finish that first.`,
+            );
+          } else {
+            showToast(err.message ?? 'Could not start');
+          }
         }
       },
       checkout: async (id) => {

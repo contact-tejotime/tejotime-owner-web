@@ -374,6 +374,9 @@ export async function trackByPhone(slug: string, input: { phone: string }) {
 export async function leaveTicket(ticketId: string) {
   const { data: entry } = await supabase.from('queue_entry').select('business_id, status').eq('id', ticketId).maybeSingle();
   if (!entry) throw Errors.notFound('Ticket not found');
+  if (entry.status !== 'waiting') {
+    throw Errors.conflict('INVALID_STATE', 'Cannot leave queue while service is in progress');
+  }
   await callRpc('queue_leave', { p_business_id: entry.business_id, p_entry_id: ticketId });
   // Terminal push so a ticket open on another device flips (broadcastQueue skips the now-inactive entry).
   emitToTicket(ticketId, 'ticket:cancelled', { reason: 'left' });
