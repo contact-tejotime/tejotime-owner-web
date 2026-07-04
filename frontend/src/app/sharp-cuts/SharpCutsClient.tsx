@@ -5,13 +5,22 @@ import type { CSSProperties } from "react";
 import type { Socket } from "socket.io-client";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/Button";
-import { publicApi, type Microsite, type MicrositeStaff, type Slot, type Ticket } from "@/lib/api";
+import { ApiError, publicApi, type Microsite, type MicrositeStaff, type Slot, type Ticket } from "@/lib/api";
 import { connectCustomer, type CustomerAuth } from "@/lib/socket";
 import "./salon.css";
 
 const SLUG = "sharp-cuts";
 const AVATAR_COLORS = ["var(--primary)", "var(--secondary)", "var(--amber-500)"];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+// Demo verification: the live backend has no OTP endpoint, so the OTP screen is a
+// client-side gate (see plan). The real joinQueue/bookSlot fires once it passes.
+const DEMO_OTP = "1234";
+// Client-side abuse simulation: after this many joins from one phone in a session we
+// show the "too many attempts" view (the backend enforces only a generic per-IP 429).
+const BLOCK_AT = 3;
+const SHOP_PHONE = "+91 98200 12345"; // demo contact for the blocked view
+const STORE_KEY = "tt_sharpcuts_v1";
 
 // Static editorial content (not modelled in the API yet).
 const FAQS = [
@@ -37,6 +46,45 @@ const eyebrow: CSSProperties = {
   marginBottom: 16,
 };
 
+// ---- Client-side "held ticket" simulation (localStorage) ----
+// The backend allows duplicate joins and has no per-phone lookup, so the design's
+// one-token-per-phone + resume behaviour is simulated here. Every held record is
+// re-validated against the real getTicket so we never surface a stale/dead ticket.
+interface HeldRecord {
+  phone: string;
+  name: string;
+  ticketId: string;
+  ticketKey: string;
+  businessId: string;
+  token: string;
+}
+interface Store {
+  hold: HeldRecord | null;
+  attempts: Record<string, number>;
+  blocked: Record<string, boolean>;
+  lastPhone: string;
+  lastName: string;
+}
+const defaultStore = (): Store => ({ hold: null, attempts: {}, blocked: {}, lastPhone: "", lastName: "" });
+function readStore(): Store {
+  if (typeof window === "undefined") return defaultStore();
+  try {
+    return { ...defaultStore(), ...(JSON.parse(localStorage.getItem(STORE_KEY) || "null") || {}) };
+  } catch {
+    return defaultStore();
+  }
+}
+function writeStore(s: Store) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(s));
+  } catch {
+    /* ignore */
+  }
+}
+
+type View = "flow" | "already" | "blocked" | "left";
+
 export default function SharpCutsClient({ initialSite }: { initialSite: Microsite }) {
   const site = initialSite;
   const [navSolid, setNavSolid] = useState(false);
@@ -46,6 +94,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
 
   const [joinOpen, setJoinOpen] = useState(false);
   const [mode, setMode] = useState<"queue" | "book">("queue");
+  const [view, setView] = useState<View>("flow");
   const [step, setStep] = useState(1);
   const [cart, setCart] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -62,8 +111,19 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
   const [justTurn, setJustTurn] = useState(false);
   const [initialAhead, setInitialAhead] = useState(0);
 
+  // OTP + new modal views
+  const [otp, setOtp] = useState(["", "", "", ""]);
+  const [otpError, setOtpError] = useState("");
+  const [resendIn, setResendIn] = useState(0);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [leftMsg, setLeftMsg] = useState("");
+  const [held, setHeld] = useState<HeldRecord | null>(null);
+
   const socketRef = useRef<Socket | null>(null);
   const ticketPoll = useRef<ReturnType<typeof setInterval> | null>(null);
+  const resendTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const storeRef = useRef<Store>(defaultStore());
+  const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   // ---- nav shadow on scroll ----
   useEffect(() => {
@@ -79,6 +139,12 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
   const stopTicketPoll = () => {
     if (ticketPoll.current) clearInterval(ticketPoll.current);
     ticketPoll.current = null;
+  };
+  const clearHold = () => {
+    const store = storeRef.current;
+    store.hold = null;
+    writeStore(store);
+    setHeld(null);
   };
   const bindSocket = (s: Socket) => {
     s.on("availability:updated", (d: { waitMinutes: number; queueCount: number }) => {
@@ -100,11 +166,13 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
       setTicket((prev) => (prev ? { ...prev, status: "cancelled" } : prev));
       setJustTurn(false);
       stopTicketPoll();
+      clearHold();
     });
     s.on("ticket:completed", () => {
       setTicket((prev) => (prev ? { ...prev, status: "completed", ahead: 0 } : prev));
       setJustTurn(false);
       stopTicketPoll();
+      clearHold();
     });
   };
 
@@ -113,6 +181,24 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
     const s = connectCustomer(auth);
     bindSocket(s);
     socketRef.current = s;
+  };
+
+  // ---- ticket polling (fallback to socket) ----
+  const startTicketPoll = (id: string) => {
+    stopTicketPoll();
+    ticketPoll.current = setInterval(() => {
+      publicApi
+        .getTicket(id)
+        .then((t) => {
+          setTicket((prev) => (prev ? { ...prev, ...t } : t));
+          if (t.isYourTurn) setJustTurn(true);
+          if (t.status === "completed" || t.status === "cancelled") {
+            stopTicketPoll();
+            clearHold();
+          }
+        })
+        .catch(() => {});
+    }, 5000);
   };
 
   useEffect(() => {
@@ -138,9 +224,37 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [site.id]);
 
+  // ---- restore a held ticket (resume pill / "already in line") ----
+  useEffect(() => {
+    const store = readStore();
+    storeRef.current = store;
+    if (!store.hold) return;
+    const rec = store.hold;
+    publicApi
+      .getTicket(rec.ticketId)
+      .then((t) => {
+        if (t.status === "completed" || t.status === "cancelled") {
+          clearHold();
+          return;
+        }
+        setHeld(rec);
+        setTicket(t);
+        setInitialAhead(t.ahead);
+        setJustTurn(!!t.isYourTurn);
+        openSocket({ businessId: rec.businessId || site.id, ticketId: rec.ticketId, ticketKey: rec.ticketKey });
+        startTicketPoll(rec.ticketId);
+      })
+      .catch((e) => {
+        if (e instanceof ApiError && e.status === 404) clearHold();
+        // other (network) errors: keep the record optimistically, don't restore live state
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site.id]);
+
   useEffect(
     () => () => {
       if (ticketPoll.current) clearInterval(ticketPoll.current);
+      if (resendTimer.current) clearInterval(resendTimer.current);
     },
     [],
   );
@@ -167,33 +281,58 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
   const establishedYear = site.establishedYear ?? 2014;
   const yearsOpen = Math.max(1, new Date().getFullYear() - establishedYear);
 
-  // ---- modal control ----
-  const startTicketPoll = (id: string) => {
-    stopTicketPoll();
-    ticketPoll.current = setInterval(() => {
-      publicApi
-        .getTicket(id)
-        .then((t) => {
-          setTicket((prev) => (prev ? { ...prev, ...t } : t));
-          if (t.isYourTurn) setJustTurn(true);
-        })
-        .catch(() => {});
-    }, 5000);
+  // ---- resend countdown ----
+  const stopResend = () => {
+    if (resendTimer.current) clearInterval(resendTimer.current);
+    resendTimer.current = null;
+  };
+  const startResend = () => {
+    stopResend();
+    setResendIn(30);
+    resendTimer.current = setInterval(() => {
+      setResendIn((n) => {
+        if (n <= 1) {
+          stopResend();
+          return 0;
+        }
+        return n - 1;
+      });
+    }, 1000);
   };
 
+  // ---- modal control ----
   const openJoin = (m: "queue" | "book", preselectBarber = "any") => {
     setMode(m);
+    setConfirmLeave(false);
+    setOtp(["", "", "", ""]);
+    setOtpError("");
+    setFormError("");
+    const store = storeRef.current;
+    const lp = store.lastPhone;
+    if (lp && store.blocked[lp]) {
+      setPhone(lp);
+      setView("blocked");
+      setJoinOpen(true);
+      return;
+    }
+    if (held) {
+      setPhone(held.phone);
+      setName(held.name);
+      setView("already");
+      setJoinOpen(true);
+      return;
+    }
+    setView("flow");
     setStep(1);
     setCart(null);
-    setName("");
-    setPhone("");
+    setName(store.lastName || "");
+    setPhone(lp || "");
     setBarber(preselectBarber);
     setTicket(null);
     setBooking(null);
     setJustTurn(false);
     setSlots([]);
     setSelectedSlot(null);
-    setFormError("");
     setJoinOpen(true);
   };
   const openQueue = () => openJoin("queue");
@@ -202,12 +341,19 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
 
   const closeJoin = () => {
     setJoinOpen(false);
-    stopTicketPoll();
-    openSocket({ businessId: site.id });
+    setConfirmLeave(false);
+    stopResend();
+    // Keep the live ticket socket + poll alive when we still hold a ticket, so the
+    // resume pill stays current; otherwise fall back to the availability-only socket.
+    if (!held) {
+      stopTicketPoll();
+      openSocket({ businessId: site.id });
+    }
   };
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
   const toggleFaq = (i: number) => setFaqOpen((cur) => (cur === i ? null : i));
 
-  const goStep2 = async () => {
+  const toStep2 = async () => {
     if (!cart) return;
     setStep(2);
     setFormError("");
@@ -225,9 +371,11 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
       }
     }
   };
+  const backTo1 = () => setStep(1);
 
-  const confirm = async () => {
-    if (!name.trim() || !phone.trim()) {
+  // Step 2 -> OTP screen (demo verification gate)
+  const sendOtp = () => {
+    if (!name.trim() || phone.replace(/\D/g, "").length < 4) {
       setFormError("Enter your name and phone number");
       return;
     }
@@ -235,54 +383,202 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
       setFormError("Pick a time slot");
       return;
     }
-    if (!cart) return;
-    setSubmitting(true);
+    const store = storeRef.current;
+    const p = phone.trim();
+    if (store.blocked[p]) {
+      store.lastPhone = p;
+      writeStore(store);
+      setView("blocked");
+      return;
+    }
+    if ((store.attempts[p] || 0) >= BLOCK_AT) {
+      store.blocked[p] = true;
+      store.lastPhone = p;
+      writeStore(store);
+      setView("blocked");
+      return;
+    }
     setFormError("");
+    setOtp(["", "", "", ""]);
+    setOtpError("");
+    setStep(3);
+    startResend();
+  };
+  const resendOtp = () => {
+    if (resendIn > 0) return;
+    setOtp(["", "", "", ""]);
+    setOtpError("");
+    startResend();
+    otpRefs.current[0]?.focus();
+  };
+  const backToDetails = () => {
+    stopResend();
+    setOtpError("");
+    setStep(2);
+  };
+
+  const onOtpInput = (i: number, value: string) => {
+    const raw = value.replace(/\D/g, "");
+    if (raw.length > 1) {
+      // pasted full/partial code
+      const next = raw.slice(0, 4).split("");
+      while (next.length < 4) next.push("");
+      setOtp(next);
+      setOtpError("");
+      const last = Math.min(raw.length, 4) - 1;
+      otpRefs.current[last]?.focus();
+      return;
+    }
+    setOtp((prev) => {
+      const next = [...prev];
+      next[i] = raw.slice(-1);
+      return next;
+    });
+    setOtpError("");
+    if (raw && i < 3) otpRefs.current[i + 1]?.focus();
+  };
+  const onOtpKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !otp[i] && i > 0) otpRefs.current[i - 1]?.focus();
+  };
+
+  // OTP verified -> perform the REAL join/book
+  const verifyOtp = async () => {
+    const code = otp.join("");
+    if (code.length < 4) {
+      setOtpError("Enter the 4-digit code");
+      return;
+    }
+    if (code !== DEMO_OTP) {
+      setOtpError("Incorrect code. For this demo, enter 1 2 3 4.");
+      setOtp(["", "", "", ""]);
+      otpRefs.current[0]?.focus();
+      return;
+    }
+    if (!cart) return;
+    const p = phone.trim();
+    setSubmitting(true);
+    setOtpError("");
+    stopResend();
     try {
       if (mode === "queue") {
         const t = await publicApi.joinQueue(SLUG, {
           serviceId: cart,
           name: name.trim(),
-          phone: phone.trim(),
+          phone: p,
           preferredStaffId: barber,
         });
         setTicket(t);
         setInitialAhead(t.ahead);
         setJustTurn(!!t.isYourTurn);
-        setStep(3);
+        const store = storeRef.current;
+        store.hold = {
+          phone: p,
+          name: name.trim(),
+          ticketId: t.ticketId,
+          ticketKey: t.socket?.ticketKey ?? "",
+          businessId: t.socket?.businessId ?? site.id,
+          token: t.token,
+        };
+        store.lastPhone = p;
+        store.lastName = name.trim();
+        store.attempts[p] = (store.attempts[p] || 0) + 1;
+        writeStore(store);
+        setHeld(store.hold);
+        setStep(4);
         if (t.socket) openSocket({ businessId: t.socket.businessId, ticketId: t.ticketId, ticketKey: t.socket.ticketKey });
         startTicketPoll(t.ticketId);
       } else {
         const b = await publicApi.bookSlot(SLUG, {
           serviceId: cart,
           name: name.trim(),
-          phone: phone.trim(),
+          phone: p,
           preferredStaffId: barber,
           slotStart: selectedSlot!,
         });
         setBooking({ serviceName: b.serviceName, scheduledStartAt: b.scheduledStartAt });
-        setStep(3);
+        const store = storeRef.current;
+        store.lastPhone = p;
+        store.lastName = name.trim();
+        writeStore(store);
+        setStep(4);
       }
     } catch (e) {
-      setFormError((e as Error)?.message ?? "Something went wrong");
+      if (e instanceof ApiError && e.code === "RATE_LIMITED") {
+        const store = storeRef.current;
+        store.blocked[p] = true;
+        store.lastPhone = p;
+        writeStore(store);
+        setView("blocked");
+      } else {
+        setOtpError((e as Error)?.message ?? "Something went wrong");
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const leaveQueue = async () => {
-    if (ticket) {
+  // ---- leave / rejoin ----
+  const askLeave = () => setConfirmLeave(true);
+  const cancelLeave = () => setConfirmLeave(false);
+  const confirmLeaveQueue = async () => {
+    const store = storeRef.current;
+    const p = (phone || store.lastPhone).trim();
+    const tid = held?.ticketId ?? ticket?.ticketId;
+    if (tid) {
       try {
-        await publicApi.leaveTicket(ticket.ticketId);
+        await publicApi.leaveTicket(tid);
       } catch {
         /* ignore */
       }
     }
-    closeJoin();
+    store.hold = null;
+    writeStore(store);
+    setHeld(null);
+    stopTicketPoll();
+    openSocket({ businessId: site.id });
+    const many = (store.attempts[p] || 0) >= BLOCK_AT;
+    setLeftMsg(
+      many
+        ? "Your spot is freed. Heads up — repeated cancellations may require you to call the shop to rejoin."
+        : "Your spot is freed and the next customer has moved up.",
+    );
+    setTicket(null);
+    setConfirmLeave(false);
+    setView("left");
+  };
+  const joinDifferent = () => {
+    setView("flow");
+    setStep(1);
+    setCart(null);
+    setName("");
+    setPhone("");
+    setBarber("any");
+    setOtp(["", "", "", ""]);
+    setOtpError("");
+    setBooking(null);
+    setJustTurn(false);
+    setConfirmLeave(false);
+    setSlots([]);
+    setSelectedSlot(null);
+    setFormError("");
   };
 
+  // ---- derived render values ----
   const sel = services.find((x) => x.id === cart);
   const liveWaitLabel = `~${liveWait} min`;
+  const modeTitle =
+    view === "already"
+      ? "You're already in line"
+      : view === "blocked"
+        ? "Hold on"
+        : mode === "book"
+          ? "Book a time slot"
+          : "Join the queue";
+  const showResume =
+    !!held && !joinOpen && !!ticket && ticket.status !== "completed" && ticket.status !== "cancelled";
+  const resumeToken = ticket?.token ?? held?.token ?? "";
+  const resumeAhead = justTurn ? 0 : ticket?.ahead ?? 0;
+  const resumeLabel = `${resumeAhead} ahead · ~${ticket?.waitMinutes ?? 0} min`;
 
   const navStyle: CSSProperties = {
     position: "sticky",
@@ -299,17 +595,16 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
       : { background: "transparent", borderBottom: "1px solid transparent" }),
   };
 
-  const accent = (n: number) => {
-    if (n === 1) return step >= 1 ? "var(--primary)" : "var(--border-default)";
-    if (n === 2) return step >= 2 ? "var(--primary)" : "var(--surface-sunken)";
-    return step >= 3 ? "var(--primary)" : "var(--surface-sunken)";
-  };
+  const accent = (n: number) => (step >= n ? "var(--primary)" : "var(--surface-sunken)");
 
-  const progressPct = justTurn || ticket?.status === "completed"
-    ? "100%"
-    : ticket && initialAhead > 0
-      ? `${Math.max(0, Math.round((1 - ticket.ahead / initialAhead) * 100))}%`
-      : "0%";
+  const progressPct =
+    justTurn || ticket?.status === "completed"
+      ? "100%"
+      : ticket && initialAhead > 0
+        ? `${Math.max(0, Math.round((1 - ticket.ahead / initialAhead) * 100))}%`
+        : "0%";
+
+  const cantConfirm = !name.trim() || phone.replace(/\D/g, "").length < 4 || (mode === "book" && !selectedSlot);
 
   return (
     <div style={{ position: "relative", overflowX: "hidden" }}>
@@ -343,6 +638,10 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
       <div style={{ position: "relative", height: 560, overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, color-mix(in srgb, var(--brand-ink) 22%, #cfd6e6), color-mix(in srgb, var(--primary) 18%, #dfe6f2) 60%, color-mix(in srgb, var(--secondary) 16%, #e3efed))" }} />
         <div style={{ position: "absolute", right: "6%", top: "50%", transform: "translateY(-50%)", width: 380, height: 380, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,.5), transparent 62%)" }} />
+        <div style={{ position: "absolute", right: "9%", bottom: 34, font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "rgba(15,23,42,.4)", display: "flex", alignItems: "center", gap: 7 }}>
+          <Icon name="building" size={15} />
+          Hero photo — salon interior
+        </div>
         <div style={{ position: "relative", maxWidth: 1180, margin: "0 auto", height: "100%", padding: "0 32px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <div style={{ maxWidth: 560, animation: "ttHero .7s ease both" }}>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,.85)", border: "1px solid rgba(255,255,255,.7)", borderRadius: 999, padding: "6px 14px", backdropFilter: "blur(6px)" }}>
@@ -358,7 +657,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
             <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 13, background: "var(--surface-card)", border: "1px solid var(--border-subtle)", borderRadius: 14, padding: "12px 18px", boxShadow: "var(--shadow-md)" }}>
                 <span style={{ display: "flex", color: "var(--secondary)" }}>
-                  <Icon name="clock" size={22} />
+                  <Icon name="hourglass" size={22} />
                 </span>
                 <div>
                   <div style={{ font: "var(--fw-extrabold) 24px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{liveWaitLabel} wait</div>
@@ -414,7 +713,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
           </div>
           <div style={{ flex: 1, minWidth: 280, height: 260, borderRadius: 18, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--surface-card)), color-mix(in srgb, var(--secondary) 12%, var(--surface-card)))", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-subtle)" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 8, font: "var(--fw-medium) 13px/1 var(--font-sans)" }}>
-              <Icon name="scissors" size={18} />
+              <Icon name="building" size={18} />
               Photo — the space
             </span>
           </div>
@@ -435,7 +734,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
         </div>
       </div>
 
-      {/* ===== SERVICES ===== */}
+      {/* ===== SERVICES (names only) ===== */}
       <div id="services" style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)", borderBottom: "1px solid var(--border-subtle)" }}>
         <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "64px 32px" }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
@@ -449,7 +748,6 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
                   <Icon name="scissors" size={18} />
                 </div>
                 <span style={{ flex: 1, font: "var(--fw-semibold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{sv.name}</span>
-                <span style={{ font: "var(--fw-bold) 15px/1 var(--font-sans)", color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>₹{sv.price}</span>
               </div>
             ))}
           </div>
@@ -547,7 +845,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
             <div style={eyebrow}>Visit us</div>
             <div style={{ display: "flex", alignItems: "center", gap: 9, font: "var(--fw-medium) 15px/1.4 var(--font-sans)", color: "var(--text-body)", marginBottom: 22 }}>
               <span style={{ color: "var(--primary)", display: "flex" }}>
-                <Icon name="mapPin" size={18} />
+                <Icon name="building" size={18} />
               </span>
               {site.address ?? "—"}
             </div>
@@ -563,7 +861,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
           </div>
           <div style={{ flex: 1, minWidth: 300, minHeight: 280, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 9%, var(--surface-page)), color-mix(in srgb, var(--secondary) 9%, var(--surface-page)))", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-subtle)", borderLeft: "1px solid var(--border-subtle)" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 8, font: "var(--fw-medium) 13px/1 var(--font-sans)" }}>
-              <Icon name="mapPin" size={18} />
+              <Icon name="building" size={18} />
               Map placeholder
             </span>
           </div>
@@ -597,180 +895,361 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
         </div>
       </div>
 
+      {/* ===== RESUME PILL (restored session) ===== */}
+      {showResume && (
+        <div onClick={openQueue} className="salonResumePill" style={{ position: "fixed", bottom: 22, right: 22, zIndex: 150, cursor: "pointer", display: "flex", alignItems: "center", gap: 11, background: "var(--surface-card)", border: "1px solid var(--border-subtle)", borderRadius: 999, padding: "10px 18px 10px 13px", boxShadow: "var(--shadow-xl)", animation: "ttModalIn .45s cubic-bezier(.34,1.4,.5,1) both" }}>
+          <span style={{ position: "relative", display: "flex", width: 10, height: 10 }}>
+            <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "var(--success)", animation: "ttRing 1.6s ease-out infinite" }} />
+            <span style={{ position: "relative", width: 10, height: 10, borderRadius: "50%", background: "var(--success)" }} />
+          </span>
+          <span style={{ font: "var(--fw-semibold) 14px/1 var(--font-sans)", color: "var(--text-strong)" }}>You&apos;re in line · {resumeToken}</span>
+          <span style={{ font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)" }}>{resumeLabel}</span>
+          <span style={{ font: "var(--fw-bold) 13px/1 var(--font-sans)", color: "var(--primary)" }}>Track →</span>
+        </div>
+      )}
+
       {/* ===== JOIN / BOOK MODAL ===== */}
       {joinOpen && (
         <div onClick={closeJoin} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(15,23,42,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, animation: "ttFade .22s ease" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: 460, maxWidth: "100%", background: "var(--surface-card)", borderRadius: 20, boxShadow: "var(--shadow-xl)", overflow: "hidden", maxHeight: "92vh", display: "flex", flexDirection: "column", animation: "ttModalIn .42s cubic-bezier(.34,1.4,.5,1) both" }}>
+          <div onClick={stop} style={{ width: 460, maxWidth: "100%", background: "var(--surface-card)", borderRadius: 20, boxShadow: "var(--shadow-xl)", overflow: "hidden", maxHeight: "92vh", display: "flex", flexDirection: "column", animation: "ttModalIn .42s cubic-bezier(.34,1.4,.5,1) both" }}>
             {/* header w/ steps */}
             <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--border-subtle)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ font: "var(--fw-extrabold) 20px/1 var(--font-sans)", color: "var(--text-strong)" }}>{mode === "book" ? "Book a time slot" : "Join the queue"}</span>
+                <span style={{ font: "var(--fw-extrabold) 20px/1 var(--font-sans)", color: "var(--text-strong)" }}>{modeTitle}</span>
                 <div onClick={closeJoin} style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--surface-page)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--text-muted)" }}>
                   <Icon name="x" size={18} />
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 7, marginTop: 14 }}>
-                <span style={{ height: 4, flex: 1, borderRadius: 999, background: accent(1) }} />
-                <span style={{ height: 4, flex: 1, borderRadius: 999, background: accent(2) }} />
-                <span style={{ height: 4, flex: 1, borderRadius: 999, background: accent(3) }} />
-              </div>
+              {view === "flow" && (
+                <div style={{ display: "flex", gap: 7, marginTop: 14 }}>
+                  <span style={{ height: 4, flex: 1, borderRadius: 999, background: accent(1) }} />
+                  <span style={{ height: 4, flex: 1, borderRadius: 999, background: accent(2) }} />
+                  <span style={{ height: 4, flex: 1, borderRadius: 999, background: accent(3) }} />
+                  <span style={{ height: 4, flex: 1, borderRadius: 999, background: accent(4) }} />
+                </div>
+              )}
             </div>
 
             <div style={{ padding: "22px 24px 26px", overflow: "auto" }}>
-              {/* STEP 1: pick service */}
-              {step === 1 && (
-                <div style={{ animation: "ttStep .32s ease both" }}>
-                  <p style={{ font: "var(--fw-regular) 14px/1.4 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 16px" }}>What are you here for today? Prices &amp; durations below.</p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                    {services.map((sv) => {
-                      const on = cart === sv.id;
-                      return (
-                        <div key={sv.id} onClick={() => setCart(sv.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 13, borderRadius: 12, padding: "13px 15px", transition: "border-color .15s ease, background .15s ease", background: on ? "color-mix(in srgb, var(--primary) 6%, var(--surface-card))" : "var(--surface-card)", border: `1.5px solid ${on ? "var(--primary)" : "var(--border-subtle)"}` }}>
-                          <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${on ? "var(--primary)" : "var(--border-default)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <span style={{ display: "flex", color: "var(--primary)", transition: "opacity .15s ease", opacity: on ? 1 : 0 }}>
-                              <Icon name="check" size={13} />
+              {/* ---------- VIEW: FLOW ---------- */}
+              {view === "flow" && (
+                <>
+                  {/* STEP 1: pick service */}
+                  {step === 1 && (
+                    <div style={{ animation: "ttStep .32s ease both" }}>
+                      <p style={{ font: "var(--fw-regular) 14px/1.4 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 16px" }}>What are you here for today? Prices &amp; durations below.</p>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                        {services.map((sv) => {
+                          const on = cart === sv.id;
+                          return (
+                            <div key={sv.id} onClick={() => setCart(sv.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 13, borderRadius: 12, padding: "13px 15px", transition: "border-color .15s ease, background .15s ease", background: on ? "color-mix(in srgb, var(--primary) 6%, var(--surface-card))" : "var(--surface-card)", border: `1.5px solid ${on ? "var(--primary)" : "var(--border-subtle)"}` }}>
+                              <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${on ? "var(--primary)" : "var(--border-default)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                <span style={{ display: "flex", color: "var(--primary)", transition: "opacity .15s ease", opacity: on ? 1 : 0 }}>
+                                  <Icon name="check" size={13} />
+                                </span>
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ font: "var(--fw-semibold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{sv.name}</div>
+                                <div style={{ font: "var(--fw-regular) 12px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{sv.dur}</div>
+                              </div>
+                              <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>₹{sv.price}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{ marginTop: 20 }}>
+                        <Button variant="primary" size="lg" fullWidth disabled={!cart} onClick={toStep2}>
+                          {cart ? `Continue · ${sel!.name} →` : "Pick a service to continue"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* STEP 2: details */}
+                  {step === 2 && (
+                    <div style={{ animation: "ttStep .32s ease both" }}>
+                      <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>Your name</div>
+                      <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Aman" className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: 10, fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 16, background: "var(--surface-card)" }} />
+                      <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>Phone number</div>
+                      <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="00000 00000" className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: 10, fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 16, background: "var(--surface-card)" }} />
+                      <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 9 }}>Preferred barber (optional)</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+                        {[{ id: "any", name: "Any" }, ...barbers.map((b) => ({ id: b.id, name: b.name }))].map((c) => {
+                          const on = barber === c.id;
+                          return (
+                            <span key={c.id} onClick={() => setBarber(c.id)} style={{ cursor: "pointer", font: "var(--fw-semibold) 13px/1 var(--font-sans)", padding: "8px 15px", borderRadius: 999, transition: "all .15s ease", ...(on ? { background: "var(--primary)", color: "#fff", border: "1.5px solid var(--primary)" } : { background: "var(--surface-card)", color: "var(--text-body)", border: "1.5px solid var(--border-subtle)" }) }}>
+                              {c.name}
                             </span>
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ font: "var(--fw-semibold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{sv.name}</div>
-                            <div style={{ font: "var(--fw-regular) 12px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{sv.dur}</div>
-                          </div>
-                          <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>₹{sv.price}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div style={{ marginTop: 20 }}>
-                    <Button variant="primary" size="lg" fullWidth disabled={!cart} onClick={goStep2}>
-                      {cart ? `Continue · ${sel!.name} →` : "Pick a service to continue"}
-                    </Button>
-                  </div>
-                </div>
-              )}
+                          );
+                        })}
+                      </div>
 
-              {/* STEP 2: details */}
-              {step === 2 && (
-                <div style={{ animation: "ttStep .32s ease both" }}>
-                  <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>Your name</div>
-                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Aman" className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: 10, fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 16, background: "var(--surface-card)" }} />
-                  <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>Phone number</div>
-                  <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="00000 00000" className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: 10, fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 16, background: "var(--surface-card)" }} />
-                  <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 9 }}>Preferred barber (optional)</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
-                    {[{ id: "any", name: "Any" }, ...barbers.map((b) => ({ id: b.id, name: b.name }))].map((c) => {
-                      const on = barber === c.id;
-                      return (
-                        <span key={c.id} onClick={() => setBarber(c.id)} style={{ cursor: "pointer", font: "var(--fw-semibold) 13px/1 var(--font-sans)", padding: "8px 15px", borderRadius: 999, transition: "all .15s ease", ...(on ? { background: "var(--primary)", color: "#fff", border: "1.5px solid var(--primary)" } : { background: "var(--surface-card)", color: "var(--text-body)", border: "1.5px solid var(--border-subtle)" }) }}>
-                          {c.name}
+                      {mode === "book" && (
+                        <>
+                          <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 9 }}>Pick a time (today)</div>
+                          {slotsLoading ? (
+                            <div style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)", marginBottom: 18 }}>Loading slots…</div>
+                          ) : slots.length === 0 ? (
+                            <div style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)", marginBottom: 18 }}>No slots available today — try joining the live queue instead.</div>
+                          ) : (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+                              {slots.map((s) => {
+                                const on = selectedSlot === s.startAt;
+                                return (
+                                  <span key={s.startAt} onClick={() => setSelectedSlot(s.startAt)} style={{ cursor: "pointer", font: "var(--fw-semibold) 13px/1 var(--font-sans)", padding: "8px 13px", borderRadius: 10, transition: "all .15s ease", ...(on ? { background: "var(--primary)", color: "#fff", border: "1.5px solid var(--primary)" } : { background: "var(--surface-card)", color: "var(--text-body)", border: "1.5px solid var(--border-subtle)" }) }}>
+                                    {s.label}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: "13px 15px", marginBottom: 14 }}>
+                        <span style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--text-body)" }}>
+                          {(sel ? sel.name : "") + " · " + (mode === "book" ? (selectedSlot ? "time selected" : "choose a time above") : `~${liveWait} min wait`)}
                         </span>
-                      );
-                    })}
-                  </div>
+                        <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)" }}>{sel ? `₹${sel.price}` : ""}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "10px 12px", marginBottom: 16 }}>
+                        <span style={{ color: "var(--secondary)", display: "flex", flexShrink: 0 }}>
+                          <Icon name="bell" size={15} />
+                        </span>
+                        <span style={{ font: "var(--fw-medium) 12px/1.35 var(--font-sans)", color: "var(--text-muted)" }}>We&apos;ll text a 4-digit code to verify your number. No app, no password.</span>
+                      </div>
+                      {formError && <div style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--error)", marginBottom: 12 }}>{formError}</div>}
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <Button variant="outline" size="lg" onClick={backTo1}>Back</Button>
+                        <div style={{ flex: 1 }}>
+                          <Button variant="primary" size="lg" fullWidth disabled={cantConfirm} onClick={sendOtp}>
+                            Send verification code →
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-                  {mode === "book" && (
-                    <>
-                      <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 9 }}>Pick a time (today)</div>
-                      {slotsLoading ? (
-                        <div style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)", marginBottom: 18 }}>Loading slots…</div>
-                      ) : slots.length === 0 ? (
-                        <div style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)", marginBottom: 18 }}>No slots available today — try joining the live queue instead.</div>
-                      ) : (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
-                          {slots.map((s) => {
-                            const on = selectedSlot === s.startAt;
-                            return (
-                              <span key={s.startAt} onClick={() => setSelectedSlot(s.startAt)} style={{ cursor: "pointer", font: "var(--fw-semibold) 13px/1 var(--font-sans)", padding: "8px 13px", borderRadius: 10, transition: "all .15s ease", ...(on ? { background: "var(--primary)", color: "#fff", border: "1.5px solid var(--primary)" } : { background: "var(--surface-card)", color: "var(--text-body)", border: "1.5px solid var(--border-subtle)" }) }}>
-                                {s.label}
-                              </span>
-                            );
-                          })}
+                  {/* STEP 3: OTP verify */}
+                  {step === 3 && (
+                    <div style={{ animation: "ttStep .32s ease both" }}>
+                      <div style={{ width: 52, height: 52, borderRadius: 14, background: "color-mix(in srgb, var(--primary) 10%, var(--surface-card))", color: "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                        <Icon name="bell" size={24} />
+                      </div>
+                      <h3 style={{ font: "var(--fw-extrabold) 20px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>Verify your number</h3>
+                      <p style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 20px" }}>
+                        We sent a 4-digit code to <span style={{ font: "var(--fw-semibold) 13px/1 var(--font-sans)", color: "var(--text-strong)" }}>{phone}</span>. Enter it to confirm you&apos;re a real customer.
+                      </p>
+                      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                        {otp.map((v, i) => (
+                          <input
+                            key={i}
+                            ref={(el) => {
+                              otpRefs.current[i] = el;
+                            }}
+                            value={v}
+                            onChange={(e) => onOtpInput(i, e.target.value)}
+                            onKeyDown={(e) => onOtpKeyDown(i, e)}
+                            type="tel"
+                            maxLength={1}
+                            inputMode="numeric"
+                            className="salonOtpBox"
+                            style={{ width: 52, height: 60, textAlign: "center", font: "var(--fw-extrabold) 24px/1 var(--font-sans)", color: "var(--text-strong)", borderRadius: 12, outline: "none", background: "var(--surface-card)", border: `1.5px solid ${otpError ? "var(--error)" : v ? "var(--primary)" : "var(--border-default)"}` }}
+                          />
+                        ))}
+                      </div>
+                      {otpError && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 7, color: "var(--error)", font: "var(--fw-medium) 12px/1.3 var(--font-sans)", marginBottom: 12 }}>
+                          <Icon name="x" size={14} />
+                          {otpError}
                         </div>
                       )}
-                    </>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                        <span onClick={resendOtp} style={{ font: "var(--fw-semibold) 12px/1 var(--font-sans)", ...(resendIn > 0 ? { color: "var(--text-subtle)", cursor: "default" } : { color: "var(--primary)", cursor: "pointer" }) }}>
+                          {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
+                        </span>
+                        <span style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "var(--text-subtle)" }}>Demo code: 1 2 3 4</span>
+                      </div>
+                      <Button variant="primary" size="lg" fullWidth loading={submitting} disabled={submitting} onClick={verifyOtp}>
+                        {mode === "book" ? "Verify & book →" : "Verify & join queue →"}
+                      </Button>
+                      <div onClick={backToDetails} style={{ textAlign: "center", font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 14, cursor: "pointer" }}>← Change number</div>
+                    </div>
                   )}
 
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: "13px 15px", marginBottom: 14 }}>
-                    <span style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--text-body)" }}>
-                      {(sel ? sel.name : "") + " · " + (mode === "book" ? "choose a time above" : `~${liveWait} min wait`)}
-                    </span>
-                    <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)" }}>{sel ? `₹${sel.price}` : ""}</span>
+                  {/* STEP 4: ticket / booked */}
+                  {step === 4 && (
+                    <div style={{ textAlign: "center", animation: "ttStep .32s ease both" }}>
+                      <div style={{ position: "relative", width: 68, height: 68, margin: "6px auto 16px" }}>
+                        <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "2px solid var(--success)", animation: "ttRing 1.2s ease-out infinite" }} />
+                        <div style={{ position: "relative", width: 68, height: 68, borderRadius: "50%", background: "var(--success-soft)", color: "var(--success)", display: "flex", alignItems: "center", justifyContent: "center", animation: "ttPop .5s cubic-bezier(.34,1.5,.5,1) both" }}>
+                          <Icon name="check" size={34} />
+                        </div>
+                      </div>
+                      <h3 style={{ font: "var(--fw-extrabold) 22px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>
+                        {mode === "book"
+                          ? "You're booked!"
+                          : ticket?.status === "completed"
+                            ? "All done — thanks for visiting!"
+                            : ticket?.status === "cancelled"
+                              ? "You've left the queue"
+                              : justTurn
+                                ? "It's your turn!"
+                                : "You're in the queue!"}
+                      </h3>
+                      <p style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 18px" }}>
+                        {mode === "book"
+                          ? booking
+                            ? `${booking.serviceName} · ${new Date(booking.scheduledStartAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`
+                            : "See you at your slot."
+                          : ticket?.status === "completed"
+                            ? "Your service is complete. See you next time!"
+                            : ticket?.status === "cancelled"
+                              ? "You're no longer in the queue."
+                              : justTurn
+                                ? "Head to the chair — see you inside."
+                                : "We'll text you when you're 2 away."}
+                      </p>
+
+                      {mode === "queue" && ticket && (
+                        <div style={{ border: "2px solid var(--text-strong)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
+                          <div style={{ font: "var(--fw-bold) 11px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Your token</div>
+                          <div style={{ font: "var(--fw-extrabold) 46px/1 var(--font-sans)", color: "var(--text-strong)", margin: "8px 0", letterSpacing: "-.01em" }}>{ticket.token}</div>
+                          <div style={{ display: "flex", justifyContent: "space-around", marginTop: 10 }}>
+                            <div>
+                              <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--primary)", fontVariantNumeric: "tabular-nums" }}>{justTurn ? 0 : ticket.ahead}</div>
+                              <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>ahead of you</div>
+                            </div>
+                            <div>
+                              <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--secondary)", fontVariantNumeric: "tabular-nums" }}>{justTurn ? "Now" : `~${ticket.waitMinutes}m`}</div>
+                              <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>est. wait</div>
+                            </div>
+                          </div>
+                          <div style={{ height: 6, background: "var(--surface-sunken)", borderRadius: 999, marginTop: 16, overflow: "hidden" }}>
+                            <div style={{ height: "100%", width: progressPct, background: "var(--success)", borderRadius: 999, transition: "width .6s ease" }} />
+                          </div>
+                        </div>
+                      )}
+
+                      {mode === "queue" && ticket && ticket.status !== "completed" && ticket.status !== "cancelled" && !confirmLeave && (
+                        <>
+                          <Button variant="primary" fullWidth onClick={closeJoin}>Done</Button>
+                          <div onClick={askLeave} style={{ font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--error)", marginTop: 14, cursor: "pointer" }}>Leave queue</div>
+                        </>
+                      )}
+                      {(mode === "book" || !ticket || ticket.status === "completed" || ticket.status === "cancelled") && !confirmLeave && (
+                        <Button variant="primary" fullWidth onClick={closeJoin}>Done</Button>
+                      )}
+                      {confirmLeave && (
+                        <LeaveConfirm token={ticket?.token ?? held?.token ?? ""} onStay={cancelLeave} onLeave={confirmLeaveQueue} />
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ---------- VIEW: ALREADY IN LINE ---------- */}
+              {view === "already" && (
+                <div style={{ textAlign: "center", animation: "ttStep .32s ease both" }}>
+                  <div style={{ width: 60, height: 60, borderRadius: "50%", background: "color-mix(in srgb, var(--secondary) 12%, var(--surface-card))", color: "var(--secondary)", display: "flex", alignItems: "center", justifyContent: "center", margin: "2px auto 16px" }}>
+                    <Icon name="ticket" size={30} />
                   </div>
-                  {formError && <div style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--error)", marginBottom: 12 }}>{formError}</div>}
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <Button variant="outline" size="lg" onClick={() => setStep(1)}>Back</Button>
-                    <div style={{ flex: 1 }}>
-                      <Button variant="primary" size="lg" fullWidth loading={submitting} disabled={!name.trim() || !phone.trim() || submitting} onClick={confirm}>
-                        {mode === "book" ? "Confirm booking →" : "Confirm · join queue →"}
-                      </Button>
+                  <h3 style={{ font: "var(--fw-extrabold) 21px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>You&apos;re already in line</h3>
+                  <p style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 18px" }}>This number already holds a live token. One active token per phone — no need to join twice.</p>
+                  <div style={{ border: "2px solid var(--text-strong)", borderRadius: 16, padding: 18, marginBottom: 16 }}>
+                    <div style={{ font: "var(--fw-bold) 11px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Your token</div>
+                    <div style={{ font: "var(--fw-extrabold) 40px/1 var(--font-sans)", color: "var(--text-strong)", margin: "8px 0" }}>{ticket?.token ?? held?.token ?? ""}</div>
+                    <div style={{ display: "flex", justifyContent: "space-around", marginTop: 6 }}>
+                      <div>
+                        <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "var(--primary)" }}>{justTurn ? 0 : ticket?.ahead ?? 0}</div>
+                        <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>ahead of you</div>
+                      </div>
+                      <div>
+                        <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "var(--secondary)" }}>{justTurn ? "Now" : `~${ticket?.waitMinutes ?? 0}m`}</div>
+                        <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>est. wait</div>
+                      </div>
                     </div>
                   </div>
+                  {!confirmLeave ? (
+                    <>
+                      <Button variant="primary" fullWidth onClick={closeJoin}>Track my turn</Button>
+                      <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+                        <div style={{ flex: 1 }}>
+                          <Button variant="outline" fullWidth onClick={joinDifferent}>Different number</Button>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <Button variant="ghost" fullWidth onClick={askLeave}>Leave queue</Button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <LeaveConfirm token={ticket?.token ?? held?.token ?? ""} onStay={cancelLeave} onLeave={confirmLeaveQueue} />
+                  )}
                 </div>
               )}
 
-              {/* STEP 3: ticket / booked */}
-              {step === 3 && (
+              {/* ---------- VIEW: BLOCKED / RATE-LIMITED ---------- */}
+              {view === "blocked" && (
                 <div style={{ textAlign: "center", animation: "ttStep .32s ease both" }}>
-                  <div style={{ position: "relative", width: 68, height: 68, margin: "6px auto 16px" }}>
-                    <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "2px solid var(--success)", animation: "ttRing 1.2s ease-out infinite" }} />
-                    <div style={{ position: "relative", width: 68, height: 68, borderRadius: "50%", background: "var(--success-soft)", color: "var(--success)", display: "flex", alignItems: "center", justifyContent: "center", animation: "ttPop .5s cubic-bezier(.34,1.5,.5,1) both" }}>
-                      <Icon name="check" size={34} />
+                  <div style={{ width: 60, height: 60, borderRadius: "50%", background: "var(--warning-soft)", color: "var(--warning-soft-fg)", display: "flex", alignItems: "center", justifyContent: "center", margin: "2px auto 16px" }}>
+                    <Icon name="hourglass" size={28} />
+                  </div>
+                  <h3 style={{ font: "var(--fw-extrabold) 21px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 8px" }}>Too many attempts today</h3>
+                  <p style={{ font: "var(--fw-regular) 14px/1.55 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 8px" }}>
+                    This number has joined and cancelled several times. To keep the line fair for everyone, please <span style={{ font: "var(--fw-semibold) 14px/1 var(--font-sans)", color: "var(--text-strong)" }}>call the shop</span> or come in to join.
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 12, margin: "16px 0" }}>
+                    <span style={{ color: "var(--primary)", display: "flex" }}>
+                      <Icon name="phone" size={16} />
+                    </span>
+                    <span style={{ font: "var(--fw-semibold) 14px/1 var(--font-sans)", color: "var(--text-strong)" }}>{SHOP_PHONE}</span>
+                  </div>
+                  <Button variant="primary" fullWidth onClick={closeJoin}>Got it</Button>
+                </div>
+              )}
+
+              {/* ---------- VIEW: LEFT QUEUE ---------- */}
+              {view === "left" && (
+                <div style={{ textAlign: "center", animation: "ttStep .32s ease both" }}>
+                  <div style={{ width: 60, height: 60, borderRadius: "50%", background: "var(--surface-sunken)", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", margin: "2px auto 16px" }}>
+                    <Icon name="check" size={28} />
+                  </div>
+                  <h3 style={{ font: "var(--fw-extrabold) 21px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 8px" }}>You&apos;ve left the queue</h3>
+                  <p style={{ font: "var(--fw-regular) 14px/1.55 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 20px" }}>{leftMsg}</p>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <Button variant="outline" fullWidth onClick={closeJoin}>Close</Button>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Button variant="primary" fullWidth onClick={joinDifferent}>Rejoin queue</Button>
                     </div>
                   </div>
-                  <h3 style={{ font: "var(--fw-extrabold) 22px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>
-                    {mode === "book"
-                      ? "You're booked!"
-                      : ticket?.status === "completed"
-                        ? "All done — thanks for visiting!"
-                        : ticket?.status === "cancelled"
-                          ? "You've left the queue"
-                          : justTurn
-                            ? "It's your turn!"
-                            : "You're in the queue!"}
-                  </h3>
-                  <p style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 18px" }}>
-                    {mode === "book"
-                      ? booking
-                        ? `${booking.serviceName} · ${new Date(booking.scheduledStartAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`
-                        : "See you at your slot."
-                      : ticket?.status === "completed"
-                        ? "Your service is complete. See you next time!"
-                        : ticket?.status === "cancelled"
-                          ? "You're no longer in the queue."
-                          : justTurn
-                            ? "Head to the chair — see you inside."
-                            : "We'll text you when you're 2 away."}
-                  </p>
-
-                  {mode === "queue" && ticket && (
-                    <div style={{ border: "2px solid var(--text-strong)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
-                      <div style={{ font: "var(--fw-bold) 11px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Your token</div>
-                      <div style={{ font: "var(--fw-extrabold) 46px/1 var(--font-sans)", color: "var(--text-strong)", margin: "8px 0", letterSpacing: "-.01em" }}>{ticket.token}</div>
-                      <div style={{ display: "flex", justifyContent: "space-around", marginTop: 10 }}>
-                        <div>
-                          <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--primary)", fontVariantNumeric: "tabular-nums" }}>{justTurn ? 0 : ticket.ahead}</div>
-                          <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>ahead of you</div>
-                        </div>
-                        <div>
-                          <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--secondary)", fontVariantNumeric: "tabular-nums" }}>{justTurn ? "Now" : `~${ticket.waitMinutes}m`}</div>
-                          <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>est. wait</div>
-                        </div>
-                      </div>
-                      <div style={{ height: 6, background: "var(--surface-sunken)", borderRadius: 999, marginTop: 16, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: progressPct, background: "var(--success)", borderRadius: 999, transition: "width .6s ease" }} />
-                      </div>
-                    </div>
-                  )}
-
-                  <Button variant="primary" fullWidth onClick={closeJoin}>Done</Button>
-                  {mode === "queue" && ticket && ticket.status !== "completed" && ticket.status !== "cancelled" && (
-                    <div onClick={leaveQueue} style={{ font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--error)", marginTop: 14, cursor: "pointer" }}>Leave queue</div>
-                  )}
                 </div>
               )}
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Inline "leave the queue?" confirmation used by the ticket and already-in-line views.
+function LeaveConfirm({ token, onStay, onLeave }: { token: string; onStay: () => void; onLeave: () => void }) {
+  return (
+    <div style={{ border: "1.5px solid var(--error)", borderRadius: 14, padding: 16, background: "color-mix(in srgb, var(--error) 5%, var(--surface-card))", textAlign: "left", animation: "ttStep .25s ease both" }}>
+      <div style={{ font: "var(--fw-bold) 15px/1.3 var(--font-sans)", color: "var(--text-strong)", marginBottom: 6 }}>Leave the queue?</div>
+      <div style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", marginBottom: 14 }}>
+        You&apos;ll lose token {token} and the next customer moves up. You can rejoin, but you&apos;ll go to the back of the line.
+      </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <Button variant="outline" fullWidth onClick={onStay}>Stay in queue</Button>
+        </div>
+        <div style={{ flex: 1 }}>
+          <Button variant="danger" fullWidth onClick={onLeave}>Yes, leave</Button>
+        </div>
+      </div>
     </div>
   );
 }

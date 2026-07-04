@@ -85,6 +85,8 @@
   --success-soft: var(--green-50);
   --success-soft-fg: var(--green-700);
   --warning: var(--amber-600);
+  --warning-soft: #fffbeb; /* amber-50 */
+  --warning-soft-fg: var(--amber-700);
   --error: var(--red-600);
   --error-soft: var(--red-50);
   --error-soft-fg: var(--red-700);
