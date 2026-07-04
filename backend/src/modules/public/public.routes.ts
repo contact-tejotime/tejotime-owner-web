@@ -19,6 +19,8 @@ const joinSchema = z
 
 const bookSchema = joinSchema.extend({ slotStart: z.string().datetime() }).strict();
 
+const trackSchema = z.object({ phone: z.string().trim().min(4).max(20) }).strict();
+
 export const publicRouter = Router();
 
 publicRouter.get(
@@ -86,6 +88,17 @@ publicRouter.post(
   validate({ params: slugParam, body: bookSchema }),
   asyncHandler(async (req, res) => {
     res.status(201).json(await pub.bookSlot(req.params.slug, req.body));
+  }),
+);
+
+// Track my turn: resolve the caller's active ticket for today from their phone number.
+// Verified by the demo OTP on the client (see plan); revisit auth when real OTP ships.
+publicRouter.post(
+  '/businesses/:slug/track',
+  limiters.publicWrite,
+  validate({ params: slugParam, body: trackSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await pub.trackByPhone(req.params.slug, req.body));
   }),
 );
 

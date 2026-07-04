@@ -188,6 +188,13 @@ export async function joinQueue(
   input: { serviceId: string; name: string; phone: string; preferredStaffId?: string },
 ) {
   const b = await resolveBusiness(slug);
+
+  // Day-scoped dedup: one active ticket per phone per day. If this phone already holds a
+  // live ticket today (possibly from another device/browser), return it flagged instead of
+  // minting a second token. See findActiveTicketByPhone for the "active today" definition.
+  const existing = await findActiveTicketByPhone(b, input.phone);
+  if (existing) return { ...existing, alreadyInQueue: true };
+
   const ctx = await loadQueueContext(b.id);
 
   const { data: svc } = await supabase
@@ -288,34 +295,80 @@ export async function bookSlot(
   };
 }
 
-export async function getTicket(ticketId: string) {
-  const { data: entry } = await supabase.from('queue_entry').select('*').eq('id', ticketId).maybeSingle();
-  if (!entry) throw Errors.notFound('Ticket not found');
-
+// Build the public Ticket DTO from a queue_entry row. `withSocket` adds the /customer
+// socket handshake (namespace/room/ticketKey) so a freshly tracked ticket can go live.
+async function ticketDetailFromEntry(entry: any, withSocket = false) {
+  const socket = withSocket ? { socket: ticketSocket(entry.business_id, entry.id) } : {};
   if (!['waiting', 'in_service'].includes(entry.status)) {
     return {
-      ticketId,
+      ticketId: entry.id,
       token: entry.token,
       ahead: 0,
       waitMinutes: 0,
       status: entry.status,
       isYourTurn: entry.status === 'in_service',
       progressPct: entry.status === 'completed' || entry.status === 'in_service' ? 100 : 0,
+      ...socket,
     };
   }
-
   const ctx = await loadQueueContext(entry.business_id);
-  const pos = ticketPosition(ticketId, ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
+  const pos = ticketPosition(entry.id, ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
   const isYourTurn = pos.status === 'in_service';
   return {
-    ticketId,
+    ticketId: entry.id,
     token: entry.token,
     ahead: pos.ahead,
     waitMinutes: pos.waitMinutes,
     status: pos.status ?? entry.status,
     isYourTurn,
     progressPct: isYourTurn ? 100 : 0,
+    ...socket,
   };
+}
+
+// The single source of truth for "does this phone hold a live ticket TODAY". Used by both
+// the join dedup and the Track-my-turn lookup so the day boundary is defined in one place.
+// Phone is normalized the same way joinQueue stores it, and token_day is the business-tz date.
+async function findActiveTicketByPhone(business: any, rawPhone: string) {
+  const phone = normalizePhone(rawPhone);
+  const today = dayjs().tz(business.timezone).format('YYYY-MM-DD');
+  const { data: entry } = await supabase
+    .from('queue_entry')
+    .select('*')
+    .eq('business_id', business.id)
+    .eq('customer_phone', phone)
+    .eq('token_day', today)
+    .in('status', ['waiting', 'in_service'])
+    .order('joined_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!entry) return null;
+  return ticketDetailFromEntry(entry, true);
+}
+
+export async function getTicket(ticketId: string) {
+  const { data: entry } = await supabase.from('queue_entry').select('*').eq('id', ticketId).maybeSingle();
+  if (!entry) throw Errors.notFound('Ticket not found');
+  return ticketDetailFromEntry(entry);
+}
+
+// Track my turn: look up the caller's active ticket for today by phone. This lets a
+// customer on a different browser/device (with no local resume record) find their place.
+// NOTE: with demo OTP this is verified client-side only, so the endpoint is effectively
+// unauthenticated (phone -> ticket). When real OTP lands, gate this behind a verified code.
+export async function trackByPhone(slug: string, input: { phone: string }) {
+  const b = await resolveBusiness(slug);
+  const ticket = await findActiveTicketByPhone(b, input.phone);
+  // Return the caller's known name (if this phone is a past customer) so a follow-on Join can
+  // pre-fill it. Read-only; the endpoint is OTP-gated so returning the caller's own name is ok.
+  const { data: cust } = await supabase
+    .from('customer')
+    .select('name')
+    .eq('business_id', b.id)
+    .eq('phone', normalizePhone(input.phone))
+    .maybeSingle();
+  const customerName = cust?.name ?? null;
+  return ticket ? { found: true, customerName, ...ticket } : { found: false, customerName };
 }
 
 export async function leaveTicket(ticketId: string) {

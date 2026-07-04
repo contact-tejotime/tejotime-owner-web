@@ -84,7 +84,14 @@ export interface Ticket {
   staffName?: string | null;
   serviceName?: string;
   socket?: { namespace: string; room: string; ticketKey: string; businessId: string };
+  /** Set by joinQueue when the phone already held a live ticket today (day-scoped dedup). */
+  alreadyInQueue?: boolean;
 }
+/** Track-my-turn lookup result: the active ticket for today, or { found: false }.
+ *  `customerName` is the caller's known name (past customer) for pre-filling a follow-on Join. */
+export type TrackResult =
+  | ({ found: true; customerName?: string | null } & Ticket)
+  | { found: false; customerName?: string | null };
 
 export interface JoinBody {
   serviceId: string;
@@ -116,4 +123,6 @@ export const publicApi = {
   getTicket: (ticketId: string) => req<Ticket>(`/public/tickets/${ticketId}`),
   leaveTicket: (ticketId: string) =>
     req<{ ok: boolean }>(`/public/tickets/${ticketId}`, { method: "DELETE" }),
+  trackByPhone: (slug: string, body: { phone: string }) =>
+    req<TrackResult>(`/public/businesses/${slug}/track`, { method: "POST", body: JSON.stringify(body) }),
 };

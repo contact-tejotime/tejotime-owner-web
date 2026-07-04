@@ -83,7 +83,14 @@ function writeStore(s: Store) {
   }
 }
 
-type View = "flow" | "already" | "blocked" | "left";
+/** Compare two phone strings by their digits only (ignores spacing/formatting). */
+const sameDigits = (a: string, b: string) => a.replace(/\D/g, "") === b.replace(/\D/g, "");
+
+/** A ticket "exists / is live" only while in queue (waiting) or in process (in_service).
+ *  Anything else — completed, cancelled, no_show — means there's no active entry. */
+const isActive = (s?: string | null) => s === "waiting" || s === "in_service";
+
+type View = "flow" | "already" | "blocked" | "left" | "track";
 
 export default function SharpCutsClient({ initialSite }: { initialSite: Microsite }) {
   const site = initialSite;
@@ -96,6 +103,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
   const [mode, setMode] = useState<"queue" | "book">("queue");
   const [view, setView] = useState<View>("flow");
   const [step, setStep] = useState(1);
+  const [tstep, setTstep] = useState(1); // Track-my-turn sub-step: 1 phone → 2 OTP → 3 not-found
   const [cart, setCart] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -118,6 +126,10 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [leftMsg, setLeftMsg] = useState("");
   const [held, setHeld] = useState<HeldRecord | null>(null);
+  // Phone verified via OTP this session — lets a follow-on Join skip a duplicate OTP.
+  const [verifiedPhone, setVerifiedPhone] = useState("");
+  // Name pulled from the track lookup (returning customer) to pre-fill Join.
+  const [trackedName, setTrackedName] = useState("");
 
   const socketRef = useRef<Socket | null>(null);
   const ticketPoll = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -157,6 +169,13 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
     s.on("ticket:updated", (d: { ahead: number; waitMinutes: number; status: string; isYourTurn?: boolean }) => {
       setTicket((prev) => (prev ? { ...prev, ahead: d.ahead, waitMinutes: d.waitMinutes, status: d.status } : prev));
       if (d.isYourTurn) setJustTurn(true);
+      // Terminal states normally arrive via ticket:cancelled/ticket:completed, but if an
+      // update ever carries a non-active status, treat the entry as gone.
+      if (!isActive(d.status)) {
+        setJustTurn(false);
+        stopTicketPoll();
+        clearHold();
+      }
     });
     s.on("ticket:ready", () => {
       setJustTurn(true);
@@ -192,7 +211,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
         .then((t) => {
           setTicket((prev) => (prev ? { ...prev, ...t } : t));
           if (t.isYourTurn) setJustTurn(true);
-          if (t.status === "completed" || t.status === "cancelled") {
+          if (!isActive(t.status)) {
             stopTicketPoll();
             clearHold();
           }
@@ -233,7 +252,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
     publicApi
       .getTicket(rec.ticketId)
       .then((t) => {
-        if (t.status === "completed" || t.status === "cancelled") {
+        if (!isActive(t.status)) {
           clearHold();
           return;
         }
@@ -339,6 +358,115 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
   const openBook = () => openJoin("book");
   const openWith = (barberId: string) => openJoin("queue", barberId);
 
+  // ---- Track my turn (look up an existing ticket by phone, e.g. from another browser) ----
+  const openTrack = () => {
+    setMode("queue");
+    setConfirmLeave(false);
+    setOtp(["", "", "", ""]);
+    setOtpError("");
+    setFormError("");
+    // Same browser: if we already hold a live ticket locally, jump straight to it.
+    if (held) {
+      setPhone(held.phone);
+      setName(held.name);
+      setView("already");
+      setJoinOpen(true);
+      return;
+    }
+    setPhone(storeRef.current.lastPhone || "");
+    setTstep(1);
+    setView("track");
+    setJoinOpen(true);
+  };
+  const trackSendOtp = () => {
+    if (phone.replace(/\D/g, "").length < 4) {
+      setFormError("Enter your phone number");
+      return;
+    }
+    setFormError("");
+    setOtp(["", "", "", ""]);
+    setOtpError("");
+    setTstep(2);
+    startResend();
+  };
+  const trackBack = () => {
+    stopResend();
+    setOtpError("");
+    setTstep(1);
+  };
+  const trackVerify = async () => {
+    const code = otp.join("");
+    if (code.length < 4) {
+      setOtpError("Enter the 4-digit code");
+      return;
+    }
+    if (code !== DEMO_OTP) {
+      setOtpError("Incorrect code. For this demo, enter 1 2 3 4.");
+      setOtp(["", "", "", ""]);
+      otpRefs.current[0]?.focus();
+      return;
+    }
+    const p = phone.trim();
+    setSubmitting(true);
+    setOtpError("");
+    setVerifiedPhone(p); // this phone is now OTP-verified for the session → Join can skip re-OTP
+    stopResend();
+    try {
+      const r = await publicApi.trackByPhone(SLUG, { phone: p });
+      const store = storeRef.current;
+      store.lastPhone = p;
+      const knownName = r.customerName ?? "";
+      setTrackedName(knownName);
+      if (knownName) store.lastName = knownName;
+      if (r.found) {
+        const t: Ticket = r;
+        setTicket(t);
+        setInitialAhead(t.ahead);
+        setJustTurn(!!t.isYourTurn);
+        // Persist the hold so THIS browser now also restores on reload.
+        store.hold = {
+          phone: p,
+          name: store.lastName || name.trim(),
+          ticketId: t.ticketId,
+          ticketKey: t.socket?.ticketKey ?? "",
+          businessId: t.socket?.businessId ?? site.id,
+          token: t.token,
+        };
+        writeStore(store);
+        setHeld(store.hold);
+        if (t.socket) openSocket({ businessId: t.socket.businessId, ticketId: t.ticketId, ticketKey: t.socket.ticketKey });
+        startTicketPoll(t.ticketId);
+        setView("already");
+      } else {
+        writeStore(store);
+        setTstep(3);
+      }
+    } catch (e) {
+      setOtpError((e as Error)?.message ?? "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  // From the Track "no active booking" screen: carry the verified phone + known name into a
+  // fresh Join. verifiedPhone stays set so Step 2 skips the second OTP; only service is left.
+  const joinAfterTrack = () => {
+    setMode("queue");
+    setView("flow");
+    setStep(1);
+    setCart(null);
+    setBarber("any");
+    setName(trackedName || storeRef.current.lastName || "");
+    setPhone(verifiedPhone);
+    setOtp(["", "", "", ""]);
+    setOtpError("");
+    setFormError("");
+    setBooking(null);
+    setJustTurn(false);
+    setConfirmLeave(false);
+    setSlots([]);
+    setSelectedSlot(null);
+  };
+
   const closeJoin = () => {
     setJoinOpen(false);
     setConfirmLeave(false);
@@ -373,36 +501,45 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
   };
   const backTo1 = () => setStep(1);
 
-  // Step 2 -> OTP screen (demo verification gate)
-  const sendOtp = () => {
-    if (!name.trim() || phone.replace(/\D/g, "").length < 4) {
-      setFormError("Enter your name and phone number");
-      return;
-    }
-    if (mode === "book" && !selectedSlot) {
-      setFormError("Pick a time slot");
-      return;
-    }
+  // Returns true (and shows the blocked view) if this phone is locally rate-limited.
+  const blockGuard = (p: string) => {
     const store = storeRef.current;
-    const p = phone.trim();
-    if (store.blocked[p]) {
-      store.lastPhone = p;
-      writeStore(store);
-      setView("blocked");
-      return;
-    }
-    if ((store.attempts[p] || 0) >= BLOCK_AT) {
+    if (store.blocked[p] || (store.attempts[p] || 0) >= BLOCK_AT) {
       store.blocked[p] = true;
       store.lastPhone = p;
       writeStore(store);
       setView("blocked");
-      return;
+      return true;
     }
+    return false;
+  };
+  // Shared Step 2 validation (name + phone, plus a slot when booking).
+  const detailsInvalid = () => {
+    if (!name.trim() || phone.replace(/\D/g, "").length < 4) {
+      setFormError("Enter your name and phone number");
+      return true;
+    }
+    if (mode === "book" && !selectedSlot) {
+      setFormError("Pick a time slot");
+      return true;
+    }
+    return false;
+  };
+  // Step 2 -> OTP screen (demo verification gate) — used when the phone is NOT yet verified.
+  const sendOtp = () => {
+    if (detailsInvalid()) return;
+    if (blockGuard(phone.trim())) return;
     setFormError("");
     setOtp(["", "", "", ""]);
     setOtpError("");
     setStep(3);
     startResend();
+  };
+  // Step 2 -> join directly, skipping OTP because this phone was already verified this session.
+  const confirmJoin = () => {
+    if (detailsInvalid()) return;
+    if (blockGuard(phone.trim())) return;
+    performJoinOrBook();
   };
   const resendOtp = () => {
     if (resendIn > 0) return;
@@ -441,23 +578,14 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
     if (e.key === "Backspace" && !otp[i] && i > 0) otpRefs.current[i - 1]?.focus();
   };
 
-  // OTP verified -> perform the REAL join/book
-  const verifyOtp = async () => {
-    const code = otp.join("");
-    if (code.length < 4) {
-      setOtpError("Enter the 4-digit code");
-      return;
-    }
-    if (code !== DEMO_OTP) {
-      setOtpError("Incorrect code. For this demo, enter 1 2 3 4.");
-      setOtp(["", "", "", ""]);
-      otpRefs.current[0]?.focus();
-      return;
-    }
+  // Perform the REAL join/book. Reached after OTP (verifyOtp) OR directly when the phone was
+  // already verified this session (confirmJoin) — the single place that talks to the API.
+  const performJoinOrBook = async () => {
     if (!cart) return;
     const p = phone.trim();
     setSubmitting(true);
     setOtpError("");
+    setFormError("");
     stopResend();
     try {
       if (mode === "queue") {
@@ -481,12 +609,16 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
         };
         store.lastPhone = p;
         store.lastName = name.trim();
-        store.attempts[p] = (store.attempts[p] || 0) + 1;
+        // Only count a genuinely new join toward the abuse counter — a day-scoped dedup hit
+        // (the phone was already in today's queue) is a no-op, not a fresh join.
+        if (!t.alreadyInQueue) store.attempts[p] = (store.attempts[p] || 0) + 1;
         writeStore(store);
         setHeld(store.hold);
-        setStep(4);
         if (t.socket) openSocket({ businessId: t.socket.businessId, ticketId: t.ticketId, ticketKey: t.socket.ticketKey });
         startTicketPoll(t.ticketId);
+        // Backend found this phone already holds a live ticket today → show it, don't dupe.
+        if (t.alreadyInQueue) setView("already");
+        else setStep(4);
       } else {
         const b = await publicApi.bookSlot(SLUG, {
           serviceId: cart,
@@ -510,11 +642,30 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
         writeStore(store);
         setView("blocked");
       } else {
-        setOtpError((e as Error)?.message ?? "Something went wrong");
+        // Surface on whichever screen we're on: Step 3 shows otpError, Step 2 shows formError.
+        const msg = (e as Error)?.message ?? "Something went wrong";
+        setOtpError(msg);
+        setFormError(msg);
       }
     } finally {
       setSubmitting(false);
     }
+  };
+  // OTP verified -> remember the phone for the session, then perform the real join/book.
+  const verifyOtp = () => {
+    const code = otp.join("");
+    if (code.length < 4) {
+      setOtpError("Enter the 4-digit code");
+      return;
+    }
+    if (code !== DEMO_OTP) {
+      setOtpError("Incorrect code. For this demo, enter 1 2 3 4.");
+      setOtp(["", "", "", ""]);
+      otpRefs.current[0]?.focus();
+      return;
+    }
+    setVerifiedPhone(phone.trim());
+    performJoinOrBook();
   };
 
   // ---- leave / rejoin ----
@@ -567,18 +718,23 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
   const sel = services.find((x) => x.id === cart);
   const liveWaitLabel = `~${liveWait} min`;
   const modeTitle =
-    view === "already"
-      ? "You're already in line"
-      : view === "blocked"
-        ? "Hold on"
-        : mode === "book"
-          ? "Book a time slot"
-          : "Join the queue";
-  const showResume =
-    !!held && !joinOpen && !!ticket && ticket.status !== "completed" && ticket.status !== "cancelled";
+    view === "track"
+      ? tstep === 3
+        ? "No active booking"
+        : "Check your place in line"
+      : view === "already"
+        ? "You're already in line"
+        : view === "blocked"
+          ? "Hold on"
+          : mode === "book"
+            ? "Book a time slot"
+            : "Join the queue";
+  const showResume = !!held && !joinOpen && !!ticket && isActive(ticket.status);
   const resumeToken = ticket?.token ?? held?.token ?? "";
   const resumeAhead = justTurn ? 0 : ticket?.ahead ?? 0;
   const resumeLabel = `${resumeAhead} ahead · ~${ticket?.waitMinutes ?? 0} min`;
+  // Owner has started this customer's service (waiting → in_service) — surface it live.
+  const inService = ticket?.status === "in_service" || justTurn;
 
   const navStyle: CSSProperties = {
     position: "sticky",
@@ -605,6 +761,8 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
         : "0%";
 
   const cantConfirm = !name.trim() || phone.replace(/\D/g, "").length < 4 || (mode === "book" && !selectedSlot);
+  // This exact phone was already OTP-verified this session → Step 2 joins directly (no 2nd OTP).
+  const phoneVerified = !!verifiedPhone && sameDigits(phone, verifiedPhone);
 
   return (
     <div style={{ position: "relative", overflowX: "hidden" }}>
@@ -630,7 +788,10 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
               </a>
             ))}
           </div>
-          <Button onClick={openQueue}>Join queue</Button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Button variant="outline" onClick={openTrack}>Track my turn</Button>
+            <Button onClick={openQueue}>Join queue</Button>
+          </div>
         </div>
       </div>
 
@@ -902,8 +1063,12 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
             <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "var(--success)", animation: "ttRing 1.6s ease-out infinite" }} />
             <span style={{ position: "relative", width: 10, height: 10, borderRadius: "50%", background: "var(--success)" }} />
           </span>
-          <span style={{ font: "var(--fw-semibold) 14px/1 var(--font-sans)", color: "var(--text-strong)" }}>You&apos;re in line · {resumeToken}</span>
-          <span style={{ font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)" }}>{resumeLabel}</span>
+          <span style={{ font: "var(--fw-semibold) 14px/1 var(--font-sans)", color: "var(--text-strong)" }}>
+            {inService ? "It's your turn" : "You're in line"} · {resumeToken}
+          </span>
+          <span style={{ font: "var(--fw-medium) 13px/1 var(--font-sans)", color: inService ? "var(--success)" : "var(--text-muted)" }}>
+            {inService ? "Head to the chair" : resumeLabel}
+          </span>
           <span style={{ font: "var(--fw-bold) 13px/1 var(--font-sans)", color: "var(--primary)" }}>Track →</span>
         </div>
       )}
@@ -1013,17 +1178,21 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
                         <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)" }}>{sel ? `₹${sel.price}` : ""}</span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "10px 12px", marginBottom: 16 }}>
-                        <span style={{ color: "var(--secondary)", display: "flex", flexShrink: 0 }}>
-                          <Icon name="bell" size={15} />
+                        <span style={{ color: phoneVerified ? "var(--success)" : "var(--secondary)", display: "flex", flexShrink: 0 }}>
+                          <Icon name={phoneVerified ? "check" : "bell"} size={15} />
                         </span>
-                        <span style={{ font: "var(--fw-medium) 12px/1.35 var(--font-sans)", color: "var(--text-muted)" }}>We&apos;ll text a 4-digit code to verify your number. No app, no password.</span>
+                        <span style={{ font: "var(--fw-medium) 12px/1.35 var(--font-sans)", color: "var(--text-muted)" }}>
+                          {phoneVerified
+                            ? "Your number is already verified — no code needed. You'll get your token right after you confirm."
+                            : "We'll text a 4-digit code to verify your number. No app, no password."}
+                        </span>
                       </div>
                       {formError && <div style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--error)", marginBottom: 12 }}>{formError}</div>}
                       <div style={{ display: "flex", gap: 10 }}>
                         <Button variant="outline" size="lg" onClick={backTo1}>Back</Button>
                         <div style={{ flex: 1 }}>
-                          <Button variant="primary" size="lg" fullWidth disabled={cantConfirm} onClick={sendOtp}>
-                            Send verification code →
+                          <Button variant="primary" size="lg" fullWidth loading={submitting} disabled={cantConfirm || submitting} onClick={phoneVerified ? confirmJoin : sendOtp}>
+                            {phoneVerified ? (mode === "book" ? "Confirm booking →" : "Join the queue →") : "Send verification code →"}
                           </Button>
                         </div>
                       </div>
@@ -1091,8 +1260,8 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
                           ? "You're booked!"
                           : ticket?.status === "completed"
                             ? "All done — thanks for visiting!"
-                            : ticket?.status === "cancelled"
-                              ? "You've left the queue"
+                            : ticket && !isActive(ticket.status)
+                              ? "You're no longer in the queue"
                               : justTurn
                                 ? "It's your turn!"
                                 : "You're in the queue!"}
@@ -1104,7 +1273,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
                             : "See you at your slot."
                           : ticket?.status === "completed"
                             ? "Your service is complete. See you next time!"
-                            : ticket?.status === "cancelled"
+                            : ticket && !isActive(ticket.status)
                               ? "You're no longer in the queue."
                               : justTurn
                                 ? "Head to the chair — see you inside."
@@ -1131,13 +1300,13 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
                         </div>
                       )}
 
-                      {mode === "queue" && ticket && ticket.status !== "completed" && ticket.status !== "cancelled" && !confirmLeave && (
+                      {mode === "queue" && ticket && isActive(ticket.status) && !confirmLeave && (
                         <>
                           <Button variant="primary" fullWidth onClick={closeJoin}>Done</Button>
                           <div onClick={askLeave} style={{ font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--error)", marginTop: 14, cursor: "pointer" }}>Leave queue</div>
                         </>
                       )}
-                      {(mode === "book" || !ticket || ticket.status === "completed" || ticket.status === "cancelled") && !confirmLeave && (
+                      {(mode === "book" || !ticket || !isActive(ticket.status)) && !confirmLeave && (
                         <Button variant="primary" fullWidth onClick={closeJoin}>Done</Button>
                       )}
                       {confirmLeave && (
@@ -1148,14 +1317,103 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
                 </>
               )}
 
+              {/* ---------- VIEW: TRACK MY TURN ---------- */}
+              {view === "track" && (
+                <>
+                  {/* TRACK STEP 1: phone */}
+                  {tstep === 1 && (
+                    <div style={{ animation: "ttStep .32s ease both" }}>
+                      <div style={{ width: 52, height: 52, borderRadius: 14, background: "color-mix(in srgb, var(--secondary) 12%, var(--surface-card))", color: "var(--secondary)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                        <Icon name="ticket" size={24} />
+                      </div>
+                      <h3 style={{ font: "var(--fw-extrabold) 20px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>Check your place in line</h3>
+                      <p style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 18px" }}>
+                        Enter the phone number you joined or booked with. We&apos;ll verify it&apos;s you, then show your slot.
+                      </p>
+                      <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>Phone number</div>
+                      <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="00000 00000" className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: 10, fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 18, background: "var(--surface-card)", boxSizing: "border-box" }} />
+                      {formError && <div style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--error)", marginBottom: 12 }}>{formError}</div>}
+                      <Button variant="primary" size="lg" fullWidth disabled={phone.replace(/\D/g, "").length < 4} onClick={trackSendOtp}>
+                        Send verification code →
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* TRACK STEP 2: OTP verify */}
+                  {tstep === 2 && (
+                    <div style={{ animation: "ttStep .32s ease both" }}>
+                      <h3 style={{ font: "var(--fw-extrabold) 20px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>Verify your number</h3>
+                      <p style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 20px" }}>
+                        We sent a 4-digit code to <span style={{ font: "var(--fw-semibold) 13px/1 var(--font-sans)", color: "var(--text-strong)" }}>{phone}</span>.
+                      </p>
+                      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                        {otp.map((v, i) => (
+                          <input
+                            key={i}
+                            ref={(el) => {
+                              otpRefs.current[i] = el;
+                            }}
+                            value={v}
+                            onChange={(e) => onOtpInput(i, e.target.value)}
+                            onKeyDown={(e) => onOtpKeyDown(i, e)}
+                            type="tel"
+                            maxLength={1}
+                            inputMode="numeric"
+                            className="salonOtpBox"
+                            style={{ width: 52, height: 60, textAlign: "center", font: "var(--fw-extrabold) 24px/1 var(--font-sans)", color: "var(--text-strong)", borderRadius: 12, outline: "none", background: "var(--surface-card)", border: `1.5px solid ${otpError ? "var(--error)" : v ? "var(--primary)" : "var(--border-default)"}` }}
+                          />
+                        ))}
+                      </div>
+                      {otpError && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 7, color: "var(--error)", font: "var(--fw-medium) 12px/1.3 var(--font-sans)", marginBottom: 12 }}>
+                          <Icon name="x" size={14} />
+                          {otpError}
+                        </div>
+                      )}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                        <span onClick={resendOtp} style={{ font: "var(--fw-semibold) 12px/1 var(--font-sans)", ...(resendIn > 0 ? { color: "var(--text-subtle)", cursor: "default" } : { color: "var(--primary)", cursor: "pointer" }) }}>
+                          {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
+                        </span>
+                        <span style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "var(--text-subtle)" }}>Demo code: 1 2 3 4</span>
+                      </div>
+                      <Button variant="primary" size="lg" fullWidth loading={submitting} disabled={submitting} onClick={trackVerify}>
+                        Show my slot →
+                      </Button>
+                      <div onClick={trackBack} style={{ textAlign: "center", font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 14, cursor: "pointer" }}>← Change number</div>
+                    </div>
+                  )}
+
+                  {/* TRACK STEP 3: no active booking */}
+                  {tstep === 3 && (
+                    <div style={{ textAlign: "center", animation: "ttStep .32s ease both" }}>
+                      <div style={{ width: 60, height: 60, borderRadius: "50%", background: "var(--surface-sunken)", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", margin: "2px auto 16px" }}>
+                        <Icon name="search" size={26} />
+                      </div>
+                      <h3 style={{ font: "var(--fw-extrabold) 21px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 8px" }}>No active booking found</h3>
+                      <p style={{ font: "var(--fw-regular) 14px/1.55 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 20px" }}>
+                        This number isn&apos;t in today&apos;s queue. It may have been served, cancelled, or expired.
+                      </p>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <div style={{ flex: 1 }}>
+                          <Button variant="outline" fullWidth onClick={closeJoin}>Close</Button>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <Button variant="primary" fullWidth onClick={joinAfterTrack}>Join the queue</Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
               {/* ---------- VIEW: ALREADY IN LINE ---------- */}
               {view === "already" && (
                 <div style={{ textAlign: "center", animation: "ttStep .32s ease both" }}>
-                  <div style={{ width: 60, height: 60, borderRadius: "50%", background: "color-mix(in srgb, var(--secondary) 12%, var(--surface-card))", color: "var(--secondary)", display: "flex", alignItems: "center", justifyContent: "center", margin: "2px auto 16px" }}>
-                    <Icon name="ticket" size={30} />
+                  <div style={{ width: 60, height: 60, borderRadius: "50%", background: inService ? "var(--success-soft)" : "color-mix(in srgb, var(--secondary) 12%, var(--surface-card))", color: inService ? "var(--success)" : "var(--secondary)", display: "flex", alignItems: "center", justifyContent: "center", margin: "2px auto 16px" }}>
+                    <Icon name={inService ? "check" : "ticket"} size={30} />
                   </div>
-                  <h3 style={{ font: "var(--fw-extrabold) 21px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>You&apos;re already in line</h3>
-                  <p style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 18px" }}>This number already holds a live token. One active token per phone — no need to join twice.</p>
+                  <h3 style={{ font: "var(--fw-extrabold) 21px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>{inService ? "It's your turn!" : "You're already in line"}</h3>
+                  <p style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 18px" }}>{inService ? "You're up now — head to the chair, we're ready for you." : "This number already holds a live token. One active token per phone — no need to join twice."}</p>
                   <div style={{ border: "2px solid var(--text-strong)", borderRadius: 16, padding: 18, marginBottom: 16 }}>
                     <div style={{ font: "var(--fw-bold) 11px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Your token</div>
                     <div style={{ font: "var(--fw-extrabold) 40px/1 var(--font-sans)", color: "var(--text-strong)", margin: "8px 0" }}>{ticket?.token ?? held?.token ?? ""}</div>
