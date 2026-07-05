@@ -1,6 +1,10 @@
-import React from 'react';
-import { Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { StyleSheet, TextStyle, View } from 'react-native';
 
+import { TText } from '@/components/common';
+import { styles } from '@/styles';
+import { moderateScale } from '@/styles/scale';
+import type { ThemeStyleProps } from '@/styles/types';
 import { useTheme } from '@/theme/ThemeProvider';
 
 export function StatCard({
@@ -12,48 +16,42 @@ export function StatCard({
   value: string;
   delta?: string;
 }) {
-  const { colors, radius, space, fontFamily, fontSize, shadow } = useTheme();
+  const theme = useTheme();
+  const s = useMemo(() => createStatCardStyles(theme), [theme]);
   const up = (delta || '').trim().startsWith('+');
-  const deltaColor = up ? colors.success : colors.error;
 
   return (
-    <View
-      style={[
-        {
-          backgroundColor: colors.surfaceCard,
-          borderWidth: 1,
-          borderColor: colors.borderSubtle,
-          borderRadius: radius.lg,
-          padding: space[4],
-        },
-        shadow.xs,
-      ]}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 8,
-        }}>
-        <Text style={{ flex: 1, fontFamily: fontFamily.medium, fontSize: fontSize.bodySm, color: colors.textMuted }}>
+    <View style={s.card}>
+      <View style={s.header}>
+        <TText variant="bodySm" color="textMuted" weight="medium" style={s.label}>
           {label}
-        </Text>
+        </TText>
         {delta != null && (
-          <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodySm, color: deltaColor }}>
+          <TText variant="bodySm" weight="semibold" style={(up ? s.deltaUp : s.deltaDown) as TextStyle}>
             {delta}
-          </Text>
+          </TText>
         )}
       </View>
-      <Text
-        style={{
-          fontFamily: fontFamily.extrabold,
-          fontSize: fontSize.h3,
-          color: colors.textStrong,
-          letterSpacing: -0.6,
-          marginTop: 28,
-        }}>
+      <TText variant="h3" color="textStrong" weight="extrabold" style={s.value}>
         {value}
-      </Text>
+      </TText>
     </View>
   );
 }
+
+const createStatCardStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: colors.surfaceCard,
+      borderWidth: moderateScale(1),
+      borderColor: colors.borderSubtle,
+      borderRadius: moderateScale(radius.lg),
+      ...styles.p4,
+      ...shadow.xs,
+    },
+    header: { ...styles.flexRow, ...styles.itemsStart, ...styles.justifyBetween, ...styles.g2 },
+    label: { ...styles.flex },
+    value: { letterSpacing: -0.6, marginTop: moderateScale(28) },
+    deltaUp: { color: colors.success },
+    deltaDown: { color: colors.error },
+  });

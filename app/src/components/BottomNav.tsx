@@ -1,11 +1,15 @@
-import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { router, usePathname } from 'expo-router';
+import React, { useMemo } from 'react';
+import { Pressable, StyleSheet, TextStyle, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TText } from '@/components/common';
 import { Icon, IconName } from '@/components/ui/Icon';
+import { TAB_ROUTES, TabId, tabFromPathname } from '@/navigation/routes';
+import { styles } from '@/styles';
+import { moderateScale } from '@/styles/scale';
+import type { ThemeStyleProps } from '@/styles/types';
 import { useTheme } from '@/theme/ThemeProvider';
-
-export type TabId = 'dashboard' | 'queue' | 'appointments' | 'customers' | 'settings';
 
 const NAV: { id: TabId; label: string; icon: IconName }[] = [
   { id: 'dashboard', label: 'Home', icon: 'layoutDashboard' },
@@ -15,44 +19,53 @@ const NAV: { id: TabId; label: string; icon: IconName }[] = [
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
-export function BottomNav({ tab, setTab }: { tab: TabId; setTab: (t: TabId) => void }) {
-  const { colors, fontFamily, layout } = useTheme();
+export function BottomNav() {
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const tab = tabFromPathname(pathname);
+  const s = useMemo(() => createBottomNavStyles(theme, insets.bottom), [theme, insets.bottom]);
 
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        borderTopWidth: 1,
-        borderTopColor: colors.borderSubtle,
-        backgroundColor: colors.surfaceCard,
-        height: layout.bottomNavHeight + insets.bottom,
-        paddingBottom: insets.bottom + 6,
-      }}>
+    <View style={s.bar}>
       {NAV.map((n) => {
         const active = tab === n.id;
         return (
-          <Pressable
-            key={n.id}
-            onPress={() => setTab(n.id)}
-            style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 8 }}>
+          <Pressable key={n.id} onPress={() => router.push(TAB_ROUTES[n.id] as any)} style={s.item}>
             <Icon
               name={n.icon}
               size={22}
               strokeWidth={active ? 2.4 : 2}
-              color={active ? colors.primary : colors.textSubtle}
+              color={active ? theme.colors.primary : theme.colors.textSubtle}
             />
-            <Text
-              style={{
-                fontFamily: active ? fontFamily.semibold : fontFamily.medium,
-                fontSize: 10,
-                color: active ? colors.primary : colors.textSubtle,
-              }}>
+            <TText variant="caption" weight={active ? 'semibold' : 'medium'} style={bottomNavLabelStyle(s, active) as TextStyle}>
               {n.label}
-            </Text>
+            </TText>
           </Pressable>
         );
       })}
     </View>
   );
 }
+
+const createBottomNavStyles = (
+  { colors, layout }: ThemeStyleProps & { layout: typeof import('@/theme/tokens').layout },
+  bottomInset: number,
+) =>
+  StyleSheet.create({
+    bar: {
+      ...styles.flexRow,
+      borderTopWidth: moderateScale(1),
+      borderTopColor: colors.borderSubtle,
+      backgroundColor: colors.surfaceCard,
+      height: layout.bottomNavHeight + bottomInset,
+      paddingBottom: bottomInset + moderateScale(6),
+    },
+    item: { ...styles.flex, ...styles.itemsCenter, ...styles.justifyCenter, ...styles.g1, ...styles.pt2 },
+    label: { fontSize: moderateScale(10) },
+    labelActive: { color: colors.primary },
+    labelIdle: { color: colors.textSubtle },
+  });
+
+const bottomNavLabelStyle = (s: ReturnType<typeof createBottomNavStyles>, active: boolean): TextStyle =>
+  active ? { ...s.label, ...s.labelActive } : { ...s.label, ...s.labelIdle };

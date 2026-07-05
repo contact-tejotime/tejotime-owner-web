@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { router } from 'expo-router';
 import type { Socket } from 'socket.io-client';
 
 import { AppointmentEntry, Customer, ServiceVM, Staff } from '@/data/sample';
@@ -13,8 +14,9 @@ import {
   mapStaff,
   Money,
 } from '@/lib/mappers';
+import { TAB_ROUTES } from '@/navigation/routes';
+import { showToast } from '@/lib/toast';
 
-export type TabId = 'dashboard' | 'queue' | 'appointments' | 'customers' | 'settings';
 export type Plan = 'free' | 'premium';
 type Sheet = 'walkin' | null;
 export type WalkInPosition = 'end' | 'next';
@@ -47,17 +49,15 @@ interface BusinessInfo {
 type State = {
   authed: boolean;
   authLoading: boolean;
+  signInLoading: boolean;
   userId: string;
   password: string;
-  loginError: string;
-  tab: TabId;
   queueStaff: string; // 'all' | staff id
   plan: Plan;
   sheet: Sheet;
   qr: boolean;
   detailId: string | null;
   dragId: string | null;
-  toast: string;
   walkin: WalkIn;
   search: string;
   business: BusinessInfo | null;
@@ -75,7 +75,6 @@ type Store = State & {
   setPassword: (v: string) => void;
   signIn: () => void;
   signOut: () => void;
-  setTab: (id: TabId) => void;
   setQueueStaff: (id: string) => void;
   setSearch: (v: string) => void;
   openAlerts: () => void;
@@ -127,17 +126,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [s, setS] = useState<State>({
     authed: false,
     authLoading: true,
+    signInLoading: false,
     userId: '',
     password: '',
-    loginError: '',
-    tab: 'dashboard',
     queueStaff: 'all',
     plan: 'free',
     sheet: null,
     qr: false,
     detailId: null,
     dragId: null,
-    toast: '',
     walkin: { ...emptyWalkin },
     search: '',
     business: null,
@@ -151,16 +148,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   });
 
   const socketRef = useRef<Socket | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const patch = useCallback((fn: (p: State) => Partial<State>) => setS((p) => ({ ...p, ...fn(p) })), []);
-
-  const showToast = useCallback((msg: string) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setS((p) => ({ ...p, toast: msg }));
-    toastTimer.current = setTimeout(() => setS((p) => ({ ...p, toast: '' })), 2200);
-  }, []);
 
   // ---------- loaders ----------
   const loadQueue = useCallback(async () => {
@@ -261,8 +251,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setS((p) => ({ ...p, plan: d.plan }));
       loadCustomers();
     });
-    sock.on('notification:new', (d: any) => showToast(d?.body ?? 'New notification'));
-  }, [loadAppointments, loadDashboard, loadQueue, loadCustomers, showToast]);
+    sock.on('notification:new', (d: any) => showToast(d?.body ?? 'New notification', 'info'));
+  }, [loadAppointments, loadDashboard, loadQueue, loadCustomers]);
 
   const teardown = useCallback(() => {
     socketRef.current?.close();
@@ -275,6 +265,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setOnAuthFail(() => {
       teardown();
       setS((p) => ({ ...p, authed: false, authLoading: false }));
+      showToast('Session expired', 'error');
     });
     (async () => {
       const has = await initSession();
@@ -309,44 +300,55 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const store = useMemo<Store>(() => {
     return {
       ...s,
-      setUserId: (v) => patch(() => ({ userId: v, loginError: '' })),
-      setPassword: (v) => patch(() => ({ password: v, loginError: '' })),
+      setUserId: (v) => patch(() => ({ userId: v })),
+      setPassword: (v) => patch(() => ({ password: v })),
       signIn: async () => {
         if (!s.userId.trim() || !s.password.trim()) {
-          patch(() => ({ loginError: 'Enter your user ID and password' }));
+          showToast('Enter your user ID and password', 'error');
           return;
         }
-        patch(() => ({ loginError: '', authLoading: true }));
+        patch(() => ({ signInLoading: true }));
         try {
           const res: any = await api.login(s.userId.trim(), s.password);
+          const message =
+            res?.message ?? (res?.user?.name ? `Welcome back, ${res.user.name}` : 'Signed in successfully');
           setS((p) => ({
             ...p,
             authed: true,
-            authLoading: false,
-            loginError: '',
+            signInLoading: false,
             password: '',
             business: res.business ? { id: res.business.id, name: res.business.name, slug: res.business.slug } : null,
             plan: res.business?.plan ?? 'free',
           }));
+          showToast(message, 'success');
           connectSocket();
           bootstrap();
         } catch (e) {
-          patch(() => ({ loginError: (e as ApiError)?.message ?? 'Sign in failed', authLoading: false }));
+          showToast((e as ApiError)?.message ?? 'Sign in failed', 'error');
+          patch(() => ({ signInLoading: false }));
         }
       },
       signOut: async () => {
-        await api.logout().catch(() => {});
+        let message = 'Signed out successfully';
+        let type: 'success' | 'error' | 'info' = 'success';
+        try {
+          const res: any = await api.logout();
+          if (res?.message) message = res.message;
+        } catch (e) {
+          message = (e as ApiError)?.message ?? 'Signed out locally';
+          type = 'info';
+        }
         teardown();
         setS((p) => ({ ...p, authed: false, userId: '', password: '' }));
+        showToast(message, type);
       },
-      setTab: (id) => patch(() => ({ tab: id, detailId: null })),
       setQueueStaff: (id) => patch(() => ({ queueStaff: id })),
       setSearch: (v) => {
         patch(() => ({ search: v }));
         if (searchTimer.current) clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => loadCustomers(v || undefined), 300);
       },
-      openAlerts: () => showToast('No new notifications'),
+      openAlerts: () => showToast('No new notifications', 'info'),
       openWalkin: () => patch(() => ({ sheet: 'walkin', walkin: { ...emptyWalkin } })),
       closeWalkin: () => patch(() => ({ sheet: null })),
       openQr: () => patch(() => ({ qr: true })),
@@ -369,7 +371,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             position: w.position,
           });
           setS((p) => ({ ...p, seats: mapSeats(res.seats), sheet: null }));
-          showToast(w.position === 'next' ? 'Added as next' : 'Added to queue');
+          showToast(w.position === 'next' ? 'Added as next' : 'Added to queue', 'success');
           loadDashboard();
         } catch (e) {
           patch(() => ({ walkin: { ...s.walkin, error: (e as ApiError)?.message ?? 'Could not add' } }));
@@ -381,7 +383,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         try {
           const res: any = await api.startService(id);
           setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null }));
-          showToast('Service started');
+          showToast('Service started', 'success');
         } catch (e) {
           const err = e as ApiError;
           if (err.code === 'SEAT_BUSY') {
@@ -390,9 +392,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             const seatGroup = s.seats.find((g) => g.id === card?.staffId);
             showToast(
               `${seat?.name ?? 'This seat'} is already serving ${seatGroup?.servingName?.split(' ')[0] ?? 'someone'}. Finish that first.`,
+              'error',
             );
           } else {
-            showToast(err.message ?? 'Could not start');
+            showToast(err.message ?? 'Could not start', 'error');
           }
         }
       },
@@ -400,19 +403,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         try {
           const res: any = await api.checkout(id);
           setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null }));
-          showToast(res.promoted ? `${String(res.promoted.name).split(' ')[0]} now in service` : 'Checked out');
+          showToast(res.promoted ? `${String(res.promoted.name).split(' ')[0]} now in service` : 'Checked out', 'success');
           loadDashboard();
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Could not check out');
+          showToast((e as ApiError)?.message ?? 'Could not check out', 'error');
         }
       },
       noShow: async (id) => {
         try {
           const res: any = await api.noShow(id);
           setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null }));
-          showToast('Marked no-show');
+          showToast('Marked no-show', 'success');
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Error');
+          showToast((e as ApiError)?.message ?? 'Error', 'error');
         }
       },
       reassign: async (id, staffId) => {
@@ -420,18 +423,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           const res: any = await api.reassign(id, staffId);
           setS((p) => ({ ...p, seats: mapSeats(res.seats) }));
           const nm = s.staff.find((st) => st.id === staffId)?.name ?? '';
-          showToast(`Moved${nm ? ` to ${nm}` : ''}`);
+          showToast(`Moved${nm ? ` to ${nm}` : ''}`, 'success');
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Error');
+          showToast((e as ApiError)?.message ?? 'Error', 'error');
         }
       },
       extendService: async (id, label, mins) => {
         try {
           const res: any = await api.extend(id, label, mins);
           setS((p) => ({ ...p, seats: mapSeats(res.seats) }));
-          showToast(`+${mins} min · ${label} added`);
+          showToast(`+${mins} min · ${label} added`, 'success');
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Error');
+          showToast((e as ApiError)?.message ?? 'Error', 'error');
         }
       },
       setDragId: (id) => patch(() => ({ dragId: id })),
@@ -455,26 +458,27 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       checkInAppt: async (a) => {
         try {
           await api.checkIn(a.id);
-          setS((p) => ({ ...p, appts: p.appts.filter((x) => x.id !== a.id), tab: 'queue' }));
-          showToast(`${a.name} added to queue`);
+          setS((p) => ({ ...p, appts: p.appts.filter((x) => x.id !== a.id) }));
+          router.push(TAB_ROUTES.queue as any);
+          showToast(`${a.name} added to queue`, 'success');
           loadQueue();
           loadDashboard();
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Could not check in');
+          showToast((e as ApiError)?.message ?? 'Could not check in', 'error');
         }
       },
       upgrade: async () => {
         try {
           await api.upgrade();
           setS((p) => ({ ...p, plan: 'premium' }));
-          showToast('Welcome to Premium');
+          showToast('Welcome to Premium', 'success');
           loadCustomers(s.search || undefined);
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Upgrade failed');
+          showToast((e as ApiError)?.message ?? 'Upgrade failed', 'error');
         }
       },
     };
-  }, [s, patch, showToast, connectSocket, bootstrap, teardown, loadCustomers, loadDashboard, loadQueue]);
+  }, [s, patch, connectSocket, bootstrap, teardown, loadCustomers, loadDashboard, loadQueue]);
 
   return <AppStateContext.Provider value={store}>{children}</AppStateContext.Provider>;
 }

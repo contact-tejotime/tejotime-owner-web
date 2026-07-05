@@ -92,8 +92,13 @@ export const api = {
   },
   me: () => raw('GET', '/auth/me'),
   logout: async () => {
-    if (refreshToken) await raw('POST', '/auth/logout', { refreshToken }).catch(() => {});
-    await clearSession();
+    let res: { ok?: boolean; message?: string } = { ok: true };
+    try {
+      if (refreshToken) res = await raw('POST', '/auth/logout', { refreshToken });
+    } finally {
+      await clearSession();
+    }
+    return res;
   },
 
   getQueue: () => raw('GET', '/queue?view=grouped'),

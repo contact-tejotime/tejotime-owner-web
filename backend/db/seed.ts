@@ -62,7 +62,7 @@ async function main() {
     supabase.from('subscription').insert({ business_id: bid, plan: 'free', status: 'trialing' }).select().single(),
   );
 
-  // Owner login (User ID + password) — matches app/src/screens/Login.tsx.
+  // Owner login (User ID + password) — matches app/src/app/(auth)/login.tsx.
   const passwordHash = await bcrypt.hash(OWNER_PASSWORD + (process.env.PASSWORD_PEPPER ?? ''), 10);
   await must(
     supabase

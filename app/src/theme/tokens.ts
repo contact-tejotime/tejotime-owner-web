@@ -234,6 +234,7 @@ export const radius = {
   lg: 14,
   xl: 20,
   pill: 999,
+  circle: '50%' as const,
 } as const;
 
 /* ---- Control heights ---- */
@@ -257,16 +258,84 @@ export const fontSize = {
 } as const;
 
 export const fontFamily = {
-  regular: 'Inter_400Regular',
-  medium: 'Inter_500Medium',
-  semibold: 'Inter_600SemiBold',
-  bold: 'Inter_700Bold',
-  extrabold: 'Inter_800ExtraBold',
+  extralight: 'PlusJakartaSans-ExtraLight',
+  extralightItalic: 'PlusJakartaSans-ExtraLightItalic',
+  light: 'PlusJakartaSans-Light',
+  lightItalic: 'PlusJakartaSans-LightItalic',
+  regular: 'PlusJakartaSans-Regular',
+  italic: 'PlusJakartaSans-Italic',
+  medium: 'PlusJakartaSans-Medium',
+  mediumItalic: 'PlusJakartaSans-MediumItalic',
+  semibold: 'PlusJakartaSans-SemiBold',
+  semiboldItalic: 'PlusJakartaSans-SemiBoldItalic',
+  bold: 'PlusJakartaSans-Bold',
+  boldItalic: 'PlusJakartaSans-BoldItalic',
+  extrabold: 'PlusJakartaSans-ExtraBold',
+  extraboldItalic: 'PlusJakartaSans-ExtraBoldItalic',
 } as const;
+
+export const lineHeight = {
+  tight: 1.15,
+  snug: 1.3,
+  normal: 1.5,
+  relaxed: 1.6,
+} as const;
+
+export const letterSpacing = {
+  tight: -0.4,
+  snug: -0.15,
+  normal: 0,
+  wide: 1.6,
+} as const;
+
+export type TextVariant =
+  | 'h1'
+  | 'h2'
+  | 'h3'
+  | 'h4'
+  | 'h5'
+  | 'bodyLg'
+  | 'bodyMd'
+  | 'bodySm'
+  | 'caption';
+
+export const textStyle: Record<
+  TextVariant,
+  { fontFamily: string; fontSize: number; lineHeight: number; letterSpacing: number }
+> = {
+  h1: { fontFamily: fontFamily.extrabold, fontSize: fontSize.h1, lineHeight: lineHeight.tight, letterSpacing: letterSpacing.tight },
+  h2: { fontFamily: fontFamily.bold, fontSize: fontSize.h2, lineHeight: lineHeight.tight, letterSpacing: letterSpacing.tight },
+  h3: { fontFamily: fontFamily.bold, fontSize: fontSize.h3, lineHeight: lineHeight.snug, letterSpacing: letterSpacing.tight },
+  h4: { fontFamily: fontFamily.semibold, fontSize: fontSize.h4, lineHeight: lineHeight.snug, letterSpacing: letterSpacing.tight },
+  h5: { fontFamily: fontFamily.semibold, fontSize: fontSize.h5, lineHeight: lineHeight.snug, letterSpacing: letterSpacing.normal },
+  bodyLg: { fontFamily: fontFamily.regular, fontSize: fontSize.bodyLg, lineHeight: lineHeight.relaxed, letterSpacing: letterSpacing.normal },
+  bodyMd: { fontFamily: fontFamily.regular, fontSize: fontSize.bodyMd, lineHeight: lineHeight.normal, letterSpacing: letterSpacing.normal },
+  bodySm: { fontFamily: fontFamily.regular, fontSize: fontSize.bodySm, lineHeight: lineHeight.normal, letterSpacing: letterSpacing.normal },
+  caption: { fontFamily: fontFamily.medium, fontSize: fontSize.caption, lineHeight: lineHeight.normal, letterSpacing: letterSpacing.normal },
+};
 
 export const layout = {
   bottomNavHeight: 64,
   headerHeight: 64,
+  containerMax: 1200,
+  sidebarWidth: 248,
+} as const;
+
+export const ring = {
+  shadowColor: '#2563EB',
+  shadowOffset: { width: 0, height: 0 },
+  shadowOpacity: 0.35,
+  shadowRadius: 3,
+  elevation: 0,
+} as const;
+
+export const motion = {
+  easeStandard: 'cubic-bezier(0.4, 0, 0.2, 1)',
+  easeOut: 'cubic-bezier(0, 0, 0.2, 1)',
+  easeSpring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+  durFast: 120,
+  durBase: 200,
+  durSlow: 320,
 } as const;
 
 /* ---- Shadows (RN-friendly elevation presets) ---- */

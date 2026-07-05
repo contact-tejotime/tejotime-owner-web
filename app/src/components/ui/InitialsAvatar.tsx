@@ -1,10 +1,13 @@
-import React from 'react';
-import { Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { StyleSheet, TextStyle, View } from 'react-native';
 
+import { TText } from '@/components/common';
 import { initials as toInitials } from '@/lib/format';
+import { styles } from '@/styles';
+import { moderateScale } from '@/styles/scale';
+import { SemanticColors } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 
-/** Circular initials chip — primary-soft by default, matching the owner app design. */
 export function InitialsAvatar({
   name,
   size = 40,
@@ -14,22 +17,33 @@ export function InitialsAvatar({
   size?: number;
   variant?: 'primary' | 'sunken';
 }) {
-  const { colors, fontFamily } = useTheme();
-  const bg = variant === 'sunken' ? colors.surfaceSunken : colors.primarySoft;
-  const fg = variant === 'sunken' ? colors.textBody : colors.primarySoftFg;
+  const { colors } = useTheme();
+  const s = useMemo(() => createInitialsAvatarStyles(colors, size, variant), [colors, size, variant]);
+
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        backgroundColor: bg,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-      <Text style={{ fontFamily: fontFamily.semibold, fontSize: Math.round(size * 0.4), color: fg }}>
+    <View style={s.root}>
+      <TText weight="semibold" style={s.text}>
         {toInitials(name)}
-      </Text>
+      </TText>
     </View>
   );
 }
+
+const createInitialsAvatarStyles = (
+  colors: SemanticColors,
+  size: number,
+  variant: 'primary' | 'sunken',
+) => {
+  const bg = variant === 'sunken' ? colors.surfaceSunken : colors.primarySoft;
+  const fg = variant === 'sunken' ? colors.textBody : colors.primarySoftFg;
+  return StyleSheet.create({
+    root: {
+      ...styles.nonFlexCenter,
+      width: moderateScale(size),
+      height: moderateScale(size),
+      borderRadius: moderateScale(size / 2),
+      backgroundColor: bg,
+    },
+    text: { fontSize: moderateScale(Math.round(size * 0.4)), color: fg } as TextStyle,
+  });
+};

@@ -1,62 +1,48 @@
-import React from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { styles } from '@/styles';
+import { moderateScale } from '@/styles/scale';
+import type { ThemeStyleProps } from '@/styles/types';
 import { useAppState } from '@/state/store';
 import { useTheme } from '@/theme/ThemeProvider';
 
 export function QRSheet() {
-  const { colors, radius, fontFamily, fontSize } = useTheme();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const store = useAppState();
+  const overlay = useMemo(() => createSheetOverlayStyles(), []);
+  const s = useMemo(() => createQRSheetStyles(theme, insets.bottom), [theme, insets.bottom]);
 
   return (
     <Modal transparent visible={store.qr} animationType="slide" onRequestClose={store.closeQr}>
-      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-        <Pressable onPress={store.closeQr} style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)' }} />
-        <View
-          style={{
-            backgroundColor: colors.surfaceCard,
-            borderTopLeftRadius: radius.xl,
-            borderTopRightRadius: radius.xl,
-            paddingHorizontal: 20,
-            paddingTop: 18,
-            paddingBottom: 28 + insets.bottom,
-          }}>
-          <View style={{ width: 40, height: 4, borderRadius: 99, backgroundColor: colors.borderDefault, alignSelf: 'center', marginBottom: 16 }} />
-          <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.h4, color: colors.textStrong, textAlign: 'center' }}>
+      <View style={overlay.root}>
+        <Pressable onPress={store.closeQr} style={overlay.backdrop} />
+        <View style={s.sheet}>
+          <View style={s.handle} />
+          <TText variant="h4" weight="semibold" align="center">
             Your booking QR
-          </Text>
-          <Text style={{ fontFamily: fontFamily.regular, fontSize: fontSize.bodySm, color: colors.textMuted, textAlign: 'center', marginTop: 4 }}>
+          </TText>
+          <TText variant="bodySm" color="textMuted" align="center" style={s.subtitle}>
             Customers scan to join your queue
-          </Text>
-          <View
-            style={{
-              width: 200,
-              height: 200,
-              alignSelf: 'center',
-              marginVertical: 20,
-              borderRadius: radius.lg,
-              backgroundColor: colors.surfaceSunken,
-              borderWidth: 1,
-              borderColor: colors.borderSubtle,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-            <Icon name="qrCode" size={120} color={colors.textSubtle} />
+          </TText>
+          <View style={s.qrBox}>
+            <Icon name="qrCode" size={120} color={theme.colors.textSubtle} />
           </View>
-          <Text style={{ fontFamily: fontFamily.medium, fontSize: fontSize.bodySm, color: colors.textMuted, textAlign: 'center', marginBottom: 18 }}>
+          <TText variant="bodySm" color="textMuted" weight="medium" align="center" style={s.url}>
             tejotime.com/sharp-cuts
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}>
+          </TText>
+          <View style={s.actions}>
+            <View style={s.actionCell}>
               <Button variant="outline" fullWidth onPress={store.closeQr}>
                 Download
               </Button>
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={s.actionCell}>
               <Button variant="primary" fullWidth onPress={store.closeQr}>
                 Share
               </Button>
@@ -67,3 +53,44 @@ export function QRSheet() {
     </Modal>
   );
 }
+
+export const createSheetOverlayStyles = () =>
+  StyleSheet.create({
+    root: { ...styles.flex, justifyContent: 'flex-end' },
+    backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.45)' },
+  });
+
+const createQRSheetStyles = ({ colors, radius }: ThemeStyleProps, bottomInset: number) =>
+  StyleSheet.create({
+    sheet: {
+      backgroundColor: colors.surfaceCard,
+      borderTopLeftRadius: moderateScale(radius.xl),
+      borderTopRightRadius: moderateScale(radius.xl),
+      ...styles.ph5,
+      paddingTop: moderateScale(18),
+      paddingBottom: moderateScale(28) + bottomInset,
+    },
+    handle: {
+      width: moderateScale(40),
+      height: moderateScale(4),
+      borderRadius: moderateScale(99),
+      backgroundColor: colors.borderDefault,
+      alignSelf: 'center',
+      ...styles.mb4,
+    },
+    subtitle: { ...styles.mt1 },
+    qrBox: {
+      width: moderateScale(200),
+      height: moderateScale(200),
+      alignSelf: 'center',
+      ...styles.mv5,
+      borderRadius: moderateScale(radius.lg),
+      backgroundColor: colors.surfaceSunken,
+      borderWidth: moderateScale(1),
+      borderColor: colors.borderSubtle,
+      ...styles.nonFlexCenter,
+    },
+    url: { ...styles.mb5 },
+    actions: { ...styles.flexRow, gap: moderateScale(10) },
+    actionCell: { ...styles.flex },
+  });

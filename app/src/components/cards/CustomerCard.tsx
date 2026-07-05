@@ -1,12 +1,15 @@
-import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { TText } from '@/components/common';
 import { InitialsAvatar } from '@/components/ui/InitialsAvatar';
+import { styles } from '@/styles';
+import { moderateScale } from '@/styles/scale';
+import type { ThemeStyleProps } from '@/styles/types';
 import { useTheme } from '@/theme/ThemeProvider';
 
 type Meta = { label: string; value: string | number };
 
-/** Customer / staff profile card with stats. */
 export function CustomerCard({
   name,
   phone,
@@ -20,53 +23,35 @@ export function CustomerCard({
   tag?: React.ReactNode;
   onPress?: () => void;
 }) {
-  const { colors, radius, space, fontFamily, fontSize, shadow } = useTheme();
+  const theme = useTheme();
+  const s = useMemo(() => createCustomerCardStyles(theme), [theme]);
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        {
-          backgroundColor: colors.surfaceCard,
-          borderWidth: 1,
-          borderColor: colors.borderSubtle,
-          borderRadius: radius.lg,
-          padding: space[4],
-        },
-        shadow.xs,
-      ]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
+    <Pressable onPress={onPress} style={s.card}>
+      <View style={s.row}>
         <InitialsAvatar name={name} size={48} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodyMd, color: colors.textStrong }}>
+        <View style={s.body}>
+          <TText variant="bodyMd" color="textStrong" weight="semibold">
             {name}
-          </Text>
+          </TText>
           {phone && (
-            <Text style={{ fontFamily: fontFamily.regular, fontSize: fontSize.bodySm, color: colors.textMuted, marginTop: 2 }}>
+            <TText variant="bodySm" color="textMuted" style={s.phone}>
               {phone}
-            </Text>
+            </TText>
           )}
         </View>
         {tag}
       </View>
       {meta.length > 0 && (
-        <View
-          style={{
-            flexDirection: 'row',
-            gap: space[5],
-            marginTop: space[4],
-            paddingTop: space[3],
-            borderTopWidth: 1,
-            borderTopColor: colors.borderSubtle,
-          }}>
+        <View style={s.metaRow}>
           {meta.map((m, i) => (
             <View key={i}>
-              <Text style={{ fontFamily: fontFamily.bold, fontSize: fontSize.bodyMd, color: colors.textStrong }}>
+              <TText variant="bodyMd" color="textStrong" weight="bold">
                 {m.value}
-              </Text>
-              <Text style={{ fontFamily: fontFamily.regular, fontSize: fontSize.bodySm, color: colors.textMuted, marginTop: 3 }}>
+              </TText>
+              <TText variant="bodySm" color="textMuted" style={s.metaLabel}>
                 {m.label}
-              </Text>
+              </TText>
             </View>
           ))}
         </View>
@@ -74,3 +59,27 @@ export function CustomerCard({
     </Pressable>
   );
 }
+
+const createCustomerCardStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: colors.surfaceCard,
+      borderWidth: moderateScale(1),
+      borderColor: colors.borderSubtle,
+      borderRadius: moderateScale(radius.lg),
+      ...styles.p4,
+      ...shadow.xs,
+    },
+    row: { ...styles.flexRow, ...styles.itemsCenter, ...styles.g3 },
+    body: { ...styles.flex, ...styles.minWidth0 },
+    phone: { ...styles.mt1 },
+    metaRow: {
+      ...styles.flexRow,
+      ...styles.g5,
+      ...styles.mt4,
+      ...styles.pt3,
+      borderTopWidth: moderateScale(1),
+      borderTopColor: colors.borderSubtle,
+    },
+    metaLabel: { ...styles.mt1 },
+  });
