@@ -1,10 +1,13 @@
-import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
+import { styles } from '@/styles';
+import { moderateScale } from '@/styles/scale';
+import type { ThemeStyleProps } from '@/styles/types';
 import { useTheme } from '@/theme/ThemeProvider';
 
-/** Service catalog card — name, duration, price, optional category color. */
 export function ServiceCard({
   name,
   duration,
@@ -22,49 +25,73 @@ export function ServiceCard({
   selected?: boolean;
   onPress?: () => void;
 }) {
-  const { colors, radius, space, fontFamily, fontSize, shadow } = useTheme();
-  const accent = color ?? colors.secondary;
+  const theme = useTheme();
+  const s = useMemo(() => createServiceCardStyles(theme), [theme]);
+  const accent = color ?? theme.colors.secondary;
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        {
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space[4],
-          backgroundColor: colors.surfaceCard,
-          borderWidth: 1.5,
-          borderColor: selected ? colors.primary : colors.borderSubtle,
-          borderRadius: radius.lg,
-          padding: space[4],
-        },
-        selected ? shadow.sm : shadow.xs,
-      ]}>
-      <View style={{ width: 4, alignSelf: 'stretch', borderRadius: radius.pill, backgroundColor: accent }} />
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodyMd, color: colors.textStrong }}>
+    <Pressable onPress={onPress} style={serviceCardStyle(s, selected)}>
+      <View style={serviceAccentStyle(s.accent, accent)} />
+      <View style={s.body}>
+        <TText variant="bodyMd" color="textStrong" weight="semibold">
           {name}
-        </Text>
+        </TText>
         {description && (
-          <Text style={{ fontFamily: fontFamily.regular, fontSize: fontSize.bodySm, color: colors.textMuted, marginTop: 2 }}>
+          <TText variant="bodySm" color="textMuted" style={s.description}>
             {description}
-          </Text>
+          </TText>
         )}
         {duration && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }}>
-            <Icon name="clock" size={14} color={colors.textMuted} />
-            <Text style={{ fontFamily: fontFamily.medium, fontSize: fontSize.bodySm, color: colors.textMuted }}>
+          <View style={s.durationRow}>
+            <Icon name="clock" size={14} color={theme.colors.textMuted} />
+            <TText variant="bodySm" color="textMuted" weight="medium">
               {duration}
-            </Text>
+            </TText>
           </View>
         )}
       </View>
       {price != null && (
-        <Text style={{ fontFamily: fontFamily.bold, fontSize: fontSize.h5, color: colors.textStrong }}>
+        <TText variant="h5" color="textStrong" weight="bold">
           {price}
-        </Text>
+        </TText>
       )}
     </Pressable>
   );
 }
+
+const createServiceCardStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
+  StyleSheet.create({
+    card: {
+      ...styles.flexRow,
+      ...styles.itemsCenter,
+      ...styles.g4,
+      backgroundColor: colors.surfaceCard,
+      borderWidth: moderateScale(1.5),
+      borderColor: colors.borderSubtle,
+      borderRadius: moderateScale(radius.lg),
+      ...styles.p4,
+      ...shadow.xs,
+    },
+    cardSelected: {
+      borderColor: colors.primary,
+      ...shadow.sm,
+    },
+    accent: {
+      width: moderateScale(4),
+      alignSelf: 'stretch',
+      borderRadius: moderateScale(radius.pill),
+    },
+    body: { ...styles.flex, ...styles.minWidth0 },
+    description: { ...styles.mt1 },
+    durationRow: { ...styles.flexRow, ...styles.itemsCenter, gap: moderateScale(5), ...styles.mt2 },
+  });
+
+const serviceAccentStyle = (
+  base: ReturnType<typeof createServiceCardStyles>['accent'],
+  backgroundColor: string,
+) => [base, { backgroundColor }];
+
+const serviceCardStyle = (
+  s: ReturnType<typeof createServiceCardStyles>,
+  selected: boolean,
+) => [s.card, selected ? s.cardSelected : null];

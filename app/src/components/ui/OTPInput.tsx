@@ -1,9 +1,12 @@
-import React, { useRef } from 'react';
-import { NativeSyntheticEvent, TextInput, TextInputKeyPressEventData, View } from 'react-native';
+import React, { useMemo, useRef } from 'react';
+import { NativeSyntheticEvent, StyleSheet, TextInput, TextInputKeyPressEventData, TextStyle, View } from 'react-native';
 
+import { styles } from '@/styles';
+import { moderateScale } from '@/styles/scale';
+import type { ThemeStyleProps } from '@/styles/types';
+import { fontFamily } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 
-/** One-time-password input — N separate digit boxes. */
 export function OTPInput({
   length = 4,
   value = '',
@@ -13,7 +16,8 @@ export function OTPInput({
   value?: string;
   onChange?: (next: string) => void;
 }) {
-  const { colors, radius, fontFamily } = useTheme();
+  const theme = useTheme();
+  const s = useMemo(() => createOTPInputStyles(theme), [theme]);
   const refs = useRef<(TextInput | null)[]>([]);
   const digits = value.padEnd(length, ' ').slice(0, length).split('');
 
@@ -24,7 +28,7 @@ export function OTPInput({
   };
 
   return (
-    <View style={{ flexDirection: 'row', gap: 12 }}>
+    <View style={s.row}>
       {Array.from({ length }).map((_, i) => {
         const ch = digits[i] === ' ' ? '' : digits[i];
         return (
@@ -44,21 +48,34 @@ export function OTPInput({
             onKeyPress={(e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
               if (e.nativeEvent.key === 'Backspace' && !ch && i > 0) refs.current[i - 1]?.focus();
             }}
-            style={{
-              width: 52,
-              height: 60,
-              textAlign: 'center',
-              fontFamily: fontFamily.bold,
-              fontSize: 24,
-              color: colors.textStrong,
-              borderWidth: 1.5,
-              borderColor: ch ? colors.primary : colors.borderDefault,
-              borderRadius: radius.md,
-              backgroundColor: colors.surfaceCard,
-            }}
+            style={s.cellStyle(!!ch)}
           />
         );
       })}
     </View>
   );
 }
+
+const createOTPInputStyles = ({ colors, radius }: ThemeStyleProps) => {
+  const base = StyleSheet.create({
+    row: { ...styles.flexRow, ...styles.g3 },
+    cell: {
+      width: moderateScale(52),
+      height: moderateScale(60),
+      textAlign: 'center',
+      fontFamily: fontFamily.bold,
+      fontSize: moderateScale(24),
+      color: colors.textStrong,
+      borderWidth: moderateScale(1.5),
+      borderRadius: moderateScale(radius.md),
+      backgroundColor: colors.surfaceCard,
+    } as TextStyle,
+    cellFilled: { borderColor: colors.primary },
+    cellEmpty: { borderColor: colors.borderDefault },
+  });
+
+  return {
+    ...base,
+    cellStyle: (filled: boolean) => [base.cell, filled ? base.cellFilled : base.cellEmpty],
+  };
+};

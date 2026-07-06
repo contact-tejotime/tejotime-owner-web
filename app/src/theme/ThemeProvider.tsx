@@ -6,11 +6,16 @@ import {
   fontFamily,
   fontSize,
   layout,
+  letterSpacing,
   lightColors,
+  lineHeight,
+  motion,
   radius,
+  ring,
   SemanticColors,
   shadow,
   space,
+  textStyle,
 } from './tokens';
 
 type Theme = {
@@ -21,8 +26,13 @@ type Theme = {
   controlHeight: typeof controlHeight;
   fontSize: typeof fontSize;
   fontFamily: typeof fontFamily;
+  lineHeight: typeof lineHeight;
+  letterSpacing: typeof letterSpacing;
+  textStyle: typeof textStyle;
   layout: typeof layout;
   shadow: typeof shadow;
+  ring: typeof ring;
+  motion: typeof motion;
 };
 
 type ThemeContextValue = Theme & {
@@ -50,8 +60,13 @@ export function ThemeProvider({
       controlHeight,
       fontSize,
       fontFamily,
+      lineHeight,
+      letterSpacing,
+      textStyle,
       layout,
       shadow,
+      ring,
+      motion,
       setDark,
       toggleDark: () => setDark((d) => !d),
     }),

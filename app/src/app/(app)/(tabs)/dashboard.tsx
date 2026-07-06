@@ -1,19 +1,20 @@
+import { router } from 'expo-router';
 import React from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { QueueCard } from '@/components/cards/QueueCard';
 import { StatCard } from '@/components/cards/StatCard';
-import { Button } from '@/components/ui/Button';
+import { TButton, THeader, TScreenScroll, TSectionTitle } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { flatCards } from '@/lib/queue';
 import { formatMoney } from '@/lib/mappers';
+import { TAB_ROUTES } from '@/navigation/routes';
 import { useAppState } from '@/state/store';
 import { useTheme } from '@/theme/ThemeProvider';
+import { styles } from '@/styles';
 
-import { Header, ScreenScroll, SectionTitle } from './chrome';
-
-export function Dashboard() {
+export default function Dashboard() {
   const { colors } = useTheme();
   const store = useAppState();
 
@@ -29,7 +30,7 @@ export function Dashboard() {
 
   return (
     <>
-      <Header
+      <THeader
         avatar
         title="Sharp Cuts"
         subtitle="Andheri West · Open till 9 PM"
@@ -39,52 +40,60 @@ export function Dashboard() {
           </IconButton>
         }
       />
-      <ScreenScroll>
-        <SectionTitle>Quick actions</SectionTitle>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <View style={{ flex: 1 }}>
-            <Button
+      <TScreenScroll>
+        <TSectionTitle>Quick actions</TSectionTitle>
+        <View style={dashboardStyles.actions}>
+          <View style={dashboardStyles.actionCell}>
+            <TButton
               variant="primary"
               fullWidth
               onPress={store.openWalkin}
               leadingIcon={<Icon name="plus" size={18} color="#fff" />}>
               Add walk-in
-            </Button>
+            </TButton>
           </View>
-          <View style={{ flex: 1 }}>
-            <Button
+          <View style={dashboardStyles.actionCell}>
+            <TButton
               variant="outline"
               fullWidth
               onPress={store.openQr}
               leadingIcon={<Icon name="qrCode" size={18} color={colors.textStrong} />}>
               Show QR
-            </Button>
+            </TButton>
           </View>
         </View>
 
-        <SectionTitle
+        <TSectionTitle
           action={
-            <Button variant="ghost" size="sm" onPress={() => store.setTab('queue')} textColor={colors.primary}>
+            <TButton variant="ghost" size="sm" onPress={() => router.push(TAB_ROUTES.queue as any)} textColor={colors.primary}>
               View all
-            </Button>
+            </TButton>
           }>
           Active queue
-        </SectionTitle>
-        <View style={{ gap: 8 }}>
+        </TSectionTitle>
+        <View style={dashboardStyles.queueList}>
           {queuePreview.map((c) => (
             <QueueCard key={c.id} card={c} onPress={() => store.openDetail(c.id)} />
           ))}
         </View>
 
-        <SectionTitle>Today&apos;s summary</SectionTitle>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+        <TSectionTitle>Today&apos;s summary</TSectionTitle>
+        <View style={dashboardStyles.kpiGrid}>
           {kpis.map((k) => (
-            <View key={k.key} style={{ width: '47.8%', flexGrow: 1 }}>
+            <View key={k.key} style={dashboardStyles.kpiCell}>
               <StatCard label={k.label} value={k.value} delta={k.delta} />
             </View>
           ))}
         </View>
-      </ScreenScroll>
+      </TScreenScroll>
     </>
   );
 }
+
+const dashboardStyles = StyleSheet.create({
+  actions: { ...styles.flexRow, ...styles.g3 },
+  actionCell: { ...styles.flex },
+  queueList: { ...styles.g2 },
+  kpiGrid: { ...styles.flexRow, ...styles.wrap, ...styles.g3 },
+  kpiCell: { width: '47.8%', flexGrow: 1 },
+});

@@ -1,37 +1,49 @@
-import React from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, TextStyle, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ServiceCard } from '@/components/cards/ServiceCard';
+import { TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Input } from '@/components/ui/Input';
+import { styles } from '@/styles';
+import { moderateScale } from '@/styles/scale';
+import type { ThemeStyleProps } from '@/styles/types';
 import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
 import { useTheme } from '@/theme/ThemeProvider';
 
-function SegButton({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
-  const { colors, radius, fontFamily, fontSize, shadow } = useTheme();
+import { createSheetOverlayStyles } from './QRSheet';
+
+function SegButton({
+  label,
+  on,
+  onPress,
+  s,
+}: {
+  label: string;
+  on: boolean;
+  onPress: () => void;
+  s: ReturnType<typeof createAddWalkInSheetStyles>;
+}) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        { flex: 1, alignItems: 'center', borderRadius: radius.md, paddingVertical: 10 },
-        on ? { backgroundColor: colors.surfaceCard, ...shadow.xs } : null,
-      ]}>
-      <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodySm, color: on ? colors.primary : colors.textMuted }}>
+    <Pressable onPress={onPress} style={s.segmentBtnStyle(on)}>
+      <TText variant="bodySm" weight="semibold" style={s.segmentLabelStyle(on) as TextStyle}>
         {label}
-      </Text>
+      </TText>
     </Pressable>
   );
 }
 
 export function AddWalkInSheet() {
-  const { colors, radius, fontFamily, fontSize } = useTheme();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const resolveColor = useServiceColor();
   const store = useAppState();
   const open = store.sheet === 'walkin';
+  const overlay = useMemo(() => createSheetOverlayStyles(), []);
+  const s = useMemo(() => createAddWalkInSheetStyles(theme, insets.bottom), [theme, insets.bottom]);
 
   const seatById = Object.fromEntries(store.seats.map((g) => [g.id, g]));
   let autoSeat = store.staff[0]?.id ?? '';
@@ -46,7 +58,7 @@ export function AddWalkInSheet() {
   const autoName = store.staff.find((st) => st.id === autoSeat)?.name ?? '';
 
   const staffOptions = [
-    { id: 'auto', name: 'Any seat', initial: '✦', sub: `Soonest free · ${autoName}`, color: colors.textSubtle },
+    { id: 'auto', name: 'Any seat', initial: '✦', sub: `Soonest free · ${autoName}`, color: theme.colors.textSubtle },
     ...store.staff.map((st) => {
       const g = seatById[st.id];
       const w = g?.waitN ?? 0;
@@ -63,29 +75,20 @@ export function AddWalkInSheet() {
 
   return (
     <Modal transparent visible={open} animationType="slide" onRequestClose={store.closeWalkin}>
-      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-        <Pressable onPress={store.closeWalkin} style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)' }} />
-        <View
-          style={{
-            backgroundColor: colors.surfaceCard,
-            borderTopLeftRadius: radius.xl,
-            borderTopRightRadius: radius.xl,
-            paddingHorizontal: 20,
-            paddingTop: 18,
-            paddingBottom: 26 + insets.bottom,
-            maxHeight: '86%',
-          }}>
-          <View style={{ width: 40, height: 4, borderRadius: 99, backgroundColor: colors.borderDefault, alignSelf: 'center', marginBottom: 16 }} />
-          <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.h4, color: colors.textStrong, marginBottom: 16 }}>
+      <View style={overlay.root}>
+        <Pressable onPress={store.closeWalkin} style={overlay.backdrop} />
+        <View style={s.sheet}>
+          <View style={s.handle} />
+          <TText variant="h4" weight="semibold" style={s.title}>
             Add walk-in
-          </Text>
+          </TText>
           <ScrollView showsVerticalScrollIndicator={false}>
             <Input
               label="Customer name"
               placeholder="Full name"
               value={store.walkin.name}
               onChangeText={store.setWalkinField('name')}
-              containerStyle={{ marginBottom: 14 }}
+              containerStyle={s.nameInput}
             />
             <Input
               label="Phone"
@@ -96,10 +99,10 @@ export function AddWalkInSheet() {
               onChangeText={store.setWalkinField('phone')}
             />
 
-            <Text style={{ fontFamily: fontFamily.medium, fontSize: fontSize.bodySm, color: colors.textBody, marginTop: 18, marginBottom: 8 }}>
+            <TText variant="bodySm" weight="medium" color="textBody" style={s.sectionLabel}>
               Service
-            </Text>
-            <View style={{ gap: 8 }}>
+            </TText>
+            <View style={s.list}>
               {store.services.map((sv) => (
                 <ServiceCard
                   key={sv.name}
@@ -113,58 +116,51 @@ export function AddWalkInSheet() {
               ))}
             </View>
             {!!store.walkin.error && (
-              <Text style={{ fontFamily: fontFamily.regular, fontSize: fontSize.bodySm, color: colors.error, marginTop: 10 }}>
+              <TText variant="bodySm" color="error" style={s.error}>
                 {store.walkin.error}
-              </Text>
+              </TText>
             )}
 
-            <Text style={{ fontFamily: fontFamily.medium, fontSize: fontSize.bodySm, color: colors.textBody, marginTop: 18, marginBottom: 8 }}>
+            <TText variant="bodySm" weight="medium" color="textBody" style={s.sectionLabel}>
               Assign to seat
-            </Text>
-            <View style={{ gap: 8 }}>
+            </TText>
+            <View style={s.list}>
               {staffOptions.map((o) => {
                 const sel = store.walkin.staffId === o.id;
                 return (
-                  <Pressable
-                    key={o.id}
-                    onPress={() => store.setWalkinStaff(o.id)}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 11,
-                      borderRadius: radius.lg,
-                      paddingHorizontal: 13,
-                      paddingVertical: 11,
-                      backgroundColor: colors.surfaceCard,
-                      borderWidth: 1.5,
-                      borderColor: sel ? colors.primary : colors.borderSubtle,
-                    }}>
-                    <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: o.color, alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ fontFamily: fontFamily.bold, fontSize: 13, color: '#fff' }}>{o.initial}</Text>
+                  <Pressable key={o.id} onPress={() => store.setWalkinStaff(o.id)} style={s.seatOptionStyle(sel)}>
+                    <View style={s.seatAvatarBg(o.color)}>
+                      <TText weight="bold" style={s.seatAvatarText}>
+                        {o.initial}
+                      </TText>
                     </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.bodyMd, color: colors.textStrong }}>{o.name}</Text>
-                      <Text style={{ fontFamily: fontFamily.regular, fontSize: fontSize.caption, color: colors.textMuted, marginTop: 3 }}>{o.sub}</Text>
+                    <View style={s.seatBody}>
+                      <TText variant="bodyMd" weight="semibold">
+                        {o.name}
+                      </TText>
+                      <TText variant="caption" color="textMuted" style={s.seatSub}>
+                        {o.sub}
+                      </TText>
                     </View>
-                    {sel && <Icon name="check" size={18} color={colors.primary} />}
+                    {sel && <Icon name="check" size={18} color={theme.colors.primary} />}
                   </Pressable>
                 );
               })}
             </View>
 
-            <Text style={{ fontFamily: fontFamily.medium, fontSize: fontSize.bodySm, color: colors.textBody, marginTop: 18, marginBottom: 8 }}>
+            <TText variant="bodySm" weight="medium" color="textBody" style={s.sectionLabel}>
               Add to queue as
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 4, backgroundColor: colors.surfaceSunken, borderRadius: radius.lg, padding: 4 }}>
-              <SegButton label="End of queue" on={store.walkin.position === 'end'} onPress={() => store.setWalkinPosition('end')} />
-              <SegButton label="Next up" on={store.walkin.position === 'next'} onPress={() => store.setWalkinPosition('next')} />
+            </TText>
+            <View style={s.segmentWrap}>
+              <SegButton label="End of queue" on={store.walkin.position === 'end'} onPress={() => store.setWalkinPosition('end')} s={s} />
+              <SegButton label="Next up" on={store.walkin.position === 'next'} onPress={() => store.setWalkinPosition('next')} s={s} />
             </View>
-            <Text style={{ fontFamily: fontFamily.regular, fontSize: fontSize.caption, color: colors.textSubtle, marginTop: 8 }}>
+            <TText variant="caption" color="textSubtle" style={s.hint}>
               Next up places them right after the customer in service.
-            </Text>
+            </TText>
           </ScrollView>
 
-          <View style={{ marginTop: 16 }}>
+          <View style={s.footer}>
             <Button variant="primary" size="lg" fullWidth onPress={store.addWalkin}>
               Add to queue
             </Button>
@@ -174,3 +170,72 @@ export function AddWalkInSheet() {
     </Modal>
   );
 }
+
+const createAddWalkInSheetStyles = ({ colors, radius, shadow }: ThemeStyleProps, bottomInset: number) => {
+  const base = StyleSheet.create({
+    sheet: {
+      backgroundColor: colors.surfaceCard,
+      borderTopLeftRadius: moderateScale(radius.xl),
+      borderTopRightRadius: moderateScale(radius.xl),
+      ...styles.ph5,
+      paddingTop: moderateScale(18),
+      paddingBottom: moderateScale(26) + bottomInset,
+      maxHeight: '86%',
+    },
+    handle: {
+      width: moderateScale(40),
+      height: moderateScale(4),
+      borderRadius: moderateScale(99),
+      backgroundColor: colors.borderDefault,
+      alignSelf: 'center',
+      ...styles.mb4,
+    },
+    title: { ...styles.mb4 },
+    nameInput: { ...styles.mb4 },
+    sectionLabel: { marginTop: moderateScale(18), marginBottom: moderateScale(8) },
+    list: { ...styles.g2 },
+    error: { ...styles.mt3 },
+    seatOption: {
+      ...styles.flexRow,
+      ...styles.itemsCenter,
+      gap: moderateScale(11),
+      borderRadius: moderateScale(radius.lg),
+      paddingHorizontal: moderateScale(13),
+      paddingVertical: moderateScale(11),
+      backgroundColor: colors.surfaceCard,
+      borderWidth: moderateScale(1.5),
+      borderColor: colors.borderSubtle,
+    },
+    seatOptionSelected: { borderColor: colors.primary },
+    seatAvatar: {
+      ...styles.nonFlexCenter,
+      width: moderateScale(30),
+      height: moderateScale(30),
+      borderRadius: moderateScale(15),
+    },
+    seatAvatarText: { fontSize: moderateScale(13), color: '#fff' },
+    seatBody: { ...styles.flex, ...styles.minWidth0 },
+    seatSub: { ...styles.mt1 },
+    segmentWrap: {
+      ...styles.flexRow,
+      gap: moderateScale(4),
+      backgroundColor: colors.surfaceSunken,
+      borderRadius: moderateScale(radius.lg),
+      padding: moderateScale(4),
+    },
+    segmentBtn: { ...styles.flex, alignItems: 'center', borderRadius: moderateScale(radius.md), paddingVertical: moderateScale(10) },
+    segmentBtnOn: { backgroundColor: colors.surfaceCard, ...shadow.xs },
+    segmentLabelOn: { color: colors.primary },
+    segmentLabelOff: { color: colors.textMuted },
+    hint: { ...styles.mt2 },
+    footer: { ...styles.mt4 },
+  });
+
+  return {
+    ...base,
+    seatOptionStyle: (selected: boolean) => [base.seatOption, selected ? base.seatOptionSelected : null],
+    seatAvatarBg: (color: string) => [base.seatAvatar, { backgroundColor: color }],
+    segmentBtnStyle: (on: boolean) => [base.segmentBtn, on ? base.segmentBtnOn : null],
+    segmentLabelStyle: (on: boolean) => (on ? base.segmentLabelOn : base.segmentLabelOff) as TextStyle,
+  };
+};
