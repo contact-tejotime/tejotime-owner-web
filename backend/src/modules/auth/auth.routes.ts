@@ -13,8 +13,8 @@ authRouter.post(
   limiters.login,
   validate({ body: loginSchema }),
   asyncHandler(async (req, res) => {
-    const { handle, password } = req.body;
-    res.json(await authService.login(handle, password));
+    const { phone, password } = req.body;
+    res.json(await authService.login(phone, password));
   }),
 );
 

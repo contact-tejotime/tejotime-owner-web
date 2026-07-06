@@ -50,7 +50,7 @@ type State = {
   authed: boolean;
   authLoading: boolean;
   signInLoading: boolean;
-  userId: string;
+  phone: string;
   password: string;
   queueStaff: string; // 'all' | staff id
   plan: Plan;
@@ -71,7 +71,7 @@ type State = {
 };
 
 type Store = State & {
-  setUserId: (v: string) => void;
+  setPhone: (v: string) => void;
   setPassword: (v: string) => void;
   signIn: () => void;
   signOut: () => void;
@@ -127,7 +127,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     authed: false,
     authLoading: true,
     signInLoading: false,
-    userId: '',
+    phone: '',
     password: '',
     queueStaff: 'all',
     plan: 'free',
@@ -300,16 +300,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const store = useMemo<Store>(() => {
     return {
       ...s,
-      setUserId: (v) => patch(() => ({ userId: v })),
+      setPhone: (v) => patch(() => ({ phone: v })),
       setPassword: (v) => patch(() => ({ password: v })),
       signIn: async () => {
-        if (!s.userId.trim() || !s.password.trim()) {
-          showToast('Enter your user ID and password', 'error');
+        if (!s.phone.trim() || !s.password.trim()) {
+          showToast('Enter your phone number and password', 'error');
           return;
         }
         patch(() => ({ signInLoading: true }));
         try {
-          const res: any = await api.login(s.userId.trim(), s.password);
+          const res: any = await api.login(s.phone.trim(), s.password);
           const message =
             res?.message ?? (res?.user?.name ? `Welcome back, ${res.user.name}` : 'Signed in successfully');
           setS((p) => ({
@@ -339,7 +339,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           type = 'info';
         }
         teardown();
-        setS((p) => ({ ...p, authed: false, userId: '', password: '' }));
+        setS((p) => ({ ...p, authed: false, phone: '', password: '' }));
         showToast(message, type);
       },
       setQueueStaff: (id) => patch(() => ({ queueStaff: id })),

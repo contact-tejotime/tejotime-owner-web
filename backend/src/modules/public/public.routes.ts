@@ -6,6 +6,7 @@ import { limiters } from '../../middleware/rate-limit';
 import * as pub from './public.service';
 
 const slugParam = z.object({ slug: z.string().min(1).max(80) });
+const phoneParam = z.object({ phone: z.string().regex(/^\d{7,15}$/) });
 const ticketParam = z.object({ ticketId: z.string().uuid() });
 
 const joinSchema = z
@@ -29,6 +30,18 @@ publicRouter.get(
   validate({ params: slugParam }),
   asyncHandler(async (req, res) => {
     res.json(await pub.getMicrosite(req.params.slug));
+  }),
+);
+
+// Phone-keyed microsite: the customer-facing URL is www.tejotime.com/<phone> where <phone>
+// is the business's full international number (country_code + national number, digits only).
+// This 2-segment path can't collide with the 1-segment '/businesses/:slug'.
+publicRouter.get(
+  '/businesses/by-phone/:phone',
+  limiters.publicRead,
+  validate({ params: phoneParam }),
+  asyncHandler(async (req, res) => {
+    res.json(await pub.getMicrositeByPhone(req.params.phone));
   }),
 );
 

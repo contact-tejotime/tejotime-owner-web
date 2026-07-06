@@ -85,8 +85,8 @@ async function raw<T = any>(method: string, path: string, body?: unknown, retry 
 }
 
 export const api = {
-  login: async (handle: string, password: string) => {
-    const j = await raw('POST', '/auth/login', { handle, password });
+  login: async (phone: string, password: string) => {
+    const j = await raw('POST', '/auth/login', { phone, password });
     await persist(j.accessToken, j.refreshToken);
     return j;
   },

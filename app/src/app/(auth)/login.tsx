@@ -13,7 +13,7 @@ const logo = require('@/assets/images/logo-full.png');
 
 export default function Login() {
   const { colors } = useTheme();
-  const { userId, password, signInLoading, setUserId, setPassword, signIn } = useAppState();
+  const { phone, password, signInLoading, setPhone, setPassword, signIn } = useAppState();
   const [showPassword, setShowPassword] = useState(false);
 
   return (
@@ -31,11 +31,12 @@ export default function Login() {
             </TText>
           </View>
           <TInput
-            label="User ID"
-            placeholder="sharpcuts"
+            label="Phone number"
+            placeholder="+91 9399385943"
+            keyboardType="phone-pad"
             autoCapitalize="none"
-            value={userId}
-            onChangeText={setUserId}
+            value={phone}
+            onChangeText={setPhone}
             editable={!signInLoading}
           />
           <TInput

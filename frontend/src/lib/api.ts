@@ -46,6 +46,8 @@ export interface MicrositeStaff {
 export interface Microsite {
   id: string;
   slug: string;
+  countryCode: string | null;
+  phoneNumber: string | null;
   name: string;
   tagline: string | null;
   description: string | null;
@@ -105,6 +107,7 @@ export interface BookBody extends JoinBody {
 
 export const publicApi = {
   getMicrosite: (slug: string) => req<Microsite>(`/public/businesses/${slug}`),
+  getMicrositeByPhone: (phone: string) => req<Microsite>(`/public/businesses/by-phone/${phone}`),
   getAvailability: (slug: string) => req<Availability>(`/public/businesses/${slug}/availability`),
   getStaffAvailability: (slug: string) => req<{ staff: MicrositeStaff[] }>(`/public/businesses/${slug}/staff`),
   getSlots: (slug: string, params: { date: string; serviceId?: string; staffId?: string }) => {

@@ -13,6 +13,7 @@ import { dayjs } from '../src/lib/time';
 
 const TZ = 'Asia/Kolkata';
 const OWNER_HANDLE = 'sharpcuts';
+const OWNER_PHONE = '919399385943'; // login credential — digits-only full number (country code + national)
 const OWNER_PASSWORD = 'password123';
 
 function at(time: string) {
@@ -38,6 +39,8 @@ async function main() {
       .from('business')
       .insert({
         slug: 'sharp-cuts',
+        country_code: '91',
+        phone_number: '9399385943',
         name: 'Sharp Cuts',
         category: 'Salon & Barber',
         area: 'Andheri West',
@@ -62,12 +65,12 @@ async function main() {
     supabase.from('subscription').insert({ business_id: bid, plan: 'free', status: 'trialing' }).select().single(),
   );
 
-  // Owner login (User ID + password) — matches app/src/app/(auth)/login.tsx.
+  // Owner login (phone + password) — matches app/src/app/(auth)/login.tsx.
   const passwordHash = await bcrypt.hash(OWNER_PASSWORD + (process.env.PASSWORD_PEPPER ?? ''), 10);
   await must(
     supabase
       .from('app_user')
-      .insert({ business_id: bid, handle: OWNER_HANDLE, name: 'Sharp Cuts Owner', role: 'owner', password_hash: passwordHash })
+      .insert({ business_id: bid, handle: OWNER_HANDLE, phone: OWNER_PHONE, name: 'Sharp Cuts Owner', role: 'owner', password_hash: passwordHash })
       .select()
       .single(),
   );
@@ -144,7 +147,7 @@ async function main() {
 
   console.log('✓ Seed complete.');
   console.log(`  business: ${business.name} (slug: sharp-cuts, id: ${bid})`);
-  console.log(`  owner login → handle: ${OWNER_HANDLE}  password: ${OWNER_PASSWORD}`);
+  console.log(`  owner login → phone: ${OWNER_PHONE}  password: ${OWNER_PASSWORD}`);
 }
 
 main()

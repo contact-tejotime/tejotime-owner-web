@@ -38,11 +38,14 @@ async function issueSession(user: { id: string; business_id: string; role: any }
   return { accessToken, refreshToken };
 }
 
-export async function login(handle: string, password: string) {
+export async function login(phone: string, password: string) {
+  // Match the stored digits-only full number (country code + national). Same convention
+  // as business.phone_full / resolveBusinessByPhone — strip anything that isn't a digit.
+  const digits = phone.replace(/\D/g, '');
   const { data: user } = await supabase
     .from('app_user')
-    .select('id, business_id, handle, password_hash, role, name, dark_mode, is_active')
-    .eq('handle', handle)
+    .select('id, business_id, phone, password_hash, role, name, dark_mode, is_active')
+    .eq('phone', digits)
     .maybeSingle();
 
   if (!user || !user.is_active) throw Errors.invalidCredentials();

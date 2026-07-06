@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 export const loginSchema = z
   .object({
-    handle: z.string().trim().min(1, 'Enter your user ID and password').max(40),
-    password: z.string().min(1, 'Enter your user ID and password').max(128),
+    phone: z.string().trim().min(1, 'Enter your phone number and password').max(20),
+    password: z.string().min(1, 'Enter your phone number and password').max(128),
   })
   .strict();
 

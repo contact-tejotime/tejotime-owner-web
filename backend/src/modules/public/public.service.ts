@@ -47,6 +47,31 @@ function liveAvailability(ctx: Awaited<ReturnType<typeof loadQueueContext>>) {
 
 export async function getMicrosite(slug: string) {
   const b = await resolveBusiness(slug);
+  return buildMicrosite(b);
+}
+
+// The URL segment is the full number, digits only (country_code + national number
+// concatenated). Match it against the derived phone_full column. We intentionally do NOT
+// reuse normalizePhone(): its '+' / India-10-digit-default logic doesn't apply to a
+// pre-concatenated international number and would corrupt some inputs.
+async function resolveBusinessByPhone(phoneDigits: string) {
+  const digits = phoneDigits.replace(/\D/g, '');
+  const { data } = await supabase
+    .from('business')
+    .select('*')
+    .eq('phone_full', digits)
+    .eq('is_active', true)
+    .maybeSingle();
+  if (!data) throw Errors.notFound('Business not found');
+  return data;
+}
+
+export async function getMicrositeByPhone(phoneDigits: string) {
+  const b = await resolveBusinessByPhone(phoneDigits);
+  return buildMicrosite(b);
+}
+
+async function buildMicrosite(b: any) {
   // Single round-trip wave: hours/amenities/gallery run alongside the queue context,
   // which already loads active services (reused below instead of a duplicate query).
   const [{ data: hours }, { data: amenities }, { data: gallery }, ctx] = await Promise.all([
@@ -75,6 +100,8 @@ export async function getMicrosite(slug: string) {
   return {
     id: b.id,
     slug: b.slug,
+    countryCode: b.country_code ?? null,
+    phoneNumber: b.phone_number ?? null,
     name: b.name,
     tagline: b.tagline,
     description: b.description,

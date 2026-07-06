@@ -95,3 +95,7 @@ services:
         sync: false   # https://tejotime-api.onrender.com/api/v1
       - key: NEXT_PUBLIC_SOCKET_URL
         sync: false   # https://tejotime-api.onrender.com
+      # Origin the browser loads Next static assets (CSS/JS/fonts) from.
+      # Set to this web service's own origin; leave unset for local dev.
+      - key: NEXT_PUBLIC_ASSET_PREFIX
+        sync: false   # https://tejotime-owner.onrender.com

@@ -9,7 +9,6 @@ import { ApiError, publicApi, type Microsite, type MicrositeStaff, type Slot, ty
 import { connectCustomer, type CustomerAuth } from "@/lib/socket";
 import "./salon.css";
 
-const SLUG = "sharp-cuts";
 const AVATAR_COLORS = ["var(--primary)", "var(--secondary)", "var(--amber-500)"];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -19,8 +18,9 @@ const DEMO_OTP = "1234";
 // Client-side abuse simulation: after this many joins from one phone in a session we
 // show the "too many attempts" view (the backend enforces only a generic per-IP 429).
 const BLOCK_AT = 3;
-const SHOP_PHONE = "+91 98200 12345"; // demo contact for the blocked view
-const STORE_KEY = "tt_sharpcuts_v1";
+// localStorage namespace for the held-ticket/abuse simulation. Keyed per business (by slug)
+// so a held ticket or attempt counter from one salon never leaks onto another salon's page.
+const STORE_PREFIX = "tt_microsite_";
 
 // Static editorial content (not modelled in the API yet).
 const FAQS = [
@@ -66,18 +66,18 @@ interface Store {
   lastName: string;
 }
 const defaultStore = (): Store => ({ hold: null, attempts: {}, blocked: {}, lastPhone: "", lastName: "" });
-function readStore(): Store {
+function readStore(key: string): Store {
   if (typeof window === "undefined") return defaultStore();
   try {
-    return { ...defaultStore(), ...(JSON.parse(localStorage.getItem(STORE_KEY) || "null") || {}) };
+    return { ...defaultStore(), ...(JSON.parse(localStorage.getItem(key) || "null") || {}) };
   } catch {
     return defaultStore();
   }
 }
-function writeStore(s: Store) {
+function writeStore(key: string, s: Store) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(s));
+    localStorage.setItem(key, JSON.stringify(s));
   } catch {
     /* ignore */
   }
@@ -95,8 +95,12 @@ const canLeaveQueue = (s?: string | null) => s === "waiting";
 
 type View = "flow" | "already" | "blocked" | "left" | "track";
 
-export default function SharpCutsClient({ initialSite }: { initialSite: Microsite }) {
+export default function MicrositeClient({ initialSite }: { initialSite: Microsite }) {
   const site = initialSite;
+  // Per-business localStorage namespace (see STORE_PREFIX) and the shop's real contact
+  // number for the rate-limited "call the shop" view (was a hardcoded demo number).
+  const storeKey = `${STORE_PREFIX}${site.slug}`;
+  const shopPhone = site.phoneNumber ? `+${site.countryCode ?? ""} ${site.phoneNumber}`.trim() : null;
   const [navSolid, setNavSolid] = useState(false);
   const [liveWait, setLiveWait] = useState(initialSite.live.waitMinutes);
   const [liveCount, setLiveCount] = useState(initialSite.live.queueCount);
@@ -158,7 +162,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
   const clearHold = () => {
     const store = storeRef.current;
     store.hold = null;
-    writeStore(store);
+    writeStore(storeKey, store);
     setHeld(null);
   };
   const bindSocket = (s: Socket) => {
@@ -228,14 +232,14 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
     openSocket({ businessId: site.id });
     const poll = setInterval(() => {
       publicApi
-        .getAvailability(SLUG)
+        .getAvailability(site.slug)
         .then((a) => {
           setLiveWait(a.waitMinutes);
           setLiveCount(a.queueCount);
         })
         .catch(() => {});
       publicApi
-        .getStaffAvailability(SLUG)
+        .getStaffAvailability(site.slug)
         .then((r) => setLiveStaff(r.staff))
         .catch(() => {});
     }, 15000);
@@ -249,7 +253,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
 
   // ---- restore a held ticket (resume pill / "already in line") ----
   useEffect(() => {
-    const store = readStore();
+    const store = readStore(storeKey);
     storeRef.current = store;
     if (!store.hold) return;
     const rec = store.hold;
@@ -416,7 +420,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
     setVerifiedPhone(p); // this phone is now OTP-verified for the session → Join can skip re-OTP
     stopResend();
     try {
-      const r = await publicApi.trackByPhone(SLUG, { phone: p });
+      const r = await publicApi.trackByPhone(site.slug, { phone: p });
       const store = storeRef.current;
       store.lastPhone = p;
       const knownName = r.customerName ?? "";
@@ -436,13 +440,13 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
           businessId: t.socket?.businessId ?? site.id,
           token: t.token,
         };
-        writeStore(store);
+        writeStore(storeKey, store);
         setHeld(store.hold);
         if (t.socket) openSocket({ businessId: t.socket.businessId, ticketId: t.ticketId, ticketKey: t.socket.ticketKey });
         startTicketPoll(t.ticketId);
         setView("already");
       } else {
-        writeStore(store);
+        writeStore(storeKey, store);
         setTstep(3);
       }
     } catch (e) {
@@ -494,7 +498,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
       setSelectedSlot(null);
       try {
         const today = new Date().toISOString().slice(0, 10);
-        const r = await publicApi.getSlots(SLUG, { date: today, serviceId: cart });
+        const r = await publicApi.getSlots(site.slug, { date: today, serviceId: cart });
         setSlots(r.slots);
       } catch {
         setSlots([]);
@@ -511,7 +515,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
     if (store.blocked[p] || (store.attempts[p] || 0) >= BLOCK_AT) {
       store.blocked[p] = true;
       store.lastPhone = p;
-      writeStore(store);
+      writeStore(storeKey, store);
       setView("blocked");
       return true;
     }
@@ -593,7 +597,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
     stopResend();
     try {
       if (mode === "queue") {
-        const t = await publicApi.joinQueue(SLUG, {
+        const t = await publicApi.joinQueue(site.slug, {
           serviceId: cart,
           name: name.trim(),
           phone: p,
@@ -616,7 +620,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
         // Only count a genuinely new join toward the abuse counter — a day-scoped dedup hit
         // (the phone was already in today's queue) is a no-op, not a fresh join.
         if (!t.alreadyInQueue) store.attempts[p] = (store.attempts[p] || 0) + 1;
-        writeStore(store);
+        writeStore(storeKey, store);
         setHeld(store.hold);
         if (t.socket) openSocket({ businessId: t.socket.businessId, ticketId: t.ticketId, ticketKey: t.socket.ticketKey });
         startTicketPoll(t.ticketId);
@@ -624,7 +628,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
         if (t.alreadyInQueue) setView("already");
         else setStep(4);
       } else {
-        const b = await publicApi.bookSlot(SLUG, {
+        const b = await publicApi.bookSlot(site.slug, {
           serviceId: cart,
           name: name.trim(),
           phone: p,
@@ -635,7 +639,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
         const store = storeRef.current;
         store.lastPhone = p;
         store.lastName = name.trim();
-        writeStore(store);
+        writeStore(storeKey, store);
         setStep(4);
       }
     } catch (e) {
@@ -643,7 +647,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
         const store = storeRef.current;
         store.blocked[p] = true;
         store.lastPhone = p;
-        writeStore(store);
+        writeStore(storeKey, store);
         setView("blocked");
       } else {
         // Surface on whichever screen we're on: Step 3 shows otpError, Step 2 shows formError.
@@ -687,7 +691,7 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
       }
     }
     store.hold = null;
-    writeStore(store);
+    writeStore(storeKey, store);
     setHeld(null);
     stopTicketPoll();
     openSocket({ businessId: site.id });
@@ -1468,12 +1472,14 @@ export default function SharpCutsClient({ initialSite }: { initialSite: Microsit
                   <p style={{ font: "var(--fw-regular) 14px/1.55 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 8px" }}>
                     This number has joined and cancelled several times. To keep the line fair for everyone, please <span style={{ font: "var(--fw-semibold) 14px/1 var(--font-sans)", color: "var(--text-strong)" }}>call the shop</span> or come in to join.
                   </p>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 12, margin: "16px 0" }}>
-                    <span style={{ color: "var(--primary)", display: "flex" }}>
-                      <Icon name="phone" size={16} />
-                    </span>
-                    <span style={{ font: "var(--fw-semibold) 14px/1 var(--font-sans)", color: "var(--text-strong)" }}>{SHOP_PHONE}</span>
-                  </div>
+                  {shopPhone && (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 12, margin: "16px 0" }}>
+                      <span style={{ color: "var(--primary)", display: "flex" }}>
+                        <Icon name="phone" size={16} />
+                      </span>
+                      <span style={{ font: "var(--fw-semibold) 14px/1 var(--font-sans)", color: "var(--text-strong)" }}>{shopPhone}</span>
+                    </div>
+                  )}
                   <Button variant="primary" fullWidth onClick={closeJoin}>Got it</Button>
                 </div>
               )}
