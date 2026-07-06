@@ -23,12 +23,6 @@ const BLOCK_AT = 3;
 const STORE_PREFIX = "tt_microsite_";
 
 // Static editorial content (not modelled in the API yet).
-const FAQS = [
-  { q: "Do I need an appointment?", a: "No — walk in any time and join the live queue, or book a slot ahead if you prefer a fixed time." },
-  { q: "How does the live queue work?", a: "Join from your phone, get a token, and watch your position update live. We text you when you are two away." },
-  { q: "Can I pick my barber?", a: "Yes. Choose any available barber, or pick a favourite when you join — you can see each barber’s current wait first." },
-  { q: "What payments do you accept?", a: "UPI, all major cards, and cash. You pay at the shop after your service." },
-];
 const REVIEWS = [
   { stars: "★★★★★", text: "Best fade in Bandra, and I never wait. Joined the queue from home and walked in right on time.", name: "Aman R.", initial: "A", avBg: "var(--primary)" },
   { stars: "★★★★★", text: "Lisa nailed my colour. Loved seeing the live wait before heading over.", name: "Priya S.", initial: "P", avBg: "var(--secondary)" },
@@ -303,6 +297,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     avBg: AVATAR_COLORS[i % AVATAR_COLORS.length],
   }));
   const amenities = site.amenities?.length ? site.amenities : AMENITIES_FALLBACK;
+  const faqs = Array.isArray(site.faqs) ? site.faqs : [];
   const rating = site.rating ?? 0;
   const reviewCount = site.reviewCount ?? 0;
   const establishedYear = site.establishedYear ?? 2014;
@@ -807,10 +802,19 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       <div style={{ position: "relative", height: 560, overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, color-mix(in srgb, var(--brand-ink) 22%, #cfd6e6), color-mix(in srgb, var(--primary) 18%, #dfe6f2) 60%, color-mix(in srgb, var(--secondary) 16%, #e3efed))" }} />
         <div style={{ position: "absolute", right: "6%", top: "50%", transform: "translateY(-50%)", width: 380, height: 380, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,.5), transparent 62%)" }} />
-        <div style={{ position: "absolute", right: "9%", bottom: 34, font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "rgba(15,23,42,.4)", display: "flex", alignItems: "center", gap: 7 }}>
-          <Icon name="building" size={15} />
-          Hero photo — salon interior
-        </div>
+        {site.heroImageUrl && (
+          <>
+            <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${site.heroImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+            {/* Left-to-right white scrim keeps the dark hero copy legible over any photo. */}
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(255,255,255,.9) 0%, rgba(255,255,255,.6) 46%, rgba(255,255,255,.12) 100%)" }} />
+          </>
+        )}
+        {!site.heroImageUrl && (
+          <div style={{ position: "absolute", right: "9%", bottom: 34, font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "rgba(15,23,42,.4)", display: "flex", alignItems: "center", gap: 7 }}>
+            <Icon name="building" size={15} />
+            Hero photo — salon interior
+          </div>
+        )}
         <div style={{ position: "relative", maxWidth: 1180, margin: "0 auto", height: "100%", padding: "0 32px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <div style={{ maxWidth: 560, animation: "ttHero .7s ease both" }}>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,.85)", border: "1px solid rgba(255,255,255,.7)", borderRadius: 999, padding: "6px 14px", backdropFilter: "blur(6px)" }}>
@@ -864,7 +868,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         <div style={{ ...revealStyle, display: "flex", gap: 48, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 300 }}>
             <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>About the salon</div>
-            <h2 style={{ font: "var(--fw-extrabold) 34px/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>A proper cut, no long waits.</h2>
+            <h2 style={{ font: "var(--fw-extrabold) 34px/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>{site.aboutHeading || "A proper cut, no long waits."}</h2>
             <p style={{ font: "var(--fw-regular) 16px/1.6 var(--font-sans)", color: "var(--text-body)", margin: "0 0 24px" }}>
               {site.description ?? "Skilled barbers, clean chairs, and a live queue so you never waste time waiting around — step out, grab a chai, and we'll text you when you're close."}
             </p>
@@ -880,11 +884,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               ))}
             </div>
           </div>
-          <div style={{ flex: 1, minWidth: 280, height: 260, borderRadius: 18, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--surface-card)), color-mix(in srgb, var(--secondary) 12%, var(--surface-card)))", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-subtle)" }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 8, font: "var(--fw-medium) 13px/1 var(--font-sans)" }}>
-              <Icon name="building" size={18} />
-              Photo — the space
-            </span>
+          <div style={{ flex: 1, minWidth: 280, height: 260, borderRadius: 18, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--surface-card)), color-mix(in srgb, var(--secondary) 12%, var(--surface-card)))", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-subtle)", backgroundImage: site.aboutImageUrl ? `url(${site.aboutImageUrl})` : undefined, backgroundSize: "cover", backgroundPosition: "center" }}>
+            {!site.aboutImageUrl && (
+              <span style={{ display: "flex", alignItems: "center", gap: 8, font: "var(--fw-medium) 13px/1 var(--font-sans)" }}>
+                <Icon name="building" size={18} />
+                Photo — the space
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -893,9 +899,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       <div id="gallery" style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 32px 40px" }}>
         <div style={revealStyle}>
           <div style={eyebrow}>Gallery</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+          {/* Horizontal strip: fixed-width cells that scroll sideways once they overflow the row. */}
+          <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 6, scrollSnapType: "x proximity" }}>
             {(site.gallery.length ? site.gallery : GALLERY).map((g, i) => (
-              <div key={i} className="salonGalleryCell" style={{ height: 150, borderRadius: 14, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--surface-card)), color-mix(in srgb, var(--secondary) 10%, var(--surface-card)))", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-subtle)", cursor: "pointer", backgroundImage: typeof g === "string" ? `url(${g})` : undefined, backgroundSize: "cover" }}>
+              <div key={i} className="salonGalleryCell" style={{ flex: "0 0 auto", width: 240, height: 160, borderRadius: 14, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--surface-card)), color-mix(in srgb, var(--secondary) 10%, var(--surface-card)))", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-subtle)", cursor: "pointer", backgroundImage: typeof g === "string" ? `url(${g})` : undefined, backgroundSize: "cover", backgroundPosition: "center", scrollSnapAlign: "start" }}>
                 {typeof g !== "string" && <Icon name="scissors" size={20} />}
               </div>
             ))}
@@ -982,30 +989,32 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         </div>
       </div>
 
-      {/* ===== FAQ ===== */}
-      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 32px 56px" }}>
-        <div style={revealStyle}>
-          <div style={eyebrow}>Good to know</div>
-          <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, overflow: "hidden", background: "var(--surface-card)" }}>
-            {FAQS.map((f, i) => {
-              const open = faqOpen === i;
-              return (
-                <div key={f.q} style={{ borderBottom: i < FAQS.length - 1 ? "1px solid var(--border-subtle)" : "none" }}>
-                  <div onClick={() => toggleFaq(i)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", cursor: "pointer" }}>
-                    <span style={{ font: "var(--fw-semibold) 16px/1.3 var(--font-sans)", color: "var(--text-strong)" }}>{f.q}</span>
-                    <span style={{ display: "flex", color: "var(--text-muted)", transition: "transform .25s ease", transform: open ? "rotate(45deg)" : "rotate(0deg)" }}>
-                      <Icon name="plus" size={18} />
-                    </span>
+      {/* ===== FAQ (only when the store has Q&A) ===== */}
+      {faqs.length > 0 && (
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 32px 56px" }}>
+          <div style={revealStyle}>
+            <div style={eyebrow}>Good to know</div>
+            <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, overflow: "hidden", background: "var(--surface-card)" }}>
+              {faqs.map((f, i) => {
+                const open = faqOpen === i;
+                return (
+                  <div key={f.q} style={{ borderBottom: i < faqs.length - 1 ? "1px solid var(--border-subtle)" : "none" }}>
+                    <div onClick={() => toggleFaq(i)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", cursor: "pointer" }}>
+                      <span style={{ font: "var(--fw-semibold) 16px/1.3 var(--font-sans)", color: "var(--text-strong)" }}>{f.q}</span>
+                      <span style={{ display: "flex", color: "var(--text-muted)", transition: "transform .25s ease", transform: open ? "rotate(45deg)" : "rotate(0deg)" }}>
+                        <Icon name="plus" size={18} />
+                      </span>
+                    </div>
+                    <div style={{ overflow: "hidden", transition: "max-height .3s ease, opacity .3s ease", maxHeight: open ? 180 : 0, opacity: open ? 1 : 0 }}>
+                      <div style={{ padding: "0 20px 18px", font: "var(--fw-regular) 15px/1.6 var(--font-sans)", color: "var(--text-muted)" }}>{f.a}</div>
+                    </div>
                   </div>
-                  <div style={{ overflow: "hidden", transition: "max-height .3s ease, opacity .3s ease", maxHeight: open ? 180 : 0, opacity: open ? 1 : 0 }}>
-                    <div style={{ padding: "0 20px 18px", font: "var(--fw-regular) 15px/1.6 var(--font-sans)", color: "var(--text-muted)" }}>{f.a}</div>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ===== VISIT ===== */}
       <div id="visit" style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}>

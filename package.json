@@ -2,9 +2,12 @@
   "private": true,
   "scripts": {
     "dev:frontend": "npm run dev --prefix frontend",
+    "dev:admin": "npm run dev --prefix admin-panel",
     "dev:app": "npm run start --prefix app",
     "build:frontend": "npm run build --prefix frontend",
+    "build:admin": "npm run build --prefix admin-panel",
     "lint:frontend": "npm run lint --prefix frontend",
+    "lint:admin": "npm run lint --prefix admin-panel",
     "lint:app": "npm run lint --prefix app"
   }
 }

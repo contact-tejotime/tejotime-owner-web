@@ -51,6 +51,10 @@ export interface Microsite {
   name: string;
   tagline: string | null;
   description: string | null;
+  aboutHeading: string | null;
+  heroImageUrl: string | null;
+  aboutImageUrl: string | null;
+  faqs: { q: string; a: string }[];
   area: string | null;
   address: string | null;
   rating: number;

@@ -22,6 +22,7 @@ import { subscriptionRouter } from './modules/subscription/subscription.routes';
 import { uploadsRouter } from './modules/uploads/uploads.routes';
 import { publicRouter } from './modules/public/public.routes';
 import { webhooksRouter } from './modules/webhooks/webhooks.routes';
+import { adminRouter } from './modules/admin/admin.routes';
 
 export function createApp() {
   const app = express();
@@ -51,6 +52,7 @@ export function createApp() {
   app.use(`${API_PREFIX}/uploads`, uploadsRouter);
   app.use(`${API_PREFIX}/public`, publicRouter);
   app.use(`${API_PREFIX}/webhooks`, webhooksRouter);
+  app.use(`${API_PREFIX}/admin`, adminRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

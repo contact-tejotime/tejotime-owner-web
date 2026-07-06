@@ -33,6 +33,9 @@ const schema = z.object({
   CUSTOMER_TOKEN_SECRET: z.string().min(16),
   TICKET_URL_HMAC_SECRET: z.string().min(16),
   PASSWORD_PEPPER: z.string().default(''),
+  // Shared secret for the store-provisioning API (POST /api/v1/admin/businesses),
+  // sent by the admin panel as the x-admin-key header.
+  ADMIN_API_KEY: z.string().min(16),
 
   FREE_PLAN_CUSTOMER_LIMIT: z.coerce.number().int().nonnegative().default(2),
   TWO_AWAY_THRESHOLD: z.coerce.number().int().nonnegative().default(2),
