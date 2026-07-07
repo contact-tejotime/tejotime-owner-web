@@ -1037,12 +1037,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               ))}
             </div>
           </div>
-          <div style={{ flex: 1, minWidth: 300, minHeight: 280, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 9%, var(--surface-page)), color-mix(in srgb, var(--secondary) 9%, var(--surface-page)))", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-subtle)", borderLeft: "1px solid var(--border-subtle)" }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 8, font: "var(--fw-medium) 13px/1 var(--font-sans)" }}>
-              <Icon name="building" size={18} />
-              Map placeholder
-            </span>
-          </div>
+          <iframe
+            title={`Map of ${site.name}`}
+            src={`https://www.google.com/maps?q=${encodeURIComponent(site.address ?? site.area ?? site.name)}&output=embed`}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            style={{ flex: 1, minWidth: 300, minHeight: 280, border: 0, borderLeft: "1px solid var(--border-subtle)" }}
+          />
         </div>
       </div>
 
