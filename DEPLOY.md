@@ -90,4 +90,34 @@ curl https://tejotime-api.onrender.com/api/v1/public/businesses/sharp-cuts   # m
 ## Caveats
 - **Free tier sleeps after ~15 min idle** → ~50s cold start on the next request, and `node-cron` is paused while asleep. For always-on realtime + reliable cron, upgrade the API to a paid **Starter** instance, or move the three jobs (stale-cleanup / otp-purge / session-purge) to Render **Cron Jobs**.
 - **No secrets in git** — `render.yaml` uses `sync: false` for every secret; values live only in the Render dashboard.
-- **Alternative:** the frontend can instead be hosted on **Vercel** (root directory `frontend`, same two `NEXT_PUBLIC_*` vars) with the API staying on Render. Render-for-both keeps everything in one dashboard.
+- **Canonical frontend is Vercel** — see the section below. The Render `tejotime-web` service now acts only as a redirector to `www.tejotime.com`.
+
+---
+
+## Canonical frontend: `www.tejotime.com` on Vercel
+
+The customer microsite's canonical domain is **`https://www.tejotime.com`**, served by **Vercel, built from this repo's `frontend/`** (single source of truth). The Render frontend (`https://tejotime-owner.onrender.com`) stays deployed but **308-redirects all traffic** to `www.tejotime.com` — this is done host-scoped in [`frontend/src/proxy.ts`](./frontend/src/proxy.ts), so the exact same `frontend/` build serves normally on Vercel/localhost and only redirects when the request Host is `tejotime-owner.onrender.com`.
+
+Actual hosts (the `render.yaml` blueprint uses example names `tejotime-api`/`tejotime-web`):
+
+| Role | Host |
+|---|---|
+| Backend API (Render) | `https://tejotime-owner-web.onrender.com` |
+| Frontend (Render, now a redirector) | `https://tejotime-owner.onrender.com` |
+| Frontend (Vercel, canonical) | `https://www.tejotime.com` |
+
+### Vercel project setup
+1. **New Project** → import this repo (`contact-tejotime/tejotime-owner-web`), branch `main`.
+2. **Settings → Root Directory = `frontend`**, Framework preset = **Next.js**.
+3. **Environment Variables (Production)** — point at the real backend host:
+
+   | Var | Value |
+   |---|---|
+   | `NEXT_PUBLIC_API_BASE_URL` | `https://tejotime-owner-web.onrender.com/api/v1` |
+   | `NEXT_PUBLIC_SOCKET_URL` | `https://tejotime-owner-web.onrender.com` |
+   | `NEXT_PUBLIC_ASSET_PREFIX` | *(leave empty — Vercel serves `/_next` from the same domain)* |
+
+   `NEXT_PUBLIC_*` are baked at build time → after editing them, **Redeploy** (clear cache) the Vercel project.
+4. On the backend (`tejotime-owner-web`), ensure `CORS_ALLOWED_ORIGINS` includes `https://www.tejotime.com` (and `https://*.tejotime.com` if you use subdomains).
+
+> **Why this fixes the hero/About images:** those two images are rendered (as inline `background-image`) by [`frontend/src/components/microsite/MicrositeClient.tsx`](./frontend/src/components/microsite/MicrositeClient.tsx), and that rendering was added in the latest commit. A Vercel deploy from an **older, separate repo** never renders them (gallery, which is older, still shows). Building `www.tejotime.com` from this repo's current `frontend/` renders hero/About correctly — the backend already returns the URLs.

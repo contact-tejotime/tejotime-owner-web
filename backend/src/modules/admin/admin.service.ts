@@ -234,6 +234,53 @@ export async function updateBusiness(id: string, input: UpdateBusinessInput) {
   return { id, phoneFull, micrositePath: `/${phoneFull}` };
 }
 
+// ---------------------------------------------------------------------------
+// Admin-panel login (mobile + OTP).
+//
+// The admin panel is gated by a mobile + OTP login. The `admins` table is a
+// simple allow-list of mobile numbers (digits-only, incl. country code). OTP is
+// a DEMO for now — any known admin logs in with the code below. When the real
+// SMS OTP API lands, replace the demo checks here with the existing
+// otp_verification table + smsSender (backend/src/integrations/sms.ts), gated on
+// env.OTP_ENABLED. Everything OTP-related is intentionally confined to this file
+// so the swap never touches the admin-panel UI or its session.
+// ---------------------------------------------------------------------------
+
+/** Demo OTP accepted for every admin until the real OTP API is wired up. */
+const DEMO_ADMIN_OTP = '1234';
+
+/** Is this digits-only mobile in the admins allow-list? */
+async function isKnownAdmin(mobile: string): Promise<boolean> {
+  const { data } = await supabase.from('admins').select('mobile').eq('mobile', mobile).maybeSingle();
+  return Boolean(data);
+}
+
+/**
+ * Step 1 of admin login: the panel submits a mobile number. We verify it's a
+ * known admin, then (in the real impl) generate + SMS an OTP. For the demo we
+ * just acknowledge — the code is always DEMO_ADMIN_OTP.
+ */
+export async function requestAdminOtp(rawMobile: string) {
+  const mobile = rawMobile.replace(/\D/g, '');
+  if (!(await isKnownAdmin(mobile))) throw Errors.unauthenticated('Not a registered admin');
+  // TODO(real-otp): when OTP_ENABLED, generate a code, store a hash in
+  // otp_verification (purpose 'owner_login'/a new admin purpose) and smsSender.send().
+  return { ok: true };
+}
+
+/**
+ * Step 2 of admin login: verify the submitted OTP for a known admin. Returns the
+ * normalized mobile so the caller (admin-panel route handler) can mint a session.
+ */
+export async function verifyAdminOtp(rawMobile: string, otp: string) {
+  const mobile = rawMobile.replace(/\D/g, '');
+  if (!(await isKnownAdmin(mobile))) throw Errors.unauthenticated('Not a registered admin');
+  // TODO(real-otp): when OTP_ENABLED, verify `otp` against otp_verification
+  // (check expiry/attempts, mark consumed) instead of the demo constant.
+  if (otp !== DEMO_ADMIN_OTP) throw Errors.invalidCredentials('Incorrect OTP');
+  return { ok: true, mobile };
+}
+
 export async function listLookups(type: string) {
   const { data } = await supabase
     .from('master_data')

@@ -155,6 +155,29 @@ a {
   font-size: 13px;
   color: var(--text-muted);
 }
+.logout-btn {
+  margin-top: auto; /* pin to the bottom of the flex-column sidebar */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--text-body);
+  font-weight: 600;
+  text-align: left;
+}
+.logout-btn:hover:not(:disabled) {
+  background: var(--red-50);
+  border-color: #f5c6c0;
+  color: var(--red-700);
+}
+.logout-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 .main {
   flex: 1;
@@ -356,6 +379,54 @@ button {
   border-radius: var(--radius-lg);
   margin-top: 12px;
   background: #fff;
+}
+
+/* ---------- Login ---------- */
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(180deg, var(--blue-50), var(--surface-page));
+}
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 28px 26px 30px;
+}
+.login-brand {
+  padding: 0 0 18px;
+}
+.login-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  color: var(--text-strong);
+}
+.login-sub {
+  margin: 0 0 18px;
+  color: var(--text-muted);
+}
+.login-btn {
+  width: 100%;
+  margin-top: 16px;
+}
+.login-link {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-align: center;
+}
+.login-link:hover {
+  color: var(--text-body);
 }
 
 @media (max-width: 760px) {

@@ -1,11 +1,27 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { StoreListItem } from "@/lib/types";
 
 export function Sidebar({ stores }: { stores: StoreListItem[] }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function logout() {
+    setLoggingOut(true);
+    try {
+      await fetch("/api/admin-auth/logout", { method: "POST" });
+    } catch {
+      // Even if the request fails, fall through to /login — the middleware will
+      // bounce back if the cookie somehow survived.
+    }
+    router.replace("/login");
+    router.refresh();
+  }
+
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -31,6 +47,11 @@ export function Sidebar({ stores }: { stores: StoreListItem[] }) {
           </Link>
         );
       })}
+
+      <button type="button" className="logout-btn" onClick={logout} disabled={loggingOut}>
+        <span aria-hidden>⎋</span>
+        {loggingOut ? "Logging out…" : "Log out"}
+      </button>
     </aside>
   );
 }

@@ -17,7 +17,7 @@ import {
 } from "@/lib/types";
 import { GalleryUpload, ImageUpload } from "@/components/ImageUpload";
 
-const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "http://localhost:3000";
+const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com";
 
 type ErrorDetail = { field?: string; message: string };
 

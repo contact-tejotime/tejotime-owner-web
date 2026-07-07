@@ -101,6 +101,9 @@ const createSchema = storeFieldsSchema
 const updateSchema = storeFieldsSchema.strict();
 const idParam = z.object({ id: z.string().uuid() });
 
+const requestOtpSchema = z.object({ mobile: z.string().min(6).max(20) }).strict();
+const verifyOtpSchema = z.object({ mobile: z.string().min(6).max(20), otp: z.string().min(1).max(10) }).strict();
+
 const uploadSignSchema = z
   .object({
     assetType: z.enum(['hero', 'about', 'gallery', 'logo']),
@@ -111,6 +114,27 @@ const uploadSignSchema = z
 
 export const adminRouter = Router();
 adminRouter.use(requireAdminKey);
+
+// ---- Admin-panel login (mobile + OTP) ----
+// The admin panel (which holds ADMIN_API_KEY) proxies these server-side. OTP is a
+// demo for now; the logic lives entirely in admin.service.ts.
+adminRouter.post(
+  '/auth/request-otp',
+  limiters.otp,
+  validate({ body: requestOtpSchema }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await admin.requestAdminOtp(req.body.mobile));
+  }),
+);
+
+adminRouter.post(
+  '/auth/verify-otp',
+  limiters.login,
+  validate({ body: verifyOtpSchema }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await admin.verifyAdminOtp(req.body.mobile, req.body.otp));
+  }),
+);
 
 // Signed upload URL for admin-panel photo uploads (stores are provisioned before an owner
 // exists, so keys aren't tenant-scoped — they live under admin/<assetType>/).
