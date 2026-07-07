@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminToken } from "@/lib/session";
 
 /**
  * Server-side proxy: takes the create-store form JSON from the browser and forwards it to the
- * backend's x-admin-key–gated provisioning endpoint. Running server-side keeps ADMIN_API_KEY out
- * of the browser bundle and avoids CORS (server → server).
+ * backend's provisioning endpoint, attaching the admin JWT as a Bearer token. Running server-side
+ * keeps the token off the browser bundle and avoids CORS (server → server).
  */
 const BACKEND = process.env.BACKEND_API_BASE_URL ?? "http://localhost:8080/api/v1";
-const ADMIN_KEY = process.env.ADMIN_API_KEY ?? "";
 
 export async function POST(req: NextRequest) {
-  if (!ADMIN_KEY) {
-    return NextResponse.json(
-      { error: { message: "Server misconfigured: ADMIN_API_KEY is not set in admin-panel env." } },
-      { status: 500 },
-    );
+  const token = await getAdminToken();
+  if (!token) {
+    return NextResponse.json({ error: { message: "Not authenticated" } }, { status: 401 });
   }
 
   let body: unknown;
@@ -27,7 +25,7 @@ export async function POST(req: NextRequest) {
   try {
     res = await fetch(`${BACKEND}/admin/businesses`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-admin-key": ADMIN_KEY },
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
       cache: "no-store",
     });

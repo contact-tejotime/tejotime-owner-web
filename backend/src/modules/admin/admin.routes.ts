@@ -4,21 +4,29 @@ import { asyncHandler } from '../../http/async-handler';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import { Errors } from '../../domain/errors';
-import { env } from '../../config/env';
 import { COLOR_TOKENS } from '../../config/constants';
 import { MAX_IMAGE_BYTES, signUpload } from '../../integrations/storage';
+import { verifyAdminToken } from '../auth/token.service';
 import * as admin from './admin.service';
 
 /**
- * Provisioning + management API for the admin panel. Creating/editing stores happens before
- * (or independently of) any owner session, so these routes can't be owner-JWT-gated — they
- * require a shared secret in the `x-admin-key` header. Keep ADMIN_API_KEY out of any browser
- * bundle; the admin panel calls this from its own server route handlers / server components.
+ * Provisioning + management API for the admin panel. Every route except the OTP login pair is
+ * gated by an admin JWT (minted by verify-otp, sent as `Authorization: Bearer`). The mobile is
+ * re-checked against the `admins` allow-list on each request so removing an admin revokes access.
  */
-function requireAdminKey(req: Request, _res: Response, next: NextFunction): void {
-  const provided = req.get('x-admin-key');
-  if (!provided || provided !== env.ADMIN_API_KEY) return next(Errors.unauthenticated('Invalid admin key'));
-  next();
+async function requireAdminAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  const header = req.header('authorization');
+  if (!header?.startsWith('Bearer ')) return next(Errors.unauthenticated());
+  try {
+    const claims = verifyAdminToken(header.slice(7).trim());
+    if (claims.typ !== 'admin') return next(Errors.unauthenticated());
+    if (!(await admin.isKnownAdmin(claims.sub))) return next(Errors.unauthenticated('Admin no longer authorized'));
+    req.admin = { mobile: claims.sub };
+    next();
+  } catch (err: any) {
+    if (err?.name === 'TokenExpiredError') return next(Errors.tokenExpired());
+    next(Errors.unauthenticated('Invalid token'));
+  }
 }
 
 const timeStr = z
@@ -113,11 +121,9 @@ const uploadSignSchema = z
   .strict();
 
 export const adminRouter = Router();
-adminRouter.use(requireAdminKey);
 
-// ---- Admin-panel login (mobile + OTP) ----
-// The admin panel (which holds ADMIN_API_KEY) proxies these server-side. OTP is a
-// demo for now; the logic lives entirely in admin.service.ts.
+// ---- Admin-panel login (mobile + OTP) — PUBLIC (no JWT exists yet) ----
+// Rate-limited; the demo OTP logic lives in admin.service.ts. verify-otp mints the admin JWT.
 adminRouter.post(
   '/auth/request-otp',
   limiters.otp,
@@ -135,6 +141,9 @@ adminRouter.post(
     res.json(await admin.verifyAdminOtp(req.body.mobile, req.body.otp));
   }),
 );
+
+// Everything below requires a valid admin JWT.
+adminRouter.use(requireAdminAuth);
 
 // Signed upload URL for admin-panel photo uploads (stores are provisioned before an owner
 // exists, so keys aren't tenant-scoped — they live under admin/<assetType>/).

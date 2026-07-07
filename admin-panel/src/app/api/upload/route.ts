@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminToken } from "@/lib/session";
 
 /**
- * Photo upload proxy (server-side, so ADMIN_API_KEY and Supabase never touch the browser):
+ * Photo upload proxy (server-side, so the admin JWT and Supabase never touch the browser):
  *   1. receive the file (multipart) from the panel,
- *   2. ask the backend for a Supabase signed upload URL (x-admin-key),
+ *   2. ask the backend for a Supabase signed upload URL (Bearer admin JWT),
  *   3. PUT the bytes to Supabase,
  *   4. return the public URL to store on the form.
  */
 const BACKEND = process.env.BACKEND_API_BASE_URL ?? "http://localhost:8080/api/v1";
-const ADMIN_KEY = process.env.ADMIN_API_KEY ?? "";
 
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_BYTES = 5_000_000;
 const ASSET_TYPES = new Set(["hero", "about", "gallery", "logo"]);
 
 export async function POST(req: NextRequest) {
-  if (!ADMIN_KEY) {
-    return NextResponse.json({ error: { message: "Server misconfigured: ADMIN_API_KEY is not set." } }, { status: 500 });
+  const token = await getAdminToken();
+  if (!token) {
+    return NextResponse.json({ error: { message: "Not authenticated" } }, { status: 401 });
   }
 
   let form: FormData;
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
   try {
     signRes = await fetch(`${BACKEND}/admin/uploads/sign`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-admin-key": ADMIN_KEY },
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
       body: JSON.stringify({ assetType, contentType: file.type, byteSize: file.size }),
       cache: "no-store",
     });

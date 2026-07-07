@@ -2,12 +2,13 @@ import bcrypt from 'bcryptjs';
 import { supabase } from '../../db/supabase';
 import { env } from '../../config/env';
 import { Errors } from '../../domain/errors';
+import { signAdminToken } from '../auth/token.service';
 import type { ColorToken } from '../../config/constants';
 
 /**
  * Provisioning + management API for the admin panel — a parameterized version of db/seed.ts.
  * This is the single "create/edit a business" path (owner-facing routes only edit an existing
- * business piecemeal). Reached via the x-admin-key–gated /api/v1/admin/* routes.
+ * business piecemeal). Reached via the admin-JWT–gated /api/v1/admin/* routes.
  */
 
 /** The store fields shared by create and update (everything except the owner login). */
@@ -250,7 +251,7 @@ export async function updateBusiness(id: string, input: UpdateBusinessInput) {
 const DEMO_ADMIN_OTP = '1234';
 
 /** Is this digits-only mobile in the admins allow-list? */
-async function isKnownAdmin(mobile: string): Promise<boolean> {
+export async function isKnownAdmin(mobile: string): Promise<boolean> {
   const { data } = await supabase.from('admins').select('mobile').eq('mobile', mobile).maybeSingle();
   return Boolean(data);
 }
@@ -269,8 +270,9 @@ export async function requestAdminOtp(rawMobile: string) {
 }
 
 /**
- * Step 2 of admin login: verify the submitted OTP for a known admin. Returns the
- * normalized mobile so the caller (admin-panel route handler) can mint a session.
+ * Step 2 of admin login: verify the submitted OTP for a known admin. On success mints an
+ * admin JWT (12h) that the admin panel stores and sends as `Authorization: Bearer` on every
+ * backend call — replacing the old x-admin-key shared secret.
  */
 export async function verifyAdminOtp(rawMobile: string, otp: string) {
   const mobile = rawMobile.replace(/\D/g, '');
@@ -278,7 +280,7 @@ export async function verifyAdminOtp(rawMobile: string, otp: string) {
   // TODO(real-otp): when OTP_ENABLED, verify `otp` against otp_verification
   // (check expiry/attempts, mark consumed) instead of the demo constant.
   if (otp !== DEMO_ADMIN_OTP) throw Errors.invalidCredentials('Incorrect OTP');
-  return { ok: true, mobile };
+  return { ok: true, mobile, token: signAdminToken(mobile) };
 }
 
 export async function listLookups(type: string) {

@@ -23,6 +23,11 @@ export interface CustomerClaims {
   typ: 'customer';
 }
 
+export interface AdminClaims {
+  sub: string; // admin mobile (digits only) — the `admins` allow-list primary key
+  typ: 'admin';
+}
+
 export function signAccessToken(p: { userId: string; businessId: string; role: UserRole; plan: PlanType }): string {
   const claims: AccessClaims = { sub: p.userId, bid: p.businessId, role: p.role, plan: p.plan, typ: 'access' };
   return jwt.sign(claims, env.JWT_ACCESS_SECRET, { expiresIn: env.JWT_ACCESS_TTL });
@@ -50,6 +55,17 @@ export function signCustomerToken(phone: string, businessId: string): string {
 
 export function verifyCustomerToken(token: string): CustomerClaims {
   return jwt.verify(token, env.CUSTOMER_TOKEN_SECRET) as CustomerClaims;
+}
+
+/** Admin-panel access token. Reuses JWT_ACCESS_SECRET; the `typ` discriminator keeps it
+ *  from being accepted by owner `authenticate` (which requires typ === 'access'). */
+export function signAdminToken(mobile: string): string {
+  const claims: AdminClaims = { sub: mobile, typ: 'admin' };
+  return jwt.sign(claims, env.JWT_ACCESS_SECRET, { expiresIn: env.JWT_ADMIN_TTL });
+}
+
+export function verifyAdminToken(token: string): AdminClaims {
+  return jwt.verify(token, env.JWT_ACCESS_SECRET) as AdminClaims;
 }
 
 /** Signed, unguessable key for public ticket access (HMAC of the ticket id). */

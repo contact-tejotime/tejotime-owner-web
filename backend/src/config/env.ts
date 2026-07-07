@@ -30,12 +30,11 @@ const schema = z.object({
   JWT_REFRESH_SECRET: z.string().min(16),
   JWT_ACCESS_TTL: z.coerce.number().int().positive().default(900),
   JWT_REFRESH_TTL: z.coerce.number().int().positive().default(2_592_000),
+  // Admin-panel access token lifetime (seconds); default 12h to match the previous session.
+  JWT_ADMIN_TTL: z.coerce.number().int().positive().default(43_200),
   CUSTOMER_TOKEN_SECRET: z.string().min(16),
   TICKET_URL_HMAC_SECRET: z.string().min(16),
   PASSWORD_PEPPER: z.string().default(''),
-  // Shared secret for the store-provisioning API (POST /api/v1/admin/businesses),
-  // sent by the admin panel as the x-admin-key header.
-  ADMIN_API_KEY: z.string().min(16),
 
   FREE_PLAN_CUSTOMER_LIMIT: z.coerce.number().int().nonnegative().default(2),
   TWO_AWAY_THRESHOLD: z.coerce.number().int().nonnegative().default(2),

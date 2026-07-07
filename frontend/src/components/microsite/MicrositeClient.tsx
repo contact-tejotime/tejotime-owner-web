@@ -28,8 +28,6 @@ const REVIEWS = [
   { stars: "★★★★★", text: "Lisa nailed my colour. Loved seeing the live wait before heading over.", name: "Priya S.", initial: "P", avBg: "var(--secondary)" },
   { stars: "★★★★☆", text: "Clean, friendly, quick. The token tracking on my phone is genuinely useful.", name: "Rahul M.", initial: "R", avBg: "var(--amber-500)" },
 ];
-const AMENITIES_FALLBACK = ["Air conditioned", "UPI · Card · Cash", "Parking", "Free wifi", "Kids friendly", "Wheelchair access"];
-const GALLERY = [1, 2, 3, 4];
 
 const revealStyle: CSSProperties = { animation: "ttReveal .7s ease both" };
 const eyebrow: CSSProperties = {
@@ -296,8 +294,17 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     wait: s.waitLabel,
     avBg: AVATAR_COLORS[i % AVATAR_COLORS.length],
   }));
-  const amenities = site.amenities?.length ? site.amenities : AMENITIES_FALLBACK;
+  const amenities = site.amenities ?? [];
+  const gallery = site.gallery ?? [];
   const faqs = Array.isArray(site.faqs) ? site.faqs : [];
+
+  // Render each About piece only when it has real content; collapse the section otherwise.
+  const hasHeading = !!site.aboutHeading?.trim();
+  const hasDescription = !!site.description?.trim();
+  const hasAmenities = amenities.length > 0;
+  const hasAboutText = hasHeading || hasDescription || hasAmenities;
+  const hasAboutImage = !!site.aboutImageUrl;
+  const showAbout = hasAboutText || hasAboutImage;
   const rating = site.rating ?? 0;
   const reviewCount = site.reviewCount ?? 0;
   const establishedYear = site.establishedYear ?? 2014;
@@ -864,51 +871,58 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       </div>
 
       {/* ===== ABOUT ===== */}
-      <div id="about" style={{ maxWidth: 1180, margin: "0 auto", padding: "72px 32px 40px" }}>
-        <div style={{ ...revealStyle, display: "flex", gap: 48, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 300 }}>
-            <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>About the salon</div>
-            <h2 style={{ font: "var(--fw-extrabold) 34px/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>{site.aboutHeading || "A proper cut, no long waits."}</h2>
-            <p style={{ font: "var(--fw-regular) 16px/1.6 var(--font-sans)", color: "var(--text-body)", margin: "0 0 24px" }}>
-              {site.description ?? "Skilled barbers, clean chairs, and a live queue so you never waste time waiting around — step out, grab a chai, and we'll text you when you're close."}
-            </p>
-            <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 11 }}>Amenities</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
-              {amenities.map((a) => (
-                <span key={a} className="salonAmenity" style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--border-subtle)", borderRadius: 999, padding: "7px 14px", font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-body)", background: "var(--surface-card)" }}>
-                  <span style={{ color: "var(--success)", display: "flex" }}>
-                    <Icon name="check" size={14} />
-                  </span>
-                  {a}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div style={{ flex: 1, minWidth: 280, height: 260, borderRadius: 18, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--surface-card)), color-mix(in srgb, var(--secondary) 12%, var(--surface-card)))", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-subtle)", backgroundImage: site.aboutImageUrl ? `url(${site.aboutImageUrl})` : undefined, backgroundSize: "cover", backgroundPosition: "center" }}>
-            {!site.aboutImageUrl && (
-              <span style={{ display: "flex", alignItems: "center", gap: 8, font: "var(--fw-medium) 13px/1 var(--font-sans)" }}>
-                <Icon name="building" size={18} />
-                Photo — the space
-              </span>
+      {showAbout && (
+        <div id="about" style={{ maxWidth: 1180, margin: "0 auto", padding: "72px 32px 40px" }}>
+          <div style={{ ...revealStyle, display: "flex", gap: 48, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+            {hasAboutText && (
+              <div style={{ flex: 1, minWidth: 300 }}>
+                <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>About the salon</div>
+                {hasHeading && (
+                  <h2 style={{ font: "var(--fw-extrabold) 34px/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>{site.aboutHeading}</h2>
+                )}
+                {hasDescription && (
+                  <p style={{ font: "var(--fw-regular) 16px/1.6 var(--font-sans)", color: "var(--text-body)", margin: "0 0 24px" }}>
+                    {site.description}
+                  </p>
+                )}
+                {hasAmenities && (
+                  <>
+                    <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 11 }}>Amenities</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
+                      {amenities.map((a) => (
+                        <span key={a} className="salonAmenity" style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--border-subtle)", borderRadius: 999, padding: "7px 14px", font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-body)", background: "var(--surface-card)" }}>
+                          <span style={{ color: "var(--success)", display: "flex" }}>
+                            <Icon name="check" size={14} />
+                          </span>
+                          {a}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            {hasAboutImage && (
+              <div style={{ flex: hasAboutText ? "1 1 0" : "0 1 560px", minWidth: 280, height: 260, borderRadius: 18, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--surface-card)), color-mix(in srgb, var(--secondary) 12%, var(--surface-card)))", border: "1px solid var(--border-subtle)", backgroundImage: `url(${site.aboutImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }} />
             )}
           </div>
         </div>
-      </div>
+      )}
 
       {/* ===== GALLERY ===== */}
-      <div id="gallery" style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 32px 40px" }}>
-        <div style={revealStyle}>
-          <div style={eyebrow}>Gallery</div>
-          {/* Horizontal strip: fixed-width cells that scroll sideways once they overflow the row. */}
-          <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 6, scrollSnapType: "x proximity" }}>
-            {(site.gallery.length ? site.gallery : GALLERY).map((g, i) => (
-              <div key={i} className="salonGalleryCell" style={{ flex: "0 0 auto", width: 240, height: 160, borderRadius: 14, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--surface-card)), color-mix(in srgb, var(--secondary) 10%, var(--surface-card)))", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-subtle)", cursor: "pointer", backgroundImage: typeof g === "string" ? `url(${g})` : undefined, backgroundSize: "cover", backgroundPosition: "center", scrollSnapAlign: "start" }}>
-                {typeof g !== "string" && <Icon name="scissors" size={20} />}
-              </div>
-            ))}
+      {gallery.length > 0 && (
+        <div id="gallery" style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 32px 40px" }}>
+          <div style={revealStyle}>
+            <div style={eyebrow}>Gallery</div>
+            {/* Horizontal strip: fixed-width cells that scroll sideways once they overflow the row. */}
+            <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 6, scrollSnapType: "x proximity" }}>
+              {gallery.map((g, i) => (
+                <div key={i} className="salonGalleryCell" style={{ flex: "0 0 auto", width: 240, height: 160, borderRadius: 14, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--surface-card)), color-mix(in srgb, var(--secondary) 10%, var(--surface-card)))", border: "1px solid var(--border-subtle)", cursor: "pointer", backgroundImage: `url(${g})`, backgroundSize: "cover", backgroundPosition: "center", scrollSnapAlign: "start" }} />
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ===== SERVICES (names only) ===== */}
       <div id="services" style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)", borderBottom: "1px solid var(--border-subtle)" }}>

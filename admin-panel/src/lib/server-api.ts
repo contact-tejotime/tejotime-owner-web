@@ -1,17 +1,18 @@
+import { getAdminToken } from "./session";
 import type { Category, StoreDetail, StoreListItem } from "./types";
 
 /**
- * Server-only read helpers — only ever imported by server components, so the x-admin-key header
- * never reaches the browser. On failure they degrade to empty/null so the panel still renders
- * (e.g. shows an empty store list) instead of crashing when the backend is down.
+ * Server-only read helpers — only ever imported by server components, so the admin JWT
+ * never reaches the browser. On failure (backend down, or 401 from an expired token) they
+ * degrade to empty/null so the panel still renders instead of crashing.
  */
 const BACKEND = process.env.BACKEND_API_BASE_URL ?? "http://localhost:8080/api/v1";
-const ADMIN_KEY = process.env.ADMIN_API_KEY ?? "";
 
 async function get<T>(path: string): Promise<T | null> {
   try {
+    const token = await getAdminToken();
     const res = await fetch(`${BACKEND}${path}`, {
-      headers: { "x-admin-key": ADMIN_KEY },
+      headers: token ? { authorization: `Bearer ${token}` } : {},
       cache: "no-store",
     });
     if (!res.ok) return null;

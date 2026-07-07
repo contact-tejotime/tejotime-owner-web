@@ -5,6 +5,7 @@ declare global {
     interface Request {
       requestId?: string;
       principal?: Principal;
+      admin?: { mobile: string };
     }
   }
 }
