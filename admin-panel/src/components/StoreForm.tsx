@@ -98,7 +98,6 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
     <div className="wrap">
       <div className="page-head">
         <h1>{mode === "create" ? "Create a store" : `Edit — ${form.name || "store"}`}</h1>
-        <p>Fill in the store details, save, and preview the live website (same template as the customer site).</p>
       </div>
 
       {error && (
