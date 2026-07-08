@@ -4,7 +4,6 @@ import { asyncHandler } from '../../http/async-handler';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import { Errors } from '../../domain/errors';
-import { COLOR_TOKENS } from '../../config/constants';
 import { MAX_IMAGE_BYTES, signUpload } from '../../integrations/storage';
 import { verifyAdminToken } from '../auth/token.service';
 import * as admin from './admin.service';
@@ -43,6 +42,9 @@ const storeFieldsSchema = z.object({
   address: z.string().max(300).optional(),
   city: z.string().max(80).optional(),
   tagline: z.string().max(160).optional(),
+  heroSubtitle: z.string().max(200).optional(),
+  statValue: z.string().max(40).optional(),
+  statLabel: z.string().max(60).optional(),
   description: z.string().max(2000).optional(),
   aboutHeading: z.string().max(160).optional(),
   heroImageUrl: z.string().url().max(500).optional(),
@@ -76,7 +78,6 @@ const storeFieldsSchema = z.object({
         name: z.string().trim().min(1).max(80),
         durationMinutes: z.coerce.number().int().min(1).max(600),
         priceRupees: z.coerce.number().min(0).max(1_000_000),
-        colorToken: z.enum(COLOR_TOKENS).default('secondary'),
       }),
     )
     .min(1, 'Add at least one service')
@@ -86,7 +87,6 @@ const storeFieldsSchema = z.object({
       z.object({
         name: z.string().trim().min(1).max(80),
         roleLabel: z.string().max(80).nullable().optional(),
-        colorToken: z.enum(COLOR_TOKENS).default('secondary'),
       }),
     )
     .min(1, 'Add at least one staff member')
@@ -94,6 +94,16 @@ const storeFieldsSchema = z.object({
   faqs: z
     .array(z.object({ q: z.string().trim().min(1).max(200), a: z.string().trim().min(1).max(1000) }))
     .max(30)
+    .default([]),
+  reviews: z
+    .array(
+      z.object({
+        stars: z.coerce.number().int().min(1).max(5),
+        text: z.string().trim().min(1).max(1000),
+        authorName: z.string().trim().min(1).max(120),
+      }),
+    )
+    .max(50)
     .default([]),
 });
 

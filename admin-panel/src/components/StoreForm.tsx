@@ -3,13 +3,12 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  COLOR_TOKENS,
   DAY_LABELS,
   EMPTY_FORM,
   toPayload,
   type Category,
-  type ColorToken,
   type FaqRow,
+  type ReviewRow,
   type ServiceRow,
   type StaffRow,
   type StoreForm as StoreFormState,
@@ -47,6 +46,8 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
     setForm((f) => ({ ...f, staff: f.staff.map((s, idx) => (idx === i ? { ...s, ...patch } : s)) }));
   const setFaq = (i: number, patch: Partial<FaqRow>) =>
     setForm((f) => ({ ...f, faqs: f.faqs.map((x, idx) => (idx === i ? { ...x, ...patch } : x)) }));
+  const setReview = (i: number, patch: Partial<ReviewRow>) =>
+    setForm((f) => ({ ...f, reviews: f.reviews.map((x, idx) => (idx === i ? { ...x, ...patch } : x)) }));
   const setAmenity = (i: number, value: string) =>
     setForm((f) => ({ ...f, amenities: f.amenities.map((a, idx) => (idx === i ? value : a)) }));
   const setHour = (i: number, patch: Partial<StoreFormState["hours"][number]>) =>
@@ -117,14 +118,13 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
       )}
 
       {result && (
-        <div className="alert ok preview">
+        <div className="alert ok">
           <div>
             ✓ {mode === "create" ? "Store created" : "Changes saved"}. Live at{" "}
             <a href={previewUrl} target="_blank" rel="noreferrer">
               {previewUrl}
             </a>
           </div>
-          <iframe className="preview-frame" src={previewUrl} title="Store preview" />
         </div>
       )}
 
@@ -165,14 +165,29 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
               <input value={form.tagline} onChange={(e) => set("tagline", e.target.value)} maxLength={160} />
             </div>
             <div className="field full">
+              <label>Banner subtitle</label>
+              <input
+                value={form.heroSubtitle}
+                onChange={(e) => set("heroSubtitle", e.target.value)}
+                maxLength={200}
+                placeholder="e.g. track your turn from your phone"
+              />
+            </div>
+            <div className="field">
+              <label>Highlight number</label>
+              <input value={form.statValue} onChange={(e) => set("statValue", e.target.value)} maxLength={40} placeholder="e.g. 30k+" />
+            </div>
+            <div className="field">
+              <label>Highlight caption</label>
+              <input value={form.statLabel} onChange={(e) => set("statLabel", e.target.value)} maxLength={60} placeholder="e.g. haircuts done" />
+            </div>
+            <div className="field full">
               <label>About heading</label>
               <input
                 value={form.aboutHeading}
                 onChange={(e) => set("aboutHeading", e.target.value)}
                 maxLength={160}
-                placeholder="e.g. A proper cut, no long waits."
               />
-              <p className="hint">Shown as the big heading in the microsite&apos;s “About” section.</p>
             </div>
             <div className="field full">
               <label>Description</label>
@@ -265,13 +280,13 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
         <section className="section">
           <h2>Photos</h2>
           <ImageUpload
-            label="Hero photo (large banner)"
+            label="Banner photo"
             assetType="hero"
             value={form.heroImageUrl}
             onChange={(url) => set("heroImageUrl", url)}
           />
           <ImageUpload
-            label="About photo (the space)"
+            label="About photo"
             assetType="about"
             value={form.aboutImageUrl}
             onChange={(url) => set("aboutImageUrl", url)}
@@ -304,10 +319,6 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
                 <label>Price (₹)</label>
                 <input value={s.priceRupees} onChange={(e) => setService(i, { priceRupees: Number(e.target.value) })} inputMode="numeric" />
               </div>
-              <div className="field">
-                <label>Color</label>
-                <ColorSelect value={s.colorToken} onChange={(v) => setService(i, { colorToken: v })} />
-              </div>
               <button type="button" className="btn-remove" onClick={() => set("services", removeAt(form.services, i))}>
                 Remove
               </button>
@@ -316,7 +327,7 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
           <button
             type="button"
             className="btn-add"
-            onClick={() => set("services", [...form.services, { name: "", durationMinutes: 30, priceRupees: 0, colorToken: "secondary" }])}
+            onClick={() => set("services", [...form.services, { name: "", durationMinutes: 30, priceRupees: 0 }])}
           >
             + Add service
           </button>
@@ -335,10 +346,6 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
                 <label>Role</label>
                 <input value={s.roleLabel} onChange={(e) => setStaff(i, { roleLabel: e.target.value })} placeholder="e.g. Master barber" />
               </div>
-              <div className="field">
-                <label>Color</label>
-                <ColorSelect value={s.colorToken} onChange={(v) => setStaff(i, { colorToken: v })} />
-              </div>
               <button type="button" className="btn-remove" onClick={() => set("staff", removeAt(form.staff, i))}>
                 Remove
               </button>
@@ -347,7 +354,7 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
           <button
             type="button"
             className="btn-add"
-            onClick={() => set("staff", [...form.staff, { name: "", roleLabel: "", colorToken: "secondary" }])}
+            onClick={() => set("staff", [...form.staff, { name: "", roleLabel: "" }])}
           >
             + Add staff
           </button>
@@ -374,6 +381,46 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
           ))}
           <button type="button" className="btn-add" onClick={() => set("faqs", [...form.faqs, { q: "", a: "" }])}>
             + Add Q&amp;A
+          </button>
+        </section>
+
+        {/* Customer reviews -------------------------------------------- */}
+        <section className="section">
+          <h2>Customer reviews</h2>
+          {form.reviews.length === 0 && <p className="hint">Optional — shown in the microsite&apos;s “What customers say” section.</p>}
+          {form.reviews.map((r, i) => (
+            <div className="row review" key={i}>
+              <div className="field">
+                <label>Rating</label>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setReview(i, { stars: n })}
+                      aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 22, lineHeight: 1, color: n <= r.stars ? "#f5a623" : "#cbd5e1" }}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="field">
+                <label>Review</label>
+                <input value={r.text} onChange={(e) => setReview(i, { text: e.target.value })} maxLength={1000} placeholder="Great service, quick and friendly…" />
+              </div>
+              <div className="field">
+                <label>Name</label>
+                <input value={r.authorName} onChange={(e) => setReview(i, { authorName: e.target.value })} maxLength={120} placeholder="e.g. Aman R." />
+              </div>
+              <button type="button" className="btn-remove" onClick={() => set("reviews", removeAt(form.reviews, i))}>
+                Remove
+              </button>
+            </div>
+          ))}
+          <button type="button" className="btn-add" onClick={() => set("reviews", [...form.reviews, { stars: 5, text: "", authorName: "" }])}>
+            + Add review
           </button>
         </section>
 
@@ -406,14 +453,3 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
   );
 }
 
-function ColorSelect({ value, onChange }: { value: ColorToken; onChange: (v: ColorToken) => void }) {
-  return (
-    <select value={value} onChange={(e) => onChange(e.target.value as ColorToken)}>
-      {COLOR_TOKENS.map((c) => (
-        <option key={c} value={c}>
-          {c}
-        </option>
-      ))}
-    </select>
-  );
-}

@@ -22,12 +22,6 @@ const BLOCK_AT = 3;
 // so a held ticket or attempt counter from one salon never leaks onto another salon's page.
 const STORE_PREFIX = "tt_microsite_";
 
-// Static editorial content (not modelled in the API yet).
-const REVIEWS = [
-  { stars: "★★★★★", text: "Best fade in Bandra, and I never wait. Joined the queue from home and walked in right on time.", name: "Aman R.", initial: "A", avBg: "var(--primary)" },
-  { stars: "★★★★★", text: "Lisa nailed my colour. Loved seeing the live wait before heading over.", name: "Priya S.", initial: "P", avBg: "var(--secondary)" },
-  { stars: "★★★★☆", text: "Clean, friendly, quick. The token tracking on my phone is genuinely useful.", name: "Rahul M.", initial: "R", avBg: "var(--amber-500)" },
-];
 
 const revealStyle: CSSProperties = { animation: "ttReveal .7s ease both" };
 const eyebrow: CSSProperties = {
@@ -297,6 +291,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const amenities = site.amenities ?? [];
   const gallery = site.gallery ?? [];
   const faqs = Array.isArray(site.faqs) ? site.faqs : [];
+  const reviews = Array.isArray(site.reviews) ? site.reviews : [];
 
   // Render each About piece only when it has real content; collapse the section otherwise.
   const hasHeading = !!site.aboutHeading?.trim();
@@ -832,7 +827,8 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               {site.tagline ?? site.name}
             </h1>
             <p style={{ font: "var(--fw-medium) 17px/1.5 var(--font-sans)", color: "var(--text-body)", margin: "0 0 26px", maxWidth: 460 }}>
-              ★ {rating} ({reviewCount} reviews) · Established {establishedYear} · A proper cut, no long waits — track your turn from your phone.
+              ★ {rating} ({reviewCount} reviews) · Established {establishedYear}
+              {site.heroSubtitle ? ` · ${site.heroSubtitle}` : ""}
             </p>
             <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 13, background: "var(--surface-card)", border: "1px solid var(--border-subtle)", borderRadius: 14, padding: "12px 18px", boxShadow: "var(--shadow-md)" }}>
@@ -858,8 +854,8 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "26px 32px", display: "flex", justifyContent: "space-around", textAlign: "center", gap: 20, flexWrap: "wrap" }}>
           {[
             [`${yearsOpen}+ yrs`, `in ${site.area ?? "town"}`],
-            [`${barbers.length} barbers`, "expert team"],
-            ["30k+", "haircuts done"],
+            [`${barbers.length} ${site.teamNoun ?? "team members"}`, "expert team"],
+            ...(site.statValue && site.statLabel ? [[site.statValue, site.statLabel]] : []),
             [`★ ${rating}`, `${reviewCount} reviews`],
           ].map(([big, small]) => (
             <div key={small}>
@@ -984,24 +980,26 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         </div>
       </div>
 
-      {/* ===== REVIEWS ===== */}
-      <div style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}>
-        <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "64px 32px" }}>
-          <h2 style={{ font: "var(--fw-extrabold) 30px/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 24px" }}>What customers say · ★ {rating}</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-            {REVIEWS.map((r) => (
-              <div key={r.name} className="salonReviewCard" style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 22, background: "var(--surface-page)" }}>
-                <div style={{ color: "var(--warning)", fontSize: 15, letterSpacing: 2, marginBottom: 12 }}>{r.stars}</div>
-                <p style={{ font: "var(--fw-regular) 15px/1.6 var(--font-sans)", color: "var(--text-body)", margin: "0 0 18px" }}>{r.text}</p>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 34, height: 34, borderRadius: "50%", background: r.avBg, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", font: "var(--fw-bold) 13px/1 var(--font-sans)" }}>{r.initial}</div>
-                  <span style={{ font: "var(--fw-semibold) 13px/1 var(--font-sans)", color: "var(--text-muted)" }}>{r.name}</span>
+      {/* ===== REVIEWS (only when the store has reviews) ===== */}
+      {reviews.length > 0 && (
+        <div style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}>
+          <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "64px 32px" }}>
+            <h2 style={{ font: "var(--fw-extrabold) 30px/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 24px" }}>What customers say · ★ {rating}</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+              {reviews.map((r, i) => (
+                <div key={i} className="salonReviewCard" style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 22, background: "var(--surface-page)" }}>
+                  <div style={{ color: "var(--warning)", fontSize: 15, letterSpacing: 2, marginBottom: 12 }}>{"★".repeat(r.stars) + "☆".repeat(Math.max(0, 5 - r.stars))}</div>
+                  <p style={{ font: "var(--fw-regular) 15px/1.6 var(--font-sans)", color: "var(--text-body)", margin: "0 0 18px" }}>{r.text}</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: AVATAR_COLORS[i % AVATAR_COLORS.length], color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", font: "var(--fw-bold) 13px/1 var(--font-sans)" }}>{r.authorName[0]}</div>
+                    <span style={{ font: "var(--fw-semibold) 13px/1 var(--font-sans)", color: "var(--text-muted)" }}>{r.authorName}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ===== FAQ (only when the store has Q&A) ===== */}
       {faqs.length > 0 && (

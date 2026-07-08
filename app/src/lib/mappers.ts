@@ -15,7 +15,14 @@ function toStatusKind(s: string): StatusKind {
   return s as StatusKind;
 }
 
-export function mapCard(c: any): CardVM {
+/**
+ * Colors are no longer stored per service/staff — the app assigns them automatically by list
+ * position, cycling this palette so adjacent items differ (fully distinct up to 4 items).
+ */
+const COLOR_PALETTE: ServiceColorToken[] = ['primary', 'secondary', 'amber500', 'green500'];
+const colorByIndex = (i: number): ServiceColorToken => COLOR_PALETTE[i % COLOR_PALETTE.length];
+
+export function mapCard(c: any, seatColor: ServiceColorToken = 'secondary'): CardVM {
   return {
     id: c.id,
     name: c.name,
@@ -25,7 +32,7 @@ export function mapCard(c: any): CardVM {
     pos: c.position,
     initials: c.initials,
     seatName: c.seatName,
-    seatColor: c.seatColor as ServiceColorToken,
+    seatColor,
     srcLabel: c.online ? 'Online' : 'Walk-in',
     online: !!c.online,
     rightText: c.rightText,
@@ -34,11 +41,12 @@ export function mapCard(c: any): CardVM {
   };
 }
 
-export function mapSeat(s: any): SeatGroupVM {
+export function mapSeat(s: any, i = 0): SeatGroupVM {
+  const color = colorByIndex(i);
   return {
     id: s.id,
     name: s.name,
-    color: s.colorToken as ServiceColorToken,
+    color,
     initials: s.name?.[0] ?? '?',
     serving: !!s.serving,
     servingName: s.servingName ?? '',
@@ -48,7 +56,7 @@ export function mapSeat(s: any): SeatGroupVM {
     clearMinutes: s.clearMinutes ?? 0,
     free: !!s.free,
     empty: !!s.empty,
-    cards: (s.cards ?? []).map(mapCard),
+    cards: (s.cards ?? []).map((c: any) => mapCard(c, color)),
   };
 }
 
@@ -61,18 +69,18 @@ export function formatMoney(m?: Money): string {
   return `₹${rupees.toLocaleString('en-IN', { maximumFractionDigits: rupees % 1 ? 1 : 0 })}`;
 }
 
-export function mapService(s: any): ServiceVM {
+export function mapService(s: any, i = 0): ServiceVM {
   return {
     id: s.id,
     name: s.name,
     duration: `${s.durationMinutes} min`,
     price: formatMoney(s.price),
-    color: s.colorToken as ServiceColorToken,
+    color: colorByIndex(i),
   };
 }
 
-export function mapStaff(s: any): Staff {
-  return { id: s.id, name: s.name, color: s.colorToken as ServiceColorToken };
+export function mapStaff(s: any, i = 0): Staff {
+  return { id: s.id, name: s.name, color: colorByIndex(i) };
 }
 
 function fmtTime(iso: string): string {

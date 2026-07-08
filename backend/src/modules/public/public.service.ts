@@ -74,14 +74,14 @@ export async function getMicrositeByPhone(phoneDigits: string) {
 async function buildMicrosite(b: any) {
   // Single round-trip wave: hours/amenities/gallery run alongside the queue context,
   // which already loads active services (reused below instead of a duplicate query).
-  const [{ data: hours }, { data: amenities }, { data: gallery }, ctx] = await Promise.all([
+  const [{ data: hours }, { data: amenities }, { data: gallery }, ctx, { data: categoryRow }] = await Promise.all([
     supabase.from('business_hour').select('*').eq('business_id', b.id).order('day_of_week'),
     supabase.from('amenity').select('*').eq('business_id', b.id).order('position'),
     supabase.from('gallery_image').select('*').eq('business_id', b.id).order('position'),
     loadQueueContext(b.id),
+    supabase.from('master_data').select('team_noun').eq('type', 'business_category').eq('name', b.category ?? '').maybeSingle(),
   ]);
   const services = ctx.serviceRows;
-  const reviews: any[] = []; // review collection deferred (docs/17 Q27)
 
   const { groups, waitMinutes, queueCount } = liveAvailability(ctx);
 
@@ -104,12 +104,16 @@ async function buildMicrosite(b: any) {
     phoneNumber: b.phone_number ?? null,
     name: b.name,
     tagline: b.tagline,
+    heroSubtitle: b.hero_subtitle ?? null,
+    statValue: b.stat_value ?? null,
+    statLabel: b.stat_label ?? null,
     description: b.description,
     aboutHeading: b.about_heading ?? null,
     heroImageUrl: b.hero_image_url ?? null,
     aboutImageUrl: b.about_image_url ?? null,
     faqs: Array.isArray(b.faqs) ? b.faqs : [],
     category: b.category,
+    teamNoun: categoryRow?.team_noun ?? null,
     area: b.area,
     address: b.address,
     rating: Number(b.rating ?? 0),
@@ -130,7 +134,11 @@ async function buildMicrosite(b: any) {
       price: money(s.price_paise, s.currency),
     })),
     staff: staffDTO,
-    reviews: ((reviews as any[]) ?? []).map((r) => ({ stars: r.rating, text: r.text, authorName: r.author_name })),
+    reviews: (Array.isArray(b.reviews) ? b.reviews : []).map((r: any) => ({
+      stars: Number(r.stars) || 0,
+      text: r.text,
+      authorName: r.authorName,
+    })),
     live: { waitMinutes, queueCount },
     payments: b.payments ?? [],
   };

@@ -3,7 +3,6 @@ import { supabase } from '../../db/supabase';
 import { env } from '../../config/env';
 import { Errors } from '../../domain/errors';
 import { signAdminToken } from '../auth/token.service';
-import type { ColorToken } from '../../config/constants';
 
 /**
  * Provisioning + management API for the admin panel — a parameterized version of db/seed.ts.
@@ -19,6 +18,9 @@ export interface StoreFields {
   address?: string;
   city?: string;
   tagline?: string;
+  heroSubtitle?: string;
+  statValue?: string;
+  statLabel?: string;
   description?: string;
   aboutHeading?: string;
   heroImageUrl?: string;
@@ -33,9 +35,10 @@ export interface StoreFields {
   hours: { dayOfWeek: number; opensAt?: string | null; closesAt?: string | null; isClosed: boolean }[];
   amenities: string[];
   gallery: { url: string; alt?: string | null }[];
-  services: { name: string; durationMinutes: number; priceRupees: number; colorToken: ColorToken }[];
-  staff: { name: string; roleLabel?: string | null; colorToken: ColorToken }[];
+  services: { name: string; durationMinutes: number; priceRupees: number }[];
+  staff: { name: string; roleLabel?: string | null }[];
   faqs?: { q: string; a: string }[];
+  reviews?: { stars: number; text: string; authorName: string }[];
 }
 
 export interface CreateBusinessInput extends StoreFields {
@@ -75,6 +78,9 @@ function businessColumns(input: StoreFields) {
     address: input.address ?? null,
     city: input.city ?? null,
     tagline: input.tagline ?? null,
+    hero_subtitle: input.heroSubtitle ?? null,
+    stat_value: input.statValue ?? null,
+    stat_label: input.statLabel ?? null,
     description: input.description ?? null,
     about_heading: input.aboutHeading ?? null,
     hero_image_url: input.heroImageUrl ?? null,
@@ -84,6 +90,7 @@ function businessColumns(input: StoreFields) {
     review_count: input.reviewCount ?? 0,
     payments: input.payments && input.payments.length ? input.payments : ['UPI', 'Card', 'Cash'],
     faqs: input.faqs ?? [],
+    reviews: input.reviews ?? [],
   };
 }
 
@@ -119,7 +126,6 @@ async function insertChildren(bid: string, input: StoreFields) {
     name: s.name,
     duration_minutes: s.durationMinutes,
     price_paise: Math.round(s.priceRupees * 100),
-    color_token: s.colorToken,
     position,
   }));
   const { error: svcErr } = await supabase.from('service').insert(serviceRows);
@@ -129,7 +135,6 @@ async function insertChildren(bid: string, input: StoreFields) {
     business_id: bid,
     name: s.name,
     role_label: s.roleLabel ?? null,
-    color_token: s.colorToken,
     position,
   }));
   const { error: staffErr } = await supabase.from('staff').insert(staffRows);
@@ -335,6 +340,9 @@ export async function getBusinessDetail(id: string) {
     address: b.address ?? '',
     city: b.city ?? '',
     tagline: b.tagline ?? '',
+    heroSubtitle: b.hero_subtitle ?? '',
+    statValue: b.stat_value ?? '',
+    statLabel: b.stat_label ?? '',
     description: b.description ?? '',
     aboutHeading: b.about_heading ?? '',
     heroImageUrl: b.hero_image_url ?? '',
@@ -358,13 +366,12 @@ export async function getBusinessDetail(id: string) {
       name: s.name,
       durationMinutes: s.duration_minutes,
       priceRupees: s.price_paise / 100,
-      colorToken: s.color_token as ColorToken,
     })),
     staff: (staff ?? []).map((s) => ({
       name: s.name,
       roleLabel: s.role_label ?? '',
-      colorToken: s.color_token as ColorToken,
     })),
     faqs: (Array.isArray(b.faqs) ? b.faqs : []) as { q: string; a: string }[],
+    reviews: (Array.isArray(b.reviews) ? b.reviews : []) as { stars: number; text: string; authorName: string }[],
   };
 }

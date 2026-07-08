@@ -1,10 +1,7 @@
 /** Payload shapes shared between the store form and the API route handlers.
  *  These mirror the backend zod schema in backend/src/modules/admin/admin.routes.ts. */
 
-export const COLOR_TOKENS = ["primary", "secondary", "amber500", "green500"] as const;
-export type ColorToken = (typeof COLOR_TOKENS)[number];
-
-export const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+export const DAY_LABELS =["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export interface HourRow {
   dayOfWeek: number;
@@ -16,12 +13,10 @@ export interface ServiceRow {
   name: string;
   durationMinutes: number;
   priceRupees: number;
-  colorToken: ColorToken;
 }
 export interface StaffRow {
   name: string;
   roleLabel: string;
-  colorToken: ColorToken;
 }
 export interface GalleryRow {
   url: string;
@@ -30,6 +25,11 @@ export interface GalleryRow {
 export interface FaqRow {
   q: string;
   a: string;
+}
+export interface ReviewRow {
+  stars: number;
+  text: string;
+  authorName: string;
 }
 
 /** The full form state. Sent to the API route, which forwards it to the backend. */
@@ -40,6 +40,9 @@ export interface StoreForm {
   address: string;
   city: string;
   tagline: string;
+  heroSubtitle: string;
+  statValue: string;
+  statLabel: string;
   description: string;
   aboutHeading: string;
   heroImageUrl: string;
@@ -56,6 +59,7 @@ export interface StoreForm {
   services: ServiceRow[];
   staff: StaffRow[];
   faqs: FaqRow[];
+  reviews: ReviewRow[];
   ownerPassword: string;
 }
 
@@ -96,6 +100,9 @@ export const EMPTY_FORM: StoreForm = {
   address: "",
   city: "",
   tagline: "",
+  heroSubtitle: "",
+  statValue: "",
+  statLabel: "",
   description: "",
   aboutHeading: "",
   heroImageUrl: "",
@@ -109,9 +116,10 @@ export const EMPTY_FORM: StoreForm = {
   hours: blankHours(),
   amenities: [],
   gallery: [],
-  services: [{ name: "", durationMinutes: 30, priceRupees: 0, colorToken: "secondary" }],
-  staff: [{ name: "", roleLabel: "", colorToken: "secondary" }],
+  services: [{ name: "", durationMinutes: 30, priceRupees: 0 }],
+  staff: [{ name: "", roleLabel: "" }],
   faqs: [],
+  reviews: [],
   ownerPassword: "",
 };
 
@@ -125,6 +133,9 @@ export interface StoreDetail {
   address: string;
   city: string;
   tagline: string;
+  heroSubtitle: string;
+  statValue: string;
+  statLabel: string;
   description: string;
   aboutHeading: string;
   heroImageUrl: string;
@@ -142,6 +153,7 @@ export interface StoreDetail {
   services: ServiceRow[];
   staff: StaffRow[];
   faqs: FaqRow[];
+  reviews: ReviewRow[];
 }
 
 /** Map a backend store detail into editable form state (fills any missing weekday rows). */
@@ -157,6 +169,9 @@ export function fromDetail(d: StoreDetail): StoreForm {
     address: d.address,
     city: d.city,
     tagline: d.tagline,
+    heroSubtitle: d.heroSubtitle,
+    statValue: d.statValue,
+    statLabel: d.statLabel,
     description: d.description,
     aboutHeading: d.aboutHeading,
     heroImageUrl: d.heroImageUrl,
@@ -173,6 +188,7 @@ export function fromDetail(d: StoreDetail): StoreForm {
     services: d.services.length ? d.services : EMPTY_FORM.services,
     staff: d.staff.length ? d.staff : EMPTY_FORM.staff,
     faqs: d.faqs,
+    reviews: d.reviews ?? [],
     ownerPassword: "",
   };
 }
@@ -187,6 +203,9 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
     address: f.address.trim() || undefined,
     city: f.city.trim() || undefined,
     tagline: f.tagline.trim() || undefined,
+    heroSubtitle: f.heroSubtitle.trim() || undefined,
+    statValue: f.statValue.trim() || undefined,
+    statLabel: f.statLabel.trim() || undefined,
     description: f.description.trim() || undefined,
     aboutHeading: f.aboutHeading.trim() || undefined,
     heroImageUrl: f.heroImageUrl.trim() || undefined,
@@ -212,14 +231,15 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
       name: s.name.trim(),
       durationMinutes: Number(s.durationMinutes),
       priceRupees: Number(s.priceRupees),
-      colorToken: s.colorToken,
     })),
     staff: f.staff.map((s) => ({
       name: s.name.trim(),
       roleLabel: s.roleLabel.trim() || null,
-      colorToken: s.colorToken,
     })),
     faqs: f.faqs.filter((x) => x.q.trim() && x.a.trim()).map((x) => ({ q: x.q.trim(), a: x.a.trim() })),
+    reviews: f.reviews
+      .filter((r) => r.text.trim() && r.authorName.trim())
+      .map((r) => ({ stars: r.stars, text: r.text.trim(), authorName: r.authorName.trim() })),
   };
   if (includeOwner) body.owner = { password: f.ownerPassword };
   return body;

@@ -50,11 +50,15 @@ export interface Microsite {
   phoneNumber: string | null;
   name: string;
   tagline: string | null;
+  heroSubtitle: string | null;
+  statValue: string | null;
+  statLabel: string | null;
   description: string | null;
   aboutHeading: string | null;
   heroImageUrl: string | null;
   aboutImageUrl: string | null;
   faqs: { q: string; a: string }[];
+  teamNoun: string | null;
   area: string | null;
   address: string | null;
   rating: number;
