@@ -24,7 +24,9 @@ async function get<T>(path: string): Promise<T | null> {
 
 export async function listBusinesses(): Promise<StoreListItem[]> {
   const json = await get<{ data: StoreListItem[] }>("/admin/businesses");
-  return json?.data ?? [];
+  // The demo/example store is viewable only via the sidebar "View demo store" link — hide it
+  // from the manageable Stores list so it isn't treated like a real store.
+  return (json?.data ?? []).filter((s) => s.slug !== "demo-store");
 }
 
 export async function listLookups(type: string): Promise<Category[]> {

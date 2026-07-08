@@ -840,10 +840,23 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             <h1 style={{ font: "var(--fw-extrabold) 52px/1.03 var(--font-sans)", letterSpacing: "-.03em", color: "var(--brand-ink)", margin: "18px 0 10px" }}>
               {site.tagline ?? site.name}
             </h1>
-            <p style={{ font: "var(--fw-medium) 17px/1.5 var(--font-sans)", color: "var(--text-body)", margin: "0 0 26px", maxWidth: 460 }}>
-              ★ {rating} ({reviewCount} reviews) · Established {establishedYear}
-              {site.heroSubtitle ? ` · ${site.heroSubtitle}` : ""}
-            </p>
+            {(() => {
+              // Only surface pieces backed by real data — no "★ 0 (0 reviews)" or defaulted
+              // "Established 2014" when the store hasn't set them.
+              const heroMeta = [
+                reviewCount > 0 ? `★ ${rating} (${reviewCount} reviews)` : null,
+                site.establishedYear != null ? `Established ${site.establishedYear}` : null,
+                site.heroSubtitle?.trim() ? site.heroSubtitle : null,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              if (!heroMeta) return null;
+              return (
+                <p style={{ font: "var(--fw-medium) 17px/1.5 var(--font-sans)", color: "var(--text-body)", margin: "0 0 26px", maxWidth: 460 }}>
+                  {heroMeta}
+                </p>
+              );
+            })()}
             <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 13, background: "var(--surface-card)", border: "1px solid var(--border-subtle)", borderRadius: 14, padding: "12px 18px", boxShadow: "var(--shadow-md)" }}>
                 <span style={{ display: "flex", color: "var(--secondary)" }}>
@@ -867,7 +880,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       {(() => {
         // Only surface cells that have real data — no "in town" / "0 team members" / "★ 0" placeholders.
         const trustCells = [
-          site.area ? [`${yearsOpen}+ yrs`, `in ${site.area}`] : null,
+          site.establishedYear != null && site.area ? [`${yearsOpen}+ yrs`, `in ${site.area}`] : null,
           barbers.length > 0 ? [`${barbers.length} ${site.teamNoun ?? "team members"}`, "expert team"] : null,
           site.statValue && site.statLabel ? [site.statValue, site.statLabel] : null,
           reviewCount > 0 ? [`★ ${rating}`, `${reviewCount} reviews`] : null,
