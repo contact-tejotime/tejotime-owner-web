@@ -93,6 +93,7 @@ async function buildMicrosite(b: any) {
       roleLabel: s.role_label,
       busy: !!g?.serving,
       queueCount: g?.waitingCount ?? 0,
+      waitMinutes: g?.clearMinutes ?? 0,
       waitLabel: g && g.clearMinutes > 0 ? `~${g.clearMinutes}m` : 'Free',
     };
   });
@@ -164,6 +165,7 @@ export async function getStaffAvailability(slug: string) {
         roleLabel: s.role_label,
         busy: !!g?.serving,
         queueCount: g?.waitingCount ?? 0,
+        waitMinutes: g?.clearMinutes ?? 0,
         waitLabel: g && g.clearMinutes > 0 ? `~${g.clearMinutes}m` : 'Free',
       };
     }),

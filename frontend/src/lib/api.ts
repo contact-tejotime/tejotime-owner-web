@@ -41,6 +41,7 @@ export interface MicrositeStaff {
   roleLabel: string | null;
   busy: boolean;
   queueCount: number;
+  waitMinutes: number;
   waitLabel: string;
 }
 export interface Microsite {

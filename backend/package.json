@@ -13,6 +13,7 @@
     "start": "node dist/server.js",
     "migrate": "tsx db/migrate.ts",
     "seed": "tsx db/seed.ts",
+    "seed:demo": "tsx db/seed-demo.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run"

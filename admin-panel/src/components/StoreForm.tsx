@@ -61,6 +61,26 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
     setError(null);
     setDetails([]);
     setResult(null);
+
+    // Required business fields — blocked here for a friendly message (native `required` also guards).
+    const requiredFields: { key: keyof StoreFormState; label: string }[] = [
+      { key: "category", label: "Category" },
+      { key: "area", label: "Area" },
+      { key: "city", label: "City" },
+      { key: "address", label: "Address" },
+      { key: "tagline", label: "Tagline" },
+      { key: "aboutHeading", label: "About heading" },
+      { key: "description", label: "Description" },
+    ];
+    const missing = requiredFields.filter((f) => !String(form[f.key] ?? "").trim());
+    if (missing.length > 0) {
+      setError("Please fill all required fields.");
+      setDetails(missing.map((f) => ({ field: f.label, message: "This field is required." })));
+      setSaving(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
     try {
       const url = mode === "create" ? "/api/create-store" : `/api/stores/${storeId}`;
       const method = mode === "create" ? "POST" : "PUT";
@@ -137,8 +157,8 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
               <input value={form.name} onChange={(e) => set("name", e.target.value)} required maxLength={120} />
             </div>
             <div className="field">
-              <label>Category</label>
-              <select value={form.category} onChange={(e) => set("category", e.target.value)}>
+              <label>Category *</label>
+              <select value={form.category} onChange={(e) => set("category", e.target.value)} required>
                 <option value="">— Select category —</option>
                 {categoryOptions.map((c) => (
                   <option key={c} value={c}>
@@ -148,20 +168,20 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
               </select>
             </div>
             <div className="field">
-              <label>Area</label>
-              <input value={form.area} onChange={(e) => set("area", e.target.value)} maxLength={120} />
+              <label>Area *</label>
+              <input value={form.area} onChange={(e) => set("area", e.target.value)} required maxLength={120} />
             </div>
             <div className="field">
-              <label>City</label>
-              <input value={form.city} onChange={(e) => set("city", e.target.value)} maxLength={80} />
+              <label>City *</label>
+              <input value={form.city} onChange={(e) => set("city", e.target.value)} required maxLength={80} />
             </div>
             <div className="field full">
-              <label>Address</label>
-              <input value={form.address} onChange={(e) => set("address", e.target.value)} maxLength={300} />
+              <label>Address *</label>
+              <input value={form.address} onChange={(e) => set("address", e.target.value)} required maxLength={300} />
             </div>
             <div className="field full">
-              <label>Tagline</label>
-              <input value={form.tagline} onChange={(e) => set("tagline", e.target.value)} maxLength={160} />
+              <label>Tagline *</label>
+              <input value={form.tagline} onChange={(e) => set("tagline", e.target.value)} required maxLength={160} />
             </div>
             <div className="field full">
               <label>Banner subtitle</label>
@@ -181,16 +201,17 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
               <input value={form.statLabel} onChange={(e) => set("statLabel", e.target.value)} maxLength={60} placeholder="e.g. haircuts done" />
             </div>
             <div className="field full">
-              <label>About heading</label>
+              <label>About heading *</label>
               <input
                 value={form.aboutHeading}
                 onChange={(e) => set("aboutHeading", e.target.value)}
+                required
                 maxLength={160}
               />
             </div>
             <div className="field full">
-              <label>Description</label>
-              <textarea value={form.description} onChange={(e) => set("description", e.target.value)} maxLength={2000} />
+              <label>Description *</label>
+              <textarea value={form.description} onChange={(e) => set("description", e.target.value)} required maxLength={2000} />
             </div>
           </div>
           <div className="grid cols-3" style={{ marginTop: 12 }}>

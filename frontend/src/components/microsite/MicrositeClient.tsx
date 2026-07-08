@@ -286,6 +286,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     busy: s.busy,
     count: s.queueCount,
     wait: s.waitLabel,
+    waitMin: s.waitMinutes,
     avBg: AVATAR_COLORS[i % AVATAR_COLORS.length],
   }));
   const amenities = site.amenities ?? [];
@@ -293,13 +294,17 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const faqs = Array.isArray(site.faqs) ? site.faqs : [];
   const reviews = Array.isArray(site.reviews) ? site.reviews : [];
 
+  // The example store (/demo-store) showcases every photo slot as a blank placeholder frame,
+  // even when no image is set — so operators see where photos go. Scoped to that one slug only.
+  const isDemo = site.slug === "demo-store";
+
   // Render each About piece only when it has real content; collapse the section otherwise.
   const hasHeading = !!site.aboutHeading?.trim();
   const hasDescription = !!site.description?.trim();
   const hasAmenities = amenities.length > 0;
   const hasAboutText = hasHeading || hasDescription || hasAmenities;
   const hasAboutImage = !!site.aboutImageUrl;
-  const showAbout = hasAboutText || hasAboutImage;
+  const showAbout = hasAboutText || hasAboutImage || isDemo;
   const rating = site.rating ?? 0;
   const reviewCount = site.reviewCount ?? 0;
   const establishedYear = site.establishedYear ?? 2014;
@@ -721,7 +726,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
   // ---- derived render values ----
   const sel = services.find((x) => x.id === cart);
-  const liveWaitLabel = `~${liveWait} min`;
+  // Shop-wide "soonest free chair" wait. A 0 means a chair is open right now, so read
+  // it as an invitation ("Walk in now") rather than the nonsensical "~0 min wait".
+  const waitHeadline = liveWait > 0 ? `~${liveWait} min wait` : "Walk in now";
+  // Join-form summary wait, barber-aware: a specific barber shows their own chair's
+  // clear time; "Any" falls back to the shop-wide soonest value.
+  const selBarber = barbers.find((b) => b.id === barber);
+  const joinWaitMin = barber === "any" ? liveWait : selBarber?.waitMin ?? liveWait;
+  const joinWaitText = joinWaitMin > 0 ? `~${joinWaitMin} min wait` : "no wait — walk in";
   const modeTitle =
     view === "track"
       ? tstep === 3
@@ -781,13 +793,15 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             <span style={{ font: "var(--fw-extrabold) 21px/1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)" }}>{site.name}</span>
           </div>
           <div style={{ display: "flex", gap: 26, alignItems: "center" }}>
-            {[
-              ["About", "#about"],
-              ["Gallery", "#gallery"],
-              ["Services", "#services"],
-              ["Team", "#team"],
-              ["Visit us", "#visit"],
-            ].map(([label, href]) => (
+            {([
+              [showAbout, "About", "#about"],
+              [gallery.length > 0 || isDemo, "Gallery", "#gallery"],
+              [services.length > 0, "Services", "#services"],
+              [barbers.length > 0, "Team", "#team"],
+              [Boolean(site.address || site.area || site.hours.length > 0), "Visit us", "#visit"],
+            ] as [boolean, string, string][])
+              .filter(([show]) => show)
+              .map(([, label, href]) => (
               <a key={href} href={href} className="salonNavLink" style={{ font: "var(--fw-medium) 14px/1 var(--font-sans)", color: "var(--text-muted)", textDecoration: "none", transition: "color .15s ease" }}>
                 {label}
               </a>
@@ -836,7 +850,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                   <Icon name="hourglass" size={22} />
                 </span>
                 <div>
-                  <div style={{ font: "var(--fw-extrabold) 24px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{liveWaitLabel} wait</div>
+                  <div style={{ font: "var(--fw-extrabold) 24px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{waitHeadline}</div>
                   <div style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{liveCount} people in queue now</div>
                 </div>
               </div>
@@ -850,21 +864,28 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       </div>
 
       {/* ===== TRUST BAR ===== */}
-      <div style={{ background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)" }}>
-        <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "26px 32px", display: "flex", justifyContent: "space-around", textAlign: "center", gap: 20, flexWrap: "wrap" }}>
-          {[
-            [`${yearsOpen}+ yrs`, `in ${site.area ?? "town"}`],
-            [`${barbers.length} ${site.teamNoun ?? "team members"}`, "expert team"],
-            ...(site.statValue && site.statLabel ? [[site.statValue, site.statLabel]] : []),
-            [`★ ${rating}`, `${reviewCount} reviews`],
-          ].map(([big, small]) => (
-            <div key={small}>
-              <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--primary)" }}>{big}</div>
-              <div style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 6 }}>{small}</div>
+      {(() => {
+        // Only surface cells that have real data — no "in town" / "0 team members" / "★ 0" placeholders.
+        const trustCells = [
+          site.area ? [`${yearsOpen}+ yrs`, `in ${site.area}`] : null,
+          barbers.length > 0 ? [`${barbers.length} ${site.teamNoun ?? "team members"}`, "expert team"] : null,
+          site.statValue && site.statLabel ? [site.statValue, site.statLabel] : null,
+          reviewCount > 0 ? [`★ ${rating}`, `${reviewCount} reviews`] : null,
+        ].filter(Boolean) as [string, string][];
+        if (trustCells.length === 0) return null;
+        return (
+          <div style={{ background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)" }}>
+            <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "26px 32px", display: "flex", justifyContent: "space-around", textAlign: "center", gap: 20, flexWrap: "wrap" }}>
+              {trustCells.map(([big, small]) => (
+                <div key={small}>
+                  <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--primary)" }}>{big}</div>
+                  <div style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 6 }}>{small}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
+        );
+      })()}
 
       {/* ===== ABOUT ===== */}
       {showAbout && (
@@ -898,22 +919,37 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                 )}
               </div>
             )}
-            {hasAboutImage && (
-              <div style={{ flex: hasAboutText ? "1 1 0" : "0 1 560px", minWidth: 280, height: 260, borderRadius: 18, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--surface-card)), color-mix(in srgb, var(--secondary) 12%, var(--surface-card)))", border: "1px solid var(--border-subtle)", backgroundImage: `url(${site.aboutImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+            {(hasAboutImage || isDemo) && (
+              <div style={{ flex: hasAboutText ? "1 1 0" : "0 1 560px", minWidth: 280, height: 260, borderRadius: 18, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--surface-card)), color-mix(in srgb, var(--secondary) 12%, var(--surface-card)))", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", ...(hasAboutImage ? { backgroundImage: `url(${site.aboutImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
+                {!hasAboutImage && (
+                  <span style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "rgba(15,23,42,.4)", display: "flex", alignItems: "center", gap: 7 }}>
+                    <Icon name="building" size={15} />
+                    About photo
+                  </span>
+                )}
+              </div>
             )}
           </div>
         </div>
       )}
 
       {/* ===== GALLERY ===== */}
-      {gallery.length > 0 && (
+      {(gallery.length > 0 || isDemo) && (
         <div id="gallery" style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 32px 40px" }}>
           <div style={revealStyle}>
             <div style={eyebrow}>Gallery</div>
-            {/* Horizontal strip: fixed-width cells that scroll sideways once they overflow the row. */}
+            {/* Horizontal strip: fixed-width cells that scroll sideways once they overflow the row.
+                Demo store with no photos shows blank placeholder cells so the slot is visible. */}
             <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 6, scrollSnapType: "x proximity" }}>
-              {gallery.map((g, i) => (
-                <div key={i} className="salonGalleryCell" style={{ flex: "0 0 auto", width: 240, height: 160, borderRadius: 14, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--surface-card)), color-mix(in srgb, var(--secondary) 10%, var(--surface-card)))", border: "1px solid var(--border-subtle)", cursor: "pointer", backgroundImage: `url(${g})`, backgroundSize: "cover", backgroundPosition: "center", scrollSnapAlign: "start" }} />
+              {(gallery.length > 0 ? gallery : [null, null, null, null]).map((g, i) => (
+                <div key={i} className="salonGalleryCell" style={{ flex: "0 0 auto", width: 240, height: 160, borderRadius: 14, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--surface-card)), color-mix(in srgb, var(--secondary) 10%, var(--surface-card)))", border: "1px solid var(--border-subtle)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", scrollSnapAlign: "start", ...(g ? { backgroundImage: `url(${g})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
+                  {!g && (
+                    <span style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "rgba(15,23,42,.4)", display: "flex", alignItems: "center", gap: 7 }}>
+                      <Icon name="grid" size={15} />
+                      Gallery photo
+                    </span>
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -921,6 +957,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       )}
 
       {/* ===== SERVICES (names only) ===== */}
+      {services.length > 0 && (
       <div id="services" style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)", borderBottom: "1px solid var(--border-subtle)" }}>
         <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "64px 32px" }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
@@ -939,8 +976,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           </div>
         </div>
       </div>
+      )}
 
       {/* ===== TEAM · LIVE AVAILABILITY ===== */}
+      {barbers.length > 0 && (
       <div id="team" style={{ maxWidth: 1180, margin: "0 auto", padding: "64px 32px" }}>
         <div style={revealStyle}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
@@ -979,6 +1018,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           </div>
         </div>
       </div>
+      )}
 
       {/* ===== REVIEWS (only when the store has reviews) ===== */}
       {reviews.length > 0 && (
@@ -1029,35 +1069,45 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       )}
 
       {/* ===== VISIT ===== */}
+      {(site.address || site.area || site.hours.length > 0) && (
       <div id="visit" style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}>
         <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: 0, display: "flex", flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 300, padding: "56px 32px" }}>
             <div style={eyebrow}>Visit us</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 9, font: "var(--fw-medium) 15px/1.4 var(--font-sans)", color: "var(--text-body)", marginBottom: 22 }}>
-              <span style={{ color: "var(--primary)", display: "flex" }}>
-                <Icon name="building" size={18} />
-              </span>
-              {site.address ?? "—"}
-            </div>
-            <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 12 }}>Opening hours</div>
-            <div style={{ maxWidth: 320 }}>
-              {[...site.hours].sort((a, b) => a.dayOfWeek - b.dayOfWeek).map((h, i, arr) => (
-                <div key={h.dayOfWeek} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: i < arr.length - 1 ? "1px solid var(--border-subtle)" : "none", font: "var(--fw-medium) 14px/1 var(--font-sans)", color: "var(--text-body)" }}>
-                  <span>{DAYS[h.dayOfWeek]}</span>
-                  <span style={{ color: h.isClosed ? "var(--error)" : "var(--text-strong)" }}>{h.label}</span>
+            {site.address && (
+              <div style={{ display: "flex", alignItems: "center", gap: 9, font: "var(--fw-medium) 15px/1.4 var(--font-sans)", color: "var(--text-body)", marginBottom: 22 }}>
+                <span style={{ color: "var(--primary)", display: "flex" }}>
+                  <Icon name="building" size={18} />
+                </span>
+                {site.address}
+              </div>
+            )}
+            {site.hours.length > 0 && (
+              <>
+                <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 12 }}>Opening hours</div>
+                <div style={{ maxWidth: 320 }}>
+                  {[...site.hours].sort((a, b) => a.dayOfWeek - b.dayOfWeek).map((h, i, arr) => (
+                    <div key={h.dayOfWeek} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: i < arr.length - 1 ? "1px solid var(--border-subtle)" : "none", font: "var(--fw-medium) 14px/1 var(--font-sans)", color: "var(--text-body)" }}>
+                      <span>{DAYS[h.dayOfWeek]}</span>
+                      <span style={{ color: h.isClosed ? "var(--error)" : "var(--text-strong)" }}>{h.label}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
           </div>
-          <iframe
-            title={`Map of ${site.name}`}
-            src={`https://www.google.com/maps?q=${encodeURIComponent(site.address ?? site.area ?? site.name)}&output=embed`}
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            style={{ flex: 1, minWidth: 300, minHeight: 280, border: 0, borderLeft: "1px solid var(--border-subtle)" }}
-          />
+          {(site.address || site.area) && (
+            <iframe
+              title={`Map of ${site.name}`}
+              src={`https://www.google.com/maps?q=${encodeURIComponent(site.address ?? site.area ?? site.name)}&output=embed`}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              style={{ flex: 1, minWidth: 300, minHeight: 280, border: 0, borderLeft: "1px solid var(--border-subtle)" }}
+            />
+          )}
         </div>
       </div>
+      )}
 
       {/* ===== FINAL CTA ===== */}
       <div style={{ background: "linear-gradient(135deg, var(--brand-ink), var(--primary))", position: "relative", overflow: "hidden" }}>
@@ -1065,7 +1115,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         <div style={{ position: "absolute", bottom: -70, left: "6%", width: 170, height: 170, borderRadius: "50%", background: "rgba(255,255,255,.06)", animation: "ttFloat 10s ease-in-out infinite" }} />
         <div style={{ position: "relative", maxWidth: 1180, margin: "0 auto", padding: "64px 32px", textAlign: "center" }}>
           <h2 style={{ font: "var(--fw-extrabold) 36px/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "#fff", margin: "0 0 10px" }}>Skip the wait — join the live queue</h2>
-          <p style={{ font: "var(--fw-medium) 16px/1.5 var(--font-sans)", color: "rgba(255,255,255,.85)", margin: "0 0 26px" }}>{liveCount} ahead of you · {liveWaitLabel} · we&apos;ll text you when you&apos;re close</p>
+          <p style={{ font: "var(--fw-medium) 16px/1.5 var(--font-sans)", color: "rgba(255,255,255,.85)", margin: "0 0 26px" }}>{liveCount} in the queue · {waitHeadline} · we&apos;ll text you when you&apos;re close</p>
           <div onClick={openQueue} className="salonCtaBtn" style={{ display: "inline-block", cursor: "pointer", background: "#fff", color: "var(--primary)", font: "var(--fw-bold) 17px/1 var(--font-sans)", padding: "16px 32px", borderRadius: 12, boxShadow: "var(--shadow-lg)" }}>
             Join the queue →
           </div>
@@ -1203,7 +1253,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: "13px 15px", marginBottom: 14 }}>
                         <span style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--text-body)" }}>
-                          {(sel ? sel.name : "") + " · " + (mode === "book" ? (selectedSlot ? "time selected" : "choose a time above") : `~${liveWait} min wait`)}
+                          {(sel ? sel.name : "") + " · " + (mode === "book" ? (selectedSlot ? "time selected" : "choose a time above") : joinWaitText)}
                         </span>
                         <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)" }}>{sel ? `₹${sel.price}` : ""}</span>
                       </div>
@@ -1307,7 +1357,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                               ? "You're no longer in the queue."
                               : justTurn
                                 ? "Head to the chair — see you inside."
-                                : "We'll text you when you're 2 away."}
+                                : (ticket?.ahead ?? 0) <= 1
+                                  ? "You're next — we'll text you the moment the chair's free."
+                                  : "We'll text you when you're 2 away."}
                       </p>
 
                       {mode === "queue" && ticket && (

@@ -137,6 +137,7 @@ export async function broadcastQueue(businessId: string): Promise<void> {
       roleLabel: s.role_label,
       busy: !!g?.serving,
       queueCount: g?.waitingCount ?? 0,
+      waitMinutes: g?.clearMinutes ?? 0,
       waitLabel: g && g.clearMinutes > 0 ? `~${g.clearMinutes}m` : 'Free',
     };
   });

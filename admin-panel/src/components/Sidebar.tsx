@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { StoreListItem } from "@/lib/types";
 
+const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com";
+
 export function Sidebar({ stores }: { stores: StoreListItem[] }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -32,6 +34,10 @@ export function Sidebar({ stores }: { stores: StoreListItem[] }) {
       <Link href="/" className={`nav-link create ${pathname === "/" ? "active" : ""}`}>
         ＋ Create store
       </Link>
+
+      <a href={`${FRONTEND_URL}/demo-store`} target="_blank" rel="noreferrer" className="nav-link">
+        🔗 View demo store
+      </a>
 
       <div className="side-label">Stores ({stores.length})</div>
       {stores.length === 0 && <div className="side-empty">No stores yet</div>}
