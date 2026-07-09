@@ -1,7 +1,9 @@
 import bcrypt from 'bcryptjs';
 import { supabase } from '../../db/supabase';
+import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
 import { Errors } from '../../domain/errors';
+import { money } from '../../domain/money';
 import { signAdminToken } from '../auth/token.service';
 
 /**
@@ -30,6 +32,10 @@ export interface StoreFields {
   reviewCount?: number;
   payments?: string[];
   timezone?: string;
+  /** ISO 4217 code (e.g. 'INR', 'USD'). Omitted → keeps existing / env default. */
+  currency?: string;
+  /** Edit only — create always starts active. When false the public microsite 404s. */
+  isActive?: boolean;
   countryCode: string;
   phoneNumber: string;
   hours: { dayOfWeek: number; opensAt?: string | null; closesAt?: string | null; isClosed: boolean }[];
@@ -95,7 +101,7 @@ function businessColumns(input: StoreFields) {
 }
 
 /** Insert all child rows (hours, amenities, gallery, services, staff) for a business. */
-async function insertChildren(bid: string, input: StoreFields) {
+async function insertChildren(bid: string, input: StoreFields, currency: string) {
   if (input.hours.length) {
     const rows = input.hours.map((h) => ({
       business_id: bid,
@@ -120,12 +126,14 @@ async function insertChildren(bid: string, input: StoreFields) {
     if (error) throw new Error(error.message);
   }
 
-  // Money stored as integer paise (rupees × 100), matching domain/money.ts.
+  // Money stored as integer minor units (major × 100), matching domain/money.ts.
+  // Service rows carry the business currency so owner-app DTOs stay consistent.
   const serviceRows = input.services.map((s, position) => ({
     business_id: bid,
     name: s.name,
     duration_minutes: s.durationMinutes,
     price_paise: Math.round(s.priceRupees * 100),
+    currency,
     position,
   }));
   const { error: svcErr } = await supabase.from('service').insert(serviceRows);
@@ -156,6 +164,7 @@ export async function createBusiness(input: CreateBusinessInput) {
 
   await assertPhoneFree(phoneFull);
   const slug = await uniqueValue('slug', slugify(input.name));
+  const currency = input.currency ?? env.DEFAULT_CURRENCY;
 
   const { data: business, error: bizErr } = await supabase
     .from('business')
@@ -164,7 +173,7 @@ export async function createBusiness(input: CreateBusinessInput) {
       country_code: countryCode,
       phone_number: phoneNumber,
       timezone: input.timezone || env.DEFAULT_TIMEZONE,
-      currency: env.DEFAULT_CURRENCY,
+      currency,
       token_prefix: 'A',
       is_active: true,
       ...businessColumns(input),
@@ -194,7 +203,7 @@ export async function createBusiness(input: CreateBusinessInput) {
     });
     if (userErr) throw new Error(userErr.message);
 
-    await insertChildren(bid, input);
+    await insertChildren(bid, input, currency);
   } catch (err) {
     // No cross-table transaction over PostgREST — roll back manually so a partial failure
     // doesn't leave a half-provisioned store. The FK cascade removes all children.
@@ -206,13 +215,16 @@ export async function createBusiness(input: CreateBusinessInput) {
 }
 
 export async function updateBusiness(id: string, input: UpdateBusinessInput) {
-  const { data: existing } = await supabase.from('business').select('id').eq('id', id).maybeSingle();
+  const { data: existing } = await supabase.from('business').select('id, currency').eq('id', id).maybeSingle();
   if (!existing) throw Errors.notFound('Store not found');
 
   const countryCode = input.countryCode.replace(/\D/g, '');
   const phoneNumber = input.phoneNumber.replace(/\D/g, '');
   const phoneFull = countryCode + phoneNumber;
   await assertPhoneFree(phoneFull, id);
+
+  // Payloads that omit currency keep the store's existing one (never reset to the default).
+  const currency = input.currency ?? existing.currency ?? env.DEFAULT_CURRENCY;
 
   // Update the business row itself. Slug + owner login are intentionally left untouched.
   const { error: upErr } = await supabase
@@ -222,6 +234,9 @@ export async function updateBusiness(id: string, input: UpdateBusinessInput) {
       phone_number: phoneNumber,
       timezone: input.timezone || env.DEFAULT_TIMEZONE,
       updated_at: new Date().toISOString(),
+      // Deactivating hides the public microsite (public routes filter is_active = true).
+      ...(input.isActive !== undefined ? { is_active: input.isActive } : {}),
+      ...(input.currency !== undefined ? { currency } : {}),
       ...businessColumns(input),
     })
     .eq('id', id);
@@ -235,7 +250,7 @@ export async function updateBusiness(id: string, input: UpdateBusinessInput) {
     supabase.from('service').delete().eq('business_id', id),
     supabase.from('staff').delete().eq('business_id', id),
   ]);
-  await insertChildren(id, input);
+  await insertChildren(id, input, currency);
 
   return { id, phoneFull, micrositePath: `/${phoneFull}` };
 }
@@ -298,20 +313,40 @@ export async function listLookups(type: string) {
   return { data: (data ?? []).map((r) => ({ id: r.id, name: r.name })) };
 }
 
-export async function listBusinesses() {
-  const { data } = await supabase
-    .from('business')
-    .select('id, name, slug, category, country_code, phone_number, is_active')
-    .order('created_at', { ascending: false });
+export async function listBusinesses(withMetrics = false) {
+  const [{ data }, metricRows] = await Promise.all([
+    supabase
+      .from('business')
+      .select('id, name, slug, category, city, country_code, phone_number, is_active, currency')
+      .order('created_at', { ascending: false }),
+    withMetrics ? callRpc<any[]>('admin_store_metrics', {}) : Promise.resolve(null),
+  ]);
+
+  // admin_store_metrics has no row for the demo store; missing entries fall back to zeros.
+  const metricsById = new Map((metricRows ?? []).map((m) => [m.business_id, m]));
+
   return {
-    data: (data ?? []).map((b) => ({
-      id: b.id,
-      name: b.name,
-      slug: b.slug,
-      category: b.category,
-      phoneFull: `${b.country_code ?? ''}${b.phone_number ?? ''}`,
-      isActive: b.is_active,
-    })),
+    data: (data ?? []).map((b) => {
+      const base = {
+        id: b.id,
+        name: b.name,
+        slug: b.slug,
+        category: b.category,
+        city: b.city ?? null,
+        phoneFull: `${b.country_code ?? ''}${b.phone_number ?? ''}`,
+        isActive: b.is_active,
+      };
+      if (!withMetrics) return base;
+      const m = metricsById.get(b.id);
+      return {
+        ...base,
+        customersCount: Number(m?.customers_count ?? 0),
+        visits30d: Number(m?.visits_30d ?? 0),
+        revenue30d: money(Number(m?.revenue_30d_paise ?? 0), b.currency ?? env.DEFAULT_CURRENCY),
+        plan: (m?.plan ?? 'free') as 'free' | 'premium',
+        lastActivityAt: m?.last_activity_at ?? null,
+      };
+    }),
   };
 }
 
@@ -335,6 +370,7 @@ export async function getBusinessDetail(id: string) {
     id: b.id,
     slug: b.slug,
     name: b.name,
+    isActive: b.is_active,
     category: b.category ?? '',
     area: b.area ?? '',
     address: b.address ?? '',
@@ -351,6 +387,7 @@ export async function getBusinessDetail(id: string) {
     rating: b.rating != null ? String(b.rating) : '',
     reviewCount: b.review_count != null ? String(b.review_count) : '',
     payments: (b.payments ?? []).join(', '),
+    currency: b.currency ?? 'INR',
     countryCode: b.country_code ?? '',
     phoneNumber: b.phone_number ?? '',
     phoneFull: `${b.country_code ?? ''}${b.phone_number ?? ''}`,

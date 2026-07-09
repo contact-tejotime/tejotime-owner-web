@@ -142,6 +142,7 @@ async function buildMicrosite(b: any) {
     })),
     live: { waitMinutes, queueCount },
     payments: b.payments ?? [],
+    currency: b.currency ?? env.DEFAULT_CURRENCY,
   };
 }
 

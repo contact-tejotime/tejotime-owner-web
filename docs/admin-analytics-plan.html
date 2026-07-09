@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TejoTime Admin Analytics Plan</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm 20mm 16mm;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.55;
+      color: #1a1a2e;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+    }
+
+    .cover {
+      min-height: 260mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 40mm 20mm;
+      page-break-after: always;
+      background: linear-gradient(145deg, #0f172a 0%, #1e3a5f 55%, #0d9488 100%);
+      color: #fff;
+    }
+
+    .cover .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 9pt;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+      width: fit-content;
+    }
+
+    .cover h1 {
+      font-size: 32pt;
+      font-weight: 700;
+      margin: 0 0 12px;
+      line-height: 1.15;
+    }
+
+    .cover h2 {
+      font-size: 16pt;
+      font-weight: 400;
+      margin: 0 0 40px;
+      opacity: 0.9;
+    }
+
+    .cover .meta {
+      font-size: 10pt;
+      opacity: 0.85;
+      line-height: 1.8;
+    }
+
+    .cover .meta strong { opacity: 1; }
+
+    main { padding: 0 4mm; }
+
+    h1.section-title {
+      font-size: 20pt;
+      color: #0f172a;
+      border-bottom: 3px solid #0d9488;
+      padding-bottom: 8px;
+      margin: 28px 0 16px;
+      page-break-after: avoid;
+    }
+
+    h2 {
+      font-size: 13pt;
+      color: #1e3a5f;
+      margin: 22px 0 10px;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 11pt;
+      color: #334155;
+      margin: 16px 0 8px;
+      page-break-after: avoid;
+    }
+
+    p { margin: 0 0 10px; }
+
+    ul, ol { margin: 0 0 12px; padding-left: 22px; }
+    li { margin-bottom: 4px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 18px;
+      font-size: 9.5pt;
+      page-break-inside: avoid;
+    }
+
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f1f5f9;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    tr:nth-child(even) td { background: #f8fafc; }
+
+    .toc {
+      page-break-after: always;
+      padding-top: 10mm;
+    }
+
+    .toc h1 { border-bottom: 3px solid #0d9488; padding-bottom: 8px; }
+    .toc ol { font-size: 11pt; line-height: 2; }
+    .toc a { color: #1e3a5f; text-decoration: none; }
+
+    .callout {
+      background: #ecfdf5;
+      border-left: 4px solid #0d9488;
+      padding: 12px 14px;
+      margin: 14px 0;
+      border-radius: 0 6px 6px 0;
+      page-break-inside: avoid;
+    }
+
+    .callout.warn {
+      background: #fff7ed;
+      border-left-color: #ea580c;
+    }
+
+    .diagram {
+      margin: 16px 0 20px;
+      padding: 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      page-break-inside: avoid;
+      text-align: center;
+    }
+
+    .diagram svg { max-width: 100%; height: auto; }
+
+    .diagram-caption {
+      font-size: 9pt;
+      color: #64748b;
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    pre.wireframe {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 14px 16px;
+      border-radius: 8px;
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 8pt;
+      line-height: 1.45;
+      overflow-x: auto;
+      white-space: pre;
+      page-break-inside: avoid;
+      margin: 12px 0 18px;
+    }
+
+    .phase {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin: 14px 0;
+    }
+
+    .phase-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 14px;
+      page-break-inside: avoid;
+    }
+
+    .phase-card h3 { margin-top: 0; }
+    .phase-card .tag {
+      display: inline-block;
+      background: #0d9488;
+      color: #fff;
+      font-size: 8pt;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: 6px;
+    }
+
+    .page-break { page-break-before: always; }
+
+    .footer-note {
+      font-size: 8.5pt;
+      color: #64748b;
+      margin-top: 30px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      text-align: center;
+    }
+
+    .status-ok { color: #059669; font-weight: 600; }
+    .status-partial { color: #d97706; font-weight: 600; }
+    .status-missing { color: #dc2626; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <section class="cover">
+    <div class="badge">Platform Operations Blueprint</div>
+    <h1>TejoTime Admin Panel</h1>
+    <h2>Analytics &amp; Operations Plan</h2>
+    <div class="meta">
+      <strong>Version:</strong> 1.0<br />
+      <strong>Date:</strong> July 9, 2026<br />
+      <strong>Product:</strong> TejoTime — Multi-tenant queue + booking + CRM<br />
+      <strong>Audience:</strong> Platform administrators
+    </div>
+  </section>
+
+  <main>
+    <section class="toc" id="toc">
+      <h1>Table of Contents</h1>
+      <ol>
+        <li><a href="#summary">Executive Summary</a></li>
+        <li><a href="#system">System Overview</a></li>
+        <li><a href="#current">Current Admin Panel State</a></li>
+        <li><a href="#data">Available Data &amp; Metrics</a></li>
+        <li><a href="#architecture">Recommended Page Architecture</a></li>
+        <li><a href="#pages">Page Specifications</a></li>
+        <li><a href="#navigation">Navigation &amp; UX Principles</a></li>
+        <li><a href="#api">Backend API Requirements</a></li>
+        <li><a href="#phases">Implementation Phases</a></li>
+        <li><a href="#wireframes">UI Wireframes</a></li>
+        <li><a href="#glossary">Glossary</a></li>
+      </ol>
+    </section>
+
+    <h1 class="section-title" id="summary">1. Executive Summary</h1>
+    <p>
+      TejoTime is a <strong>multi-tenant queue + booking + CRM platform</strong> for small service businesses
+      (salons, barbershops, and similar). Each <strong>store = one business tenant</strong> with a public microsite,
+      owner mobile app, and operational data stored in a shared backend.
+    </p>
+
+    <div class="callout">
+      <strong>Today:</strong> The admin panel handles store provisioning (create/edit microsites) and a basic
+      <em>All Stores</em> list. It has <strong>no analytics</strong>.
+    </div>
+
+    <div class="callout">
+      <strong>Goal:</strong> Transform the admin panel into a <strong>platform operations center</strong> with
+      platform-wide dashboard, enhanced store directory with live metrics, and per-store deep dive into
+      customers, visits, bookings, and revenue trends.
+    </div>
+
+    <p>
+      All required data already exists in the database (<code>customer</code>, <code>visit</code>,
+      <code>appointment</code>, <code>queue_entry</code>). New <strong>admin-scoped API endpoints</strong>
+      are needed to expose it cross-tenant.
+    </p>
+
+    <h1 class="section-title page-break" id="system">2. System Overview</h1>
+
+    <h2>2.1 Four Product Surfaces</h2>
+    <table>
+      <thead>
+        <tr><th>Surface</th><th>Location</th><th>Purpose</th><th>User</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Owner App</td><td><code>app/</code></td><td>Live queue, appointments, CRM</td><td>Store owner / staff</td></tr>
+        <tr><td>Public Microsite</td><td><code>frontend/</code></td><td>Online booking, join queue</td><td>End customers</td></tr>
+        <tr><td>Marketing Site</td><td><code>frontend/</code></td><td>Product funnel</td><td>Prospects</td></tr>
+        <tr><td>Admin Panel</td><td><code>admin-panel/</code></td><td>Store setup + analytics</td><td>Platform admin</td></tr>
+      </tbody>
+    </table>
+
+    <h2>2.2 System Architecture</h2>
+    <div class="diagram">
+      <svg viewBox="0 0 720 420" width="680" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="System architecture">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#475569"/>
+          </marker>
+          <linearGradient id="adminGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#1e3a5f"/><stop offset="100%" stop-color="#0d9488"/>
+          </linearGradient>
+        </defs>
+        <rect x="20" y="20" width="200" height="130" rx="10" fill="#ecfdf5" stroke="#0d9488" stroke-width="2"/>
+        <text x="120" y="48" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">Admin Panel</text>
+        <text x="120" y="72" text-anchor="middle" font-size="10" fill="#334155">Create / Edit Stores</text>
+        <text x="120" y="90" text-anchor="middle" font-size="10" fill="#334155">All Stores List</text>
+        <text x="120" y="108" text-anchor="middle" font-size="10" fill="#0d9488" font-weight="600">Dashboard (NEW)</text>
+        <text x="120" y="126" text-anchor="middle" font-size="10" fill="#0d9488" font-weight="600">Store Analytics (NEW)</text>
+
+        <rect x="20" y="180" width="200" height="110" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+        <text x="120" y="208" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">Owner App</text>
+        <text x="120" y="232" text-anchor="middle" font-size="10" fill="#334155">Dashboard KPIs</text>
+        <text x="120" y="250" text-anchor="middle" font-size="10" fill="#334155">Live Queue · CRM</text>
+        <text x="120" y="268" text-anchor="middle" font-size="10" fill="#334155">Appointments</text>
+
+        <rect x="20" y="320" width="200" height="80" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
+        <text x="120" y="348" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">Public Microsite</text>
+        <text x="120" y="372" text-anchor="middle" font-size="10" fill="#334155">Book · Join Queue</text>
+
+        <rect x="380" y="120" width="320" height="220" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+        <text x="540" y="148" text-anchor="middle" font-size="14" font-weight="700" fill="#0f172a">Backend Database</text>
+        <rect x="410" y="168" width="120" height="36" rx="6" fill="#e2e8f0"/><text x="470" y="191" text-anchor="middle" font-size="11" fill="#0f172a">business</text>
+        <rect x="550" y="168" width="120" height="36" rx="6" fill="#e2e8f0"/><text x="610" y="191" text-anchor="middle" font-size="11" fill="#0f172a">customer</text>
+        <rect x="410" y="218" width="120" height="36" rx="6" fill="#e2e8f0"/><text x="470" y="241" text-anchor="middle" font-size="11" fill="#0f172a">visit</text>
+        <rect x="550" y="218" width="120" height="36" rx="6" fill="#e2e8f0"/><text x="610" y="241" text-anchor="middle" font-size="11" fill="#0f172a">appointment</text>
+        <rect x="480" y="268" width="120" height="36" rx="6" fill="#e2e8f0"/><text x="540" y="291" text-anchor="middle" font-size="11" fill="#0f172a">queue_entry</text>
+        <text x="540" y="330" text-anchor="middle" font-size="9" fill="#64748b">checkout → updates customer aggregates</text>
+
+        <line x1="220" y1="85" x2="380" y2="180" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="220" y1="235" x2="380" y2="220" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="220" y1="360" x2="380" y2="280" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+      </svg>
+      <div class="diagram-caption">Figure 1 — TejoTime system surfaces and data layer</div>
+    </div>
+
+    <h2>2.3 Visit Lifecycle (Data Flow)</h2>
+    <div class="diagram">
+      <svg viewBox="0 0 720 200" width="680" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Visit lifecycle">
+        <defs>
+          <marker id="arrow2" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#0d9488"/>
+          </marker>
+        </defs>
+        <rect x="10" y="70" width="90" height="50" rx="8" fill="#fef3c7" stroke="#f59e0b"/><text x="55" y="100" text-anchor="middle" font-size="10" fill="#0f172a">Customer</text>
+        <rect x="120" y="70" width="100" height="50" rx="8" fill="#fef3c7" stroke="#f59e0b"/><text x="170" y="100" text-anchor="middle" font-size="10" fill="#0f172a">Microsite</text>
+        <rect x="240" y="70" width="100" height="50" rx="8" fill="#eff6ff" stroke="#3b82f6"/><text x="290" y="95" text-anchor="middle" font-size="10" fill="#0f172a">Appointment /</text><text x="290" y="110" text-anchor="middle" font-size="10" fill="#0f172a">Queue Entry</text>
+        <rect x="360" y="70" width="90" height="50" rx="8" fill="#eff6ff" stroke="#3b82f6"/><text x="405" y="100" text-anchor="middle" font-size="10" fill="#0f172a">Queue</text>
+        <rect x="470" y="70" width="90" height="50" rx="8" fill="#ecfdf5" stroke="#0d9488"/><text x="515" y="100" text-anchor="middle" font-size="10" fill="#0f172a">Visit</text>
+        <rect x="580" y="70" width="120" height="50" rx="8" fill="#ecfdf5" stroke="#0d9488"/><text x="640" y="100" text-anchor="middle" font-size="10" fill="#0f172a">Customer CRM</text>
+        <line x1="100" y1="95" x2="118" y2="95" stroke="#0d9488" stroke-width="2" marker-end="url(#arrow2)"/>
+        <line x1="220" y1="95" x2="238" y2="95" stroke="#0d9488" stroke-width="2" marker-end="url(#arrow2)"/>
+        <line x1="340" y1="95" x2="358" y2="95" stroke="#0d9488" stroke-width="2" marker-end="url(#arrow2)"/>
+        <line x1="450" y1="95" x2="468" y2="95" stroke="#0d9488" stroke-width="2" marker-end="url(#arrow2)"/>
+        <line x1="560" y1="95" x2="578" y2="95" stroke="#0d9488" stroke-width="2" marker-end="url(#arrow2)"/>
+        <text x="360" y="155" text-anchor="middle" font-size="10" fill="#64748b">Checkout creates visit row and updates visits_count, total_spend_paise, last_visit_at</text>
+        <text x="360" y="175" text-anchor="middle" font-size="10" fill="#0d9488" font-weight="600">Admin analytics reads from visit + customer tables</text>
+      </svg>
+      <div class="diagram-caption">Figure 2 — Visit lifecycle and analytics data source</div>
+    </div>
+
+    <h1 class="section-title page-break" id="current">3. Current Admin Panel State</h1>
+
+    <h2>3.1 Existing Pages</h2>
+    <table>
+      <thead>
+        <tr><th>Route</th><th>Purpose</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>/login</code></td><td>OTP authentication</td><td class="status-ok">Complete</td></tr>
+        <tr><td><code>/</code></td><td>Create store (full microsite form)</td><td class="status-ok">Complete</td></tr>
+        <tr><td><code>/stores</code></td><td>All stores table (name, category, phone, city)</td><td class="status-partial">Partial</td></tr>
+        <tr><td><code>/stores/[id]</code></td><td>Edit store form</td><td class="status-ok">Complete</td></tr>
+      </tbody>
+    </table>
+
+    <h2>3.2 Current Sidebar</h2>
+    <pre class="wireframe">TejoTime Admin
+─────────────────
+＋ Create store
+🔗 View demo store
+🏬 All stores
+─────────────────
+Stores (N)
+  [store links → edit page]
+─────────────────
+Log out</pre>
+
+    <h2>3.3 Gaps</h2>
+    <table>
+      <thead>
+        <tr><th>Gap</th><th>Impact</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>No analytics pages</td><td>Admin cannot see store performance</td></tr>
+        <tr><td>Stores table not clickable</td><td>No navigation to store detail or analytics</td></tr>
+        <tr><td>No platform dashboard</td><td>No cross-store bird's-eye view</td></tr>
+        <tr><td>Admin analytics APIs missing</td><td>Data exists but not exposed to admin panel</td></tr>
+        <tr><td><code>isActive</code> not shown</td><td>Cannot see store status at a glance</td></tr>
+        <tr><td>No search / filter</td><td>Hard to manage many stores</td></tr>
+      </tbody>
+    </table>
+
+    <h1 class="section-title page-break" id="data">4. Available Data &amp; Metrics</h1>
+
+    <h2>4.1 Core Entities (Store = business)</h2>
+    <table>
+      <thead>
+        <tr><th>Entity</th><th>Key fields</th><th>Analytics use</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>business</code></td><td>name, city, category, is_active, timezone</td><td>Store directory, filters</td></tr>
+        <tr><td><code>customer</code></td><td>visits_count, total_spend_paise, last_visit_at, is_vip</td><td>CRM, LTV, repeat rate</td></tr>
+        <tr><td><code>visit</code></td><td>amount_paise, service_name, staff_id, completed_at</td><td>Revenue, service/staff charts</td></tr>
+        <tr><td><code>appointment</code></td><td>status, source, scheduled_start_at</td><td>Bookings, no-shows, funnel</td></tr>
+        <tr><td><code>queue_entry</code></td><td>status, source, joined_at, completed_at</td><td>Live queue, walk-in vs online</td></tr>
+        <tr><td><code>subscription</code></td><td>plan (free / premium)</td><td>Plan column in store list</td></tr>
+      </tbody>
+    </table>
+
+    <h2>4.2 Metrics Matrix</h2>
+    <table>
+      <thead>
+        <tr><th>Metric</th><th>How to compute</th><th>Where to show</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Total customers</td><td>COUNT(customer) per business_id</td><td>Store overview, platform dashboard</td></tr>
+        <tr><td>Total revenue</td><td>SUM(visit.amount_paise)</td><td>Revenue charts, store table</td></tr>
+        <tr><td>Visits count</td><td>COUNT(visit)</td><td>Activity metrics</td></tr>
+        <tr><td>Avg ticket size</td><td>AVG(visit.amount_paise)</td><td>Store health KPI</td></tr>
+        <tr><td>Repeat customer rate</td><td>% where visits_count &gt; 1</td><td>Customer insights</td></tr>
+        <tr><td>No-show rate</td><td>appointment.status = no_show</td><td>Bookings tab</td></tr>
+        <tr><td>Walk-in vs online</td><td>queue_entry.source / appointment.source</td><td>Pie chart</td></tr>
+        <tr><td>Top services</td><td>GROUP BY visit.service_name</td><td>Bar chart</td></tr>
+        <tr><td>Staff performance</td><td>GROUP BY visit.staff_id</td><td>Staff leaderboard</td></tr>
+        <tr><td>Live queue</td><td>queue_entry status IN (waiting, in_service)</td><td>Today KPI cards</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Reference:</strong> Owner app already shows today's KPIs via <code>GET /dashboard/summary</code>
+      (appointments, active queue, completed visits, revenue). Admin analytics should mirror this pattern
+      with historical depth and cross-store scope.
+    </div>
+
+    <h1 class="section-title page-break" id="architecture">5. Recommended Page Architecture</h1>
+
+    <h2>5.1 Three-Layer Information Architecture</h2>
+    <div class="diagram">
+      <svg viewBox="0 0 720 280" width="680" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Information architecture">
+        <defs>
+          <marker id="arrow3" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#0d9488"/>
+          </marker>
+        </defs>
+        <rect x="20" y="30" width="180" height="80" rx="10" fill="url(#adminGrad)" opacity="0.9"/>
+        <text x="110" y="62" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Layer 1 — Platform</text>
+        <text x="110" y="82" text-anchor="middle" font-size="11" fill="#fff">/dashboard</text>
+
+        <rect x="240" y="30" width="220" height="80" rx="10" fill="#1e3a5f"/>
+        <text x="350" y="62" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Layer 2 — Directory</text>
+        <text x="350" y="82" text-anchor="middle" font-size="11" fill="#fff">/stores · /stores/[id] hub</text>
+
+        <rect x="500" y="30" width="200" height="80" rx="10" fill="#0d9488"/>
+        <text x="600" y="58" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Layer 3 — Deep Dive</text>
+        <text x="600" y="78" text-anchor="middle" font-size="9" fill="#fff">overview · customers</text>
+        <text x="600" y="92" text-anchor="middle" font-size="9" fill="#fff">visits · bookings</text>
+
+        <line x1="200" y1="70" x2="238" y2="70" stroke="#0d9488" stroke-width="2.5" marker-end="url(#arrow3)"/>
+        <line x1="460" y1="70" x2="498" y2="70" stroke="#0d9488" stroke-width="2.5" marker-end="url(#arrow3)"/>
+
+        <rect x="80" y="150" width="560" height="100" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+        <text x="360" y="178" text-anchor="middle" font-size="11" font-weight="600" fill="#0f172a">User flow: Login → Platform Dashboard → All Stores → Store Hub → Tab drill-down</text>
+        <text x="360" y="205" text-anchor="middle" font-size="10" fill="#64748b">Today KPIs at top → Trends in middle → Detail tables at bottom</text>
+        <text x="360" y="228" text-anchor="middle" font-size="10" fill="#0d9488">Same vocabulary as owner app: Visits, Revenue, Appointments, Customers</text>
+      </svg>
+      <div class="diagram-caption">Figure 3 — Three-layer admin information architecture</div>
+    </div>
+
+    <h2>5.2 Proposed Sidebar Navigation</h2>
+    <pre class="wireframe">TejoTime Admin
+─────────────────
+📊 Dashboard          ← NEW (platform overview)
+＋ Create store
+🏬 All stores         ← enhanced with metrics
+─────────────────
+Stores (N)
+  Sharp Cuts
+  Glow Salon
+  ...
+─────────────────
+🔗 View demo store
+Log out</pre>
+
+    <h1 class="section-title page-break" id="pages">6. Page Specifications</h1>
+
+    <h2>6.1 Platform Dashboard — <code>/dashboard</code></h2>
+    <p><strong>Purpose:</strong> Bird's-eye view of the entire platform.</p>
+    <table>
+      <thead><tr><th>KPI Card</th><th>Metric</th></tr></thead>
+      <tbody>
+        <tr><td>Total stores</td><td>Active / inactive split</td></tr>
+        <tr><td>Total customers</td><td>All tenants combined</td></tr>
+        <tr><td>Visits today</td><td>Platform-wide completed services</td></tr>
+        <tr><td>Revenue today</td><td>Sum of all visit amounts</td></tr>
+        <tr><td>Online bookings today</td><td>Appointments from microsite</td></tr>
+        <tr><td>Avg revenue per store</td><td>Platform health indicator</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Charts:</strong> Revenue trend (30 days) · Stores by city/category · Top 5 stores by revenue · New stores this month</p>
+
+    <h2>6.2 All Stores — <code>/stores</code> (enhanced)</h2>
+    <table>
+      <thead><tr><th>Column</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td>Name</td><td>Link to store hub</td></tr>
+        <tr><td>Category / City</td><td>business fields</td></tr>
+        <tr><td>Status</td><td>isActive badge</td></tr>
+        <tr><td>Customers</td><td>COUNT(customer)</td></tr>
+        <tr><td>Visits (30d)</td><td>COUNT(visit) last 30 days</td></tr>
+        <tr><td>Revenue (30d)</td><td>SUM(visit.amount_paise)</td></tr>
+        <tr><td>Plan</td><td>subscription.plan</td></tr>
+        <tr><td>Last activity</td><td>MAX(visit.completed_at)</td></tr>
+        <tr><td>Actions</td><td>View analytics · Edit · Open microsite</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Filters:</strong> Search by name/phone · City · Category · Plan · Active status</p>
+
+    <h2>6.3 Store Hub — <code>/stores/[id]</code></h2>
+    <pre class="wireframe">┌─────────────────────────────────────────────────────┐
+│  Sharp Cuts · Salon · Andheri West        [Active]  │
+│  +91 98765 43210 · tejotime.com/sharp-cuts          │
+├─────────────────────────────────────────────────────┤
+│  Overview │ Customers │ Visits │ Bookings │ Settings│
+└─────────────────────────────────────────────────────┘</pre>
+
+    <h2>6.4 Overview Tab — KPIs &amp; Charts</h2>
+    <h3>Section A — Today (live)</h3>
+    <table>
+      <thead><tr><th>KPI</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>Today's appointments</td><td>Booked for today</td></tr>
+        <tr><td>Active in queue</td><td>waiting + in_service</td></tr>
+        <tr><td>Completed today</td><td>visit count today</td></tr>
+        <tr><td>Revenue today</td><td>sum amount_paise today</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Section B — All-time</h3>
+    <table>
+      <thead><tr><th>KPI</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>Total customers</td><td>CRM record count</td></tr>
+        <tr><td>Total visits</td><td>All completed services</td></tr>
+        <tr><td>Total revenue</td><td>Lifetime ₹</td></tr>
+        <tr><td>Avg ticket size</td><td>Revenue ÷ visits</td></tr>
+        <tr><td>Repeat customer rate</td><td>% with visits_count &gt; 1</td></tr>
+        <tr><td>VIP count</td><td>is_vip customers</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Section C — Charts</h3>
+    <ol>
+      <li>Revenue over time (90 days, daily/weekly/monthly toggle)</li>
+      <li>Visits over time</li>
+      <li>Booking funnel (booked → checked-in → completed → no-show)</li>
+      <li>Walk-in vs online (pie chart)</li>
+      <li>Top 5 services by revenue or count</li>
+      <li>Top staff by completions and revenue</li>
+      <li>Peak hours heatmap (day × hour)</li>
+    </ol>
+
+    <h3>Section D — Customer insights</h3>
+    <ul>
+      <li>New vs returning customers (30d)</li>
+      <li>Top 10 customers by spend</li>
+      <li>Customers inactive 30+ days (at-risk count)</li>
+      <li>Average visits per customer</li>
+    </ul>
+
+    <h2>6.5 Customers Tab</h2>
+    <p>Table: Name, Phone, Visits, Total spend, Last visit, VIP, Notes. Search and filter by VIP, inactive, high spenders. Row click opens detail drawer with visit timeline.</p>
+
+    <h2>6.6 Visits Tab</h2>
+    <p>Financial ledger: Date, Customer, Service, Staff, Amount, Source. Date range filters. Summary bar: count, total revenue, avg ticket.</p>
+
+    <h2>6.7 Bookings Tab</h2>
+    <p>Calendar + list views. Metrics: conversion rate, no-show rate, online vs owner-created ratio, average lead time.</p>
+
+    <h1 class="section-title page-break" id="navigation">7. Navigation &amp; UX Principles</h1>
+    <ol>
+      <li><strong>3-second rule</strong> — Every page opens with 4–6 headline KPIs above the fold.</li>
+      <li><strong>Today → Trend → Detail</strong> — Overview first; tables for drill-down.</li>
+      <li><strong>Same vocabulary as owner app</strong> — Visits, Revenue, Appointments, Customers.</li>
+      <li><strong>Money in ₹</strong> — Format paise consistently (₹1,840 or ₹18.4k).</li>
+      <li><strong>Status colors</strong> — Green = active/completed, amber = waiting, red = no-show/cancelled.</li>
+      <li><strong>Period comparison</strong> — Show "+12% vs last week" on KPI cards when deltas are available.</li>
+      <li><strong>Empty states</strong> — Contextual messages when a store has no data yet.</li>
+    </ol>
+
+    <h1 class="section-title" id="api">8. Backend API Requirements</h1>
+
+    <h2>8.1 Existing Admin APIs</h2>
+    <table>
+      <thead><tr><th>Method</th><th>Endpoint</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>POST</td><td>/admin/auth/request-otp</td><td>OTP request</td></tr>
+        <tr><td>POST</td><td>/admin/auth/verify-otp</td><td>Login</td></tr>
+        <tr><td>GET</td><td>/admin/businesses</td><td>Store list</td></tr>
+        <tr><td>GET</td><td>/admin/businesses/:id</td><td>Store detail</td></tr>
+        <tr><td>POST</td><td>/admin/businesses</td><td>Create store</td></tr>
+        <tr><td>PUT</td><td>/admin/businesses/:id</td><td>Update store</td></tr>
+        <tr><td>GET</td><td>/admin/lookups</td><td>Category dropdown</td></tr>
+        <tr><td>POST</td><td>/admin/uploads/sign</td><td>Image upload</td></tr>
+      </tbody>
+    </table>
+
+    <h2>8.2 New APIs Needed</h2>
+    <table>
+      <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>GET /admin/analytics/overview</td><td>Platform dashboard KPIs + trends</td></tr>
+        <tr><td>GET /admin/businesses/:id/analytics?range=30d</td><td>Store overview + chart series</td></tr>
+        <tr><td>GET /admin/businesses/:id/customers</td><td>Paginated customer list</td></tr>
+        <tr><td>GET /admin/businesses/:id/customers/:cid/visits</td><td>Customer visit history</td></tr>
+        <tr><td>GET /admin/businesses/:id/visits?from=&amp;to=</td><td>Visit ledger</td></tr>
+        <tr><td>GET /admin/businesses/:id/appointments</td><td>Bookings list / calendar</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <strong>Note:</strong> Owner-scoped endpoints (<code>/dashboard/summary</code>, <code>/customers</code>) already
+      exist but require owner JWT. Admin analytics needs cross-tenant routes with admin JWT.
+    </div>
+
+    <h1 class="section-title page-break" id="phases">9. Implementation Phases</h1>
+
+    <div class="phase">
+      <div class="phase-card">
+        <span class="tag">Phase 1 — 1–2 weeks</span>
+        <h3>Quick Wins</h3>
+        <ul>
+          <li>Enhance /stores table with metrics columns and clickable rows</li>
+          <li>Store overview tab with today + all-time KPIs</li>
+          <li>Backend: GET /admin/businesses/:id/analytics (basic aggregates)</li>
+        </ul>
+      </div>
+      <div class="phase-card">
+        <span class="tag">Phase 2 — 2–3 weeks</span>
+        <h3>Deep Analytics</h3>
+        <ul>
+          <li>Platform /dashboard with cross-store KPIs</li>
+          <li>Revenue + visit trend charts per store</li>
+          <li>Customer list page with search and filters</li>
+          <li>Visit ledger page</li>
+        </ul>
+      </div>
+      <div class="phase-card">
+        <span class="tag">Phase 3 — Later</span>
+        <h3>Advanced</h3>
+        <ul>
+          <li>Booking funnel, peak hours heatmap, customer segmentation</li>
+          <li>CSV export for visits and customers</li>
+          <li>Period comparison deltas ("+12% vs last week")</li>
+          <li>daily_metric rollup table for performance at scale</li>
+        </ul>
+      </div>
+    </div>
+
+    <h1 class="section-title page-break" id="wireframes">10. UI Wireframes</h1>
+
+    <h2>10.1 Platform Dashboard</h2>
+    <pre class="wireframe">┌──────────────────────────────────────────────────────────┐
+│  Platform Dashboard                    July 9, 2026      │
+├──────────┬──────────┬──────────┬──────────┬──────────────┤
+│ Stores   │Customers │ Visits   │ Revenue  │ Bookings     │
+│   12     │  3,847   │   156    │  ₹2.1L   │    42        │
+│ 11 active│          │  today   │  today   │   today      │
+├──────────────────────────────────────────────────────────┤
+│  Revenue (30 days)                                       │
+│  ▁▂▃▅▇█▇▅▃▂▁▂▃▄▅▆▇                                       │
+├──────────────────────────┬───────────────────────────────┤
+│  Top stores by revenue   │  Stores by city               │
+│  1. Sharp Cuts  ₹42k     │  Mumbai ████████              │
+│  2. Glow Salon  ₹38k     │  Pune   ████                  │
+└──────────────────────────┴───────────────────────────────┘</pre>
+
+    <h2>10.2 Store Overview</h2>
+    <pre class="wireframe">┌──────────────────────────────────────────────────────────┐
+│  Sharp Cuts                              ● Active  Free  │
+│  Salon · Andheri West · Created Mar 2026                 │
+├──────────┬──────────┬──────────┬──────────┬──────────────┤
+│ Appts    │ Active   │ Done     │ Revenue  │  TODAY       │
+│    5     │    3     │   11     │  ₹18.4k  │              │
+├──────────┴──────────┴──────────┴──────────┴──────────────┤
+│  ALL TIME                                                │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐      │
+│  │ 847     │ │ 2,341   │ │ ₹4.2L   │ │ ₹1,792  │      │
+│  │Customers│ │ Visits  │ │ Revenue │ │ Avg ticket│     │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘      │
+├──────────────────────────────────────────────────────────┤
+│  Revenue (last 90 days)          [Daily ▼]               │
+│  ▁▂▃▅▇█▇▅▃▂▁▂▃▄▅▆▇                                        │
+├──────────────────────────┬───────────────────────────────┤
+│  Top services            │  Walk-in vs Online             │
+│  Haircut      ████ 42%   │     Walk-in 68%               │
+│  Beard trim   ███  28%   │     Online  32%               │
+└──────────────────────────┴───────────────────────────────┘</pre>
+
+    <h2>10.3 Admin User Journey</h2>
+    <div class="diagram">
+      <svg viewBox="0 0 720 120" width="680" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="User journey">
+        <defs>
+          <marker id="arrow4" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#0d9488"/>
+          </marker>
+        </defs>
+        <rect x="10" y="40" width="90" height="44" rx="8" fill="#ecfdf5" stroke="#0d9488"/><text x="55" y="67" text-anchor="middle" font-size="10">Login</text>
+        <rect x="120" y="40" width="100" height="44" rx="8" fill="#ecfdf5" stroke="#0d9488"/><text x="170" y="67" text-anchor="middle" font-size="10">Dashboard</text>
+        <rect x="240" y="40" width="100" height="44" rx="8" fill="#eff6ff" stroke="#3b82f6"/><text x="290" y="67" text-anchor="middle" font-size="10">All Stores</text>
+        <rect x="360" y="40" width="100" height="44" rx="8" fill="#eff6ff" stroke="#3b82f6"/><text x="410" y="67" text-anchor="middle" font-size="10">Store Hub</text>
+        <rect x="480" y="40" width="100" height="44" rx="8" fill="#fef3c7" stroke="#f59e0b"/><text x="530" y="67" text-anchor="middle" font-size="10">Overview</text>
+        <rect x="600" y="40" width="100" height="44" rx="8" fill="#fef3c7" stroke="#f59e0b"/><text x="650" y="67" text-anchor="middle" font-size="10">Customers</text>
+        <line x1="100" y1="62" x2="118" y2="62" stroke="#0d9488" stroke-width="2" marker-end="url(#arrow4)"/>
+        <line x1="220" y1="62" x2="238" y2="62" stroke="#0d9488" stroke-width="2" marker-end="url(#arrow4)"/>
+        <line x1="340" y1="62" x2="358" y2="62" stroke="#0d9488" stroke-width="2" marker-end="url(#arrow4)"/>
+        <line x1="460" y1="62" x2="478" y2="62" stroke="#0d9488" stroke-width="2" marker-end="url(#arrow4)"/>
+        <line x1="580" y1="62" x2="598" y2="62" stroke="#0d9488" stroke-width="2" marker-end="url(#arrow4)"/>
+        <text x="360" y="105" text-anchor="middle" font-size="10" fill="#64748b">Drill-down path: platform view → store directory → store hub → tab-level detail</text>
+      </svg>
+      <div class="diagram-caption">Figure 4 — Admin analytics user journey</div>
+    </div>
+
+    <h1 class="section-title page-break" id="glossary">11. Glossary</h1>
+    <table>
+      <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td>Business / Store</td><td>One tenant shop account in the platform</td></tr>
+        <tr><td>Visit</td><td>Completed service — the revenue event (creates amount_paise)</td></tr>
+        <tr><td>Queue entry</td><td>A person in the live queue (waiting or in service)</td></tr>
+        <tr><td>Appointment</td><td>A future booked time slot</td></tr>
+        <tr><td>Customer</td><td>CRM record with cached visit and spend totals</td></tr>
+        <tr><td>Paise</td><td>Money stored as integer (100 paise = ₹1)</td></tr>
+        <tr><td>Source</td><td>walk_in vs online — how the customer arrived</td></tr>
+        <tr><td>Plan</td><td>free vs premium subscription tier</td></tr>
+      </tbody>
+    </table>
+
+    <p class="footer-note">
+      TejoTime Admin Analytics Plan v1.0 · Generated July 9, 2026 · tejotime-owner-web/docs/
+    </p>
+  </main>
+</body>
+</html>

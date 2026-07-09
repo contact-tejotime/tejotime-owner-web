@@ -14,6 +14,7 @@ import {
   type StoreForm as StoreFormState,
   type StoreMutationResult,
 } from "@/lib/types";
+import { CURRENCIES, CURRENCY_BY_CODE, currencySymbol } from "@/lib/currencies";
 import { GalleryUpload, ImageUpload } from "@/components/ImageUpload";
 
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com";
@@ -25,9 +26,11 @@ interface Props {
   categories: Category[];
   initial?: StoreFormState;
   storeId?: string;
+  /** Rendered inside the store hub (which owns the page wrapper and heading). */
+  embedded?: boolean;
 }
 
-export default function StoreForm({ mode, categories, initial, storeId }: Props) {
+export default function StoreForm({ mode, categories, initial, storeId, embedded = false }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<StoreFormState>(initial ?? EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -114,11 +117,20 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
     return form.category && !names.includes(form.category) ? [form.category, ...names] : names;
   }, [categories, form.category]);
 
+  // Same trick for currency: an off-list legacy code stays selectable rather than being dropped.
+  const currencyOptions = useMemo(() => {
+    return form.currency && !CURRENCY_BY_CODE[form.currency]
+      ? [{ code: form.currency, symbol: form.currency, name: form.currency }, ...CURRENCIES]
+      : CURRENCIES;
+  }, [form.currency]);
+
   return (
-    <div className="wrap">
-      <div className="page-head">
-        <h1>{mode === "create" ? "Create a store" : `Edit — ${form.name || "store"}`}</h1>
-      </div>
+    <div className={embedded ? undefined : "wrap"}>
+      {!embedded && (
+        <div className="page-head">
+          <h1>{mode === "create" ? "Create a store" : `Edit — ${form.name || "store"}`}</h1>
+        </div>
+      )}
 
       {error && (
         <div className="alert err">
@@ -148,6 +160,30 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
       )}
 
       <form onSubmit={onSubmit}>
+        {/* Store status (edit only — new stores always start active) ------ */}
+        {mode === "edit" && (
+          <section className="section">
+            <h2>
+              Store status{" "}
+              <span className={`badge ${form.isActive ? "badge-active" : "badge-inactive"}`}>
+                {form.isActive ? "Active" : "Inactive"}
+              </span>
+            </h2>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600 }}>
+              <input
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(e) => set("isActive", e.target.checked)}
+              />
+              Store is active
+            </label>
+            <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+              When inactive, the public microsite, online booking and queue joining return 404. The store stays
+              visible in this admin panel. Remember to save for the change to take effect.
+            </p>
+          </section>
+        )}
+
         {/* Business ------------------------------------------------------ */}
         <section className="section">
           <h2>Business details</h2>
@@ -166,6 +202,19 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="field">
+              <label>Currency *</label>
+              <select value={form.currency} onChange={(e) => set("currency", e.target.value)} required>
+                {currencyOptions.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {`${c.symbol} — ${c.name} (${c.code})`}
+                  </option>
+                ))}
+              </select>
+              <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                Used for all prices on this store. Changing it does not convert existing prices.
+              </p>
             </div>
             <div className="field">
               <label>Area *</label>
@@ -336,7 +385,7 @@ export default function StoreForm({ mode, categories, initial, storeId }: Props)
                 <input value={s.durationMinutes} onChange={(e) => setService(i, { durationMinutes: Number(e.target.value) })} inputMode="numeric" />
               </div>
               <div className="field">
-                <label>Price (₹)</label>
+                <label>Price ({currencySymbol(form.currency)})</label>
                 <input value={s.priceRupees} onChange={(e) => setService(i, { priceRupees: Number(e.target.value) })} inputMode="numeric" />
               </div>
               <button type="button" className="btn-remove" onClick={() => set("services", removeAt(form.services, i))}>

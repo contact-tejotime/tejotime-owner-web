@@ -7,6 +7,7 @@ import { Errors } from '../../domain/errors';
 import { MAX_IMAGE_BYTES, signUpload } from '../../integrations/storage';
 import { verifyAdminToken } from '../auth/token.service';
 import * as admin from './admin.service';
+import * as analytics from './admin-analytics.service';
 
 /**
  * Provisioning + management API for the admin panel. Every route except the OTP login pair is
@@ -54,6 +55,8 @@ const storeFieldsSchema = z.object({
   reviewCount: z.coerce.number().int().min(0).optional(),
   payments: z.array(z.string().min(1).max(40)).max(10).optional(),
   timezone: z.string().max(64).optional(),
+  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Expected ISO 4217 code').optional(),
+  isActive: z.boolean().optional(),
   countryCode: z.string().regex(/^\d{1,4}$/, 'Digits only'),
   phoneNumber: z.string().regex(/^\d{6,14}$/, 'Digits only'),
   hours: z
@@ -118,6 +121,10 @@ const createSchema = storeFieldsSchema
 
 const updateSchema = storeFieldsSchema.strict();
 const idParam = z.object({ id: z.string().uuid() });
+const customerVisitsParams = z.object({ id: z.string().uuid(), customerId: z.string().uuid() });
+
+const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
+const dateRangeQuery = z.object({ from: dateStr.optional(), to: dateStr.optional() });
 
 const requestOtpSchema = z.object({ mobile: z.string().min(6).max(20) }).strict();
 const verifyOtpSchema = z.object({ mobile: z.string().min(6).max(20), otp: z.string().min(1).max(10) }).strict();
@@ -180,8 +187,93 @@ adminRouter.get(
 adminRouter.get(
   '/businesses',
   limiters.ownerRead,
+  validate({ query: z.object({ withMetrics: z.coerce.boolean().optional() }) }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await admin.listBusinesses(Boolean(req.query.withMetrics)));
+  }),
+);
+
+// ---- Analytics (read-only, cross-tenant) — see admin-analytics.service.ts ----
+
+adminRouter.get(
+  '/analytics/overview',
+  limiters.ownerRead,
   asyncHandler(async (_req: Request, res: Response) => {
-    res.json(await admin.listBusinesses());
+    res.json(await analytics.getPlatformOverview());
+  }),
+);
+
+adminRouter.get(
+  '/businesses/:id/analytics',
+  limiters.ownerRead,
+  validate({ params: idParam, query: z.object({ range: z.enum(['30d', '90d']).default('90d') }) }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await analytics.getStoreAnalytics(req.params.id, req.query.range as '30d' | '90d'));
+  }),
+);
+
+adminRouter.get(
+  '/businesses/:id/customers',
+  limiters.ownerRead,
+  validate({
+    params: idParam,
+    query: z.object({
+      search: z.string().max(80).optional(),
+      limit: z.coerce.number().int().min(1).max(500).default(200),
+    }),
+  }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(
+      await analytics.listStoreCustomers(
+        req.params.id,
+        req.query.search as string | undefined,
+        Number(req.query.limit ?? 200),
+      ),
+    );
+  }),
+);
+
+adminRouter.get(
+  '/businesses/:id/customers/:customerId/visits',
+  limiters.ownerRead,
+  validate({ params: customerVisitsParams }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await analytics.listCustomerVisits(req.params.id, req.params.customerId));
+  }),
+);
+
+adminRouter.get(
+  '/businesses/:id/visits',
+  limiters.ownerRead,
+  validate({ params: idParam, query: dateRangeQuery }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(
+      await analytics.listStoreVisits(
+        req.params.id,
+        req.query.from as string | undefined,
+        req.query.to as string | undefined,
+      ),
+    );
+  }),
+);
+
+adminRouter.get(
+  '/businesses/:id/appointments',
+  limiters.ownerRead,
+  validate({
+    params: idParam,
+    query: dateRangeQuery.extend({
+      status: z.enum(['pending', 'confirmed', 'checked_in', 'completed', 'cancelled', 'no_show']).optional(),
+    }),
+  }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(
+      await analytics.listStoreAppointments(req.params.id, {
+        from: req.query.from as string | undefined,
+        to: req.query.to as string | undefined,
+        status: req.query.status as string | undefined,
+      }),
+    );
   }),
 );
 

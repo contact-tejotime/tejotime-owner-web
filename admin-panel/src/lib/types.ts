@@ -51,6 +51,8 @@ export interface StoreForm {
   rating: string;
   reviewCount: string;
   payments: string; // comma-separated in the form; split before send
+  currency: string; // ISO 4217 code; symbol/name come from lib/currencies.ts
+  isActive: boolean; // toggled in edit only; inactive stores' microsites 404
   countryCode: string;
   phoneNumber: string;
   hours: HourRow[];
@@ -76,6 +78,7 @@ export interface StoreListItem {
   slug: string;
   phoneFull: string;
   category: string | null;
+  city: string | null;
   isActive: boolean;
 }
 
@@ -105,12 +108,14 @@ export const EMPTY_FORM: StoreForm = {
   statLabel: "",
   description: "",
   aboutHeading: "",
+  isActive: true,
   heroImageUrl: "",
   aboutImageUrl: "",
   establishedYear: "",
   rating: "",
   reviewCount: "",
   payments: "UPI, Card, Cash",
+  currency: "INR",
   countryCode: "91",
   phoneNumber: "",
   hours: blankHours(),
@@ -128,6 +133,7 @@ export interface StoreDetail {
   id: string;
   slug: string;
   name: string;
+  isActive: boolean;
   category: string;
   area: string;
   address: string;
@@ -144,6 +150,7 @@ export interface StoreDetail {
   rating: string;
   reviewCount: string;
   payments: string;
+  currency: string;
   countryCode: string;
   phoneNumber: string;
   phoneFull: string;
@@ -180,6 +187,8 @@ export function fromDetail(d: StoreDetail): StoreForm {
     rating: d.rating,
     reviewCount: d.reviewCount,
     payments: d.payments,
+    currency: d.currency || "INR",
+    isActive: d.isActive,
     countryCode: d.countryCode,
     phoneNumber: d.phoneNumber,
     hours,
@@ -217,6 +226,8 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
       .split(",")
       .map((p) => p.trim())
       .filter(Boolean),
+    currency: f.currency || undefined,
+    isActive: f.isActive,
     countryCode: f.countryCode.replace(/\D/g, ""),
     phoneNumber: f.phoneNumber.replace(/\D/g, ""),
     hours: f.hours.map((h) => ({
@@ -243,4 +254,162 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
   };
   if (includeOwner) body.owner = { password: f.ownerPassword };
   return body;
+}
+
+// ---------------------------------------------------------------------------
+// Analytics (read-only) — shapes mirror the /admin analytics endpoints.
+// ---------------------------------------------------------------------------
+
+/** Money is integer minor units (paise), matching the backend. */
+export interface Money {
+  amount: number;
+  currency: string;
+}
+
+/** Per-store metrics merged into GET /admin/businesses?withMetrics=1. */
+export interface StoreMetrics {
+  customersCount: number;
+  visits30d: number;
+  revenue30d: Money;
+  plan: "free" | "premium";
+  lastActivityAt: string | null;
+}
+
+export type StoreListItemWithMetrics = StoreListItem & StoreMetrics;
+
+/** One day in a zero-filled daily series. */
+export interface TrendPoint {
+  date: string;
+  visits: number;
+  revenue: Money;
+}
+
+/** GET /admin/analytics/overview — no cross-store money (stores may use different currencies). */
+export interface PlatformOverview {
+  date: string;
+  stores: { total: number; active: number; inactive: number };
+  totalCustomers: number;
+  today: { visits: number; onlineBookings: number };
+  storesByCity: { city: string | null; count: number }[];
+  storesByCategory: { category: string | null; count: number }[];
+}
+
+/** GET /admin/businesses/:id/analytics */
+export interface StoreAnalytics {
+  range: "30d" | "90d";
+  from: string;
+  to: string;
+  timezone: string;
+  today: { appointments: number; activeQueue: number; completed: number; revenue: Money };
+  allTime: {
+    customers: number;
+    visits: number;
+    revenue: Money;
+    avgTicket: Money;
+    repeatRate: number;
+    vipCount: number;
+  };
+  revenueByDay: TrendPoint[];
+  visitSources: { walkIn: number; online: number };
+  topServices: { name: string; visits: number; revenue: Money }[];
+  topStaff: { id: string; name: string; visits: number; revenue: Money }[];
+}
+
+/** GET /admin/businesses/:id/customers */
+export interface AdminCustomer {
+  id: string;
+  name: string;
+  phone: string;
+  isVip: boolean;
+  visitsCount: number;
+  lastVisitAt: string | null;
+  lastVisitLabel: string;
+  totalSpend: Money;
+  notes: string | null;
+}
+
+export interface CustomersResponse {
+  data: AdminCustomer[];
+  meta: { shown: number; total: number };
+}
+
+/** One (store, customer) record behind a merged platform customer row. */
+export interface PlatformCustomerMembership {
+  storeId: string;
+  customerId: string;
+  storeName: string;
+}
+
+/** A customer aggregated across stores (same phone across stores = one row). */
+export interface PlatformCustomer {
+  key: string; // digits-only phone; falls back to storeId:customerId when phone is missing
+  name: string;
+  phone: string;
+  isVip: boolean;
+  visitsCount: number; // summed across memberships
+  lastVisitAt: string | null;
+  lastVisitLabel: string;
+  totalSpend: Money | null; // summed only when all memberships share a currency; else the primary store's
+  notes: string | null;
+  memberships: PlatformCustomerMembership[];
+}
+
+/** GET /admin/businesses/:id/customers/:customerId/visits */
+export interface CustomerVisit {
+  id: string;
+  serviceName: string | null;
+  staffName: string | null;
+  amount: Money;
+  completedAt: string;
+}
+
+/** GET /admin/businesses/:id/visits */
+export interface VisitRow extends CustomerVisit {
+  customerId: string | null;
+  customerName: string;
+}
+
+export interface VisitsResponse {
+  from: string;
+  to: string;
+  data: VisitRow[];
+  summary: { visits: number; revenue: Money; avgTicket: Money };
+  meta: { shown: number; total: number; limit: number };
+}
+
+/** GET /admin/businesses/:id/appointments */
+export type AppointmentStatus =
+  | "pending"
+  | "confirmed"
+  | "checked_in"
+  | "completed"
+  | "cancelled"
+  | "no_show";
+
+export interface AppointmentRow {
+  id: string;
+  customerName: string;
+  customerPhone: string | null;
+  serviceName: string | null;
+  staffName: string | null;
+  scheduledStartAt: string;
+  status: AppointmentStatus;
+  source: "online" | "owner";
+}
+
+export interface AppointmentStats {
+  total: number;
+  byStatus: Record<"pending" | "confirmed" | "checkedIn" | "completed" | "cancelled" | "noShow", number>;
+  bySource: { online: number; owner: number };
+  noShowRate: number;
+  completionRate: number;
+  onlineShare: number;
+}
+
+export interface AppointmentsResponse {
+  from: string;
+  to: string;
+  data: AppointmentRow[];
+  stats: AppointmentStats;
+  meta: { shown: number; limit: number };
 }

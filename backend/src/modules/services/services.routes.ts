@@ -56,6 +56,12 @@ servicesRouter.post(
   validate({ body: upsertSchema }),
   asyncHandler(async (req, res) => {
     const b = req.body;
+    // New services inherit the business currency (per-store setting; column default is INR).
+    const { data: biz } = await supabase
+      .from('business')
+      .select('currency')
+      .eq('id', req.principal!.businessId)
+      .maybeSingle();
     const { data, error } = await supabase
       .from('service')
       .insert({
@@ -65,6 +71,7 @@ servicesRouter.post(
         price_paise: b.priceAmount,
         color_token: b.colorToken,
         position: b.position ?? 0,
+        ...(biz?.currency ? { currency: biz.currency } : {}),
       })
       .select()
       .single();

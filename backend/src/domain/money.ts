@@ -11,9 +11,9 @@ export const money = (amount: number, currency = env.DEFAULT_CURRENCY): Money =>
   currency,
 });
 
-/** Parse "₹1,200" / "₹350" / "₹6.2k" → paise. Used when seeding from the mock. */
+/** Parse "₹1,200" / "$350" / "₹6.2k" → minor units. Strips any currency symbol/grouping. */
 export function parsePriceToPaise(input: string): number {
-  const raw = input.replace(/[₹,\s]/g, '').toLowerCase();
+  const raw = input.replace(/[^0-9.k-]/gi, '').toLowerCase();
   const k = raw.endsWith('k');
   const n = parseFloat(k ? raw.slice(0, -1) : raw);
   if (Number.isNaN(n)) return 0;

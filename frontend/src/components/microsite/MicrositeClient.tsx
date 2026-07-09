@@ -6,6 +6,7 @@ import type { Socket } from "socket.io-client";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/Button";
 import { ApiError, publicApi, type Microsite, type MicrositeStaff, type Slot, type Ticket } from "@/lib/api";
+import { currencySymbol } from "@/lib/currencies";
 import { connectCustomer, type CustomerAuth } from "@/lib/socket";
 import "./salon.css";
 
@@ -273,6 +274,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   );
 
   // ---- derived data ----
+  const curSym = currencySymbol(site.currency);
   const services = (site.services ?? []).map((s) => ({
     id: s.id,
     name: s.name,
@@ -1210,7 +1212,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                                 <div style={{ font: "var(--fw-semibold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{sv.name}</div>
                                 <div style={{ font: "var(--fw-regular) 12px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{sv.dur}</div>
                               </div>
-                              <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>₹{sv.price}</span>
+                              <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{curSym}{sv.price}</span>
                             </div>
                           );
                         })}
@@ -1268,7 +1270,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                         <span style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--text-body)" }}>
                           {(sel ? sel.name : "") + " · " + (mode === "book" ? (selectedSlot ? "time selected" : "choose a time above") : joinWaitText)}
                         </span>
-                        <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)" }}>{sel ? `₹${sel.price}` : ""}</span>
+                        <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)" }}>{sel ? `${curSym}${sel.price}` : ""}</span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "10px 12px", marginBottom: 16 }}>
                         <span style={{ color: phoneVerified ? "var(--success)" : "var(--secondary)", display: "flex", flexShrink: 0 }}>

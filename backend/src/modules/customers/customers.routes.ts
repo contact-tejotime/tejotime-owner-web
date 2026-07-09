@@ -13,7 +13,7 @@ import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import { getLivePlan } from '../subscription/subscription.service';
 
-function customerDTO(c: any) {
+function customerDTO(c: any, currency: string) {
   return {
     id: c.id,
     name: c.name,
@@ -22,9 +22,15 @@ function customerDTO(c: any) {
     visitsCount: c.visits_count,
     lastVisitAt: c.last_visit_at,
     lastVisitLabel: lastVisitLabel(c.last_visit_at),
-    totalSpend: money(Number(c.total_spend_paise ?? 0)),
+    totalSpend: money(Number(c.total_spend_paise ?? 0), currency),
     notes: c.notes ?? null,
   };
+}
+
+/** The business's per-store currency, stamped onto every Money in this router. */
+async function businessCurrency(businessId: string): Promise<string> {
+  const { data } = await supabase.from('business').select('currency').eq('id', businessId).maybeSingle();
+  return data?.currency ?? env.DEFAULT_CURRENCY;
 }
 
 export const customersRouter = Router();
@@ -65,9 +71,10 @@ customersRouter.get(
     const rows = data ?? [];
     const totalN = total ?? rows.length;
     const lockedCount = plan === 'free' ? Math.max(0, totalN - rows.length) : 0;
+    const currency = await businessCurrency(businessId);
 
     res.json({
-      data: rows.map(customerDTO),
+      data: rows.map((c) => customerDTO(c, currency)),
       plan,
       meta: { shown: rows.length, total: totalN, lockedCount, limit: shownLimit },
       nextCursor: null,
@@ -87,7 +94,7 @@ customersRouter.get(
       .eq('business_id', req.principal!.businessId)
       .maybeSingle();
     if (!data) throw Errors.notFound('Customer not found');
-    res.json(customerDTO(data));
+    res.json(customerDTO(data, await businessCurrency(req.principal!.businessId)));
   }),
 );
 
@@ -125,7 +132,7 @@ customersRouter.post(
       }
       throw new Error(error.message);
     }
-    res.status(201).json(customerDTO(data));
+    res.status(201).json(customerDTO(data, await businessCurrency(req.principal!.businessId)));
   }),
 );
 
@@ -157,7 +164,7 @@ customersRouter.patch(
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) throw Errors.notFound('Customer not found');
-    res.json(customerDTO(data));
+    res.json(customerDTO(data, await businessCurrency(req.principal!.businessId)));
   }),
 );
 
@@ -166,18 +173,21 @@ customersRouter.get(
   limiters.ownerRead,
   validate({ params: z.object({ id: z.string().uuid() }) }),
   asyncHandler(async (req, res) => {
-    const { data } = await supabase
-      .from('visit')
-      .select('*')
-      .eq('business_id', req.principal!.businessId)
-      .eq('customer_id', req.params.id)
-      .order('completed_at', { ascending: false })
-      .limit(100);
+    const [{ data }, currency] = await Promise.all([
+      supabase
+        .from('visit')
+        .select('*')
+        .eq('business_id', req.principal!.businessId)
+        .eq('customer_id', req.params.id)
+        .order('completed_at', { ascending: false })
+        .limit(100),
+      businessCurrency(req.principal!.businessId),
+    ]);
     res.json({
       data: (data ?? []).map((v) => ({
         id: v.id,
         serviceName: v.service_name,
-        amount: money(Number(v.amount_paise ?? 0)),
+        amount: money(Number(v.amount_paise ?? 0), currency),
         completedAt: v.completed_at,
       })),
     });

@@ -31,6 +31,10 @@ export function Sidebar({ stores }: { stores: StoreListItem[] }) {
         TejoTime Admin
       </div>
 
+      <Link href="/dashboard" className={`nav-link ${pathname === "/dashboard" ? "active" : ""}`}>
+        📊 Dashboard
+      </Link>
+
       <Link href="/" className={`nav-link create ${pathname === "/" ? "active" : ""}`}>
         ＋ Create store
       </Link>
@@ -39,10 +43,38 @@ export function Sidebar({ stores }: { stores: StoreListItem[] }) {
         🔗 View demo store
       </a>
 
+      <div className="side-label">Platform</div>
+
+      <Link href="/stores" className={`nav-link ${pathname === "/stores" ? "active" : ""}`}>
+        🏬 All stores
+      </Link>
+
+      <Link href="/customers" className={`nav-link ${pathname === "/customers" ? "active" : ""}`}>
+        👥 Customers
+      </Link>
+
+      <Link href="/billing" className={`nav-link ${pathname === "/billing" ? "active" : ""}`}>
+        💳 Billing
+      </Link>
+
+      <Link href="/broadcasts" className={`nav-link ${pathname === "/broadcasts" ? "active" : ""}`}>
+        📣 Broadcasts
+      </Link>
+
+      <Link href="/reports" className={`nav-link ${pathname === "/reports" ? "active" : ""}`}>
+        📄 Reports
+      </Link>
+
+      <Link href="/team" className={`nav-link ${pathname === "/team" ? "active" : ""}`}>
+        🛡️ Team & roles
+      </Link>
+
       <div className="side-label">Stores ({stores.length})</div>
       {stores.length === 0 && <div className="side-empty">No stores yet</div>}
       {stores.map((s) => {
-        const active = pathname === `/stores/${s.id}`;
+        // Store links stay highlighted on hub tabs (/stores/[id]/customers etc).
+        const base = `/stores/${s.id}`;
+        const active = pathname === base || pathname.startsWith(`${base}/`);
         return (
           <Link key={s.id} href={`/stores/${s.id}`} className={`store-item ${active ? "active" : ""}`}>
             <span className="nm">{s.name || "(unnamed)"}</span>

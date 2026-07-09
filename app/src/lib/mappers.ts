@@ -1,5 +1,6 @@
 /** Map backend API DTOs → the view-model shapes the screens already render. */
 import { CardVM, SeatGroupVM } from '@/lib/queue';
+import { currencySymbol } from '@/lib/currencies';
 import { AppointmentEntry, Customer, ServiceColorToken, ServiceVM, Staff } from '@/data/sample';
 import { StatusKind } from '@/components/ui/StatusBadge';
 
@@ -65,8 +66,11 @@ export function mapSeats(seats: any[]): SeatGroupVM[] {
 }
 
 export function formatMoney(m?: Money): string {
-  const rupees = (m?.amount ?? 0) / 100;
-  return `₹${rupees.toLocaleString('en-IN', { maximumFractionDigits: rupees % 1 ? 1 : 0 })}`;
+  const value = (m?.amount ?? 0) / 100;
+  // Symbol comes from the store's currency (static map — no runtime Intl.DisplayNames on Hermes).
+  const symbol = currencySymbol(m?.currency);
+  const locale = !m?.currency || m.currency === 'INR' ? 'en-IN' : 'en-US';
+  return `${symbol}${value.toLocaleString(locale, { maximumFractionDigits: value % 1 ? 1 : 0 })}`;
 }
 
 export function mapService(s: any, i = 0): ServiceVM {

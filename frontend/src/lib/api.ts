@@ -74,6 +74,8 @@ export interface Microsite {
   reviews: { stars: number; text: string; authorName: string }[];
   live: { waitMinutes: number; queueCount: number };
   payments: string[];
+  /** Store-level ISO 4217 code — picks the symbol for every displayed price. */
+  currency: string;
 }
 export interface Availability {
   waitMinutes: number;
