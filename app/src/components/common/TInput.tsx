@@ -61,7 +61,6 @@ export function TInput({
             rest.onBlur?.(e);
           }}
           style={s.input}
-          includeFontPadding={false}
         />
         {trailingIcon}
       </View>
@@ -99,6 +98,7 @@ const createTInputStyles = (
       fontSize: moderateScale(15),
       color: theme.colors.textStrong,
       padding: 0,
+      includeFontPadding: false,
       // backgroundColor: 'red'
     } as TextStyle,
   });

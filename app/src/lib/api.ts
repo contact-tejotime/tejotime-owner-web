@@ -120,5 +120,19 @@ export const api = {
     raw('GET', `/customers${search ? `?search=${encodeURIComponent(search)}` : ''}`),
   getDashboard: () => raw('GET', '/dashboard/summary'),
   getBusiness: () => raw('GET', '/business'),
+  updateBusiness: (b: { name?: string; address?: string }) => raw('PATCH', '/business', b),
+  setHours: (hours: { dayOfWeek: number; opensAt: string | null; closesAt: string | null; isClosed: boolean }[]) =>
+    raw('PUT', '/business/hours', { hours }),
+
+  createService: (b: { name: string; durationMinutes: number; priceAmount: number; colorToken: string; position?: number }) =>
+    raw('POST', '/services', b),
+  updateService: (id: string, b: { name?: string; durationMinutes?: number; priceAmount?: number }) =>
+    raw('PATCH', `/services/${id}`, b),
+  deleteService: (id: string) => raw('DELETE', `/services/${id}`),
+
+  createStaff: (b: { name: string; roleLabel?: string; colorToken?: string; position?: number }) =>
+    raw('POST', '/staff', b),
+  updateStaff: (id: string, b: { name?: string; roleLabel?: string }) => raw('PATCH', `/staff/${id}`, b),
+
   upgrade: () => raw('POST', '/subscription/upgrade'),
 };

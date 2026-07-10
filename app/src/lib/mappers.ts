@@ -1,6 +1,7 @@
 /** Map backend API DTOs → the view-model shapes the screens already render. */
 import { CardVM, SeatGroupVM } from '@/lib/queue';
 import { currencySymbol } from '@/lib/currencies';
+import { mapHours } from '@/lib/hours';
 import { AppointmentEntry, Customer, ServiceColorToken, ServiceVM, Staff } from '@/data/sample';
 import { StatusKind } from '@/components/ui/StatusBadge';
 
@@ -20,7 +21,7 @@ function toStatusKind(s: string): StatusKind {
  * Colors are no longer stored per service/staff — the app assigns them automatically by list
  * position, cycling this palette so adjacent items differ (fully distinct up to 4 items).
  */
-const COLOR_PALETTE: ServiceColorToken[] = ['primary', 'secondary', 'amber500', 'green500'];
+export const COLOR_PALETTE: ServiceColorToken[] = ['primary', 'secondary', 'amber500', 'green500'];
 const colorByIndex = (i: number): ServiceColorToken => COLOR_PALETTE[i % COLOR_PALETTE.length];
 
 export function mapCard(c: any, seatColor: ServiceColorToken = 'secondary'): CardVM {
@@ -80,11 +81,27 @@ export function mapService(s: any, i = 0): ServiceVM {
     duration: `${s.durationMinutes} min`,
     price: formatMoney(s.price),
     color: colorByIndex(i),
+    durationMinutes: s.durationMinutes ?? 0,
+    priceRupees: (s.price?.amount ?? 0) / 100,
+    colorToken: (s.colorToken ?? 'secondary') as ServiceColorToken,
   };
 }
 
 export function mapStaff(s: any, i = 0): Staff {
-  return { id: s.id, name: s.name, color: colorByIndex(i) };
+  return { id: s.id, name: s.name, color: colorByIndex(i), roleLabel: s.roleLabel ?? undefined };
+}
+
+export function mapBusinessDetail(r: any) {
+  return {
+    id: r.id,
+    name: r.name,
+    area: r.area,
+    slug: r.slug,
+    address: r.address ?? undefined,
+    countryCode: r.countryCode ?? null,
+    phoneNumber: r.phoneNumber ?? null,
+    hours: mapHours(r.hours ?? []),
+  };
 }
 
 function fmtTime(iso: string): string {

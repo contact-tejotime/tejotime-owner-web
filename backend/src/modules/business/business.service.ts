@@ -11,6 +11,8 @@ function businessDTO(b: any, hours: any[], amenities: any[], gallery: any[], pla
     area: b.area,
     address: b.address,
     city: b.city,
+    countryCode: b.country_code ?? null,
+    phoneNumber: b.phone_number ?? null,
     tagline: b.tagline,
     description: b.description,
     establishedYear: b.established_year,

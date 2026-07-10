@@ -91,6 +91,10 @@ export interface Ticket {
   token: string;
   ahead: number;
   waitMinutes: number;
+  /** The slice of waitMinutes that decays with wall-clock (the in-service head's remaining time). */
+  serviceRemainingMinutes?: number;
+  /** Server timestamp the wait figures were computed at — anchor for the client-side countdown. */
+  asOf?: string;
   status: string;
   isYourTurn?: boolean;
   progressPct?: number;

@@ -22,6 +22,7 @@ export type Staff = {
   id: string;
   name: string;
   color: ServiceColorToken;
+  roleLabel?: string;
 };
 
 export type QueueEntry = {
@@ -62,7 +63,13 @@ export type Service = {
   color: ServiceColorToken;
 };
 
-/** Service with its server id — the shape the store holds. */
-export type ServiceVM = Service & { id: string };
+/** Service with its server id + raw editable fields — the shape the store holds. */
+export type ServiceVM = Service & {
+  id: string;
+  durationMinutes: number;
+  /** Price in whole rupees (API speaks paise — convert only at the call site). */
+  priceRupees: number;
+  colorToken: ServiceColorToken;
+};
 
 export const business = { name: 'Sharp Cuts', area: 'Andheri West', category: 'Salon & Barber' };

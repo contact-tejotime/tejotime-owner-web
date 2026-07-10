@@ -279,9 +279,11 @@ export async function joinQueue(
     token: result.token,
     ahead: pos.ahead,
     waitMinutes: pos.waitMinutes,
+    serviceRemainingMinutes: pos.serviceRemainingMinutes,
     status: pos.status ?? 'waiting',
     staffName,
     serviceName: svc.name,
+    asOf: new Date().toISOString(),
     socket: ticketSocket(b.id, result.id),
   };
 }
@@ -341,15 +343,19 @@ export async function bookSlot(
 // socket handshake (namespace/room/ticketKey) so a freshly tracked ticket can go live.
 async function ticketDetailFromEntry(entry: any, withSocket = false) {
   const socket = withSocket ? { socket: ticketSocket(entry.business_id, entry.id) } : {};
+  // asOf anchors the client-side countdown: it decays serviceRemainingMinutes from this instant.
+  const asOf = new Date().toISOString();
   if (!['waiting', 'in_service'].includes(entry.status)) {
     return {
       ticketId: entry.id,
       token: entry.token,
       ahead: 0,
       waitMinutes: 0,
+      serviceRemainingMinutes: 0,
       status: entry.status,
       isYourTurn: entry.status === 'in_service',
       progressPct: entry.status === 'completed' || entry.status === 'in_service' ? 100 : 0,
+      asOf,
       ...socket,
     };
   }
@@ -361,9 +367,11 @@ async function ticketDetailFromEntry(entry: any, withSocket = false) {
     token: entry.token,
     ahead: pos.ahead,
     waitMinutes: pos.waitMinutes,
+    serviceRemainingMinutes: pos.serviceRemainingMinutes,
     status: pos.status ?? entry.status,
     isYourTurn,
     progressPct: isYourTurn ? 100 : 0,
+    asOf,
     ...socket,
   };
 }

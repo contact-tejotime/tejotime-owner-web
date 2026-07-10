@@ -7,13 +7,16 @@ import { SeatGroupVM, CardVM, flatCards } from '@/lib/queue';
 import { api, ApiError, getAccessToken, initSession, setOnAuthFail } from '@/lib/api';
 import { connectOwner } from '@/lib/socket';
 import {
+  COLOR_PALETTE,
   mapAppointment,
+  mapBusinessDetail,
   mapCustomer,
   mapSeats,
   mapService,
   mapStaff,
   Money,
 } from '@/lib/mappers';
+import { DayHoursVM, toApiHours } from '@/lib/hours';
 import { TAB_ROUTES } from '@/navigation/routes';
 import { showToast } from '@/lib/toast';
 
@@ -44,6 +47,10 @@ interface BusinessInfo {
   name: string;
   area?: string;
   slug?: string;
+  address?: string;
+  countryCode?: string | null;
+  phoneNumber?: string | null;
+  hours?: DayHoursVM[];
 }
 
 type State = {
@@ -99,6 +106,13 @@ type Store = State & {
   commitMove: (staffId: string, id: string) => void;
   checkInAppt: (a: AppointmentEntry) => void;
   upgrade: () => void;
+  saveProfile: (f: { name: string; address: string }) => Promise<boolean>;
+  saveHours: (next: DayHoursVM[]) => void;
+  createService: (f: { name: string; durationMinutes: number; priceRupees: number }) => Promise<boolean>;
+  updateService: (id: string, f: { name: string; durationMinutes: number; priceRupees: number }) => Promise<boolean>;
+  removeService: (id: string) => Promise<boolean>;
+  createStaffMember: (f: { name: string; roleLabel: string }) => Promise<boolean>;
+  updateStaffMember: (id: string, f: { name: string; roleLabel: string }) => Promise<boolean>;
 };
 
 const emptyWalkin: WalkIn = { name: '', phone: '', service: null, position: 'end', staffId: 'auto', error: '' };
@@ -149,6 +163,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const socketRef = useRef<Socket | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoursSeq = useRef(0);
 
   const patch = useCallback((fn: (p: State) => Partial<State>) => setS((p) => ({ ...p, ...fn(p) })), []);
 
@@ -212,7 +227,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const loadBusiness = useCallback(async () => {
     try {
       const r = await api.getBusiness();
-      setS((p) => ({ ...p, business: { id: r.id, name: r.name, area: r.area, slug: r.slug }, plan: r.plan ?? p.plan }));
+      setS((p) => ({ ...p, business: mapBusinessDetail(r), plan: r.plan ?? p.plan }));
     } catch {
       /* ignore */
     }
@@ -477,8 +492,96 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           showToast((e as ApiError)?.message ?? 'Upgrade failed', 'error');
         }
       },
+      saveProfile: async ({ name, address }) => {
+        try {
+          const res: any = await api.updateBusiness({ name, address });
+          setS((p) => ({ ...p, business: mapBusinessDetail(res) }));
+          showToast('Profile saved', 'success');
+          return true;
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Could not save profile', 'error');
+          return false;
+        }
+      },
+      saveHours: async (next) => {
+        const seq = ++hoursSeq.current;
+        setS((p) => ({ ...p, business: p.business ? { ...p.business, hours: next } : p.business }));
+        try {
+          const res: any = await api.setHours(toApiHours(next));
+          if (seq === hoursSeq.current) setS((p) => ({ ...p, business: mapBusinessDetail(res) }));
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Could not save hours', 'error');
+          if (seq === hoursSeq.current) loadBusiness();
+        }
+      },
+      createService: async ({ name, durationMinutes, priceRupees }) => {
+        try {
+          await api.createService({
+            name,
+            durationMinutes,
+            priceAmount: Math.round(priceRupees * 100),
+            colorToken: COLOR_PALETTE[s.services.length % COLOR_PALETTE.length],
+            position: s.services.length,
+          });
+          await loadServices();
+          showToast('Service added', 'success');
+          return true;
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Could not add service', 'error');
+          return false;
+        }
+      },
+      updateService: async (id, { name, durationMinutes, priceRupees }) => {
+        try {
+          await api.updateService(id, { name, durationMinutes, priceAmount: Math.round(priceRupees * 100) });
+          await loadServices();
+          showToast('Service updated', 'success');
+          return true;
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Could not update service', 'error');
+          return false;
+        }
+      },
+      removeService: async (id) => {
+        try {
+          await api.deleteService(id);
+          await loadServices();
+          showToast('Service removed', 'success');
+          return true;
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Could not remove service', 'error');
+          return false;
+        }
+      },
+      createStaffMember: async ({ name, roleLabel }) => {
+        try {
+          await api.createStaff({
+            name,
+            roleLabel: roleLabel || 'Stylist',
+            colorToken: COLOR_PALETTE[s.staff.length % COLOR_PALETTE.length],
+            position: s.staff.length,
+          });
+          await loadStaff();
+          showToast('Staff member added', 'success');
+          return true;
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Could not add staff', 'error');
+          return false;
+        }
+      },
+      updateStaffMember: async (id, { name, roleLabel }) => {
+        try {
+          await api.updateStaff(id, { name, roleLabel: roleLabel || 'Stylist' });
+          await loadStaff();
+          showToast('Staff updated', 'success');
+          return true;
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? 'Could not update staff', 'error');
+          return false;
+        }
+      },
     };
-  }, [s, patch, connectSocket, bootstrap, teardown, loadCustomers, loadDashboard, loadQueue]);
+  }, [s, patch, connectSocket, bootstrap, teardown, loadCustomers, loadDashboard, loadQueue, loadServices, loadStaff, loadBusiness]);
 
   return <AppStateContext.Provider value={store}>{children}</AppStateContext.Provider>;
 }

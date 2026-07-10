@@ -80,6 +80,24 @@ const isActive = (s?: string | null) => s === "waiting" || s === "in_service";
 /** Leave is only allowed while waiting — not once service has started. */
 const canLeaveQueue = (s?: string | null) => s === "waiting";
 
+/**
+ * Wall-clock-aware wait, so the pill counts down between server updates (Swiggy-style) instead of
+ * sitting still until the next poll. Only the in-service head decays (`serviceRemainingMinutes`);
+ * the queued-behind portion is held flat. `nowTs === null` (pre-mount) or a missing anchor falls
+ * back to the raw server value, and the result is clamped to [0, waitMinutes] so interpolation can
+ * never read higher than the server said (guards a walk-in bump or a skewed device clock).
+ */
+function displayWaitMinutes(ticket: Ticket | null, nowTs: number | null): number {
+  const wait = ticket?.waitMinutes ?? 0;
+  if (!ticket || wait <= 0 || nowTs == null || !ticket.asOf) return wait;
+  const anchor = Date.parse(ticket.asOf);
+  if (Number.isNaN(anchor)) return wait;
+  const decayable = ticket.serviceRemainingMinutes ?? wait;
+  const hold = Math.max(0, wait - decayable);
+  const elapsed = Math.max(0, Math.floor((nowTs - anchor) / 60000));
+  return Math.min(wait, hold + Math.max(0, decayable - elapsed));
+}
+
 type View = "flow" | "already" | "blocked" | "left" | "track";
 
 export default function MicrositeClient({ initialSite }: { initialSite: Microsite }) {
@@ -112,6 +130,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const [booking, setBooking] = useState<{ serviceName: string; scheduledStartAt: string } | null>(null);
   const [justTurn, setJustTurn] = useState(false);
   const [initialAhead, setInitialAhead] = useState(0);
+  // Wall-clock tick that drives the live countdown. null until mount (keeps SSR/first paint equal
+  // to the server value — no hydration mismatch); then updated every 15s while a ticket is active.
+  const [nowTs, setNowTs] = useState<number | null>(null);
 
   // OTP + new modal views
   const [otp, setOtp] = useState(["", "", "", ""]);
@@ -160,8 +181,21 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     s.on("staff:availability", (d: { staff: MicrositeStaff[] }) => {
       if (d.staff) setLiveStaff(d.staff);
     });
-    s.on("ticket:updated", (d: { ahead: number; waitMinutes: number; status: string; isYourTurn?: boolean }) => {
-      setTicket((prev) => (prev ? { ...prev, ahead: d.ahead, waitMinutes: d.waitMinutes, status: d.status } : prev));
+    s.on("ticket:updated", (d: { ahead: number; waitMinutes: number; serviceRemainingMinutes?: number; status: string; isYourTurn?: boolean; at?: string }) => {
+      setTicket((prev) =>
+        prev
+          ? {
+              ...prev,
+              ahead: d.ahead,
+              waitMinutes: d.waitMinutes,
+              serviceRemainingMinutes: d.serviceRemainingMinutes,
+              status: d.status,
+              // Re-anchor the countdown to this push (emitter stamps `at`); fall back to receipt time.
+              asOf: d.at ?? new Date().toISOString(),
+            }
+          : prev,
+      );
+      setNowTs(Date.now());
       if (d.isYourTurn) setJustTurn(true);
       if (d.status === "in_service") setConfirmLeave(false);
       // Terminal states normally arrive via ticket:cancelled/ticket:completed, but if an
@@ -237,6 +271,17 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [site.id]);
+
+  // ---- live countdown tick (drives displayWaitMinutes between server updates) ----
+  // Only re-runs when the ticket flips active/inactive (a primitive), so the 15s interval keeps
+  // ticking instead of being torn down on every 5s poll. setState happens only in the timer
+  // callback (never synchronously in the effect body). Pushes re-anchor nowTs in bindSocket.
+  const ticketActive = !!ticket && isActive(ticket.status);
+  useEffect(() => {
+    if (!ticketActive) return;
+    const id = setInterval(() => setNowTs(Date.now()), 15000);
+    return () => clearInterval(id);
+  }, [ticketActive]);
 
   // ---- restore a held ticket (resume pill / "already in line") ----
   useEffect(() => {
@@ -751,7 +796,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const showResume = !!held && !joinOpen && !!ticket && isActive(ticket.status);
   const resumeToken = ticket?.token ?? held?.token ?? "";
   const resumeAhead = justTurn ? 0 : ticket?.ahead ?? 0;
-  const resumeLabel = `${resumeAhead} ahead · ~${ticket?.waitMinutes ?? 0} min`;
+  // Live, wall-clock-aware wait for the pill — ticks down between server updates.
+  const displayWait = displayWaitMinutes(ticket, nowTs);
+  const resumeLabel = displayWait <= 1 ? "Almost your turn" : `${resumeAhead} ahead · ~${displayWait} min`;
   // Owner has started this customer's service (waiting → in_service) — surface it live.
   const inService = ticket?.status === "in_service" || justTurn;
 
@@ -1387,7 +1434,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                               <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>ahead of you</div>
                             </div>
                             <div>
-                              <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--secondary)", fontVariantNumeric: "tabular-nums" }}>{justTurn ? "Now" : `~${ticket.waitMinutes}m`}</div>
+                              <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--secondary)", fontVariantNumeric: "tabular-nums" }}>{justTurn ? "Now" : `~${displayWait}m`}</div>
                               <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>est. wait</div>
                             </div>
                           </div>
@@ -1522,7 +1569,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                         <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>ahead of you</div>
                       </div>
                       <div>
-                        <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "var(--secondary)" }}>{justTurn ? "Now" : `~${ticket?.waitMinutes ?? 0}m`}</div>
+                        <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "var(--secondary)" }}>{justTurn ? "Now" : `~${displayWait}m`}</div>
                         <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>est. wait</div>
                       </div>
                     </div>

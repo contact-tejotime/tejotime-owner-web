@@ -153,6 +153,7 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
     emitToTicket(entry.id, 'ticket:updated', {
       ahead: pos.ahead,
       waitMinutes: pos.waitMinutes,
+      serviceRemainingMinutes: pos.serviceRemainingMinutes,
       status: pos.status,
       isYourTurn,
       progressPct: isYourTurn ? 100 : undefined,

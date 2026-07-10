@@ -142,13 +142,14 @@ export default function CustomersDirectory({
             </p>
           </div>
           <div className="cust-head-actions">
-            <button type="button" className="btn-ghost" onClick={exportCsv} disabled={filtered.length === 0}>
+            <button type="button" className="btn-primary" onClick={exportCsv} disabled={filtered.length === 0}>
               Export CSV
             </button>
-            {/* Re-link to /broadcasts when that page is unparked. */}
+            {/* Message customers button hidden until /broadcasts page is unparked.
             <button type="button" className="btn-primary" disabled title="Coming soon">
               Message customers
             </button>
+            */}
           </div>
         </div>
         <div className="chip-row">
@@ -326,10 +327,12 @@ export default function CustomersDirectory({
                 )}
 
                 <div className="profile-actions">
+                  {/* Message action removed per request.
                   <a className="btn-primary" href={`sms:+${selected.phone.replace(/\D/g, "")}`}>
                     Message
                   </a>
-                  <button type="button" className="btn-ghost" disabled title="Coming soon">
+                  */}
+                  <button type="button" className="btn-primary" disabled title="Coming soon">
                     Mark VIP
                   </button>
                 </div>

@@ -16,6 +16,7 @@ export interface RawEntry {
   extra_minutes: number;
   token: string | null;
   joined_at: string;
+  started_at: string | null;
   notified_two_away_at: string | null;
   notified_turn_at: string | null;
 }
@@ -75,6 +76,7 @@ export async function loadQueueContext(businessId: string): Promise<QueueContext
     staffId: e.staff_id,
     source: e.source,
     extra: e.extra_minutes,
+    startedAt: e.started_at,
   }));
 
   return { staffRows, serviceRows, entries, engineStaff, engineServices, engineEntries };
