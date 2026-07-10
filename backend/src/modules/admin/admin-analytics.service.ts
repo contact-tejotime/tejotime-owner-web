@@ -270,6 +270,7 @@ export async function listStoreCustomers(id: string, search: string | undefined,
       lastVisitLabel: lastVisitLabel(c.last_visit_at, biz.timezone),
       totalSpend: money(Number(c.total_spend_paise ?? 0), biz.currency),
       notes: c.notes ?? null,
+      createdAt: c.created_at,
     })),
     meta: { shown: rows.length, total: total ?? rows.length },
   };

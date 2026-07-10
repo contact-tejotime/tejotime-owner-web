@@ -87,10 +87,15 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
     try {
       const url = mode === "create" ? "/api/create-store" : `/api/stores/${storeId}`;
       const method = mode === "create" ? "POST" : "PUT";
+      const payload = toPayload(form, mode === "create");
+      // Enable/disable lives on the store-hub header toggle now; omit isActive on
+      // edit so saving this form can never clobber it (backend keeps the current
+      // value when the field is absent).
+      if (mode === "edit") delete payload.isActive;
       const res = await fetch(url, {
         method,
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(toPayload(form, mode === "create")),
+        body: JSON.stringify(payload),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -160,30 +165,6 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
       )}
 
       <form onSubmit={onSubmit}>
-        {/* Store status (edit only — new stores always start active) ------ */}
-        {mode === "edit" && (
-          <section className="section">
-            <h2>
-              Store status{" "}
-              <span className={`badge ${form.isActive ? "badge-active" : "badge-inactive"}`}>
-                {form.isActive ? "Active" : "Inactive"}
-              </span>
-            </h2>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600 }}>
-              <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={(e) => set("isActive", e.target.checked)}
-              />
-              Store is active
-            </label>
-            <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
-              When inactive, the public microsite, online booking and queue joining return 404. The store stays
-              visible in this admin panel. Remember to save for the change to take effect.
-            </p>
-          </section>
-        )}
-
         {/* Business ------------------------------------------------------ */}
         <section className="section">
           <h2>Business details</h2>

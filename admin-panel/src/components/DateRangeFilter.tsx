@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 export interface StatusOption {
   value: string;
@@ -25,15 +25,23 @@ export default function DateRangeFilter({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [draftFrom, setDraftFrom] = useState(from);
   const [draftTo, setDraftTo] = useState(to);
   const [draftStatus, setDraftStatus] = useState(status ?? "");
 
   function apply() {
-    const params = new URLSearchParams();
+    // Merge into the current querystring so unrelated params (e.g. ?report=)
+    // survive a date change; only own keys are touched.
+    const params = new URLSearchParams(searchParams.toString());
     if (draftFrom) params.set("from", draftFrom);
+    else params.delete("from");
     if (draftTo) params.set("to", draftTo);
-    if (draftStatus) params.set("status", draftStatus);
+    else params.delete("to");
+    if (statusOptions) {
+      if (draftStatus) params.set("status", draftStatus);
+      else params.delete("status");
+    }
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   }

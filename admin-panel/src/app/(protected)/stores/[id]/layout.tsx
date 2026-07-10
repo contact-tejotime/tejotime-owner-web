@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import ExternalLinkIcon from "@/components/ExternalLinkIcon";
 import StoreStatusToggle from "@/components/StoreStatusToggle";
 import StoreTabs from "@/components/store-hub/StoreTabs";
 import { getBusinessDetail } from "@/lib/server-api";
@@ -44,7 +45,7 @@ export default async function StoreHubLayout({
           <>
             {" · "}
             <a href={`${FRONTEND_URL}/${detail.phoneFull}`} target="_blank" rel="noreferrer">
-              Open microsite ↗
+              Visit <ExternalLinkIcon />
             </a>
           </>
         )}

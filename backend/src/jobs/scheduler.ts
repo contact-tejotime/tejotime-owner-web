@@ -10,13 +10,17 @@ import { broadcastQueue } from '../modules/queue/queue.service';
  * subscription-provider sync are DEFERRED until credentials are provided.
  */
 
-/** Cancel abandoned waiting tickets older than TICKET_ABANDON_HOURS. */
+/**
+ * Cancel abandoned tickets older than TICKET_ABANDON_HOURS. Covers in_service
+ * too: an entry the owner never checked out would otherwise stay active forever
+ * and permanently inflate the queue counts shown in the owner app and admin panel.
+ */
 async function staleCleanup() {
   const cutoff = new Date(Date.now() - env.TICKET_ABANDON_HOURS * 3_600_000).toISOString();
   const { data } = await supabase
     .from('queue_entry')
     .select('id, business_id')
-    .eq('status', 'waiting')
+    .in('status', ['waiting', 'in_service'])
     .lt('joined_at', cutoff);
   if (!data?.length) return;
 

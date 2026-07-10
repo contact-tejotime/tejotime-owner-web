@@ -110,6 +110,7 @@ export async function listPlatformCustomers(): Promise<{
           lastVisitLabel: c.lastVisitLabel,
           totalSpend: c.totalSpend,
           notes: c.notes,
+          createdAt: c.createdAt ?? null,
           memberships: [membership],
         });
         continue;
@@ -123,6 +124,10 @@ export async function listPlatformCustomers(): Promise<{
           amount: existing.totalSpend.amount + c.totalSpend.amount,
           currency: existing.totalSpend.currency,
         };
+      }
+      // The customer "joined" the platform when their earliest store record was created.
+      if (c.createdAt && (!existing.createdAt || c.createdAt < existing.createdAt)) {
+        existing.createdAt = c.createdAt;
       }
       // The most recently visited record wins name/notes/last-visit (and becomes "primary").
       if ((c.lastVisitAt ?? "") > (existing.lastVisitAt ?? "")) {

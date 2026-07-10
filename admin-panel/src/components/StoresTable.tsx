@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { StoreListItemWithMetrics } from "@/lib/types";
 import { formatCount, formatMoneyCompact } from "@/lib/format";
 import ConfirmDialog from "./ConfirmDialog";
+import ExternalLinkIcon from "./ExternalLinkIcon";
 import StoreStatusToggle from "./StoreStatusToggle";
 
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com";
@@ -163,18 +164,17 @@ export default function StoresTable({ stores }: { stores: StoreListItemWithMetri
               </th>
               <th>Name</th>
               <th>Category · City</th>
-              <th>Status</th>
               <th className="num">Customers</th>
               <th className="num">Visits (30d)</th>
               <th className="num">Revenue (30d)</th>
               <th>Enabled</th>
-              <th aria-label="Microsite" />
+              <th>Visit</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={9} className="empty-note">
+                <td colSpan={8} className="empty-note">
                   No stores match these filters
                 </td>
               </tr>
@@ -196,11 +196,6 @@ export default function StoresTable({ stores }: { stores: StoreListItemWithMetri
                   </Link>
                 </td>
                 <td>{[s.category, s.city].filter(Boolean).join(" · ") || "—"}</td>
-                <td>
-                  <span className={`badge ${s.isActive ? "badge-active" : "badge-inactive"}`}>
-                    {s.isActive ? "Active" : "Inactive"}
-                  </span>
-                </td>
                 <td className="num">{formatCount(s.customersCount)}</td>
                 <td className="num">{formatCount(s.visits30d)}</td>
                 <td className="num">{formatMoneyCompact(s.revenue30d)}</td>
@@ -215,8 +210,14 @@ export default function StoresTable({ stores }: { stores: StoreListItemWithMetri
                   />
                 </td>
                 <td onClick={(e) => e.stopPropagation()}>
-                  <a href={`${FRONTEND_URL}/${s.phoneFull}`} target="_blank" rel="noreferrer" title="Open microsite">
-                    ↗
+                  <a
+                    href={`${FRONTEND_URL}/${s.phoneFull}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Open microsite"
+                    className="visit-link"
+                  >
+                    <ExternalLinkIcon />
                   </a>
                 </td>
               </tr>

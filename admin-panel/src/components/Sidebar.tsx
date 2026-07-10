@@ -57,17 +57,12 @@ export function Sidebar({ stores }: { stores: StoreListItem[] }) {
         💳 Billing
       </Link>
 
-      <Link href="/broadcasts" className={`nav-link ${pathname === "/broadcasts" ? "active" : ""}`}>
-        📣 Broadcasts
-      </Link>
-
       <Link href="/reports" className={`nav-link ${pathname === "/reports" ? "active" : ""}`}>
         📄 Reports
       </Link>
 
-      <Link href="/team" className={`nav-link ${pathname === "/team" ? "active" : ""}`}>
-        🛡️ Team & roles
-      </Link>
+      {/* Broadcasts and Team & roles are parked in (protected)/_broadcasts and _team
+          (private folders, not routed) until their backends exist. */}
 
       <div className="side-label">Stores ({stores.length})</div>
       {stores.length === 0 && <div className="side-empty">No stores yet</div>}

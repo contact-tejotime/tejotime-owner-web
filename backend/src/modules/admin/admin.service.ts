@@ -314,16 +314,20 @@ export async function listLookups(type: string) {
 }
 
 export async function listBusinesses(withMetrics = false) {
-  const [{ data }, metricRows] = await Promise.all([
+  const [{ data }, metricRows, subscriptionRows] = await Promise.all([
     supabase
       .from('business')
-      .select('id, name, slug, category, city, country_code, phone_number, is_active, currency')
+      .select('id, name, slug, category, city, country_code, phone_number, is_active, currency, created_at')
       .order('created_at', { ascending: false }),
     withMetrics ? callRpc<any[]>('admin_store_metrics', {}) : Promise.resolve(null),
+    withMetrics
+      ? supabase.from('subscription').select('business_id, status').then((r) => r.data)
+      : Promise.resolve(null),
   ]);
 
   // admin_store_metrics has no row for the demo store; missing entries fall back to zeros.
   const metricsById = new Map((metricRows ?? []).map((m) => [m.business_id, m]));
+  const subscriptionStatusById = new Map((subscriptionRows ?? []).map((s) => [s.business_id, s.status]));
 
   return {
     data: (data ?? []).map((b) => {
@@ -335,6 +339,7 @@ export async function listBusinesses(withMetrics = false) {
         city: b.city ?? null,
         phoneFull: `${b.country_code ?? ''}${b.phone_number ?? ''}`,
         isActive: b.is_active,
+        createdAt: b.created_at,
       };
       if (!withMetrics) return base;
       const m = metricsById.get(b.id);
@@ -344,6 +349,11 @@ export async function listBusinesses(withMetrics = false) {
         visits30d: Number(m?.visits_30d ?? 0),
         revenue30d: money(Number(m?.revenue_30d_paise ?? 0), b.currency ?? env.DEFAULT_CURRENCY),
         plan: (m?.plan ?? 'free') as 'free' | 'premium',
+        subscriptionStatus: (subscriptionStatusById.get(b.id) ?? 'trialing') as
+          | 'trialing'
+          | 'active'
+          | 'past_due'
+          | 'canceled',
         lastActivityAt: m?.last_activity_at ?? null,
       };
     }),

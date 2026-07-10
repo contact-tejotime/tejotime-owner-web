@@ -80,6 +80,7 @@ export interface StoreListItem {
   category: string | null;
   city: string | null;
   isActive: boolean;
+  createdAt: string;
 }
 
 /** Backend response from POST /admin/businesses and PUT /admin/businesses/:id. */
@@ -272,6 +273,7 @@ export interface StoreMetrics {
   visits30d: number;
   revenue30d: Money;
   plan: "free" | "premium";
+  subscriptionStatus: "trialing" | "active" | "past_due" | "canceled";
   lastActivityAt: string | null;
 }
 
@@ -326,6 +328,7 @@ export interface AdminCustomer {
   lastVisitLabel: string;
   totalSpend: Money;
   notes: string | null;
+  createdAt: string;
 }
 
 export interface CustomersResponse {
@@ -351,6 +354,7 @@ export interface PlatformCustomer {
   lastVisitLabel: string;
   totalSpend: Money | null; // summed only when all memberships share a currency; else the primary store's
   notes: string | null;
+  createdAt: string | null; // earliest across memberships
   memberships: PlatformCustomerMembership[];
 }
 

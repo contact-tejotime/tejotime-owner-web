@@ -112,3 +112,33 @@ export function isOlderThanDays(iso: string | null | undefined, days: number): b
   if (Number.isNaN(then.getTime())) return false;
   return Date.now() - then.getTime() > days * 86_400_000;
 }
+
+/**
+ * Count timestamps into zero-filled month buckets for the last `months` months
+ * (oldest first), labelled like "Aug 25". Dates outside the window are dropped.
+ */
+export function bucketByMonth(
+  dates: (string | null | undefined)[],
+  months = 12,
+): { label: string; value: number }[] {
+  const now = new Date();
+  const buckets: { key: string; label: string; value: number }[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    buckets.push({
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      label: d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
+      value: 0,
+    });
+  }
+  const byKey = new Map(buckets.map((b) => [b.key, b]));
+  for (const iso of dates) {
+    if (!iso) continue;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) continue;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const bucket = byKey.get(key);
+    if (bucket) bucket.value += 1;
+  }
+  return buckets.map(({ label, value }) => ({ label, value }));
+}

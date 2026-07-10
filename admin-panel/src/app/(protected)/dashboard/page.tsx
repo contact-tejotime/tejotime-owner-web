@@ -2,17 +2,21 @@ import Link from "next/link";
 import BarList from "@/components/BarList";
 import GlobalSearch from "@/components/GlobalSearch";
 import KpiCard from "@/components/KpiCard";
-import RevenueTrendChart from "@/components/charts/RevenueTrendChart";
-import { formatAmount, formatCount, formatDate, isOlderThanDays } from "@/lib/format";
-import { getPlatformOverview, listBusinessesWithMetrics } from "@/lib/server-api";
-import { PREMIUM_PLAN_PRICE_INR, STATIC_ACTIVITY_FEED, STATIC_ATTENTION_ITEMS, staticRevenueTrend } from "@/lib/static-data";
+import CountBarChart from "@/components/charts/CountBarChart";
+import { bucketByMonth, formatAmount, formatCount, formatDate, isOlderThanDays } from "@/lib/format";
+import { getPlatformOverview, listBusinessesWithMetrics, listPlatformCustomers } from "@/lib/server-api";
+import { PREMIUM_PLAN_PRICE_INR } from "@/lib/static-data";
 
 export const dynamic = "force-dynamic";
 
 const QUIET_DAYS = 30;
 
 export default async function PlatformDashboardPage() {
-  const [overview, storesWithMetrics] = await Promise.all([getPlatformOverview(), listBusinessesWithMetrics()]);
+  const [overview, storesWithMetrics, { customers }] = await Promise.all([
+    getPlatformOverview(),
+    listBusinessesWithMetrics(),
+    listPlatformCustomers(),
+  ]);
 
   if (!overview) {
     return (
@@ -33,10 +37,8 @@ export default async function PlatformDashboardPage() {
   const quietCount = storesWithMetrics.filter(
     (s) => s.isActive && isOlderThanDays(s.lastActivityAt, QUIET_DAYS),
   ).length;
-  const attentionItems = [
-    ...(quietCount > 0 ? [`${quietCount} store${quietCount === 1 ? "" : "s"} quiet ${QUIET_DAYS}d+`] : []),
-    ...STATIC_ATTENTION_ITEMS,
-  ];
+  const attentionItems =
+    quietCount > 0 ? [`${quietCount} store${quietCount === 1 ? "" : "s"} quiet ${QUIET_DAYS}d+`] : [];
 
   return (
     <div className="wrap">
@@ -65,7 +67,7 @@ export default async function PlatformDashboardPage() {
           sub={`${stores.active} active${stores.inactive > 0 ? ` · ${stores.inactive} inactive` : ""}`}
         />
         <KpiCard label="Customers" value={formatCount(overview.totalCustomers)} sub="all stores" />
-        <KpiCard label="Visits today" value={formatCount(today.visits)} sub={`${today.onlineBookings} online bookings`} />
+        <KpiCard label="Visits today" value={formatCount(today.visits)} />
         <KpiCard
           label="MRR"
           value={formatAmount(mrr, "INR")}
@@ -75,25 +77,12 @@ export default async function PlatformDashboardPage() {
 
       <div className="chart-grid" style={{ marginBottom: 18 }}>
         <div className="chart-card" style={{ marginBottom: 0 }}>
-          <h2>
-            Platform revenue — 30d <span className="chart-tag">Sample data</span>
-          </h2>
-          {/* No real cross-store revenue series exists (stores may use different currencies). */}
-          <RevenueTrendChart data={staticRevenueTrend()} currency="INR" />
+          <h2>Store signups — 12 months</h2>
+          <CountBarChart data={bucketByMonth(storesWithMetrics.map((s) => s.createdAt))} name="Stores created" />
         </div>
         <div className="chart-card" style={{ marginBottom: 0 }}>
-          <h2>
-            Activity <span className="chart-tag">Sample data</span>
-          </h2>
-          <div className="feed-list">
-            {STATIC_ACTIVITY_FEED.map((item) => (
-              <div key={item.text} className="feed-item">
-                <span className="feed-dot" />
-                <span>{item.text}</span>
-                <span className="feed-time">{item.time}</span>
-              </div>
-            ))}
-          </div>
+          <h2>New customers — 12 months</h2>
+          <CountBarChart data={bucketByMonth(customers.map((c) => c.createdAt))} name="New customers" />
         </div>
       </div>
 
