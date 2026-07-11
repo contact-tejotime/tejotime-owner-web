@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TText } from '@/components/common';
 import { createSheetOverlayStyles } from '@/components/feedback/QRSheet';
 import { Icon } from '@/components/ui/Icon';
+import { useResponsive } from '@/hooks/useResponsive';
 import { TIME_OPTIONS } from '@/lib/hours';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
@@ -16,6 +17,7 @@ export function TimeSelect({ value, onChange }: { value: string; onChange: (v: s
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
+  const { centerStyle } = useResponsive(520);
   const overlay = useMemo(() => createSheetOverlayStyles(), []);
   const s = useMemo(() => createTimeSelectStyles(theme, insets.bottom), [theme, insets.bottom]);
 
@@ -35,7 +37,7 @@ export function TimeSelect({ value, onChange }: { value: string; onChange: (v: s
       <Modal transparent visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
         <View style={overlay.root}>
           <Pressable onPress={() => setOpen(false)} style={overlay.backdrop} />
-          <View style={s.sheet}>
+          <View style={[s.sheet, centerStyle]}>
             <View style={s.handle} />
             <ScrollView showsVerticalScrollIndicator={false}>
               {TIME_OPTIONS.map((t) => (

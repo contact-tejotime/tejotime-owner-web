@@ -7,7 +7,7 @@ import { TText } from '@/components/common';
 import { Icon, IconName } from '@/components/ui/Icon';
 import { TAB_ROUTES, TabId, tabFromPathname } from '@/navigation/routes';
 import { styles } from '@/styles';
-import { moderateScale } from '@/styles/scale';
+import { moderateScale, scaleFont } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -62,7 +62,7 @@ const createBottomNavStyles = (
       paddingBottom: bottomInset + moderateScale(6),
     },
     item: { ...styles.flex, ...styles.itemsCenter, ...styles.justifyCenter, ...styles.g1, ...styles.pt2 },
-    label: { fontSize: moderateScale(10) },
+    label: { fontSize: scaleFont(10) },
     labelActive: { color: colors.primary },
     labelIdle: { color: colors.textSubtle },
   });

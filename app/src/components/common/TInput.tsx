@@ -3,7 +3,7 @@ import { StyleProp, StyleSheet, TextInput, TextInputProps, TextStyle, View, View
 
 import { TText } from '@/components/common/TText';
 import { styles } from '@/styles';
-import { moderateScale } from '@/styles/scale';
+import { moderateScale, rSize, scaleFont } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { fontFamily } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -89,13 +89,13 @@ const createTInputStyles = (
       borderColor,
       borderRadius: moderateScale(theme.radius.md),
     },
-    fieldSm: { height: theme.controlHeight.sm },
-    fieldMd: { height: theme.controlHeight.md },
-    fieldLg: { height: theme.controlHeight.lg },
+    fieldSm: { height: rSize(theme.controlHeight.sm) },
+    fieldMd: { height: rSize(theme.controlHeight.md) },
+    fieldLg: { height: rSize(theme.controlHeight.lg) },
     input: {
       ...styles.flex,
       fontFamily: theme.fontFamily.regular,
-      fontSize: moderateScale(15),
+      fontSize: scaleFont(15),
       color: theme.colors.textStrong,
       padding: 0,
       includeFontPadding: false,

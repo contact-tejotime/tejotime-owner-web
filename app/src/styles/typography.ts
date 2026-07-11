@@ -2,6 +2,8 @@ import { StyleSheet, TextStyle } from 'react-native';
 
 import { fontFamily, fontSize, letterSpacing, lineHeight, textStyle, TextVariant } from '@/theme/tokens';
 
+import { scaleFont } from './scale';
+
 export const fontWeights = StyleSheet.create({
   extralight: { fontFamily: fontFamily.extralight },
   extralightItalic: { fontFamily: fontFamily.extralightItalic },
@@ -21,15 +23,15 @@ export const fontWeights = StyleSheet.create({
 
 export const fontSizes = StyleSheet.create(
   Object.fromEntries(
-    Object.entries(fontSize).map(([key, value]) => [key, { fontSize: value }]),
+    Object.entries(fontSize).map(([key, value]) => [key, { fontSize: scaleFont(value) }]),
   ) as Record<keyof typeof fontSize, TextStyle>,
 );
 
 export const lineHeights = StyleSheet.create({
-  tight: { lineHeight: fontSize.h1 * lineHeight.tight },
-  snug: { lineHeight: fontSize.h4 * lineHeight.snug },
-  normal: { lineHeight: fontSize.bodyMd * lineHeight.normal },
-  relaxed: { lineHeight: fontSize.bodyLg * lineHeight.relaxed },
+  tight: { lineHeight: scaleFont(fontSize.h1) * lineHeight.tight },
+  snug: { lineHeight: scaleFont(fontSize.h4) * lineHeight.snug },
+  normal: { lineHeight: scaleFont(fontSize.bodyMd) * lineHeight.normal },
+  relaxed: { lineHeight: scaleFont(fontSize.bodyLg) * lineHeight.relaxed },
 });
 
 export const letterSpacings = StyleSheet.create({
@@ -41,10 +43,11 @@ export const letterSpacings = StyleSheet.create({
 
 export function getTextVariantStyle(variant: TextVariant): TextStyle {
   const preset = textStyle[variant];
+  const size = scaleFont(preset.fontSize);
   return {
     fontFamily: preset.fontFamily,
-    fontSize: preset.fontSize,
-    lineHeight: preset.fontSize * preset.lineHeight,
+    fontSize: size,
+    lineHeight: size * preset.lineHeight,
     letterSpacing: preset.letterSpacing,
   };
 }

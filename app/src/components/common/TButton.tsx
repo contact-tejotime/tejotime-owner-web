@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleProp, StyleSheet, TextStyle, View, V
 
 import { TText } from '@/components/common/TText';
 import { styles } from '@/styles';
-import { moderateScale } from '@/styles/scale';
+import { moderateScale, rSize, scaleFont } from '@/styles/scale';
 import { SemanticColors, controlHeight, fontSize, radius } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -88,9 +88,9 @@ function variantColors(variant: string, c: SemanticColors, pressed: boolean) {
   }
 }
 
-const heights = { sm: controlHeight.sm, md: controlHeight.md, lg: controlHeight.lg };
+const heights = { sm: rSize(controlHeight.sm), md: rSize(controlHeight.md), lg: rSize(controlHeight.lg) };
 const pads = { sm: moderateScale(14), md: moderateScale(18), lg: moderateScale(22) };
-const fonts = { sm: fontSize.bodySm, md: fontSize.bodyMd, lg: fontSize.bodyLg };
+const fonts = { sm: scaleFont(fontSize.bodySm), md: scaleFont(fontSize.bodyMd), lg: scaleFont(fontSize.bodyLg) };
 
 const tButtonStyles = StyleSheet.create({
   inner: { ...styles.flexRow, ...styles.rowCenter, ...styles.g2 },

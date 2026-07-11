@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { SvgXml } from 'react-native-svg';
 
+import { rSize } from '@/styles/scale';
 import { useTheme } from '@/theme/ThemeProvider';
 
 /* Curated Lucide-style icon set (24×24 stroke geometry).
@@ -81,13 +82,16 @@ export function Icon({
   const { colors } = useTheme();
   const stroke = color ?? colors.textBody;
   const inner = ICONS[name];
+  // Scale the rendered size responsively (small phone → tablet). strokeWidth is
+  // in the 24-unit viewBox so it scales with width/height automatically.
+  const dim = rSize(size);
 
   const xml = useMemo(
     () =>
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`,
-    [inner, size, stroke, strokeWidth],
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${dim}" height="${dim}" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`,
+    [inner, dim, stroke, strokeWidth],
   );
 
   if (!inner) return null;
-  return <SvgXml xml={xml} width={size} height={size} />;
+  return <SvgXml xml={xml} width={dim} height={dim} />;
 }

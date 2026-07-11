@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleProp, ViewStyle } from 'react-native';
 
+import { moderateScale, rSize } from '@/styles/scale';
 import { useTheme } from '@/theme/ThemeProvider';
 import { SemanticColors } from '@/theme/tokens';
 
@@ -37,7 +38,7 @@ export function IconButton({
   accessibilityLabel?: string;
 }) {
   const { colors, controlHeight, radius } = useTheme();
-  const dim = controlHeight[size];
+  const dim = rSize(controlHeight[size]);
 
   return (
     <Pressable
@@ -50,9 +51,9 @@ export function IconButton({
           {
             width: dim,
             height: dim,
-            borderRadius: radius.md,
+            borderRadius: moderateScale(radius.md),
             backgroundColor: v.bg,
-            borderWidth: 1,
+            borderWidth: moderateScale(1),
             borderColor: v.border,
             alignItems: 'center',
             justifyContent: 'center',

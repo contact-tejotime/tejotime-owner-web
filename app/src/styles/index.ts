@@ -9,7 +9,9 @@ export {
   getWidth,
   moderateScale,
   moderateVerticalScale,
+  rSize,
   scale,
+  scaleFont,
   verticalScale,
 } from './scale';
 export type { ThemeStyleProps } from './types';

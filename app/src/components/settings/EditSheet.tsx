@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TText } from '@/components/common';
 import { createSheetOverlayStyles } from '@/components/feedback/QRSheet';
+import { useResponsive } from '@/hooks/useResponsive';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
@@ -23,6 +24,7 @@ export function EditSheet({
 }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { centerStyle } = useResponsive(560);
   const overlay = useMemo(() => createSheetOverlayStyles(), []);
   const s = useMemo(() => createEditSheetStyles(theme, insets.bottom), [theme, insets.bottom]);
 
@@ -30,7 +32,7 @@ export function EditSheet({
     <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={overlay.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable onPress={onClose} style={overlay.backdrop} />
-        <View style={s.sheet}>
+        <View style={[s.sheet, centerStyle]}>
           <View style={s.handle} />
           <TText variant="h4" weight="semibold" style={s.title}>
             {title}

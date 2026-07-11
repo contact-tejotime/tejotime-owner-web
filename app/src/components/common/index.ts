@@ -12,5 +12,6 @@ export { THeader } from './THeader';
 export { TSectionTitle } from './TSectionTitle';
 export { TScreenScroll } from './TScreenScroll';
 export { TSafeAreaScreen } from './TSafeAreaScreen';
+export { TResponsiveContainer } from './TResponsiveContainer';
 export { TToast } from './TToast';
 export type { TextVariant } from '@/theme/tokens';

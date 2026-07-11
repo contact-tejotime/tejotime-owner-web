@@ -6,6 +6,7 @@ import { TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { useResponsive } from '@/hooks/useResponsive';
 import { flatCards } from '@/lib/queue';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
@@ -36,6 +37,7 @@ export function DetailPanel() {
   const theme = useTheme();
   const resolveColor = useServiceColor();
   const store = useAppState();
+  const { centerStyle } = useResponsive(640);
   const s = useMemo(() => createDetailPanelStyles(theme), [theme]);
 
   const cards = flatCards(store.seats);
@@ -51,6 +53,7 @@ export function DetailPanel() {
       {card && (
         <View style={s.page}>
           <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
+            <View style={[styles.flex, centerStyle]}>
             <View style={s.topBar}>
               <Pressable onPress={store.closeDetail} style={s.backBtn}>
                 <Icon name="chevronLeft" size={22} color={theme.colors.textBody} />
@@ -152,6 +155,7 @@ export function DetailPanel() {
                   </Button>
                 </>
               )}
+            </View>
             </View>
           </SafeAreaView>
         </View>

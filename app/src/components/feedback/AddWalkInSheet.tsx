@@ -7,6 +7,7 @@ import { TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Input } from '@/components/ui/Input';
+import { useResponsive } from '@/hooks/useResponsive';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
@@ -42,6 +43,7 @@ export function AddWalkInSheet() {
   const resolveColor = useServiceColor();
   const store = useAppState();
   const open = store.sheet === 'walkin';
+  const { centerStyle } = useResponsive(560);
   const overlay = useMemo(() => createSheetOverlayStyles(), []);
   const s = useMemo(() => createAddWalkInSheetStyles(theme, insets.bottom), [theme, insets.bottom]);
 
@@ -77,7 +79,7 @@ export function AddWalkInSheet() {
     <Modal transparent visible={open} animationType="slide" onRequestClose={store.closeWalkin}>
       <View style={overlay.root}>
         <Pressable onPress={store.closeWalkin} style={overlay.backdrop} />
-        <View style={s.sheet}>
+        <View style={[s.sheet, centerStyle]}>
           <View style={s.handle} />
           <TText variant="h4" weight="semibold" style={s.title}>
             Add walk-in

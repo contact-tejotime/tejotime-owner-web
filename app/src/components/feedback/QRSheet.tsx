@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { useResponsive } from '@/hooks/useResponsive';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
@@ -15,6 +16,7 @@ export function QRSheet() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const store = useAppState();
+  const { centerStyle } = useResponsive(520);
   const overlay = useMemo(() => createSheetOverlayStyles(), []);
   const s = useMemo(() => createQRSheetStyles(theme, insets.bottom), [theme, insets.bottom]);
 
@@ -22,7 +24,7 @@ export function QRSheet() {
     <Modal transparent visible={store.qr} animationType="slide" onRequestClose={store.closeQr}>
       <View style={overlay.root}>
         <Pressable onPress={store.closeQr} style={overlay.backdrop} />
-        <View style={s.sheet}>
+        <View style={[s.sheet, centerStyle]}>
           <View style={s.handle} />
           <TText variant="h4" weight="semibold" align="center">
             Your booking QR

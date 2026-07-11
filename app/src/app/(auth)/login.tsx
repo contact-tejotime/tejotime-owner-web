@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { TButton, TInput, TKeyboardScreen, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
+import { useResponsive } from '@/hooks/useResponsive';
 import { useAppState } from '@/state/store';
 import { styles } from '@/styles';
 import { getHeight, moderateScale } from '@/styles/scale';
@@ -15,10 +16,11 @@ export default function Login() {
   const { colors } = useTheme();
   const { phone, password, signInLoading, setPhone, setPassword, signIn } = useAppState();
   const [showPassword, setShowPassword] = useState(false);
+  const { centerStyle } = useResponsive(440);
 
   return (
     <TKeyboardScreen contentContainerStyle={loginStyles.content}>
-      <View style={loginStyles.body}>
+      <View style={[loginStyles.body, centerStyle]}>
         <Image source={logo} style={loginStyles.logo} contentFit="contain" />
 
         <View style={loginStyles.form}>
