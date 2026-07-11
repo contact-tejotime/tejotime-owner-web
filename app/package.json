@@ -20,6 +20,7 @@
     "expo-symbols": "~56.0.6",
     "expo-system-ui": "~56.0.5",
     "expo-web-browser": "~56.0.5",
+    "libphonenumber-js": "^1.13.8",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",

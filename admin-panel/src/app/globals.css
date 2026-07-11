@@ -103,10 +103,10 @@ a {
   color: var(--text-strong);
 }
 .brand .dot {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border-radius: 7px;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  object-fit: contain;
 }
 .nav-link {
   display: flex;
@@ -310,6 +310,121 @@ textarea {
   background: var(--gray-100);
   padding: 1px 6px;
   border-radius: 5px;
+}
+
+/* Phone field: country-code dropdown + national number ------------------- */
+.phone-field {
+  position: relative;
+}
+.phone-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.phone-cc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 9px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-strong);
+  white-space: nowrap;
+}
+.phone-cc:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--ring);
+}
+.phone-cc:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.phone-flag {
+  font-size: 16px;
+  line-height: 1;
+}
+.phone-dial {
+  font-weight: 600;
+  font-size: 14px;
+}
+.phone-caret {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.phone-number {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.phone-pop {
+  position: absolute;
+  z-index: 30;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  width: min(340px, 100%);
+  background: #fff;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+}
+.phone-search {
+  border: 0;
+  border-bottom: 1px solid var(--border-default);
+  border-radius: 0;
+  padding: 10px 12px;
+}
+.phone-search:focus {
+  box-shadow: none;
+  border-color: var(--border-default);
+  border-bottom-color: var(--primary);
+}
+.phone-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.phone-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-strong);
+  font: inherit;
+}
+.phone-opt:hover {
+  background: var(--gray-100);
+}
+.phone-opt.sel {
+  background: var(--blue-50);
+}
+.phone-optname {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phone-optdial {
+  color: var(--text-muted);
+  font-size: 13px;
+  flex: 0 0 auto;
+}
+.phone-empty {
+  padding: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
 }
 
 .row {
@@ -1449,5 +1564,88 @@ a.bar-list-label:hover {
   }
   .cust-profile {
     width: 100%;
+  }
+}
+
+/* ============================================================
+   Loading system — skeletons, spinners, and route/section
+   loaders. Tokens mirror the design system above; shimmer/spin
+   are the file's only @keyframes.
+   ============================================================ */
+@keyframes tt-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+@keyframes tt-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.skeleton {
+  display: block;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 37%, var(--gray-100) 63%);
+  background-size: 200% 100%;
+  animation: tt-shimmer 1.4s ease-in-out infinite;
+}
+.skeleton.circle {
+  border-radius: 999px;
+}
+
+/* Spinner tints to its context via currentColor (white on .btn-primary, etc.);
+   the transparent right border makes the spinning gap. Sized with font-size. */
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: tt-spin 0.6s linear infinite;
+  vertical-align: -0.15em;
+  flex-shrink: 0;
+}
+.btn-spinner {
+  margin-right: 8px;
+}
+
+.page-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 60vh;
+  color: var(--text-muted);
+}
+.page-loader .spinner {
+  font-size: 28px;
+  color: var(--primary);
+}
+
+.section-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 16px;
+  color: var(--text-muted);
+}
+.section-loader .spinner {
+  font-size: 20px;
+  color: var(--primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+  .spinner {
+    animation-duration: 1.4s;
   }
 }

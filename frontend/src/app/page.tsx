@@ -23,14 +23,14 @@ export default function Home() {
       style={{
         maxWidth: "var(--container-max)",
         margin: "0 auto",
-        padding: "96px 24px",
+        padding: "clamp(48px, 10vw, 96px) clamp(16px, 5vw, 24px)",
       }}
     >
       <section style={{ textAlign: "center", marginBottom: 72 }}>
         <p
           style={{
             fontFamily: "var(--font-script)",
-            fontSize: 28,
+            fontSize: "clamp(22px, 4vw, 28px)",
             color: "var(--secondary)",
             margin: 0,
           }}
@@ -39,7 +39,7 @@ export default function Home() {
         </p>
         <h1
           style={{
-            fontSize: 48,
+            fontSize: "clamp(30px, 7vw, 48px)",
             lineHeight: 1.1,
             fontWeight: 800,
             color: "var(--text-strong)",
@@ -81,7 +81,7 @@ export default function Home() {
         id="features"
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
           gap: 20,
         }}
       >

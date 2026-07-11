@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Spinner from "./ui/Spinner";
 
 /** Modal confirmation. Overlay click or Escape cancels; busy disables both buttons. */
 export default function ConfirmDialog({
@@ -42,7 +43,9 @@ export default function ConfirmDialog({
             className={danger ? "btn-danger" : "btn-primary"}
             onClick={onConfirm}
             disabled={busy}
+            aria-busy={busy || undefined}
           >
+            {busy && <Spinner className="btn-spinner" />}
             {busy ? "Working…" : confirmLabel}
           </button>
         </div>

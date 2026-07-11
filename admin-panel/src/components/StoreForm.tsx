@@ -15,7 +15,10 @@ import {
   type StoreMutationResult,
 } from "@/lib/types";
 import { CURRENCIES, CURRENCY_BY_CODE, currencySymbol } from "@/lib/currencies";
+import { countryByDial, DEFAULT_ISO2 } from "@/lib/phone";
 import { GalleryUpload, ImageUpload } from "@/components/ImageUpload";
+import PhoneField from "@/components/ui/PhoneField";
+import Spinner from "@/components/ui/Spinner";
 
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com";
 
@@ -37,6 +40,9 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState<ErrorDetail[]>([]);
   const [result, setResult] = useState<StoreMutationResult | null>(null);
+  // The picker tracks the selected country (for flag/validation); the stored value
+  // stays split across form.countryCode (dial code) + form.phoneNumber (national).
+  const [phoneIso2, setPhoneIso2] = useState(() => countryByDial(form.countryCode)?.iso2 ?? DEFAULT_ISO2);
 
   const set = <K extends keyof StoreFormState>(key: K, value: StoreFormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -60,6 +66,7 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return; // hard-block duplicate submits (belt-and-suspenders with the disabled button)
     setSaving(true);
     setError(null);
     setDetails([]);
@@ -267,16 +274,17 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
         {/* Contact / phone ---------------------------------------------- */}
         <section className="section">
           <h2>Website address (phone)</h2>
-          <div className="grid cols-3">
-            <div className="field">
-              <label>Country code *</label>
-              <input value={form.countryCode} onChange={(e) => set("countryCode", e.target.value)} inputMode="numeric" required />
-            </div>
-            <div className="field" style={{ gridColumn: "span 2" }}>
-              <label>Phone number *</label>
-              <input value={form.phoneNumber} onChange={(e) => set("phoneNumber", e.target.value)} inputMode="numeric" required />
-            </div>
-          </div>
+          <PhoneField
+            id="store-phone"
+            label="Phone number"
+            required
+            value={{ dialCode: form.countryCode, national: form.phoneNumber, iso2: phoneIso2 }}
+            onChange={(v) => {
+              set("countryCode", v.dialCode);
+              set("phoneNumber", v.national);
+              setPhoneIso2(v.iso2);
+            }}
+          />
           <p className="hint">
             Live at <code>{FRONTEND_URL}/{phoneFull || "…"}</code>
           </p>
@@ -493,7 +501,8 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
         )}
 
         <div className="actions">
-          <button type="submit" className="btn-primary" disabled={saving}>
+          <button type="submit" className="btn-primary" disabled={saving} aria-busy={saving || undefined}>
+            {saving && <Spinner className="btn-spinner" />}
             {saving ? "Saving…" : mode === "create" ? "Save & create store" : "Save changes"}
           </button>
           {saving && <span className="hint">Working…</span>}

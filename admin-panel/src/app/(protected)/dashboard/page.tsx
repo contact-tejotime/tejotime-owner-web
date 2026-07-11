@@ -2,7 +2,7 @@ import Link from "next/link";
 import BarList from "@/components/BarList";
 import GlobalSearch from "@/components/GlobalSearch";
 import KpiCard from "@/components/KpiCard";
-import CountBarChart from "@/components/charts/CountBarChart";
+import { CountBarChart } from "@/components/charts/lazy";
 import { bucketByMonth, formatAmount, formatCount, formatDate, isOlderThanDays } from "@/lib/format";
 import { getPlatformOverview, listBusinessesWithMetrics, listPlatformCustomers } from "@/lib/server-api";
 import { PREMIUM_PLAN_PRICE_INR } from "@/lib/static-data";

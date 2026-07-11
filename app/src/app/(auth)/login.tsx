@@ -2,9 +2,10 @@ import { Image } from 'expo-image';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { TButton, TInput, TKeyboardScreen, TText } from '@/components/common';
+import { PhoneInput, TButton, TInput, TKeyboardScreen, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
 import { useResponsive } from '@/hooks/useResponsive';
+import { combineToDigits, DEFAULT_DIAL_CODE, DEFAULT_ISO2 } from '@/lib/phone';
 import { useAppState } from '@/state/store';
 import { styles } from '@/styles';
 import { getHeight, moderateScale } from '@/styles/scale';
@@ -14,7 +15,11 @@ const logo = require('@/assets/images/logo-full.png');
 
 export default function Login() {
   const { colors } = useTheme();
-  const { phone, password, signInLoading, setPhone, setPassword, signIn } = useAppState();
+  const { signInLoading, signIn } = useAppState();
+  const [dialCode, setDialCode] = useState(DEFAULT_DIAL_CODE);
+  const [iso2, setIso2] = useState(DEFAULT_ISO2);
+  const [national, setNational] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const { centerStyle } = useResponsive(440);
 
@@ -32,13 +37,17 @@ export default function Login() {
               Sign in to manage your queue
             </TText>
           </View>
-          <TInput
+          <PhoneInput
             label="Phone number"
-            placeholder="+91 9399385943"
-            keyboardType="phone-pad"
-            autoCapitalize="none"
-            value={phone}
-            onChangeText={setPhone}
+            placeholder="9399385943"
+            dialCode={dialCode}
+            iso2={iso2}
+            national={national}
+            onChangeCountry={(c) => {
+              setDialCode(c.dialCode);
+              setIso2(c.iso2);
+            }}
+            onChangeNational={setNational}
             editable={!signInLoading}
           />
           <TInput
@@ -59,7 +68,12 @@ export default function Login() {
               </Pressable>
             }
           />
-          <TButton variant="primary" size="lg" fullWidth loading={signInLoading} onPress={signIn}>
+          <TButton
+            variant="primary"
+            size="lg"
+            fullWidth
+            loading={signInLoading}
+            onPress={() => signIn(combineToDigits(dialCode, national), password)}>
             Sign in
           </TButton>
         </View>

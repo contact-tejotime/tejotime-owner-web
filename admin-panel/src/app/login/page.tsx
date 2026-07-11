@@ -2,6 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import PhoneField from "@/components/ui/PhoneField";
+import { combineToDigits, DEFAULT_DIAL_CODE, DEFAULT_ISO2, formatPhone } from "@/lib/phone";
+import Spinner from "@/components/ui/Spinner";
 
 type Step = "mobile" | "otp";
 
@@ -14,7 +17,10 @@ async function errorMessage(res: Response, fallback: string): Promise<string> {
 export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("mobile");
-  const [mobile, setMobile] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState({ dialCode: DEFAULT_DIAL_CODE, iso2: DEFAULT_ISO2 });
+  const [national, setNational] = useState("");
+  // Combined bare digits (`<cc><national>`), matched against admins.mobile on the backend.
+  const mobile = combineToDigits(phoneCountry.dialCode, national);
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -70,7 +76,7 @@ export default function LoginPage() {
     <div className="login-shell">
       <div className="login-card">
         <div className="brand login-brand">
-          <span className="dot" />
+          <img src="/logo.png" alt="TejoTime" className="dot" />
           TejoTime Admin
         </div>
 
@@ -79,19 +85,19 @@ export default function LoginPage() {
             <h1 className="login-title">Sign in</h1>
             <p className="login-sub">Enter your registered mobile number to receive a one-time code.</p>
             {error && <div className="alert err">{error}</div>}
-            <label htmlFor="mobile">Mobile number</label>
-            <input
+            <PhoneField
               id="mobile"
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
+              label="Mobile number"
               placeholder="e.g. 9399385943"
-              value={mobile}
-              onChange={(e) => setMobile(e.target.value)}
-              required
               autoFocus
+              value={{ dialCode: phoneCountry.dialCode, national, iso2: phoneCountry.iso2 }}
+              onChange={(v) => {
+                setPhoneCountry({ dialCode: v.dialCode, iso2: v.iso2 });
+                setNational(v.national);
+              }}
             />
-            <button className="btn-primary login-btn" type="submit" disabled={busy || !mobile.trim()}>
+            <button className="btn-primary login-btn" type="submit" disabled={busy || !national.trim()} aria-busy={busy || undefined}>
+              {busy && <Spinner className="btn-spinner" />}
               {busy ? "Sending…" : "Send OTP"}
             </button>
           </form>
@@ -99,7 +105,7 @@ export default function LoginPage() {
           <form onSubmit={verifyOtp}>
             <h1 className="login-title">Enter code</h1>
             <p className="login-sub">
-              We sent a one-time code to <strong>{mobile}</strong>.
+              We sent a one-time code to <strong>{formatPhone(mobile)}</strong>.
             </p>
             {error && <div className="alert err">{error}</div>}
             <label htmlFor="otp">One-time code</label>
@@ -116,7 +122,8 @@ export default function LoginPage() {
               required
             />
             <div className="hint">Demo OTP: <code>1234</code></div>
-            <button className="btn-primary login-btn" type="submit" disabled={busy || otp.length < 4}>
+            <button className="btn-primary login-btn" type="submit" disabled={busy || otp.length < 4} aria-busy={busy || undefined}>
+              {busy && <Spinner className="btn-spinner" />}
               {busy ? "Verifying…" : "Verify & sign in"}
             </button>
             <button

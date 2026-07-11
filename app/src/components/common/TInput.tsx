@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { StyleProp, StyleSheet, TextInput, TextInputProps, TextStyle, View, ViewStyle } from 'react-native';
 
 import { TText } from '@/components/common/TText';
+import { Icon } from '@/components/ui/Icon';
 import { styles } from '@/styles';
 import { moderateScale, rSize, scaleFont } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
@@ -18,6 +19,7 @@ export function TInput({
   leadingIcon,
   trailingIcon,
   prefix,
+  disabled,
   containerStyle,
   ...rest
 }: {
@@ -28,12 +30,13 @@ export function TInput({
   leadingIcon?: React.ReactNode;
   trailingIcon?: React.ReactNode;
   prefix?: string;
+  disabled?: boolean;
   containerStyle?: StyleProp<ViewStyle>;
 } & TextInputProps) {
   const theme = useTheme();
   const [focus, setFocus] = useState(false);
   const borderColor = error ? theme.colors.error : focus ? theme.colors.borderFocus : theme.colors.borderDefault;
-  const s = useMemo(() => createTInputStyles(theme, borderColor), [theme, borderColor]);
+  const s = useMemo(() => createTInputStyles(theme, borderColor, disabled), [theme, borderColor, disabled]);
 
   return (
     <View style={[s.root, containerStyle]}>
@@ -52,6 +55,7 @@ export function TInput({
         <TextInput
           placeholderTextColor={theme.colors.textSubtle}
           {...rest}
+          editable={disabled ? false : rest.editable}
           onFocus={(e) => {
             setFocus(true);
             rest.onFocus?.(e);
@@ -62,7 +66,7 @@ export function TInput({
           }}
           style={s.input}
         />
-        {trailingIcon}
+        {trailingIcon ?? (disabled ? <Icon name="lock" size={16} color={theme.colors.textSubtle} /> : null)}
       </View>
       {(error || hint) && (
         <TText variant="bodySm" color={error ? 'error' : 'textMuted'}>
@@ -76,6 +80,7 @@ export function TInput({
 const createTInputStyles = (
   theme: ThemeStyleProps & { controlHeight: typeof import('@/theme/tokens').controlHeight; fontFamily: typeof fontFamily },
   borderColor: string,
+  disabled?: boolean,
 ) =>
   StyleSheet.create({
     root: { ...styles.g1 },
@@ -84,7 +89,7 @@ const createTInputStyles = (
       ...styles.itemsCenter,
       ...styles.g2,
       paddingHorizontal: moderateScale(12),
-      backgroundColor: theme.colors.surfaceCard,
+      backgroundColor: disabled ? theme.colors.surfaceSunken : theme.colors.surfaceCard,
       borderWidth: moderateScale(1),
       borderColor,
       borderRadius: moderateScale(theme.radius.md),
@@ -96,7 +101,7 @@ const createTInputStyles = (
       ...styles.flex,
       fontFamily: theme.fontFamily.regular,
       fontSize: scaleFont(15),
-      color: theme.colors.textStrong,
+      color: disabled ? theme.colors.textMuted : theme.colors.textStrong,
       padding: 0,
       includeFontPadding: false,
       // backgroundColor: 'red'

@@ -3,6 +3,8 @@
 import { Fragment, useMemo, useState } from "react";
 import type { AdminCustomer, CustomerVisit } from "@/lib/types";
 import { formatCount, formatDateTime, formatMoney, formatMoneyCompact } from "@/lib/format";
+import { formatPhone } from "@/lib/phone";
+import TableSkeleton from "./ui/skeletons/TableSkeleton";
 
 type SortKey = "recent" | "spend" | "visits";
 
@@ -100,7 +102,7 @@ export default function CustomersTable({ storeId, customers }: { storeId: string
                     <td className="nm">
                       {c.name} {c.isVip && <span className="badge badge-vip">VIP</span>}
                     </td>
-                    <td>{c.phone}</td>
+                    <td>{formatPhone(c.phone)}</td>
                     <td className="num">{formatCount(c.visitsCount)}</td>
                     <td className="num">{formatMoneyCompact(c.totalSpend)}</td>
                     <td>{c.lastVisitLabel}</td>
@@ -109,7 +111,9 @@ export default function CustomersTable({ storeId, customers }: { storeId: string
                     <tr className="drawer-row">
                       <td colSpan={5}>
                         <div className="drawer-inner">
-                          {(!drawer || drawer.status === "loading") && "Loading visit history…"}
+                          {(!drawer || drawer.status === "loading") && (
+                            <TableSkeleton rows={3} cols={4} numCols={1} />
+                          )}
                           {drawer?.status === "error" && "Could not load visit history."}
                           {drawer?.status === "loaded" &&
                             (drawer.visits.length === 0 ? (

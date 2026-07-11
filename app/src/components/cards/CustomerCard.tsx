@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { TText } from '@/components/common';
 import { InitialsAvatar } from '@/components/ui/InitialsAvatar';
+import { formatPhone } from '@/lib/phone';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
@@ -36,7 +37,7 @@ export function CustomerCard({
           </TText>
           {phone && (
             <TText variant="bodySm" color="textMuted" style={s.phone}>
-              {phone}
+              {formatPhone(phone)}
             </TText>
           )}
         </View>

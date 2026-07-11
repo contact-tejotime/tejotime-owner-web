@@ -3,6 +3,7 @@ import ExternalLinkIcon from "@/components/ExternalLinkIcon";
 import StoreStatusToggle from "@/components/StoreStatusToggle";
 import StoreTabs from "@/components/store-hub/StoreTabs";
 import { getBusinessDetail } from "@/lib/server-api";
+import { formatPhone } from "@/lib/phone";
 
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com";
 
@@ -40,7 +41,7 @@ export default async function StoreHubLayout({
       <p className="store-head-meta">
         {meta}
         {meta && detail.phoneFull ? " · " : ""}
-        {detail.phoneFull ? `+${detail.phoneFull}` : ""}
+        {detail.phoneFull ? formatPhone(detail.phoneFull) : ""}
         {detail.phoneFull && (
           <>
             {" · "}

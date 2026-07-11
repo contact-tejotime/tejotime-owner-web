@@ -1,13 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, TextStyle, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ServiceCard } from '@/components/cards/ServiceCard';
-import { TText } from '@/components/common';
+import { PhoneInput, TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Input } from '@/components/ui/Input';
 import { useResponsive } from '@/hooks/useResponsive';
+import { combineToE164, DEFAULT_DIAL_CODE, DEFAULT_ISO2 } from '@/lib/phone';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
@@ -43,7 +44,21 @@ export function AddWalkInSheet() {
   const resolveColor = useServiceColor();
   const store = useAppState();
   const open = store.sheet === 'walkin';
+  const [name, setName] = useState('');
+  const [dialCode, setDialCode] = useState(DEFAULT_DIAL_CODE);
+  const [iso2, setIso2] = useState(DEFAULT_ISO2);
+  const [national, setNational] = useState('');
   const { centerStyle } = useResponsive(560);
+
+  // Reset the typed fields each time the sheet opens (mirrors the store's openWalkin reset).
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setDialCode(DEFAULT_DIAL_CODE);
+      setIso2(DEFAULT_ISO2);
+      setNational('');
+    }
+  }, [open]);
   const overlay = useMemo(() => createSheetOverlayStyles(), []);
   const s = useMemo(() => createAddWalkInSheetStyles(theme, insets.bottom), [theme, insets.bottom]);
 
@@ -88,17 +103,21 @@ export function AddWalkInSheet() {
             <Input
               label="Customer name"
               placeholder="Full name"
-              value={store.walkin.name}
-              onChangeText={store.setWalkinField('name')}
+              value={name}
+              onChangeText={setName}
               containerStyle={s.nameInput}
             />
-            <Input
+            <PhoneInput
               label="Phone"
-              prefix="+91"
               placeholder="98xxx xxxxx"
-              keyboardType="phone-pad"
-              value={store.walkin.phone}
-              onChangeText={store.setWalkinField('phone')}
+              dialCode={dialCode}
+              iso2={iso2}
+              national={national}
+              onChangeCountry={(c) => {
+                setDialCode(c.dialCode);
+                setIso2(c.iso2);
+              }}
+              onChangeNational={setNational}
             />
 
             <TText variant="bodySm" weight="medium" color="textBody" style={s.sectionLabel}>
@@ -163,7 +182,7 @@ export function AddWalkInSheet() {
           </ScrollView>
 
           <View style={s.footer}>
-            <Button variant="primary" size="lg" fullWidth onPress={store.addWalkin}>
+            <Button variant="primary" size="lg" fullWidth onPress={() => store.addWalkin({ name, phone: combineToE164(dialCode, national) })}>
               Add to queue
             </Button>
           </View>

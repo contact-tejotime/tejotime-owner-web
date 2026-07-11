@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Yellowtail } from "next/font/google";
 import "./globals.css";
 
@@ -18,6 +18,13 @@ export const metadata: Metadata = {
   title: "TejoTime — Run your queue, bookings & customers in one place",
   description:
     "The digital OS for small business. TejoTime gives any appointment-based business online booking, a live queue, reminders and customer management — without a developer or IT team.",
+};
+
+// Explicit mobile viewport (Next injects a default, but pin it here so scaling is
+// controlled). user-scalable stays on for accessibility — no maximum-scale lock.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

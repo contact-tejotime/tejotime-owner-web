@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { Money, StoreListItem } from "@/lib/types";
 import { downloadCsv } from "@/lib/csv";
 import { formatCount, formatDateTime, formatMoney } from "@/lib/format";
+import { formatPhone } from "@/lib/phone";
 
 export interface CustomerReportRow {
   key: string;
@@ -104,7 +105,7 @@ export default function ReportsExplorer({
         ["Name", "Phone", "Stores", "Visits", "Spend", "Currency"],
         ...customerRows.map((c) => [
           c.name,
-          c.phone,
+          formatPhone(c.phone),
           c.storeLabel,
           String(c.visitsCount),
           c.totalSpend ? String(c.totalSpend.amount / 100) : "",
@@ -116,7 +117,7 @@ export default function ReportsExplorer({
         ["Name", "Phone", "Store", "Visit Datetime", "Service", "Amount", "Currency"],
         ...visitRows.map((v) => [
           v.name,
-          v.phone,
+          formatPhone(v.phone),
           v.storeName,
           v.completedAt,
           v.serviceName ?? "",
@@ -207,7 +208,7 @@ export default function ReportsExplorer({
               {customerRows.map((c) => (
                 <tr key={c.key}>
                   <td className="nm">{c.name}</td>
-                  <td>{c.phone}</td>
+                  <td>{formatPhone(c.phone)}</td>
                   <td>{c.storeLabel}</td>
                   <td className="num">{formatCount(c.visitsCount)}</td>
                   <td className="num">{c.totalSpend ? formatMoney(c.totalSpend) : "—"}</td>
@@ -238,7 +239,7 @@ export default function ReportsExplorer({
               {visitRows.map((v) => (
                 <tr key={v.id}>
                   <td className="nm">{v.name}</td>
-                  <td>{v.phone}</td>
+                  <td>{formatPhone(v.phone)}</td>
                   <td>{v.storeName}</td>
                   <td>{formatDateTime(v.completedAt)}</td>
                   <td>{v.serviceName || "(unknown)"}</td>

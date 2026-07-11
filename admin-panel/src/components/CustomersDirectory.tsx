@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CustomerVisit, PlatformCustomer, StoreListItem } from "@/lib/types";
 import { downloadCsv } from "@/lib/csv";
 import { formatCount, formatDate, formatMoney, formatMoneyCompact, isOlderThanDays } from "@/lib/format";
+import { formatPhone } from "@/lib/phone";
+import Skeleton from "./ui/skeletons/Skeleton";
 
 const SHOW_LIMIT = 50;
 const TIMELINE_VISITS = 5;
@@ -119,7 +121,7 @@ export default function CustomersDirectory({
       ["Name", "Phone", "Stores", "Visits", "Spend", "Currency"],
       ...filtered.map((c) => [
         c.name,
-        c.phone,
+        formatPhone(c.phone),
         c.memberships.map((m) => m.storeName).join(" / "),
         String(c.visitsCount),
         c.totalSpend ? String(c.totalSpend.amount / 100) : "",
@@ -235,7 +237,7 @@ export default function CustomersDirectory({
                             <span className="nm-line">
                               {c.name} {c.isVip && <span className="badge badge-vip">VIP</span>}
                             </span>
-                            <span className="ph-line">{c.phone}</span>
+                            <span className="ph-line">{formatPhone(c.phone)}</span>
                           </span>
                         </div>
                       </td>
@@ -268,7 +270,7 @@ export default function CustomersDirectory({
                       {selected.name} {selected.isVip && <span className="badge badge-vip">VIP</span>}
                     </div>
                     <div className="profile-sub">
-                      {selected.phone} · last visit {selected.lastVisitLabel}
+                      {formatPhone(selected.phone)} · last visit {selected.lastVisitLabel}
                     </div>
                   </span>
                 </div>
@@ -291,7 +293,20 @@ export default function CustomersDirectory({
                 </div>
 
                 <div className="profile-label">Recent visits</div>
-                {!profile && <div className="profile-sub">Loading visit history…</div>}
+                {!profile && (
+                  <div className="timeline" aria-label="Loading visit history">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="timeline-item">
+                        <span className="timeline-dot" />
+                        <div className="timeline-main">
+                          <Skeleton width="55%" height={12} radius={6} />
+                          <Skeleton width={44} height={12} radius={6} />
+                        </div>
+                        <Skeleton width="40%" height={10} radius={5} style={{ marginTop: 6 }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {profile?.status === "error" && <div className="profile-sub">Could not load visit history.</div>}
                 {profile?.status === "loaded" &&
                   (profile.visits.length === 0 ? (

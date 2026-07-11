@@ -48,7 +48,7 @@ function ProfileForm() {
         label="Phone"
         prefix={`+${biz?.countryCode ?? '91'}`}
         value={biz?.phoneNumber ?? ''}
-        editable={false}
+        disabled
       />
       <TInput label="Address" value={address} onChangeText={setAddress} />
       <View style={s.card}>

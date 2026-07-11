@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { StoreListItem } from "@/lib/types";
+import Spinner from "@/components/ui/Spinner";
 
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com";
 
@@ -27,7 +28,7 @@ export function Sidebar({ stores }: { stores: StoreListItem[] }) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <span className="dot" />
+        <img src="/logo.png" alt="TejoTime" className="dot" />
         TejoTime Admin
       </div>
 
@@ -81,8 +82,8 @@ export function Sidebar({ stores }: { stores: StoreListItem[] }) {
         );
       })}
 
-      <button type="button" className="logout-btn" onClick={logout} disabled={loggingOut}>
-        <span aria-hidden>⎋</span>
+      <button type="button" className="logout-btn" onClick={logout} disabled={loggingOut} aria-busy={loggingOut || undefined}>
+        {loggingOut ? <Spinner /> : <span aria-hidden>⎋</span>}
         {loggingOut ? "Logging out…" : "Log out"}
       </button>
     </aside>

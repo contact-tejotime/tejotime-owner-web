@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Spinner from "@/components/ui/Spinner";
 
 /** Dashboard search — ⌘K/Ctrl+K focuses it; Enter opens /customers pre-filtered. */
 export default function GlobalSearch() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [term, setTerm] = useState("");
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -22,7 +24,7 @@ export default function GlobalSearch() {
 
   function submit() {
     const q = term.trim();
-    router.push(q ? `/customers?q=${encodeURIComponent(q)}` : "/customers");
+    startTransition(() => router.push(q ? `/customers?q=${encodeURIComponent(q)}` : "/customers"));
   }
 
   return (
@@ -41,7 +43,13 @@ export default function GlobalSearch() {
           if (e.key === "Enter") submit();
         }}
       />
-      <span className="search-kbd">⌘K</span>
+      {isPending ? (
+        <span className="search-kbd" style={{ display: "inline-flex", color: "var(--primary)" }}>
+          <Spinner />
+        </span>
+      ) : (
+        <span className="search-kbd">⌘K</span>
+      )}
     </div>
   );
 }

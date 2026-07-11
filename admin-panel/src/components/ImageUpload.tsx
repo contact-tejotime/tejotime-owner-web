@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import type { GalleryRow } from "@/lib/types";
+import Spinner from "@/components/ui/Spinner";
 
 /** POST a file to the admin panel's server proxy, which pushes it to Supabase and returns the URL. */
 async function uploadImage(file: File, assetType: string): Promise<string> {
@@ -54,6 +55,7 @@ export function ImageUpload({
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <div
           style={{
+            position: "relative",
             width: 160,
             height: 96,
             flexShrink: 0,
@@ -68,9 +70,14 @@ export function ImageUpload({
             justifyContent: "center",
             color: "var(--text-muted)",
             fontSize: 12,
+            overflow: "hidden",
           }}
         >
-          {!value && "No image"}
+          {busy ? (
+            <span className="skeleton" aria-hidden style={{ position: "absolute", inset: 0, borderRadius: 10 }} />
+          ) : (
+            !value && "No image"
+          )}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <input ref={inputRef} type="file" accept={ACCEPT} onChange={pick} disabled={busy} style={{ maxWidth: 260 }} />
@@ -81,7 +88,11 @@ export function ImageUpload({
           )}
         </div>
       </div>
-      {busy && <p className="hint">Uploading…</p>}
+      {busy && (
+        <p className="hint" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Spinner /> Uploading…
+        </p>
+      )}
       {err && <p className="hint" style={errStyle}>{err}</p>}
     </div>
   );
@@ -164,7 +175,11 @@ export function GalleryUpload({
         </div>
       )}
       <input ref={inputRef} type="file" accept={ACCEPT} multiple onChange={pick} disabled={busy} />
-      {busy && <p className="hint">Uploading…</p>}
+      {busy && (
+        <p className="hint" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Spinner /> Uploading…
+        </p>
+      )}
       {err && <p className="hint" style={errStyle}>{err}</p>}
       {value.length === 0 && !busy && <p className="hint">Choose one or more photos from your device.</p>}
     </div>

@@ -25,8 +25,6 @@ type Sheet = 'walkin' | null;
 export type WalkInPosition = 'end' | 'next';
 
 type WalkIn = {
-  name: string;
-  phone: string;
   service: string | null; // service name
   position: WalkInPosition;
   staffId: string; // 'auto' | staff id
@@ -57,8 +55,6 @@ type State = {
   authed: boolean;
   authLoading: boolean;
   signInLoading: boolean;
-  phone: string;
-  password: string;
   queueStaff: string; // 'all' | staff id
   plan: Plan;
   sheet: Sheet;
@@ -78,9 +74,7 @@ type State = {
 };
 
 type Store = State & {
-  setPhone: (v: string) => void;
-  setPassword: (v: string) => void;
-  signIn: () => void;
+  signIn: (phone: string, password: string) => void;
   signOut: () => void;
   setQueueStaff: (id: string) => void;
   setSearch: (v: string) => void;
@@ -89,11 +83,10 @@ type Store = State & {
   closeWalkin: () => void;
   openQr: () => void;
   closeQr: () => void;
-  setWalkinField: (k: 'name' | 'phone') => (v: string) => void;
   setWalkinPosition: (p: WalkInPosition) => void;
   setWalkinStaff: (id: string) => void;
   pickService: (name: string) => void;
-  addWalkin: () => void;
+  addWalkin: (fields: { name: string; phone: string }) => void;
   openDetail: (id: string) => void;
   closeDetail: () => void;
   startService: (id: string) => void;
@@ -115,7 +108,7 @@ type Store = State & {
   updateStaffMember: (id: string, f: { name: string; roleLabel: string }) => Promise<boolean>;
 };
 
-const emptyWalkin: WalkIn = { name: '', phone: '', service: null, position: 'end', staffId: 'auto', error: '' };
+const emptyWalkin: WalkIn = { service: null, position: 'end', staffId: 'auto', error: '' };
 
 const AppStateContext = createContext<Store | null>(null);
 
@@ -141,8 +134,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     authed: false,
     authLoading: true,
     signInLoading: false,
-    phone: '',
-    password: '',
     queueStaff: 'all',
     plan: 'free',
     sheet: null,
@@ -315,23 +306,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const store = useMemo<Store>(() => {
     return {
       ...s,
-      setPhone: (v) => patch(() => ({ phone: v })),
-      setPassword: (v) => patch(() => ({ password: v })),
-      signIn: async () => {
-        if (!s.phone.trim() || !s.password.trim()) {
+      signIn: async (phone, password) => {
+        if (!phone.trim() || !password.trim()) {
           showToast('Enter your phone number and password', 'error');
           return;
         }
         patch(() => ({ signInLoading: true }));
         try {
-          const res: any = await api.login(s.phone.trim(), s.password);
+          const res: any = await api.login(phone.trim(), password);
           const message =
             res?.message ?? (res?.user?.name ? `Welcome back, ${res.user.name}` : 'Signed in successfully');
           setS((p) => ({
             ...p,
             authed: true,
             signInLoading: false,
-            password: '',
             business: res.business ? { id: res.business.id, name: res.business.name, slug: res.business.slug } : null,
             plan: res.business?.plan ?? 'free',
           }));
@@ -354,7 +342,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           type = 'info';
         }
         teardown();
-        setS((p) => ({ ...p, authed: false, phone: '', password: '' }));
+        setS((p) => ({ ...p, authed: false }));
         showToast(message, type);
       },
       setQueueStaff: (id) => patch(() => ({ queueStaff: id })),
@@ -368,19 +356,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       closeWalkin: () => patch(() => ({ sheet: null })),
       openQr: () => patch(() => ({ qr: true })),
       closeQr: () => patch(() => ({ qr: false })),
-      setWalkinField: (k) => (v) => patch((p) => ({ walkin: { ...p.walkin, [k]: v, error: '' } })),
       setWalkinPosition: (position) => patch((p) => ({ walkin: { ...p.walkin, position } })),
       setWalkinStaff: (staffId) => patch((p) => ({ walkin: { ...p.walkin, staffId } })),
       pickService: (name) => patch((p) => ({ walkin: { ...p.walkin, service: name, error: '' } })),
-      addWalkin: async () => {
+      addWalkin: async ({ name, phone }) => {
         const w = s.walkin;
-        if (!w.name.trim()) return patch(() => ({ walkin: { ...w, error: 'Enter a customer name' } }));
+        if (!name.trim()) return patch(() => ({ walkin: { ...w, error: 'Enter a customer name' } }));
         if (!w.service) return patch(() => ({ walkin: { ...w, error: 'Pick a service' } }));
         const serviceId = s.services.find((sv) => sv.name === w.service)?.id ?? null;
         try {
           const res: any = await api.addWalkin({
-            name: w.name.trim(),
-            phone: w.phone.trim() || undefined,
+            name: name.trim(),
+            phone: phone.trim() || undefined,
             serviceId,
             staffId: w.staffId,
             position: w.position,

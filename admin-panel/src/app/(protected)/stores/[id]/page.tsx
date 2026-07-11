@@ -1,9 +1,7 @@
 import Link from "next/link";
 import BarList from "@/components/BarList";
 import KpiCard from "@/components/KpiCard";
-import RevenueTrendChart from "@/components/charts/RevenueTrendChart";
-import SourcePie from "@/components/charts/SourcePie";
-import VisitsBarChart from "@/components/charts/VisitsBarChart";
+import { RevenueTrendChart, SourcePie, VisitsBarChart } from "@/components/charts/lazy";
 import { formatCount, formatMoneyCompact, formatPercent, rupees } from "@/lib/format";
 import { getStoreAnalytics } from "@/lib/server-api";
 

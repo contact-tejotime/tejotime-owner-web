@@ -2,6 +2,7 @@ export { TText } from './TText';
 export { TButton } from './TButton';
 export type { TButtonVariant } from './TButton';
 export { TInput } from './TInput';
+export { PhoneInput } from './PhoneInput';
 export { TSearchInput } from './TSearchInput';
 export { TSwitch } from './TSwitch';
 export { TLoader } from './TLoader';

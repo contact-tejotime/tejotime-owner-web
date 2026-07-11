@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { StoreListItemWithMetrics } from "@/lib/types";
@@ -8,6 +8,7 @@ import { formatCount, formatMoneyCompact } from "@/lib/format";
 import ConfirmDialog from "./ConfirmDialog";
 import ExternalLinkIcon from "./ExternalLinkIcon";
 import StoreStatusToggle from "./StoreStatusToggle";
+import Spinner from "./ui/Spinner";
 
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com";
 
@@ -18,6 +19,8 @@ function distinct(stores: StoreListItemWithMetrics[], pick: (s: StoreListItemWit
 
 export default function StoresTable({ stores }: { stores: StoreListItemWithMetrics[] }) {
   const router = useRouter();
+  const [navPending, startNav] = useTransition();
+  const [navId, setNavId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [city, setCity] = useState("");
   const [category, setCategory] = useState("");
@@ -42,6 +45,11 @@ export default function StoresTable({ stores }: { stores: StoreListItemWithMetri
   }, [stores, search, city, category, status]);
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((s) => selected.has(s.id));
+
+  function openStore(id: string) {
+    setNavId(id);
+    startNav(() => router.push(`/stores/${id}`));
+  }
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -125,7 +133,8 @@ export default function StoresTable({ stores }: { stores: StoreListItemWithMetri
           <span className="count">
             {selected.size} selected{bulkError ? ` · ${bulkError}` : ""}
           </span>
-          <button type="button" disabled={bulkBusy} onClick={() => bulkSetActive(true)}>
+          <button type="button" disabled={bulkBusy} onClick={() => bulkSetActive(true)} aria-busy={bulkBusy || undefined}>
+            {bulkBusy && <Spinner className="btn-spinner" />}
             Enable
           </button>
           <button type="button" disabled={bulkBusy} onClick={() => setBulkConfirm(true)}>
@@ -180,7 +189,7 @@ export default function StoresTable({ stores }: { stores: StoreListItemWithMetri
               </tr>
             )}
             {filtered.map((s) => (
-              <tr key={s.id} className="clickable" onClick={() => router.push(`/stores/${s.id}`)}>
+              <tr key={s.id} className="clickable" onClick={() => openStore(s.id)}>
                 <td onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
@@ -194,6 +203,9 @@ export default function StoresTable({ stores }: { stores: StoreListItemWithMetri
                   <Link href={`/stores/${s.id}`} onClick={(e) => e.stopPropagation()}>
                     {s.name || "(unnamed)"}
                   </Link>
+                  {navPending && navId === s.id && (
+                    <Spinner size={12} style={{ marginLeft: 8, color: "var(--primary)" }} />
+                  )}
                 </td>
                 <td>{[s.category, s.city].filter(Boolean).join(" · ") || "—"}</td>
                 <td className="num">{formatCount(s.customersCount)}</td>

@@ -5,9 +5,12 @@ import type { CSSProperties } from "react";
 import type { Socket } from "socket.io-client";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/Button";
+import PhoneField from "@/components/ui/PhoneField";
 import { ApiError, publicApi, type Microsite, type MicrositeStaff, type Slot, type Ticket } from "@/lib/api";
 import { currencySymbol } from "@/lib/currencies";
+import { combineToE164, DEFAULT_DIAL_CODE, DEFAULT_ISO2, formatPhone, splitPhone } from "@/lib/phone";
 import { connectCustomer, type CustomerAuth } from "@/lib/socket";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import "./salon.css";
 
 const AVATAR_COLORS = ["var(--primary)", "var(--secondary)", "var(--amber-500)"];
@@ -105,8 +108,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // Per-business localStorage namespace (see STORE_PREFIX) and the shop's real contact
   // number for the rate-limited "call the shop" view (was a hardcoded demo number).
   const storeKey = `${STORE_PREFIX}${site.slug}`;
-  const shopPhone = site.phoneNumber ? `+${site.countryCode ?? ""} ${site.phoneNumber}`.trim() : null;
+  const shopPhone = site.phoneNumber ? formatPhone(combineToE164(site.countryCode ?? "", site.phoneNumber)) : null;
   const [navSolid, setNavSolid] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false); // mobile hamburger dropdown
+  // Single mobile breakpoint (JS + inline styles) driving both the nav collapse and the
+  // hero stacking — reliably applies via React rendering on every load and hot-reload.
+  const isMobile = useMediaQuery("(max-width: 860px)");
   const [liveWait, setLiveWait] = useState(initialSite.live.waitMinutes);
   const [liveCount, setLiveCount] = useState(initialSite.live.queueCount);
   const [liveStaff, setLiveStaff] = useState<MicrositeStaff[]>(initialSite.staff ?? []);
@@ -118,7 +125,21 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const [tstep, setTstep] = useState(1); // Track-my-turn sub-step: 1 phone → 2 OTP → 3 not-found
   const [cart, setCart] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  // Phone entry is split into a searchable country code + national number. `phone`
+  // (E.164, e.g. +919824410712) is derived and remains the single value used for
+  // storage, dedup and every API call, so the rest of the flow is unchanged.
+  const [phoneCountry, setPhoneCountry] = useState<{ dialCode: string; iso2: string }>({
+    dialCode: DEFAULT_DIAL_CODE,
+    iso2: DEFAULT_ISO2,
+  });
+  const [national, setNational] = useState("");
+  const phone = combineToE164(phoneCountry.dialCode, national);
+  // Seed the picker from a stored full number (held / lastPhone restore).
+  const seedPhone = (raw: string) => {
+    const parts = splitPhone(raw);
+    setPhoneCountry({ dialCode: parts.dialCode, iso2: parts.iso2 });
+    setNational(parts.national);
+  };
   const [barber, setBarber] = useState("any");
   const [faqOpen, setFaqOpen] = useState<number | null>(0);
   const [submitting, setSubmitting] = useState(false);
@@ -386,13 +407,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     const store = storeRef.current;
     const lp = store.lastPhone;
     if (lp && store.blocked[lp]) {
-      setPhone(lp);
+      seedPhone(lp);
       setView("blocked");
       setJoinOpen(true);
       return;
     }
     if (held) {
-      setPhone(held.phone);
+      seedPhone(held.phone);
       setName(held.name);
       setView("already");
       setJoinOpen(true);
@@ -402,7 +423,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setStep(1);
     setCart(null);
     setName(store.lastName || "");
-    setPhone(lp || "");
+    seedPhone(lp || "");
     setBarber(preselectBarber);
     setTicket(null);
     setBooking(null);
@@ -424,13 +445,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setFormError("");
     // Same browser: if we already hold a live ticket locally, jump straight to it.
     if (held) {
-      setPhone(held.phone);
+      seedPhone(held.phone);
       setName(held.name);
       setView("already");
       setJoinOpen(true);
       return;
     }
-    setPhone(storeRef.current.lastPhone || "");
+    seedPhone(storeRef.current.lastPhone || "");
     setTstep(1);
     setView("track");
     setJoinOpen(true);
@@ -513,7 +534,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setCart(null);
     setBarber("any");
     setName(trackedName || storeRef.current.lastName || "");
-    setPhone(verifiedPhone);
+    seedPhone(verifiedPhone);
     setOtp(["", "", "", ""]);
     setOtpError("");
     setFormError("");
@@ -759,7 +780,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setStep(1);
     setCart(null);
     setName("");
-    setPhone("");
+    seedPhone("");
     setBarber("any");
     setOtp(["", "", "", ""]);
     setOtpError("");
@@ -802,6 +823,18 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // Owner has started this customer's service (waiting → in_service) — surface it live.
   const inService = ticket?.status === "in_service" || justTurn;
 
+  // In-page jump links, shared by the desktop bar and the mobile dropdown so the
+  // two never drift. Each is shown only when its section actually renders.
+  const navLinks = (
+    [
+      [showAbout, "About", "#about"],
+      [gallery.length > 0 || isDemo, "Gallery", "#gallery"],
+      [services.length > 0, "Services", "#services"],
+      [barbers.length > 0, "Team", "#team"],
+      [Boolean(site.address || site.area || site.hours.length > 0), "Visit us", "#visit"],
+    ] as [boolean, string, string][]
+  ).filter(([show]) => show);
+
   const navStyle: CSSProperties = {
     position: "sticky",
     top: 0,
@@ -834,59 +867,95 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     <div style={{ position: "relative", overflowX: "hidden" }}>
       {/* ===== NAV ===== */}
       <div style={navStyle}>
-        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 32px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: "linear-gradient(135deg, var(--brand-ink), var(--primary))", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 clamp(16px, 4vw, 32px)", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: "linear-gradient(135deg, var(--brand-ink), var(--primary))", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0 }}>
               <Icon name="scissors" size={20} />
             </div>
-            <span style={{ font: "var(--fw-extrabold) 21px/1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)" }}>{site.name}</span>
+            <span style={{ font: "var(--fw-extrabold) 21px/1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{site.name}</span>
           </div>
-          <div style={{ display: "flex", gap: 26, alignItems: "center" }}>
-            {([
-              [showAbout, "About", "#about"],
-              [gallery.length > 0 || isDemo, "Gallery", "#gallery"],
-              [services.length > 0, "Services", "#services"],
-              [barbers.length > 0, "Team", "#team"],
-              [Boolean(site.address || site.area || site.hours.length > 0), "Visit us", "#visit"],
-            ] as [boolean, string, string][])
-              .filter(([show]) => show)
-              .map(([, label, href]) => (
-              <a key={href} href={href} className="salonNavLink" style={{ font: "var(--fw-medium) 14px/1 var(--font-sans)", color: "var(--text-muted)", textDecoration: "none", transition: "color .15s ease" }}>
+          {/* Desktop: in-page jump links (hidden on mobile) */}
+          {!isMobile && (
+            <div style={{ display: "flex", gap: 26, alignItems: "center" }}>
+              {navLinks.map(([, label, href]) => (
+                <a key={href} href={href} className="salonNavLink" style={{ font: "var(--fw-medium) 14px/1 var(--font-sans)", color: "var(--text-muted)", textDecoration: "none", transition: "color .15s ease" }}>
+                  {label}
+                </a>
+              ))}
+            </div>
+          )}
+          {/* Desktop: action buttons · Mobile: hamburger toggle */}
+          {!isMobile ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Button variant="primary" onClick={openTrack}>Track my turn</Button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              <Button variant="primary" size="sm" onClick={openTrack}>Track my turn</Button>
+              <button
+                type="button"
+                aria-label={menuOpen ? "Close menu" : "Open menu"}
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((o) => !o)}
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", padding: 6, borderRadius: 8, cursor: "pointer", color: "var(--text-strong)" }}
+              >
+                <Icon name={menuOpen ? "x" : "menu"} size={24} />
+              </button>
+            </div>
+          )}
+        </div>
+        {/* Mobile dropdown — same links + actions as the desktop bar */}
+        {isMobile && menuOpen && (
+          <div style={{ display: "flex", flexDirection: "column", padding: "8px clamp(16px, 4vw, 32px) 18px", background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-md)", animation: "ttFade .18s ease both" }}>
+            {navLinks.map(([, label, href]) => (
+              <a key={href} href={href} onClick={() => setMenuOpen(false)} style={{ font: "var(--fw-medium) 15px/1 var(--font-sans)", color: "var(--text-body)", textDecoration: "none", padding: "14px 6px", borderBottom: "1px solid var(--border-subtle)" }}>
                 {label}
               </a>
             ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
+              <Button fullWidth onClick={() => { setMenuOpen(false); openQueue(); }}>Join queue</Button>
+            </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Button variant="outline" onClick={openTrack}>Track my turn</Button>
-            <Button onClick={openQueue}>Join queue</Button>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ===== HERO ===== */}
-      <div style={{ position: "relative", height: 560, overflow: "hidden" }}>
+      <div style={{ position: "relative", overflow: "hidden", minHeight: "clamp(440px, 68vh, 560px)" }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, color-mix(in srgb, var(--brand-ink) 22%, #cfd6e6), color-mix(in srgb, var(--primary) 18%, #dfe6f2) 60%, color-mix(in srgb, var(--secondary) 16%, #e3efed))" }} />
-        <div style={{ position: "absolute", right: "6%", top: "50%", transform: "translateY(-50%)", width: 380, height: 380, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,.5), transparent 62%)" }} />
+        {/* Desktop only: decorative glow + full-bleed photo behind the copy with a left→right scrim.
+            On mobile the copy sits on the clean gradient and the photo becomes a banner below. */}
+        {!isMobile && (
+          <div style={{ position: "absolute", right: "6%", top: "50%", transform: "translateY(-50%)", width: "clamp(180px, 40vw, 380px)", height: "clamp(180px, 40vw, 380px)", borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,.5), transparent 62%)" }} />
+        )}
         {site.heroImageUrl && (
           <>
             <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${site.heroImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }} />
-            {/* Left-to-right white scrim keeps the dark hero copy legible over any photo. */}
-            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(255,255,255,.9) 0%, rgba(255,255,255,.6) 46%, rgba(255,255,255,.12) 100%)" }} />
+            {/* White scrim keeps the dark hero copy legible over the photo. Desktop fades
+                left→right (copy sits on the left); mobile fades top→bottom (copy is full-width). */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: isMobile
+                  ? "linear-gradient(180deg, rgba(255,255,255,.90) 0%, rgba(255,255,255,.70) 55%, rgba(255,255,255,.45) 100%)"
+                  : "linear-gradient(90deg, rgba(255,255,255,.9) 0%, rgba(255,255,255,.6) 46%, rgba(255,255,255,.12) 100%)",
+              }}
+            />
           </>
         )}
-        {!site.heroImageUrl && (
+        {!isMobile && !site.heroImageUrl && (
           <div style={{ position: "absolute", right: "9%", bottom: 34, font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "rgba(15,23,42,.4)", display: "flex", alignItems: "center", gap: 7 }}>
             <Icon name="building" size={15} />
             Hero photo — salon interior
           </div>
         )}
-        <div style={{ position: "relative", maxWidth: 1180, margin: "0 auto", height: "100%", padding: "0 32px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <div style={{ position: "relative", maxWidth: 1180, margin: "0 auto", minHeight: "inherit", padding: "40px clamp(16px, 4vw, 32px)", display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <div style={{ maxWidth: 560, animation: "ttHero .7s ease both" }}>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,.85)", border: "1px solid rgba(255,255,255,.7)", borderRadius: 999, padding: "6px 14px", backdropFilter: "blur(6px)" }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: site.openStatus.isOpen ? "var(--success)" : "var(--text-subtle)", display: "inline-block", animation: "ttPulse 1.8s ease-in-out infinite" }} />
               <span style={{ font: "var(--fw-semibold) 13px/1 var(--font-sans)", color: "var(--text-strong)" }}>{site.openStatus.label}</span>
             </div>
-            <h1 style={{ font: "var(--fw-extrabold) 52px/1.03 var(--font-sans)", letterSpacing: "-.03em", color: "var(--brand-ink)", margin: "18px 0 10px" }}>
+            <h1 style={{ font: "var(--fw-extrabold) clamp(30px, 6vw, 52px)/1.03 var(--font-sans)", letterSpacing: "-.03em", color: "var(--brand-ink)", margin: "18px 0 10px" }}>
               {site.tagline ?? site.name}
             </h1>
             {(() => {
@@ -917,7 +986,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                 </div>
               </div>
             </div>
-            <div style={{ display: "flex", gap: 12, marginTop: 18 }}>
+            <div style={{ display: "flex", gap: 12, marginTop: 18, flexWrap: "wrap" }}>
               <Button size="lg" onClick={openQueue}>Join the queue →</Button>
               <Button size="lg" variant="outline" onClick={openBook}>Book a time slot</Button>
             </div>
@@ -937,7 +1006,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         if (trustCells.length === 0) return null;
         return (
           <div style={{ background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)" }}>
-            <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "26px 32px", display: "flex", justifyContent: "space-around", textAlign: "center", gap: 20, flexWrap: "wrap" }}>
+            <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "26px clamp(16px, 4vw, 32px)", display: "flex", justifyContent: "space-around", textAlign: "center", gap: 20, flexWrap: "wrap" }}>
               {trustCells.map(([big, small]) => (
                 <div key={small}>
                   <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--primary)" }}>{big}</div>
@@ -951,13 +1020,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
       {/* ===== ABOUT ===== */}
       {showAbout && (
-        <div id="about" style={{ maxWidth: 1180, margin: "0 auto", padding: "72px 32px 40px" }}>
-          <div style={{ ...revealStyle, display: "flex", gap: 48, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+        <div id="about" style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 72px) clamp(16px, 4vw, 32px) 40px" }}>
+          <div style={{ ...revealStyle, display: "flex", gap: "clamp(24px, 4vw, 48px)", alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
             {hasAboutText && (
               <div style={{ flex: 1, minWidth: 300 }}>
                 <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>About the salon</div>
                 {hasHeading && (
-                  <h2 style={{ font: "var(--fw-extrabold) 34px/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>{site.aboutHeading}</h2>
+                  <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 4vw, 34px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>{site.aboutHeading}</h2>
                 )}
                 {hasDescription && (
                   <p style={{ font: "var(--fw-regular) 16px/1.6 var(--font-sans)", color: "var(--text-body)", margin: "0 0 24px" }}>
@@ -997,7 +1066,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
       {/* ===== GALLERY ===== */}
       {(gallery.length > 0 || isDemo) && (
-        <div id="gallery" style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 32px 40px" }}>
+        <div id="gallery" style={{ maxWidth: 1180, margin: "0 auto", padding: "24px clamp(16px, 4vw, 32px) 40px" }}>
           <div style={revealStyle}>
             <div style={eyebrow}>Gallery</div>
             {/* Horizontal strip: fixed-width cells that scroll sideways once they overflow the row.
@@ -1021,12 +1090,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       {/* ===== SERVICES (names only) ===== */}
       {services.length > 0 && (
       <div id="services" style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)", borderBottom: "1px solid var(--border-subtle)" }}>
-        <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "64px 32px" }}>
+        <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 64px) clamp(16px, 4vw, 32px)" }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
-            <h2 style={{ font: "var(--fw-extrabold) 30px/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: 0 }}>What we offer</h2>
+            <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 4vw, 30px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: 0 }}>What we offer</h2>
             <span style={{ font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)" }}>Pricing shown when you join the queue or book</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginTop: 22 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: 14, marginTop: 22 }}>
             {services.map((sv) => (
               <div key={sv.id} className="salonServiceCard" style={{ display: "flex", alignItems: "center", gap: 13, border: "1px solid var(--border-subtle)", borderRadius: 13, padding: 16, background: "var(--surface-page)" }}>
                 <div style={{ width: 42, height: 42, borderRadius: 11, background: "color-mix(in srgb, var(--primary) 10%, var(--surface-card))", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", flexShrink: 0 }}>
@@ -1042,16 +1111,16 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
       {/* ===== TEAM · LIVE AVAILABILITY ===== */}
       {barbers.length > 0 && (
-      <div id="team" style={{ maxWidth: 1180, margin: "0 auto", padding: "64px 32px" }}>
+      <div id="team" style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 64px) clamp(16px, 4vw, 32px)" }}>
         <div style={revealStyle}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
-            <h2 style={{ font: "var(--fw-extrabold) 30px/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: 0 }}>Our team · live availability</h2>
+            <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 4vw, 30px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: 0 }}>Our team · live availability</h2>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 7, font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)" }}>
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)", animation: "ttPulse 1.8s ease-in-out infinite" }} />
               Updated live · pick a barber when you join
             </span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginTop: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 16, marginTop: 24 }}>
             {barbers.map((b) => (
               <div key={b.id} className="salonBarberCard" style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 20, background: "var(--surface-card)", boxShadow: "var(--shadow-xs)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 16 }}>
@@ -1085,9 +1154,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       {/* ===== REVIEWS (only when the store has reviews) ===== */}
       {reviews.length > 0 && (
         <div style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}>
-          <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "64px 32px" }}>
-            <h2 style={{ font: "var(--fw-extrabold) 30px/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 24px" }}>What customers say · ★ {rating}</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+          <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 64px) clamp(16px, 4vw, 32px)" }}>
+            <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 4vw, 30px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 24px" }}>What customers say · ★ {rating}</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 16 }}>
               {reviews.map((r, i) => (
                 <div key={i} className="salonReviewCard" style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 22, background: "var(--surface-page)" }}>
                   <div style={{ color: "var(--warning)", fontSize: 15, letterSpacing: 2, marginBottom: 12 }}>{"★".repeat(r.stars) + "☆".repeat(Math.max(0, 5 - r.stars))}</div>
@@ -1105,7 +1174,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
       {/* ===== FAQ (only when the store has Q&A) ===== */}
       {faqs.length > 0 && (
-        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 32px 56px" }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "24px clamp(16px, 4vw, 32px) 56px" }}>
           <div style={revealStyle}>
             <div style={eyebrow}>Good to know</div>
             <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, overflow: "hidden", background: "var(--surface-card)" }}>
@@ -1134,7 +1203,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       {(site.address || site.area || site.hours.length > 0) && (
       <div id="visit" style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}>
         <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: 0, display: "flex", flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 300, padding: "56px 32px" }}>
+          <div style={{ flex: 1, minWidth: 300, padding: "clamp(40px, 7vw, 56px) clamp(16px, 4vw, 32px)" }}>
             <div style={eyebrow}>Visit us</div>
             {site.address && (
               <div style={{ display: "flex", alignItems: "center", gap: 9, font: "var(--fw-medium) 15px/1.4 var(--font-sans)", color: "var(--text-body)", marginBottom: 22 }}>
@@ -1175,8 +1244,8 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       <div style={{ background: "linear-gradient(135deg, var(--brand-ink), var(--primary))", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -60, right: -30, width: 240, height: 240, borderRadius: "50%", background: "rgba(255,255,255,.08)", animation: "ttFloat 8s ease-in-out infinite" }} />
         <div style={{ position: "absolute", bottom: -70, left: "6%", width: 170, height: 170, borderRadius: "50%", background: "rgba(255,255,255,.06)", animation: "ttFloat 10s ease-in-out infinite" }} />
-        <div style={{ position: "relative", maxWidth: 1180, margin: "0 auto", padding: "64px 32px", textAlign: "center" }}>
-          <h2 style={{ font: "var(--fw-extrabold) 36px/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "#fff", margin: "0 0 10px" }}>Skip the wait — join the live queue</h2>
+        <div style={{ position: "relative", maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 64px) clamp(16px, 4vw, 32px)", textAlign: "center" }}>
+          <h2 style={{ font: "var(--fw-extrabold) clamp(26px, 5vw, 36px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "#fff", margin: "0 0 10px" }}>Skip the wait — join the live queue</h2>
           <p style={{ font: "var(--fw-medium) 16px/1.5 var(--font-sans)", color: "rgba(255,255,255,.85)", margin: "0 0 26px" }}>{liveCount} in the queue · {waitHeadline} · we&apos;ll text you when you&apos;re close</p>
           <div onClick={openQueue} className="salonCtaBtn" style={{ display: "inline-block", cursor: "pointer", background: "#fff", color: "var(--primary)", font: "var(--fw-bold) 17px/1 var(--font-sans)", padding: "16px 32px", borderRadius: 12, boxShadow: "var(--shadow-lg)" }}>
             Join the queue →
@@ -1186,7 +1255,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
       {/* ===== FOOTER ===== */}
       <div style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}>
-        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "22px 32px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "22px clamp(16px, 4vw, 32px)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8, font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)" }}>
             Powered by{" "}
             <span style={{ font: "var(--fw-extrabold) 14px/1 var(--font-sans)" }}>
@@ -1278,7 +1347,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>Your name</div>
                       <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Aman" className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: 10, fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 16, background: "var(--surface-card)" }} />
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>Phone number</div>
-                      <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="00000 00000" className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: 10, fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 16, background: "var(--surface-card)" }} />
+                      <PhoneField country={phoneCountry} national={national} onCountryChange={setPhoneCountry} onNationalChange={setNational} marginBottom={16} />
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 9 }}>Preferred barber (optional)</div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
                         {[{ id: "any", name: "Any" }, ...barbers.map((b) => ({ id: b.id, name: b.name }))].map((c) => {
@@ -1349,7 +1418,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       </div>
                       <h3 style={{ font: "var(--fw-extrabold) 20px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>Verify your number</h3>
                       <p style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 20px" }}>
-                        We sent a 4-digit code to <span style={{ font: "var(--fw-semibold) 13px/1 var(--font-sans)", color: "var(--text-strong)" }}>{phone}</span>. Enter it to confirm you&apos;re a real customer.
+                        We sent a 4-digit code to <span style={{ font: "var(--fw-semibold) 13px/1 var(--font-sans)", color: "var(--text-strong)" }}>{formatPhone(phone)}</span>. Enter it to confirm you&apos;re a real customer.
                       </p>
                       <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                         {otp.map((v, i) => (
@@ -1477,7 +1546,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                         Enter the phone number you joined or booked with. We&apos;ll verify it&apos;s you, then show your slot.
                       </p>
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>Phone number</div>
-                      <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="00000 00000" className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: 10, fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 18, background: "var(--surface-card)", boxSizing: "border-box" }} />
+                      <PhoneField country={phoneCountry} national={national} onCountryChange={setPhoneCountry} onNationalChange={setNational} marginBottom={18} />
                       {formError && <div style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--error)", marginBottom: 12 }}>{formError}</div>}
                       <Button variant="primary" size="lg" fullWidth disabled={phone.replace(/\D/g, "").length < 4} onClick={trackSendOtp}>
                         Send verification code →
@@ -1490,7 +1559,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                     <div style={{ animation: "ttStep .32s ease both" }}>
                       <h3 style={{ font: "var(--fw-extrabold) 20px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>Verify your number</h3>
                       <p style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 20px" }}>
-                        We sent a 4-digit code to <span style={{ font: "var(--fw-semibold) 13px/1 var(--font-sans)", color: "var(--text-strong)" }}>{phone}</span>.
+                        We sent a 4-digit code to <span style={{ font: "var(--fw-semibold) 13px/1 var(--font-sans)", color: "var(--text-strong)" }}>{formatPhone(phone)}</span>.
                       </p>
                       <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                         {otp.map((v, i) => (

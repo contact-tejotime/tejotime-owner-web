@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Button from "@/components/ui/Button";
 
 export interface StatusOption {
   value: string;
@@ -29,6 +30,7 @@ export default function DateRangeFilter({
   const [draftFrom, setDraftFrom] = useState(from);
   const [draftTo, setDraftTo] = useState(to);
   const [draftStatus, setDraftStatus] = useState(status ?? "");
+  const [isPending, startTransition] = useTransition();
 
   function apply() {
     // Merge into the current querystring so unrelated params (e.g. ?report=)
@@ -43,7 +45,7 @@ export default function DateRangeFilter({
       else params.delete("status");
     }
     const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname);
+    startTransition(() => router.replace(qs ? `${pathname}?${qs}` : pathname));
   }
 
   return (
@@ -66,9 +68,9 @@ export default function DateRangeFilter({
           ))}
         </select>
       )}
-      <button type="button" className="btn-add" onClick={apply}>
+      <Button type="button" className="btn-add" onClick={apply} loading={isPending}>
         Apply
-      </button>
+      </Button>
     </div>
   );
 }
