@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { CustomerCard } from '@/components/cards/CustomerCard';
-import { TButton, THeader, TScreenScroll, TSearchInput, TText } from '@/components/common';
+import { TButton, THeader, TKeyboardScreen, TScreenScroll, TSearchInput, TText } from '@/components/common';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
 import { useAppState } from '@/state/store';
@@ -25,7 +25,7 @@ export default function Customers() {
   const placeholders = Array.from({ length: Math.min(lockedCount, 2) }, (_, i) => ({ id: `lock-${i}` }));
 
   return (
-    <>
+    <TKeyboardScreen isScrollView={false}>
       <THeader
         title="Customers"
         subtitle={subtitle}
@@ -96,7 +96,7 @@ export default function Customers() {
           )}
         </View>
       </TScreenScroll>
-    </>
+    </TKeyboardScreen>
   );
 }
 

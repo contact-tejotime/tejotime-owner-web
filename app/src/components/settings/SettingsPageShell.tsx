@@ -1,8 +1,8 @@
 import { router } from 'expo-router';
 import React from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { TResponsiveContainer, TScreenScroll, TText } from '@/components/common';
+import { TKeyboardScreen, TResponsiveContainer, TScreenScroll, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { styles } from '@/styles';
@@ -15,9 +15,7 @@ export function SettingsPageShell({ title, children }: { title: string; children
   return (
     <TResponsiveContainer>
       {/* Keyboard-aware so form fields (e.g. Business profile) aren't covered. */}
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <TKeyboardScreen isScrollView={false} style={styles.flex}>
         <View style={shellStyles.header}>
           <IconButton variant="ghost" onPress={() => router.back()} accessibilityLabel="Back">
             <Icon name="chevronLeft" size={22} color={colors.textStrong} />
@@ -27,7 +25,7 @@ export function SettingsPageShell({ title, children }: { title: string; children
           </TText>
         </View>
         <TScreenScroll>{children}</TScreenScroll>
-      </KeyboardAvoidingView>
+      </TKeyboardScreen>
     </TResponsiveContainer>
   );
 }

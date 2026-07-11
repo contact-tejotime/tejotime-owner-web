@@ -3,7 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, TextStyle, View } from 'react
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ServiceCard } from '@/components/cards/ServiceCard';
-import { PhoneInput, TText } from '@/components/common';
+import { PhoneInput, TKeyboardScreen, TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Input } from '@/components/ui/Input';
@@ -92,7 +92,7 @@ export function AddWalkInSheet() {
 
   return (
     <Modal transparent visible={open} animationType="slide" onRequestClose={store.closeWalkin}>
-      <View style={overlay.root}>
+      <TKeyboardScreen isScrollView={false} style={overlay.root}>
         <Pressable onPress={store.closeWalkin} style={overlay.backdrop} />
         <View style={[s.sheet, centerStyle]}>
           <View style={s.handle} />
@@ -187,7 +187,7 @@ export function AddWalkInSheet() {
             </Button>
           </View>
         </View>
-      </View>
+      </TKeyboardScreen>
     </Modal>
   );
 }

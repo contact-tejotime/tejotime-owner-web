@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { TText } from '@/components/common';
+import { TKeyboardScreen, TText } from '@/components/common';
 import { createSheetOverlayStyles } from '@/components/feedback/QRSheet';
 import { useResponsive } from '@/hooks/useResponsive';
 import { styles } from '@/styles';
@@ -30,7 +30,7 @@ export function EditSheet({
 
   return (
     <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={overlay.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <TKeyboardScreen isScrollView={false} style={overlay.root}>
         <Pressable onPress={onClose} style={overlay.backdrop} />
         <View style={[s.sheet, centerStyle]}>
           <View style={s.handle} />
@@ -39,7 +39,7 @@ export function EditSheet({
           </TText>
           {children}
         </View>
-      </KeyboardAvoidingView>
+      </TKeyboardScreen>
     </Modal>
   );
 }
