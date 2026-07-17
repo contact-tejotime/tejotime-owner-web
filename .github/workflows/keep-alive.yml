@@ -18,8 +18,11 @@ jobs:
       - name: Ping services
         run: |
           # Edit this list if you add/rename services or change URLs.
+          # NOTE: the backend's dashboard name is "tejotime-owner-backend",
+          # but its actual URL is tejotime-owner-web.onrender.com (renamed
+          # services keep their original .onrender.com hostname).
           urls=(
-            "https://tejotime-owner-backend.onrender.com/healthz"
+            "https://tejotime-owner-web.onrender.com/healthz"
             "https://tejotime-admin.onrender.com/"
           )
           fail=0
