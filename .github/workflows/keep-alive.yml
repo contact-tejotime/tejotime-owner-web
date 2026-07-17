@@ -1,0 +1,34 @@
+name: Keep Render services awake
+
+# Render's free tier spins a service down after ~15 min of no traffic, and the
+# next request cold-starts (50s+ delay, often a 502 while it boots). This job
+# pings each service every ~10 min so it never goes idle. See DEPLOY.md.
+
+on:
+  schedule:
+    # Every 10 minutes. GitHub's scheduler is best-effort and can lag a few
+    # minutes under load, so 10 (not 14) leaves headroom under the 15-min limit.
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}   # allow manual runs from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping services
+        run: |
+          # Edit this list if you add/rename services or change URLs.
+          urls=(
+            "https://tejotime-owner-backend.onrender.com/healthz"
+            "https://tejotime-admin.onrender.com/"
+          )
+          fail=0
+          for url in "${urls[@]}"; do
+            # --max-time 90 tolerates a cold start that's already in progress.
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 90 "$url" || echo 000)
+            echo "$code  $url"
+            # Any HTTP response means the instance is awake. Only a total
+            # connection failure (000) counts as a real problem.
+            if [ "$code" = "000" ]; then fail=1; fi
+          done
+          exit $fail
