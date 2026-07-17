@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react";
 import type { Money, StoreListItem } from "@/lib/types";
 import { downloadCsv } from "@/lib/csv";
-import { formatCount, formatDateTime, formatMoney } from "@/lib/format";
+import { formatCount, formatDateTime, formatMoney, moneyToDecimalString } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
+import { t, format } from "@/i18n";
+import { SearchIcon } from "@/components/icons";
 
 export interface CustomerReportRow {
   key: string;
@@ -46,12 +48,15 @@ export default function ReportsExplorer({
   customers,
   visits,
   stores,
+  visitsTruncated = false,
 }: {
   report: "revenue" | "customers" | "visits";
   revenue: RevenueReportRow[];
   customers: CustomerReportRow[];
   visits: VisitReportRow[];
   stores: StoreListItem[];
+  /** True when at least one store's visit rows were capped by the backend. */
+  visitsTruncated?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [storeId, setStoreId] = useState("");
@@ -91,37 +96,37 @@ export default function ReportsExplorer({
 
   function exportCsv() {
     if (report === "revenue") {
-      downloadCsv("revenue-report.csv", [
-        ["Store", "Revenue", "Visits", "Currency"],
+      downloadCsv(t.reports.csvRevenueFile, [
+        [t.reports.csvStore, t.reports.csvRevenue, t.reports.csvVisits, t.reports.csvCurrency],
         ...revenueRows.map((r) => [
           r.storeName,
-          String(r.revenue.amount / 100),
+          moneyToDecimalString(r.revenue),
           String(r.visits),
           r.revenue.currency,
         ]),
       ]);
     } else if (report === "customers") {
-      downloadCsv("customer-report.csv", [
-        ["Name", "Phone", "Stores", "Visits", "Spend", "Currency"],
+      downloadCsv(t.reports.csvCustomerFile, [
+        [t.reports.csvName, t.reports.csvPhone, t.reports.csvStores, t.reports.csvVisits, t.reports.csvSpend, t.reports.csvCurrency],
         ...customerRows.map((c) => [
           c.name,
           formatPhone(c.phone),
           c.storeLabel,
           String(c.visitsCount),
-          c.totalSpend ? String(c.totalSpend.amount / 100) : "",
+          c.totalSpend ? moneyToDecimalString(c.totalSpend) : "",
           c.totalSpend?.currency ?? "",
         ]),
       ]);
     } else {
-      downloadCsv("customer-visit-report.csv", [
-        ["Name", "Phone", "Store", "Visit Datetime", "Service", "Amount", "Currency"],
+      downloadCsv(t.reports.csvVisitFile, [
+        [t.reports.csvName, t.reports.csvPhone, t.reports.csvStore, t.reports.csvVisitDatetime, t.reports.csvService, t.reports.csvAmount, t.reports.csvCurrency],
         ...visitRows.map((v) => [
           v.name,
           formatPhone(v.phone),
           v.storeName,
           v.completedAt,
           v.serviceName ?? "",
-          String(v.amount.amount / 100),
+          moneyToDecimalString(v.amount),
           v.amount.currency,
         ]),
       ]);
@@ -132,48 +137,54 @@ export default function ReportsExplorer({
     <div className="section">
       <div className="filter-row">
         <div className="search-box">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
+          <SearchIcon />
           <input
             type="search"
-            placeholder={report === "revenue" ? "Search store…" : "Search name or phone…"}
+            placeholder={report === "revenue" ? t.reports.searchStore : t.reports.searchNamePhone}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <select value={storeId} onChange={(e) => setStoreId(e.target.value)}>
-          <option value="">All stores</option>
+          <option value="">{t.reports.allStores}</option>
           {stores.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.name || "(unnamed)"}
+              {s.name || t.common.unnamed}
             </option>
           ))}
         </select>
         <span className="filter-count">
-          {formatCount(count)} of {formatCount(total)} row{total === 1 ? "" : "s"}
+          {format(total === 1 ? t.reports.rowCountOne : t.reports.rowCount, {
+            shown: formatCount(count),
+            total: formatCount(total),
+          })}
         </span>
         <button type="button" className="btn-primary" style={{ padding: "9px 16px", fontSize: 14 }} onClick={exportCsv} disabled={count === 0}>
-          Export CSV
+          {t.common.exportCsv}
         </button>
       </div>
+
+      {report === "visits" && visitsTruncated && (
+        <div className="table-note" role="note" style={{ marginBottom: 8 }}>
+          {t.reports.truncatedVisits}
+        </div>
+      )}
 
       <div className="table-wrap">
         {report === "revenue" ? (
           <table className="store-table">
             <thead>
               <tr>
-                <th>Store</th>
-                <th className="num">Revenue</th>
-                <th className="num">Visits</th>
+                <th>{t.reports.colStore}</th>
+                <th className="num">{t.reports.colRevenue}</th>
+                <th className="num">{t.reports.colVisits}</th>
               </tr>
             </thead>
             <tbody>
               {revenueRows.length === 0 && (
                 <tr>
                   <td colSpan={3} className="empty-note">
-                    No stores match these filters
+                    {t.reports.emptyRevenue}
                   </td>
                 </tr>
               )}
@@ -190,18 +201,18 @@ export default function ReportsExplorer({
           <table className="store-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Store</th>
-                <th className="num">Visits</th>
-                <th className="num">Spend</th>
+                <th>{t.reports.colName}</th>
+                <th>{t.reports.colPhone}</th>
+                <th>{t.reports.colStore}</th>
+                <th className="num">{t.reports.colVisits}</th>
+                <th className="num">{t.reports.colSpend}</th>
               </tr>
             </thead>
             <tbody>
               {customerRows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="empty-note">
-                    No customers match these filters
+                    {t.reports.emptyCustomers}
                   </td>
                 </tr>
               )}
@@ -211,7 +222,7 @@ export default function ReportsExplorer({
                   <td>{formatPhone(c.phone)}</td>
                   <td>{c.storeLabel}</td>
                   <td className="num">{formatCount(c.visitsCount)}</td>
-                  <td className="num">{c.totalSpend ? formatMoney(c.totalSpend) : "—"}</td>
+                  <td className="num">{c.totalSpend ? formatMoney(c.totalSpend) : t.common.dash}</td>
                 </tr>
               ))}
             </tbody>
@@ -220,19 +231,19 @@ export default function ReportsExplorer({
           <table className="store-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Store</th>
-                <th>Visit datetime</th>
-                <th>Service</th>
-                <th className="num">Amount</th>
+                <th>{t.reports.colName}</th>
+                <th>{t.reports.colPhone}</th>
+                <th>{t.reports.colStore}</th>
+                <th>{t.reports.colVisitDatetime}</th>
+                <th>{t.reports.colService}</th>
+                <th className="num">{t.reports.colAmount}</th>
               </tr>
             </thead>
             <tbody>
               {visitRows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="empty-note">
-                    No visits match these filters
+                    {t.reports.emptyVisits}
                   </td>
                 </tr>
               )}
@@ -242,7 +253,7 @@ export default function ReportsExplorer({
                   <td>{formatPhone(v.phone)}</td>
                   <td>{v.storeName}</td>
                   <td>{formatDateTime(v.completedAt)}</td>
-                  <td>{v.serviceName || "(unknown)"}</td>
+                  <td>{v.serviceName || t.common.unknown}</td>
                   <td className="num">{formatMoney(v.amount)}</td>
                 </tr>
               ))}

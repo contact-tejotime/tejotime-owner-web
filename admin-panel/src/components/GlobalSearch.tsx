@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { t } from "@/i18n";
+import { SearchIcon } from "@/components/icons";
 import Spinner from "@/components/ui/Spinner";
 
 /** Dashboard search — ⌘K/Ctrl+K focuses it; Enter opens /customers pre-filtered. */
@@ -29,14 +31,12 @@ export default function GlobalSearch() {
 
   return (
     <div className="search-box">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-        <circle cx="11" cy="11" r="7" />
-        <path d="m20 20-3.5-3.5" />
-      </svg>
+      <SearchIcon />
       <input
         ref={inputRef}
         type="search"
-        placeholder="Search stores, customers, phone…"
+        aria-label={t.search.ariaLabel}
+        placeholder={t.search.placeholder}
         value={term}
         onChange={(e) => setTerm(e.target.value)}
         onKeyDown={(e) => {
@@ -48,7 +48,7 @@ export default function GlobalSearch() {
           <Spinner />
         </span>
       ) : (
-        <span className="search-kbd">⌘K</span>
+        <span className="search-kbd">{t.search.kbd}</span>
       )}
     </div>
   );

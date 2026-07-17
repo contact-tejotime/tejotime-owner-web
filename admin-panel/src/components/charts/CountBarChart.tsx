@@ -2,6 +2,7 @@
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AXIS_INK, CHART_HEIGHT, GRID_INK, SERIES_1, TOOLTIP_STYLE } from "./chart-theme";
+import { t, format } from "@/i18n";
 
 export interface LabelledCount {
   label: string;
@@ -11,6 +12,7 @@ export interface LabelledCount {
 /** Simple count-per-bucket bar chart (e.g. signups per month). Integer Y axis. */
 export default function CountBarChart({ data, name }: { data: LabelledCount[]; name: string }) {
   return (
+    <div role="img" aria-label={format(t.charts.countBar, { name: name.toLowerCase() })}>
     <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
       <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
         <CartesianGrid stroke={GRID_INK} vertical={false} />
@@ -32,5 +34,6 @@ export default function CountBarChart({ data, name }: { data: LabelledCount[]; n
         <Bar dataKey="value" fill={SERIES_1} radius={[4, 4, 0, 0]} maxBarSize={36} />
       </BarChart>
     </ResponsiveContainer>
+    </div>
   );
 }

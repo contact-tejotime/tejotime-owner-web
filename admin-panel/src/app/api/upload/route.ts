@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminToken } from "@/lib/session";
+import { t, format } from "@/i18n";
 
 /**
  * Photo upload proxy (server-side, so the admin JWT and Supabase never touch the browser):
@@ -17,29 +18,29 @@ const ASSET_TYPES = new Set(["hero", "about", "gallery", "logo"]);
 export async function POST(req: NextRequest) {
   const token = await getAdminToken();
   if (!token) {
-    return NextResponse.json({ error: { message: "Not authenticated" } }, { status: 401 });
+    return NextResponse.json({ error: { message: t.api.notAuthenticated } }, { status: 401 });
   }
 
   let form: FormData;
   try {
     form = await req.formData();
   } catch {
-    return NextResponse.json({ error: { message: "Expected a multipart form upload." } }, { status: 400 });
+    return NextResponse.json({ error: { message: t.api.expectedMultipart } }, { status: 400 });
   }
 
   const file = form.get("file");
   const assetType = String(form.get("assetType") ?? "gallery");
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: { message: "No file provided." } }, { status: 400 });
+    return NextResponse.json({ error: { message: t.api.noFile } }, { status: 400 });
   }
   if (!ASSET_TYPES.has(assetType)) {
-    return NextResponse.json({ error: { message: "Invalid assetType." } }, { status: 400 });
+    return NextResponse.json({ error: { message: t.api.invalidAssetType } }, { status: 400 });
   }
   if (!ALLOWED.has(file.type)) {
-    return NextResponse.json({ error: { message: "Only JPEG, PNG or WebP images are allowed." } }, { status: 400 });
+    return NextResponse.json({ error: { message: t.api.onlyImages } }, { status: 400 });
   }
   if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: { message: "File too large (max 5MB)." } }, { status: 400 });
+    return NextResponse.json({ error: { message: t.api.fileTooLarge } }, { status: 400 });
   }
 
   // 1) Signed URL from the backend.
@@ -52,12 +53,12 @@ export async function POST(req: NextRequest) {
       cache: "no-store",
     });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "unreachable";
-    return NextResponse.json({ error: { message: `Could not reach the backend API. (${message})` } }, { status: 502 });
+    const message = e instanceof Error ? e.message : t.api.unreachable;
+    return NextResponse.json({ error: { message: format(t.api.couldNotReachUpload, { message }) } }, { status: 502 });
   }
   const signJson = await signRes.json().catch(() => ({}));
   if (!signRes.ok) {
-    return NextResponse.json({ error: signJson?.error ?? { message: "Failed to sign upload." } }, { status: signRes.status });
+    return NextResponse.json({ error: signJson?.error ?? { message: t.api.signFailed } }, { status: signRes.status });
   }
   const { uploadUrl, publicUrl } = signJson as { uploadUrl: string; publicUrl: string };
 
@@ -72,13 +73,13 @@ export async function POST(req: NextRequest) {
       cache: "no-store",
     });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "upload failed";
-    return NextResponse.json({ error: { message: `Upload to storage failed. (${message})` } }, { status: 502 });
+    const message = e instanceof Error ? e.message : t.api.uploadFailed;
+    return NextResponse.json({ error: { message: format(t.api.uploadToStorageFailed, { message }) } }, { status: 502 });
   }
   if (!putRes.ok) {
     const text = await putRes.text().catch(() => "");
     return NextResponse.json(
-      { error: { message: `Storage rejected the upload (${putRes.status}). ${text.slice(0, 200)}` } },
+      { error: { message: format(t.api.storageRejected, { status: putRes.status, text: text.slice(0, 200) }) } },
       { status: 502 },
     );
   }

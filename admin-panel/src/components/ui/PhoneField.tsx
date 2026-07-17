@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { flagEmoji, searchCountries } from "@/lib/phone";
+import { t } from "@/i18n";
+import { Icon } from "@/components/icons";
 
 export type PhoneValue = { dialCode: string; national: string; iso2: string };
 
@@ -29,7 +31,7 @@ export default function PhoneField({
   label,
   id,
   required,
-  placeholder = "Phone number",
+  placeholder = t.phoneField.defaultPlaceholder,
   autoFocus,
   disabled,
   hint,
@@ -38,6 +40,7 @@ export default function PhoneField({
   const [query, setQuery] = useState("");
   const wrapRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const results = useMemo(() => searchCountries(query), [query]);
 
@@ -47,7 +50,10 @@ export default function PhoneField({
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus(); // return focus to the trigger, not lost to <body>
+      }
     }
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
@@ -65,6 +71,7 @@ export default function PhoneField({
     onChange({ ...value, iso2, dialCode });
     setOpen(false);
     setQuery("");
+    triggerRef.current?.focus();
   }
 
   return (
@@ -77,18 +84,19 @@ export default function PhoneField({
       )}
       <div className="phone-row">
         <button
+          ref={triggerRef}
           type="button"
           className="phone-cc"
           onClick={() => !disabled && setOpen((o) => !o)}
           disabled={disabled}
           aria-haspopup="listbox"
           aria-expanded={open}
-          aria-label="Select country code"
+          aria-label={t.phoneField.selectCountryCode}
         >
           <span className="phone-flag">{flagEmoji(value.iso2)}</span>
           <span className="phone-dial">+{value.dialCode}</span>
           <span className="phone-caret" aria-hidden>
-            ▾
+            <Icon name="chevronDown" size={16} />
           </span>
         </button>
         <input
@@ -107,21 +115,23 @@ export default function PhoneField({
       </div>
 
       {open && (
-        <div className="phone-pop" role="listbox" aria-label="Countries">
+        <div className="phone-pop" role="listbox" aria-label={t.phoneField.countries}>
           <input
             ref={searchRef}
             className="phone-search"
             type="search"
-            placeholder="Search country or code…"
+            placeholder={t.phoneField.searchPlaceholder}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
           <ul className="phone-list">
-            {results.length === 0 && <li className="phone-empty">No matches</li>}
+            {results.length === 0 && <li className="phone-empty">{t.phoneField.noMatches}</li>}
             {results.map((c) => (
               <li key={c.iso2}>
                 <button
                   type="button"
+                  role="option"
+                  aria-selected={c.iso2 === value.iso2}
                   className={"phone-opt" + (c.iso2 === value.iso2 ? " sel" : "")}
                   onClick={() => pick(c.iso2, c.dialCode)}
                 >

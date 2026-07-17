@@ -16,6 +16,8 @@ import {
 } from "@/lib/types";
 import { CURRENCIES, CURRENCY_BY_CODE, currencySymbol } from "@/lib/currencies";
 import { countryByDial, DEFAULT_ISO2 } from "@/lib/phone";
+import { t, format } from "@/i18n";
+import { Icon } from "@/components/icons";
 import { GalleryUpload, ImageUpload } from "@/components/ImageUpload";
 import PhoneField from "@/components/ui/PhoneField";
 import Spinner from "@/components/ui/Spinner";
@@ -74,18 +76,18 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
 
     // Required business fields — blocked here for a friendly message (native `required` also guards).
     const requiredFields: { key: keyof StoreFormState; label: string }[] = [
-      { key: "category", label: "Category" },
-      { key: "area", label: "Area" },
-      { key: "city", label: "City" },
-      { key: "address", label: "Address" },
-      { key: "tagline", label: "Tagline" },
-      { key: "aboutHeading", label: "About heading" },
-      { key: "description", label: "Description" },
+      { key: "category", label: t.storeForm.reqCategory },
+      { key: "area", label: t.storeForm.reqArea },
+      { key: "city", label: t.storeForm.reqCity },
+      { key: "address", label: t.storeForm.reqAddress },
+      { key: "tagline", label: t.storeForm.reqTagline },
+      { key: "aboutHeading", label: t.storeForm.reqAboutHeading },
+      { key: "description", label: t.storeForm.reqDescription },
     ];
     const missing = requiredFields.filter((f) => !String(form[f.key] ?? "").trim());
     if (missing.length > 0) {
-      setError("Please fill all required fields.");
-      setDetails(missing.map((f) => ({ field: f.label, message: "This field is required." })));
+      setError(t.storeForm.fillRequired);
+      setDetails(missing.map((f) => ({ field: f.label, message: t.storeForm.fieldRequired })));
       setSaving(false);
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -106,7 +108,7 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(json?.error?.message ?? `Request failed (${res.status})`);
+        setError(json?.error?.message ?? format(t.storeForm.requestFailed, { status: res.status }));
         setDetails(json?.error?.details ?? []);
         return;
       }
@@ -114,7 +116,7 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
       router.refresh(); // update the sidebar list (new/renamed store)
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof Error ? err.message : t.storeForm.somethingWrong);
     } finally {
       setSaving(false);
     }
@@ -140,12 +142,12 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
     <div className={embedded ? undefined : "wrap"}>
       {!embedded && (
         <div className="page-head">
-          <h1>{mode === "create" ? "Create a store" : `Edit — ${form.name || "store"}`}</h1>
+          <h1>{mode === "create" ? t.storeForm.createTitle : format(t.storeForm.editTitle, { name: form.name || t.storeForm.storeFallback })}</h1>
         </div>
       )}
 
       {error && (
-        <div className="alert err">
+        <div className="alert err" role="alert">
           {error}
           {details.length > 0 && (
             <ul>
@@ -161,12 +163,15 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
       )}
 
       {result && (
-        <div className="alert ok">
-          <div>
-            ✓ {mode === "create" ? "Store created" : "Changes saved"}. Live at{" "}
-            <a href={previewUrl} target="_blank" rel="noreferrer">
-              {previewUrl}
-            </a>
+        <div className="alert ok" role="status">
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Icon name="checkCircle" size={17} style={{ flexShrink: 0 }} />
+            <span>
+              {mode === "create" ? t.storeForm.createdOk : t.storeForm.savedOk}. {t.storeForm.liveAt}{" "}
+              <a href={previewUrl} target="_blank" rel="noreferrer">
+                {previewUrl}
+              </a>
+            </span>
           </div>
         </div>
       )}
@@ -174,16 +179,16 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
       <form onSubmit={onSubmit}>
         {/* Business ------------------------------------------------------ */}
         <section className="section">
-          <h2>Business details</h2>
+          <h2>{t.storeForm.businessDetails}</h2>
           <div className="grid">
             <div className="field">
-              <label>Store name *</label>
-              <input value={form.name} onChange={(e) => set("name", e.target.value)} required maxLength={120} />
+              <label htmlFor="sf-name">{t.storeForm.storeName}</label>
+              <input id="sf-name" value={form.name} onChange={(e) => set("name", e.target.value)} required maxLength={120} />
             </div>
             <div className="field">
-              <label>Category *</label>
-              <select value={form.category} onChange={(e) => set("category", e.target.value)} required>
-                <option value="">— Select category —</option>
+              <label htmlFor="sf-category">{t.storeForm.category}</label>
+              <select id="sf-category" value={form.category} onChange={(e) => set("category", e.target.value)} required>
+                <option value="">{t.storeForm.selectCategory}</option>
                 {categoryOptions.map((c) => (
                   <option key={c} value={c}>
                     {c}
@@ -192,8 +197,8 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
               </select>
             </div>
             <div className="field">
-              <label>Currency *</label>
-              <select value={form.currency} onChange={(e) => set("currency", e.target.value)} required>
+              <label htmlFor="sf-currency">{t.storeForm.currency}</label>
+              <select id="sf-currency" value={form.currency} onChange={(e) => set("currency", e.target.value)} required>
                 {currencyOptions.map((c) => (
                   <option key={c.code} value={c.code}>
                     {`${c.symbol} — ${c.name} (${c.code})`}
@@ -201,45 +206,47 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
                 ))}
               </select>
               <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
-                Used for all prices on this store. Changing it does not convert existing prices.
+                {t.storeForm.currencyHint}
               </p>
             </div>
             <div className="field">
-              <label>Area *</label>
-              <input value={form.area} onChange={(e) => set("area", e.target.value)} required maxLength={120} />
+              <label htmlFor="sf-area">{t.storeForm.area}</label>
+              <input id="sf-area" value={form.area} onChange={(e) => set("area", e.target.value)} required maxLength={120} />
             </div>
             <div className="field">
-              <label>City *</label>
-              <input value={form.city} onChange={(e) => set("city", e.target.value)} required maxLength={80} />
+              <label htmlFor="sf-city">{t.storeForm.city}</label>
+              <input id="sf-city" value={form.city} onChange={(e) => set("city", e.target.value)} required maxLength={80} />
             </div>
             <div className="field full">
-              <label>Address *</label>
-              <input value={form.address} onChange={(e) => set("address", e.target.value)} required maxLength={300} />
+              <label htmlFor="sf-address">{t.storeForm.address}</label>
+              <input id="sf-address" value={form.address} onChange={(e) => set("address", e.target.value)} required maxLength={300} />
             </div>
             <div className="field full">
-              <label>Tagline *</label>
-              <input value={form.tagline} onChange={(e) => set("tagline", e.target.value)} required maxLength={160} />
+              <label htmlFor="sf-tagline">{t.storeForm.tagline}</label>
+              <input id="sf-tagline" value={form.tagline} onChange={(e) => set("tagline", e.target.value)} required maxLength={160} />
             </div>
             <div className="field full">
-              <label>Banner subtitle</label>
+              <label htmlFor="sf-heroSubtitle">{t.storeForm.bannerSubtitle}</label>
               <input
+                id="sf-heroSubtitle"
                 value={form.heroSubtitle}
                 onChange={(e) => set("heroSubtitle", e.target.value)}
                 maxLength={200}
-                placeholder="e.g. track your turn from your phone"
+                placeholder={t.storeForm.bannerSubtitlePlaceholder}
               />
             </div>
             <div className="field">
-              <label>Highlight number</label>
-              <input value={form.statValue} onChange={(e) => set("statValue", e.target.value)} maxLength={40} placeholder="e.g. 30k+" />
+              <label htmlFor="sf-statValue">{t.storeForm.highlightNumber}</label>
+              <input id="sf-statValue" value={form.statValue} onChange={(e) => set("statValue", e.target.value)} maxLength={40} placeholder={t.storeForm.highlightNumberPlaceholder} />
             </div>
             <div className="field">
-              <label>Highlight caption</label>
-              <input value={form.statLabel} onChange={(e) => set("statLabel", e.target.value)} maxLength={60} placeholder="e.g. haircuts done" />
+              <label htmlFor="sf-statLabel">{t.storeForm.highlightCaption}</label>
+              <input id="sf-statLabel" value={form.statLabel} onChange={(e) => set("statLabel", e.target.value)} maxLength={60} placeholder={t.storeForm.highlightCaptionPlaceholder} />
             </div>
             <div className="field full">
-              <label>About heading *</label>
+              <label htmlFor="sf-aboutHeading">{t.storeForm.aboutHeading}</label>
               <input
+                id="sf-aboutHeading"
                 value={form.aboutHeading}
                 onChange={(e) => set("aboutHeading", e.target.value)}
                 required
@@ -247,36 +254,36 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
               />
             </div>
             <div className="field full">
-              <label>Description *</label>
-              <textarea value={form.description} onChange={(e) => set("description", e.target.value)} required maxLength={2000} />
+              <label htmlFor="sf-description">{t.storeForm.description}</label>
+              <textarea id="sf-description" value={form.description} onChange={(e) => set("description", e.target.value)} required maxLength={2000} />
             </div>
           </div>
           <div className="grid cols-3" style={{ marginTop: 12 }}>
             <div className="field">
-              <label>Established year</label>
-              <input value={form.establishedYear} onChange={(e) => set("establishedYear", e.target.value)} inputMode="numeric" />
+              <label htmlFor="sf-establishedYear">{t.storeForm.establishedYear}</label>
+              <input id="sf-establishedYear" value={form.establishedYear} onChange={(e) => set("establishedYear", e.target.value)} inputMode="numeric" />
             </div>
             <div className="field">
-              <label>Rating (0–5)</label>
-              <input value={form.rating} onChange={(e) => set("rating", e.target.value)} inputMode="decimal" />
+              <label htmlFor="sf-rating">{t.storeForm.rating}</label>
+              <input id="sf-rating" value={form.rating} onChange={(e) => set("rating", e.target.value)} inputMode="decimal" />
             </div>
             <div className="field">
-              <label>Review count</label>
-              <input value={form.reviewCount} onChange={(e) => set("reviewCount", e.target.value)} inputMode="numeric" />
+              <label htmlFor="sf-reviewCount">{t.storeForm.reviewCount}</label>
+              <input id="sf-reviewCount" value={form.reviewCount} onChange={(e) => set("reviewCount", e.target.value)} inputMode="numeric" />
             </div>
             <div className="field full">
-              <label>Payments (comma-separated)</label>
-              <input value={form.payments} onChange={(e) => set("payments", e.target.value)} />
+              <label htmlFor="sf-payments">{t.storeForm.payments}</label>
+              <input id="sf-payments" value={form.payments} onChange={(e) => set("payments", e.target.value)} />
             </div>
           </div>
         </section>
 
         {/* Contact / phone ---------------------------------------------- */}
         <section className="section">
-          <h2>Website address (phone)</h2>
+          <h2>{t.storeForm.phoneSection}</h2>
           <PhoneField
             id="store-phone"
-            label="Phone number"
+            label={t.storeForm.phoneLabel}
             required
             value={{ dialCode: form.countryCode, national: form.phoneNumber, iso2: phoneIso2 }}
             onChange={(v) => {
@@ -286,13 +293,13 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
             }}
           />
           <p className="hint">
-            Live at <code>{FRONTEND_URL}/{phoneFull || "…"}</code>
+            {t.storeForm.liveUrl} <code>{FRONTEND_URL}/{phoneFull || "…"}</code>
           </p>
         </section>
 
         {/* Hours -------------------------------------------------------- */}
         <section className="section">
-          <h2>Weekly hours</h2>
+          <h2>{t.storeForm.weeklyHours}</h2>
           {form.hours.map((h, i) => (
             <div className="hours-row" key={h.dayOfWeek}>
               <span className="day">{DAY_LABELS[h.dayOfWeek]}</span>
@@ -301,18 +308,18 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
                 value={h.opensAt}
                 disabled={h.isClosed}
                 onChange={(e) => setHour(i, { opensAt: e.target.value })}
-                aria-label={`${DAY_LABELS[h.dayOfWeek]} opens at`}
+                aria-label={format(t.storeForm.opensAt, { day: DAY_LABELS[h.dayOfWeek] })}
               />
               <input
                 type="time"
                 value={h.closesAt}
                 disabled={h.isClosed}
                 onChange={(e) => setHour(i, { closesAt: e.target.value })}
-                aria-label={`${DAY_LABELS[h.dayOfWeek]} closes at`}
+                aria-label={format(t.storeForm.closesAt, { day: DAY_LABELS[h.dayOfWeek] })}
               />
               <label className="closed">
                 <input type="checkbox" checked={h.isClosed} onChange={(e) => setHour(i, { isClosed: e.target.checked })} />
-                Closed
+                {t.storeForm.closed}
               </label>
             </div>
           ))}
@@ -320,31 +327,31 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
 
         {/* Amenities ---------------------------------------------------- */}
         <section className="section">
-          <h2>Amenities</h2>
+          <h2>{t.storeForm.amenities}</h2>
           {form.amenities.map((a, i) => (
             <div className="row amenity" key={i}>
-              <input value={a} onChange={(e) => setAmenity(i, e.target.value)} placeholder="e.g. Air conditioned" />
+              <input value={a} onChange={(e) => setAmenity(i, e.target.value)} placeholder={t.storeForm.amenityPlaceholder} />
               <button type="button" className="btn-remove" onClick={() => set("amenities", removeAt(form.amenities, i))}>
-                Remove
+                {t.common.remove}
               </button>
             </div>
           ))}
           <button type="button" className="btn-add" onClick={() => set("amenities", [...form.amenities, ""])}>
-            + Add amenity
+            {t.storeForm.addAmenity}
           </button>
         </section>
 
         {/* Photos (hero + about) --------------------------------------- */}
         <section className="section">
-          <h2>Photos</h2>
+          <h2>{t.storeForm.photos}</h2>
           <ImageUpload
-            label="Banner photo"
+            label={t.storeForm.bannerPhoto}
             assetType="hero"
             value={form.heroImageUrl}
             onChange={(url) => set("heroImageUrl", url)}
           />
           <ImageUpload
-            label="About photo"
+            label={t.storeForm.aboutPhoto}
             assetType="about"
             value={form.aboutImageUrl}
             onChange={(url) => set("aboutImageUrl", url)}
@@ -353,32 +360,50 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
 
         {/* Gallery ------------------------------------------------------ */}
         <section className="section">
-          <h2>Gallery photos</h2>
+          <h2>{t.storeForm.galleryPhotos}</h2>
           <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
-            Upload from your device. Many photos horizontally scroll on the live site.
+            {t.storeForm.galleryHint}
           </p>
           <GalleryUpload assetType="gallery" value={form.gallery} onChange={(rows) => set("gallery", rows)} />
         </section>
 
         {/* Services ----------------------------------------------------- */}
         <section className="section">
-          <h2>Services *</h2>
+          <h2>{t.storeForm.services}</h2>
           {form.services.map((s, i) => (
             <div className="row service" key={i}>
               <div className="field">
-                <label>Name</label>
+                <label>{t.storeForm.serviceName}</label>
                 <input value={s.name} onChange={(e) => setService(i, { name: e.target.value })} />
               </div>
               <div className="field">
-                <label>Duration (min)</label>
-                <input value={s.durationMinutes} onChange={(e) => setService(i, { durationMinutes: Number(e.target.value) })} inputMode="numeric" />
+                <label>{t.storeForm.duration}</label>
+                <input
+                  value={s.durationMinutes || ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "") return setService(i, { durationMinutes: 0 });
+                    const n = Number(v);
+                    if (!Number.isNaN(n)) setService(i, { durationMinutes: n });
+                  }}
+                  inputMode="numeric"
+                />
               </div>
               <div className="field">
-                <label>Price ({currencySymbol(form.currency)})</label>
-                <input value={s.priceRupees} onChange={(e) => setService(i, { priceRupees: Number(e.target.value) })} inputMode="numeric" />
+                <label>{format(t.storeForm.price, { symbol: currencySymbol(form.currency) })}</label>
+                <input
+                  value={s.priceRupees || ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "") return setService(i, { priceRupees: 0 });
+                    const n = Number(v);
+                    if (!Number.isNaN(n)) setService(i, { priceRupees: n });
+                  }}
+                  inputMode="numeric"
+                />
               </div>
               <button type="button" className="btn-remove" onClick={() => set("services", removeAt(form.services, i))}>
-                Remove
+                {t.common.remove}
               </button>
             </div>
           ))}
@@ -387,25 +412,25 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
             className="btn-add"
             onClick={() => set("services", [...form.services, { name: "", durationMinutes: 30, priceRupees: 0 }])}
           >
-            + Add service
+            {t.storeForm.addService}
           </button>
         </section>
 
         {/* Staff -------------------------------------------------------- */}
         <section className="section">
-          <h2>Staff *</h2>
+          <h2>{t.storeForm.staff}</h2>
           {form.staff.map((s, i) => (
             <div className="row staff" key={i}>
               <div className="field">
-                <label>Name</label>
+                <label>{t.storeForm.staffName}</label>
                 <input value={s.name} onChange={(e) => setStaff(i, { name: e.target.value })} />
               </div>
               <div className="field">
-                <label>Role</label>
-                <input value={s.roleLabel} onChange={(e) => setStaff(i, { roleLabel: e.target.value })} placeholder="e.g. Master barber" />
+                <label>{t.storeForm.staffRole}</label>
+                <input value={s.roleLabel} onChange={(e) => setStaff(i, { roleLabel: e.target.value })} placeholder={t.storeForm.staffRolePlaceholder} />
               </div>
               <button type="button" className="btn-remove" onClick={() => set("staff", removeAt(form.staff, i))}>
-                Remove
+                {t.common.remove}
               </button>
             </div>
           ))}
@@ -414,87 +439,87 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
             className="btn-add"
             onClick={() => set("staff", [...form.staff, { name: "", roleLabel: "" }])}
           >
-            + Add staff
+            {t.storeForm.addStaff}
           </button>
         </section>
 
         {/* Good to know (FAQ) ------------------------------------------- */}
         <section className="section">
-          <h2>Good to know (Q&amp;A)</h2>
-          {form.faqs.length === 0 && <p className="hint">Optional — questions &amp; answers shown in the microsite&apos;s “Good to know” section.</p>}
+          <h2>{t.storeForm.faqTitle}</h2>
+          {form.faqs.length === 0 && <p className="hint">{t.storeForm.faqEmpty}</p>}
           {form.faqs.map((x, i) => (
             <div className="row faq" key={i}>
               <div className="field">
-                <label>Question</label>
-                <input value={x.q} onChange={(e) => setFaq(i, { q: e.target.value })} placeholder="Do I need an appointment?" />
+                <label>{t.storeForm.faqQuestion}</label>
+                <input value={x.q} onChange={(e) => setFaq(i, { q: e.target.value })} placeholder={t.storeForm.faqQuestionPlaceholder} />
               </div>
               <div className="field">
-                <label>Answer</label>
-                <input value={x.a} onChange={(e) => setFaq(i, { a: e.target.value })} placeholder="No — walk in any time…" />
+                <label>{t.storeForm.faqAnswer}</label>
+                <input value={x.a} onChange={(e) => setFaq(i, { a: e.target.value })} placeholder={t.storeForm.faqAnswerPlaceholder} />
               </div>
               <button type="button" className="btn-remove" onClick={() => set("faqs", removeAt(form.faqs, i))}>
-                Remove
+                {t.common.remove}
               </button>
             </div>
           ))}
           <button type="button" className="btn-add" onClick={() => set("faqs", [...form.faqs, { q: "", a: "" }])}>
-            + Add Q&amp;A
+            {t.storeForm.addFaq}
           </button>
         </section>
 
         {/* Customer reviews -------------------------------------------- */}
         <section className="section">
-          <h2>Customer reviews</h2>
-          {form.reviews.length === 0 && <p className="hint">Optional — shown in the microsite&apos;s “What customers say” section.</p>}
+          <h2>{t.storeForm.reviewsTitle}</h2>
+          {form.reviews.length === 0 && <p className="hint">{t.storeForm.reviewsEmpty}</p>}
           {form.reviews.map((r, i) => (
             <div className="row review" key={i}>
               <div className="field">
-                <label>Rating</label>
+                <label>{t.storeForm.reviewRating}</label>
                 <div style={{ display: "flex", gap: 4 }}>
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button
                       key={n}
                       type="button"
                       onClick={() => setReview(i, { stars: n })}
-                      aria-label={`${n} star${n > 1 ? "s" : ""}`}
-                      style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 22, lineHeight: 1, color: n <= r.stars ? "#f5a623" : "#cbd5e1" }}
+                      aria-label={format(n === 1 ? t.storeForm.reviewStars : t.storeForm.reviewStarsPlural, { n })}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 1, color: n <= r.stars ? "var(--brand-accent)" : "var(--gray-300)" }}
                     >
-                      ★
+                      <Icon name="star" filled size={22} />
                     </button>
                   ))}
                 </div>
               </div>
               <div className="field">
-                <label>Review</label>
-                <input value={r.text} onChange={(e) => setReview(i, { text: e.target.value })} maxLength={1000} placeholder="Great service, quick and friendly…" />
+                <label>{t.storeForm.reviewText}</label>
+                <input value={r.text} onChange={(e) => setReview(i, { text: e.target.value })} maxLength={1000} placeholder={t.storeForm.reviewTextPlaceholder} />
               </div>
               <div className="field">
-                <label>Name</label>
-                <input value={r.authorName} onChange={(e) => setReview(i, { authorName: e.target.value })} maxLength={120} placeholder="e.g. Aman R." />
+                <label>{t.storeForm.reviewName}</label>
+                <input value={r.authorName} onChange={(e) => setReview(i, { authorName: e.target.value })} maxLength={120} placeholder={t.storeForm.reviewNamePlaceholder} />
               </div>
               <button type="button" className="btn-remove" onClick={() => set("reviews", removeAt(form.reviews, i))}>
-                Remove
+                {t.common.remove}
               </button>
             </div>
           ))}
           <button type="button" className="btn-add" onClick={() => set("reviews", [...form.reviews, { stars: 5, text: "", authorName: "" }])}>
-            + Add review
+            {t.storeForm.addReview}
           </button>
         </section>
 
         {/* Owner login (create only) ------------------------------------ */}
         {mode === "create" && (
           <section className="section">
-            <h2>Owner login</h2>
+            <h2>{t.storeForm.ownerLogin}</h2>
             <div className="grid">
               <div className="field">
-                <label>Owner phone (login)</label>
-                <input value={phoneFull} readOnly />
-                <p className="hint">Uses the store phone above.</p>
+                <label htmlFor="sf-ownerPhone">{t.storeForm.ownerPhone}</label>
+                <input id="sf-ownerPhone" value={phoneFull} readOnly />
+                <p className="hint">{t.storeForm.ownerPhoneHint}</p>
               </div>
               <div className="field">
-                <label>Password *</label>
-                <input type="text" value={form.ownerPassword} onChange={(e) => set("ownerPassword", e.target.value)} minLength={6} required />
+                <label htmlFor="sf-ownerPassword">{t.storeForm.password}</label>
+                <input id="sf-ownerPassword" type="text" value={form.ownerPassword} onChange={(e) => set("ownerPassword", e.target.value)} minLength={6} required />
               </div>
             </div>
           </section>
@@ -503,12 +528,11 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
         <div className="actions">
           <button type="submit" className="btn-primary" disabled={saving} aria-busy={saving || undefined}>
             {saving && <Spinner className="btn-spinner" />}
-            {saving ? "Saving…" : mode === "create" ? "Save & create store" : "Save changes"}
+            {saving ? t.storeForm.saving : mode === "create" ? t.storeForm.createStore : t.storeForm.saveChanges}
           </button>
-          {saving && <span className="hint">Working…</span>}
+          {saving && <span className="hint">{t.storeForm.workingHint}</span>}
         </div>
       </form>
     </div>
   );
 }
-

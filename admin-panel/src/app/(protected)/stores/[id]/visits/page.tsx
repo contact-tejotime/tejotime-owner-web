@@ -1,6 +1,7 @@
 import DateRangeFilter from "@/components/DateRangeFilter";
 import { formatCount, formatDateTime, formatMoney, formatMoneyCompact } from "@/lib/format";
 import { listStoreVisits } from "@/lib/server-api";
+import { t, format } from "@/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export default async function StoreVisitsPage({
   const visits = await listStoreVisits(id, clean(sp.from), clean(sp.to));
 
   if (!visits) {
-    return <div className="alert err">Could not load visits — is the backend running?</div>;
+    return <div className="alert err">{t.storeVisits.loadError}</div>;
   }
 
   return (
@@ -28,13 +29,13 @@ export default async function StoreVisitsPage({
 
       <div className="summary-bar">
         <span>
-          Visits: <b>{formatCount(visits.summary.visits)}</b>
+          {t.storeVisits.visits} <b>{formatCount(visits.summary.visits)}</b>
         </span>
         <span>
-          Revenue: <b>{formatMoneyCompact(visits.summary.revenue)}</b>
+          {t.storeVisits.revenue} <b>{formatMoneyCompact(visits.summary.revenue)}</b>
         </span>
         <span>
-          Avg ticket: <b>{formatMoney(visits.summary.avgTicket)}</b>
+          {t.storeVisits.avgTicket} <b>{formatMoney(visits.summary.avgTicket)}</b>
         </span>
       </div>
 
@@ -43,18 +44,18 @@ export default async function StoreVisitsPage({
           <table className="store-table">
             <thead>
               <tr>
-                <th>When</th>
-                <th>Customer</th>
-                <th>Service</th>
-                <th>Staff</th>
-                <th className="num">Amount</th>
+                <th>{t.storeVisits.colWhen}</th>
+                <th>{t.storeVisits.colCustomer}</th>
+                <th>{t.storeVisits.colService}</th>
+                <th>{t.storeVisits.colStaff}</th>
+                <th className="num">{t.storeVisits.colAmount}</th>
               </tr>
             </thead>
             <tbody>
               {visits.data.length === 0 && (
                 <tr>
                   <td colSpan={5} className="empty-note">
-                    No visits in this period
+                    {t.storeVisits.emptyPeriod}
                   </td>
                 </tr>
               )}
@@ -62,8 +63,8 @@ export default async function StoreVisitsPage({
                 <tr key={v.id}>
                   <td>{formatDateTime(v.completedAt)}</td>
                   <td className="nm">{v.customerName}</td>
-                  <td>{v.serviceName || "(unknown)"}</td>
-                  <td>{v.staffName || "—"}</td>
+                  <td>{v.serviceName || t.common.unknown}</td>
+                  <td>{v.staffName || t.common.dash}</td>
                   <td className="num">{formatMoney(v.amount)}</td>
                 </tr>
               ))}
@@ -72,8 +73,7 @@ export default async function StoreVisitsPage({
         </div>
         {visits.meta.total > visits.meta.shown && (
           <p className="table-note">
-            Showing the {visits.meta.shown} most recent of {formatCount(visits.meta.total)} visits — narrow the
-            date range to see the rest. Summary covers the full range.
+            {format(t.storeVisits.truncated, { shown: visits.meta.shown, total: formatCount(visits.meta.total) })}
           </p>
         )}
       </div>

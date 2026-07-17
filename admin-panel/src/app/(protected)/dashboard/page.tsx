@@ -6,6 +6,7 @@ import { CountBarChart } from "@/components/charts/lazy";
 import { bucketByMonth, formatAmount, formatCount, formatDate, isOlderThanDays } from "@/lib/format";
 import { getPlatformOverview, listBusinessesWithMetrics, listPlatformCustomers } from "@/lib/server-api";
 import { PREMIUM_PLAN_PRICE_INR } from "@/lib/static-data";
+import { t, format } from "@/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +23,9 @@ export default async function PlatformDashboardPage() {
     return (
       <div className="wrap">
         <div className="page-head">
-          <h1>Dashboard</h1>
+          <h1>{t.dashboard.title}</h1>
         </div>
-        <div className="alert err">Could not load platform analytics — is the backend running?</div>
+        <div className="alert err">{t.dashboard.loadError}</div>
       </div>
     );
   }
@@ -38,67 +39,73 @@ export default async function PlatformDashboardPage() {
     (s) => s.isActive && isOlderThanDays(s.lastActivityAt, QUIET_DAYS),
   ).length;
   const attentionItems =
-    quietCount > 0 ? [`${quietCount} store${quietCount === 1 ? "" : "s"} quiet ${QUIET_DAYS}d+`] : [];
+    quietCount > 0
+      ? [format(quietCount === 1 ? t.dashboard.quietStoresOne : t.dashboard.quietStores, { count: quietCount, days: QUIET_DAYS })]
+      : [];
 
   return (
     <div className="wrap">
       <div className="page-head">
-        <h1>Dashboard</h1>
-        <p>Platform overview · {formatDate(overview.date)}</p>
+        <h1>{t.dashboard.title}</h1>
+        <p>{format(t.dashboard.overview, { date: formatDate(overview.date) })}</p>
       </div>
 
       <div className="toolbar-row">
         <GlobalSearch />
         <Link href="/" className="btn-primary">
-          + Create store
+          {t.dashboard.createStore}
         </Link>
       </div>
 
       {attentionItems.length > 0 && (
         <div className="banner-attention">
-          <b>Needs attention</b> — {attentionItems.join(" · ")} · <Link href="/stores">Review stores</Link>
+          <b>{t.dashboard.needsAttention}</b> — {attentionItems.join(" · ")} ·{" "}
+          <Link href="/stores">{t.dashboard.reviewStores}</Link>
         </div>
       )}
 
       <div className="kpi-grid">
         <KpiCard
-          label="Stores"
+          label={t.dashboard.kpiStores}
           value={formatCount(stores.total)}
-          sub={`${stores.active} active${stores.inactive > 0 ? ` · ${stores.inactive} inactive` : ""}`}
+          sub={format(stores.inactive > 0 ? t.dashboard.kpiStoresSubInactive : t.dashboard.kpiStoresSub, {
+            active: stores.active,
+            inactive: stores.inactive,
+          })}
         />
-        <KpiCard label="Customers" value={formatCount(overview.totalCustomers)} sub="all stores" />
-        <KpiCard label="Visits today" value={formatCount(today.visits)} />
+        <KpiCard label={t.dashboard.kpiCustomers} value={formatCount(overview.totalCustomers)} sub={t.dashboard.kpiCustomersSub} />
+        <KpiCard label={t.dashboard.kpiVisitsToday} value={formatCount(today.visits)} />
         <KpiCard
-          label="MRR"
+          label={t.dashboard.kpiMrr}
           value={formatAmount(mrr, "INR")}
-          sub={`${premiumCount} premium × ${formatAmount(PREMIUM_PLAN_PRICE_INR, "INR")}`}
+          sub={format(t.dashboard.kpiMrrSub, { count: premiumCount, price: formatAmount(PREMIUM_PLAN_PRICE_INR, "INR") })}
         />
       </div>
 
       <div className="chart-grid" style={{ marginBottom: 18 }}>
         <div className="chart-card" style={{ marginBottom: 0 }}>
-          <h2>Store signups — 12 months</h2>
-          <CountBarChart data={bucketByMonth(storesWithMetrics.map((s) => s.createdAt))} name="Stores created" />
+          <h2>{t.dashboard.storeSignups}</h2>
+          <CountBarChart data={bucketByMonth(storesWithMetrics.map((s) => s.createdAt))} name={t.dashboard.storesCreated} />
         </div>
         <div className="chart-card" style={{ marginBottom: 0 }}>
-          <h2>New customers — 12 months</h2>
-          <CountBarChart data={bucketByMonth(customers.map((c) => c.createdAt))} name="New customers" />
+          <h2>{t.dashboard.newCustomers}</h2>
+          <CountBarChart data={bucketByMonth(customers.map((c) => c.createdAt))} name={t.dashboard.newCustomersSeries} />
         </div>
       </div>
 
       <div className="chart-grid">
         <div className="chart-card">
-          <h2>Stores by city</h2>
+          <h2>{t.dashboard.storesByCity}</h2>
           <BarList
-            emptyText="No stores yet"
-            rows={overview.storesByCity.map((c) => ({ label: c.city ?? "Unknown", value: c.count }))}
+            emptyText={t.dashboard.noStoresYet}
+            rows={overview.storesByCity.map((c) => ({ label: c.city ?? t.dashboard.unknownCity, value: c.count }))}
           />
         </div>
         <div className="chart-card">
-          <h2>Stores by category</h2>
+          <h2>{t.dashboard.storesByCategory}</h2>
           <BarList
-            emptyText="No stores yet"
-            rows={overview.storesByCategory.map((c) => ({ label: c.category ?? "Uncategorised", value: c.count }))}
+            emptyText={t.dashboard.noStoresYet}
+            rows={overview.storesByCategory.map((c) => ({ label: c.category ?? t.dashboard.uncategorised, value: c.count }))}
           />
         </div>
       </div>

@@ -2,6 +2,8 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import type { GalleryRow } from "@/lib/types";
+import { t, format } from "@/i18n";
+import { Icon } from "@/components/icons";
 import Spinner from "@/components/ui/Spinner";
 
 /** POST a file to the admin panel's server proxy, which pushes it to Supabase and returns the URL. */
@@ -42,7 +44,7 @@ export function ImageUpload({
     try {
       onChange(await uploadImage(file, assetType));
     } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Upload failed");
+      setErr(ex instanceof Error ? ex.message : t.imageUpload.uploadFailed);
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -76,24 +78,24 @@ export function ImageUpload({
           {busy ? (
             <span className="skeleton" aria-hidden style={{ position: "absolute", inset: 0, borderRadius: 10 }} />
           ) : (
-            !value && "No image"
+            !value && t.imageUpload.noImage
           )}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <input ref={inputRef} type="file" accept={ACCEPT} onChange={pick} disabled={busy} style={{ maxWidth: 260 }} />
           {value && (
             <button type="button" className="btn-remove" style={{ height: "auto", padding: "6px 12px" }} onClick={() => onChange("")}>
-              Remove
+              {t.common.remove}
             </button>
           )}
         </div>
       </div>
       {busy && (
         <p className="hint" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Spinner /> Uploading…
+          <Spinner /> {t.imageUpload.uploading}
         </p>
       )}
-      {err && <p className="hint" style={errStyle}>{err}</p>}
+      {err && <p className="hint" style={errStyle} role="alert">{err}</p>}
     </div>
   );
 }
@@ -118,11 +120,27 @@ export function GalleryUpload({
     setErr("");
     setBusy(true);
     try {
-      const added: GalleryRow[] = [];
-      for (const f of files) added.push({ url: await uploadImage(f, assetType), alt: "" });
-      onChange([...value, ...added]);
+      // Upload in parallel and keep every success even if some fail, rather than
+      // discarding already-uploaded photos when a later one errors.
+      const results = await Promise.allSettled(files.map((f) => uploadImage(f, assetType)));
+      const added: GalleryRow[] = results
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
+        .map((r) => ({ url: r.value, alt: "" }));
+      if (added.length) onChange([...value, ...added]);
+      const failed = results.length - added.length;
+      if (failed > 0) {
+        const firstErr = results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+        const reason = firstErr?.reason instanceof Error ? firstErr.reason.message : t.imageUpload.uploadFailed;
+        setErr(
+          format(failed === 1 ? t.imageUpload.partialFail : t.imageUpload.partialFailPlural, {
+            failed,
+            total: results.length,
+            reason,
+          }),
+        );
+      }
     } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Upload failed");
+      setErr(ex instanceof Error ? ex.message : t.imageUpload.uploadFailed);
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -152,7 +170,7 @@ export function GalleryUpload({
               <button
                 type="button"
                 onClick={() => remove(i)}
-                title="Remove"
+                title={t.imageUpload.removeTitle}
                 style={{
                   position: "absolute",
                   top: -8,
@@ -163,12 +181,14 @@ export function GalleryUpload({
                   background: "#fff",
                   border: "1px solid var(--border-subtle)",
                   color: "var(--red-600)",
-                  fontSize: 15,
-                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "var(--shadow-xs)",
                   cursor: "pointer",
                 }}
               >
-                ×
+                <Icon name="x" size={13} />
               </button>
             </div>
           ))}
@@ -177,11 +197,11 @@ export function GalleryUpload({
       <input ref={inputRef} type="file" accept={ACCEPT} multiple onChange={pick} disabled={busy} />
       {busy && (
         <p className="hint" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Spinner /> Uploading…
+          <Spinner /> {t.imageUpload.uploading}
         </p>
       )}
-      {err && <p className="hint" style={errStyle}>{err}</p>}
-      {value.length === 0 && !busy && <p className="hint">Choose one or more photos from your device.</p>}
+      {err && <p className="hint" style={errStyle} role="alert">{err}</p>}
+      {value.length === 0 && !busy && <p className="hint">{t.imageUpload.chooseGallery}</p>}
     </div>
   );
 }

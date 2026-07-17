@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { t } from "@/i18n";
 
 /**
  * Inline loading spinner. Tints to the surrounding text color (via currentColor
@@ -19,7 +20,7 @@ export default function Spinner({
       className={className ? `spinner ${className}` : "spinner"}
       style={size ? { fontSize: size, ...style } : style}
       role="status"
-      aria-label="Loading"
+      aria-label={t.common.loading}
     />
   );
 }

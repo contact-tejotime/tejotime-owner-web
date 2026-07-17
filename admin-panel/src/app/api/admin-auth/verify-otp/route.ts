@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS } from "@/lib/session";
+import { t, format } from "@/i18n";
 
 /**
  * Step 2 of admin login. Forwards mobile + OTP to the backend for verification;
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: { message: "Invalid JSON body." } }, { status: 400 });
+    return NextResponse.json({ error: { message: t.api.invalidJson } }, { status: 400 });
   }
 
   let res: Response;
@@ -26,9 +27,9 @@ export async function POST(req: NextRequest) {
       cache: "no-store",
     });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Failed to reach backend";
+    const message = e instanceof Error ? e.message : t.api.failedToReach;
     return NextResponse.json(
-      { error: { message: `Could not reach the backend API at ${BACKEND}. Is it running? (${message})` } },
+      { error: { message: format(t.api.backendUnreachable, { backend: BACKEND, message }) } },
       { status: 502 },
     );
   }

@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from "react";
 import type { AdminCustomer, CustomerVisit } from "@/lib/types";
 import { formatCount, formatDateTime, formatMoney, formatMoneyCompact } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
+import { t, format } from "@/i18n";
 import TableSkeleton from "./ui/skeletons/TableSkeleton";
 
 type SortKey = "recent" | "spend" | "visits";
@@ -56,22 +57,25 @@ export default function CustomersTable({ storeId, customers }: { storeId: string
       <div className="filter-row">
         <input
           type="search"
-          placeholder="Search name or phone…"
+          placeholder={t.customersTable.searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ minWidth: 220 }}
         />
         <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14 }}>
           <input type="checkbox" checked={vipOnly} onChange={(e) => setVipOnly(e.target.checked)} />
-          VIP only
+          {t.customersTable.vipOnly}
         </label>
         <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-          <option value="recent">Newest first</option>
-          <option value="spend">Highest spend</option>
-          <option value="visits">Most visits</option>
+          <option value="recent">{t.customersTable.sortRecent}</option>
+          <option value="spend">{t.customersTable.sortSpend}</option>
+          <option value="visits">{t.customersTable.sortVisits}</option>
         </select>
         <span className="filter-count">
-          {filtered.length} of {customers.length} customer{customers.length === 1 ? "" : "s"}
+          {format(customers.length === 1 ? t.customersTable.filterCountOne : t.customersTable.filterCount, {
+            shown: filtered.length,
+            total: customers.length,
+          })}
         </span>
       </div>
 
@@ -79,18 +83,18 @@ export default function CustomersTable({ storeId, customers }: { storeId: string
         <table className="store-table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Phone</th>
-              <th className="num">Visits</th>
-              <th className="num">Total spend</th>
-              <th>Last visit</th>
+              <th>{t.customersTable.colName}</th>
+              <th>{t.customersTable.colPhone}</th>
+              <th className="num">{t.customersTable.colVisits}</th>
+              <th className="num">{t.customersTable.colSpend}</th>
+              <th>{t.customersTable.colLastVisit}</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={5} className="empty-note">
-                  {customers.length === 0 ? "No customers yet" : "No customers match these filters"}
+                  {customers.length === 0 ? t.customersTable.emptyNoCustomers : t.customersTable.emptyNoMatch}
                 </td>
               </tr>
             )}
@@ -98,9 +102,21 @@ export default function CustomersTable({ storeId, customers }: { storeId: string
               const drawer = drawers[c.id];
               return (
                 <Fragment key={c.id}>
-                  <tr className="clickable" onClick={() => toggleDrawer(c.id)}>
+                  <tr
+                    className="clickable"
+                    onClick={() => toggleDrawer(c.id)}
+                    tabIndex={0}
+                    role="button"
+                    aria-expanded={openId === c.id}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleDrawer(c.id);
+                      }
+                    }}
+                  >
                     <td className="nm">
-                      {c.name} {c.isVip && <span className="badge badge-vip">VIP</span>}
+                      {c.name} {c.isVip && <span className="badge badge-vip">{t.common.vip}</span>}
                     </td>
                     <td>{formatPhone(c.phone)}</td>
                     <td className="num">{formatCount(c.visitsCount)}</td>
@@ -114,26 +130,26 @@ export default function CustomersTable({ storeId, customers }: { storeId: string
                           {(!drawer || drawer.status === "loading") && (
                             <TableSkeleton rows={3} cols={4} numCols={1} />
                           )}
-                          {drawer?.status === "error" && "Could not load visit history."}
+                          {drawer?.status === "error" && t.customersTable.historyError}
                           {drawer?.status === "loaded" &&
                             (drawer.visits.length === 0 ? (
-                              "No recorded visits yet."
+                              t.customersTable.noVisitsYet
                             ) : (
                               <table className="store-table">
                                 <thead>
                                   <tr>
-                                    <th>When</th>
-                                    <th>Service</th>
-                                    <th>Staff</th>
-                                    <th className="num">Amount</th>
+                                    <th>{t.customersTable.drawerWhen}</th>
+                                    <th>{t.customersTable.drawerService}</th>
+                                    <th>{t.customersTable.drawerStaff}</th>
+                                    <th className="num">{t.customersTable.drawerAmount}</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {drawer.visits.map((v) => (
                                     <tr key={v.id}>
                                       <td>{formatDateTime(v.completedAt)}</td>
-                                      <td>{v.serviceName || "(unknown)"}</td>
-                                      <td>{v.staffName || "—"}</td>
+                                      <td>{v.serviceName || t.common.unknown}</td>
+                                      <td>{v.staffName || t.common.dash}</td>
                                       <td className="num">{formatMoney(v.amount)}</td>
                                     </tr>
                                   ))}

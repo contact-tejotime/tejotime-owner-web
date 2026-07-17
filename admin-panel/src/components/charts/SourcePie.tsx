@@ -2,6 +2,7 @@
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { CHART_HEIGHT, SERIES_1, SERIES_2, TOOLTIP_STYLE } from "./chart-theme";
+import { t } from "@/i18n";
 
 /**
  * Walk-in vs online donut — exactly two slices with a white gap between them,
@@ -10,12 +11,12 @@ import { CHART_HEIGHT, SERIES_1, SERIES_2, TOOLTIP_STYLE } from "./chart-theme";
 export default function SourcePie({ walkIn, online }: { walkIn: number; online: number }) {
   const total = walkIn + online;
   if (total === 0) {
-    return <div className="empty-note">No visits in this period yet</div>;
+    return <div className="empty-note">{t.charts.sourceEmpty}</div>;
   }
 
   const data = [
-    { name: "Walk-in", value: walkIn, color: SERIES_1 },
-    { name: "Online", value: online, color: SERIES_2 },
+    { name: t.charts.walkIn, value: walkIn, color: SERIES_1 },
+    { name: t.charts.online, value: online, color: SERIES_2 },
   ].filter((d) => d.value > 0);
 
   const pct = (value: number) => `${Math.round((value / total) * 100)}%`;

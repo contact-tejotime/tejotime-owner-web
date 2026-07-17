@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { t } from "@/i18n";
 
 export interface BarListRow {
   label: string;
@@ -13,7 +14,7 @@ export interface BarListRow {
  * Ranked magnitude list — label, proportional bar, value. Server component;
  * used for top-5s and breakdowns where a full chart would be overkill.
  */
-export default function BarList({ rows, emptyText = "No data yet" }: { rows: BarListRow[]; emptyText?: string }) {
+export default function BarList({ rows, emptyText = t.common.noData }: { rows: BarListRow[]; emptyText?: string }) {
   if (rows.length === 0) {
     return <div className="empty-note">{emptyText}</div>;
   }

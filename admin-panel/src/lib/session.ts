@@ -7,7 +7,8 @@ import { SESSION_COOKIE } from "./session-cookie";
  * `Authorization: Bearer <jwt>` on every backend call; the backend authoritatively
  * verifies the signature. Here we only decode the payload to gate the UI (check exp)
  * and to fetch the token for outgoing calls. The cookie is httpOnly, so browser JS
- * can't read or forge it; the middleware (edge) just presence-checks it.
+ * can't read or forge it; the proxy (src/proxy.ts, Next 16's renamed middleware)
+ * just presence-checks it.
  */
 export { SESSION_COOKIE };
 

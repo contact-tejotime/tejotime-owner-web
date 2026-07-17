@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminToken } from "@/lib/session";
+import { TAGS, revalidateTags } from "@/lib/server-api";
 import { fromDetail, toPayload, type StoreDetail } from "@/lib/types";
+import { t, format } from "@/i18n";
 
 /**
  * Toggle a store's isActive flag. The backend's update schema is strict and
@@ -15,7 +17,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const token = await getAdminToken();
   if (!token) {
-    return NextResponse.json({ error: { message: "Not authenticated" } }, { status: 401 });
+    return NextResponse.json({ error: { message: t.api.notAuthenticated } }, { status: 401 });
   }
 
   let isActive: boolean;
@@ -24,7 +26,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (typeof body.isActive !== "boolean") throw new Error();
     isActive = body.isActive;
   } catch {
-    return NextResponse.json({ error: { message: "Body must be { isActive: boolean }." } }, { status: 400 });
+    return NextResponse.json({ error: { message: t.api.bodyMustBeActive } }, { status: 400 });
   }
 
   const headers = { "content-type": "application/json", authorization: `Bearer ${token}` };
@@ -38,9 +40,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     detail = (await res.json()) as StoreDetail;
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Failed to reach backend";
+    const message = e instanceof Error ? e.message : t.api.failedToReach;
     return NextResponse.json(
-      { error: { message: `Could not reach the backend API at ${BACKEND}. Is it running? (${message})` } },
+      { error: { message: format(t.api.backendUnreachable, { backend: BACKEND, message }) } },
       { status: 502 },
     );
   }
@@ -65,9 +67,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       cache: "no-store",
     });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Failed to reach backend";
+    const message = e instanceof Error ? e.message : t.api.failedToReach;
     return NextResponse.json(
-      { error: { message: `Could not reach the backend API at ${BACKEND}. Is it running? (${message})` } },
+      { error: { message: format(t.api.backendUnreachable, { backend: BACKEND, message }) } },
       { status: 502 },
     );
   }
@@ -76,5 +78,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const json = await res.json().catch(() => ({}));
     return NextResponse.json(json, { status: res.status });
   }
+  // Enabling/disabling flips the store's status in the list, its detail, and the
+  // active/inactive counts on the overview.
+  revalidateTags(TAGS.business(id), TAGS.businesses, TAGS.analytics);
   return NextResponse.json({ isActive });
 }

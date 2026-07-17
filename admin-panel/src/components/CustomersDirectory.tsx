@@ -3,11 +3,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CustomerVisit, PlatformCustomer, StoreListItem } from "@/lib/types";
 import { downloadCsv } from "@/lib/csv";
-import { formatCount, formatDate, formatMoney, formatMoneyCompact, isOlderThanDays } from "@/lib/format";
+import {
+  formatCount,
+  formatDate,
+  formatMoney,
+  formatMoneyCompact,
+  isOlderThanDays,
+  moneyToDecimalString,
+} from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
+import { t, format } from "@/i18n";
+import { SearchIcon } from "@/components/icons";
 import Skeleton from "./ui/skeletons/Skeleton";
 
-const SHOW_LIMIT = 50;
+const PAGE_SIZE = 50;
 const TIMELINE_VISITS = 5;
 const AT_RISK_DAYS = 60;
 
@@ -55,7 +64,17 @@ export default function CustomersDirectory({
   const [segment, setSegment] = useState<Segment>("all");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Record<string, ProfileVisits>>({});
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const inflight = useRef<Set<string>>(new Set());
+
+  // Reset paging whenever the filter inputs change so a narrower filter starts at
+  // the top. Done during render (not in an effect) via the previous-value pattern.
+  const filterKey = `${search}|${storeId}|${segment}`;
+  const [pagedFor, setPagedFor] = useState(filterKey);
+  if (pagedFor !== filterKey) {
+    setPagedFor(filterKey);
+    setVisibleCount(PAGE_SIZE);
+  }
 
   const vipCount = useMemo(() => customers.filter((c) => c.isVip).length, [customers]);
   const riskCount = useMemo(
@@ -76,7 +95,7 @@ export default function CustomersDirectory({
     });
   }, [customers, search, storeId, segment]);
 
-  const shown = filtered.slice(0, SHOW_LIMIT);
+  const shown = filtered.slice(0, visibleCount);
   // Derived selection: falls back to the first visible row whenever the current
   // pick is filtered out, so the profile panel is never stale or empty for no reason.
   const selected = shown.find((c) => c.key === selectedKey) ?? shown[0] ?? null;
@@ -117,14 +136,14 @@ export default function CustomersDirectory({
   }, [selected, profiles]);
 
   function exportCsv() {
-    downloadCsv("customers.csv", [
-      ["Name", "Phone", "Stores", "Visits", "Spend", "Currency"],
+    downloadCsv(t.customers.csvFilename, [
+      [t.customers.csvName, t.customers.csvPhone, t.customers.csvStores, t.customers.csvVisits, t.customers.csvSpend, t.customers.csvCurrency],
       ...filtered.map((c) => [
         c.name,
         formatPhone(c.phone),
         c.memberships.map((m) => m.storeName).join(" / "),
         String(c.visitsCount),
-        c.totalSpend ? String(c.totalSpend.amount / 100) : "",
+        c.totalSpend ? moneyToDecimalString(c.totalSpend) : "",
         c.totalSpend?.currency ?? "",
       ]),
     ]);
@@ -137,15 +156,19 @@ export default function CustomersDirectory({
       <div className="cust-head">
         <div className="cust-head-row">
           <div>
-            <h1>Customers</h1>
+            <h1>{t.customers.title}</h1>
             <p>
-              {formatCount(customers.length)} people across {stores.length} store{stores.length === 1 ? "" : "s"} ·
-              unified by phone
+              {format(t.customers.subtitle, {
+                count: formatCount(customers.length),
+                stores: format(stores.length === 1 ? t.customers.storesOne : t.customers.storesMany, {
+                  count: stores.length,
+                }),
+              })}
             </p>
           </div>
           <div className="cust-head-actions">
             <button type="button" className="btn-primary" onClick={exportCsv} disabled={filtered.length === 0}>
-              Export CSV
+              {t.common.exportCsv}
             </button>
             {/* Message customers button hidden until /broadcasts page is unparked.
             <button type="button" className="btn-primary" disabled title="Coming soon">
@@ -156,46 +179,46 @@ export default function CustomersDirectory({
         </div>
         <div className="chip-row">
           <div className="search-box">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.5-3.5" />
-            </svg>
+            <SearchIcon />
             <input
               type="search"
-              placeholder="Search name or phone…"
+              placeholder={t.customers.searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <select value={storeId} onChange={(e) => setStoreId(e.target.value)}>
-            <option value="">All stores</option>
+            <option value="">{t.customers.allStores}</option>
             {stores.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.name || "(unnamed)"}
+                {s.name || t.common.unnamed}
               </option>
             ))}
           </select>
           <button
             type="button"
             className={`pill-choice ${segment === "all" ? "selected" : ""}`}
+            aria-pressed={segment === "all"}
             onClick={() => setSegment("all")}
           >
-            All
+            {t.customers.segmentAll}
           </button>
           <button
             type="button"
             className={`pill-choice ${segment === "vip" ? "selected" : ""}`}
+            aria-pressed={segment === "vip"}
             onClick={() => setSegment("vip")}
           >
-            VIP · {vipCount}
+            {format(t.customers.segmentVip, { count: vipCount })}
           </button>
           <button
             type="button"
             className={`pill-choice ${segment === "risk" ? "selected" : ""}`}
+            aria-pressed={segment === "risk"}
             onClick={() => setSegment("risk")}
-            title={`No visit in ${AT_RISK_DAYS} days`}
+            title={format(t.customers.riskTitle, { days: AT_RISK_DAYS })}
           >
-            At risk · {riskCount}
+            {format(t.customers.segmentRisk, { count: riskCount })}
           </button>
         </div>
       </div>
@@ -206,16 +229,16 @@ export default function CustomersDirectory({
             <table className="store-table">
               <thead>
                 <tr>
-                  <th>Customer</th>
-                  <th>Store</th>
-                  <th className="num">Spend</th>
+                  <th>{t.customers.colCustomer}</th>
+                  <th>{t.customers.colStore}</th>
+                  <th className="num">{t.customers.colSpend}</th>
                 </tr>
               </thead>
               <tbody>
                 {shown.length === 0 && (
                   <tr>
                     <td colSpan={3} className="empty-note">
-                      {customers.length === 0 ? "No customers yet" : "No customers match these filters"}
+                      {customers.length === 0 ? t.customers.emptyNoCustomers : t.customers.emptyNoMatch}
                     </td>
                   </tr>
                 )}
@@ -229,13 +252,22 @@ export default function CustomersDirectory({
                       key={c.key}
                       className={`clickable ${selected?.key === c.key ? "sel" : ""}`}
                       onClick={() => setSelectedKey(c.key)}
+                      tabIndex={0}
+                      role="button"
+                      aria-pressed={selected?.key === c.key}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedKey(c.key);
+                        }
+                      }}
                     >
                       <td>
                         <div className="cust-name-cell">
                           <span className={`avatar av-${avatarIndex(c.key)}`}>{initials(c.name)}</span>
                           <span className="who">
                             <span className="nm-line">
-                              {c.name} {c.isVip && <span className="badge badge-vip">VIP</span>}
+                              {c.name} {c.isVip && <span className="badge badge-vip">{t.common.vip}</span>}
                             </span>
                             <span className="ph-line">{formatPhone(c.phone)}</span>
                           </span>
@@ -249,52 +281,59 @@ export default function CustomersDirectory({
               </tbody>
             </table>
           </div>
-          {filtered.length > SHOW_LIMIT && (
-            <div className="table-note">
-              Showing {SHOW_LIMIT} of {formatCount(filtered.length)} · same phone across stores counts as one customer
+          {filtered.length > shown.length ? (
+            <div className="table-note" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <span>{format(t.customers.showingOf, { shown: formatCount(shown.length), total: formatCount(filtered.length) })}</span>
+              <button type="button" className="btn-ghost" onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}>
+                {t.customers.showMore}
+              </button>
             </div>
+          ) : (
+            filtered.length > PAGE_SIZE && (
+              <div className="table-note">{format(t.customers.showingAll, { total: formatCount(filtered.length) })}</div>
+            )
           )}
         </div>
 
         <div className="cust-profile">
           {!selected ? (
-            <div className="profile-empty">Select a customer to see their profile</div>
+            <div className="profile-empty">{t.customers.selectPrompt}</div>
           ) : (
             <>
-              <div className="profile-band">Customer profile</div>
+              <div className="profile-band">{t.customers.profileBand}</div>
               <div className="profile-body">
                 <div className="profile-avatar-row">
                   <span className={`avatar lg av-${avatarIndex(selected.key)}`}>{initials(selected.name)}</span>
                   <span className="who">
                     <div className="profile-name">
-                      {selected.name} {selected.isVip && <span className="badge badge-vip">VIP</span>}
+                      {selected.name} {selected.isVip && <span className="badge badge-vip">{t.common.vip}</span>}
                     </div>
                     <div className="profile-sub">
-                      {formatPhone(selected.phone)} · last visit {selected.lastVisitLabel}
+                      {formatPhone(selected.phone)} · {format(t.customers.lastVisit, { label: selected.lastVisitLabel })}
                     </div>
                   </span>
                 </div>
 
                 <div className="tile-row">
                   <div className="tile blue">
-                    <span className="tile-label">Visits</span>
+                    <span className="tile-label">{t.customers.tileVisits}</span>
                     <span className="tile-value">{formatCount(selected.visitsCount)}</span>
                   </div>
                   <div className="tile teal">
-                    <span className="tile-label">Spend</span>
+                    <span className="tile-label">{t.customers.tileSpend}</span>
                     <span className="tile-value">
-                      {selected.totalSpend ? formatMoneyCompact(selected.totalSpend) : "—"}
+                      {selected.totalSpend ? formatMoneyCompact(selected.totalSpend) : t.common.dash}
                     </span>
                   </div>
                   <div className="tile amber">
-                    <span className="tile-label">Stores</span>
+                    <span className="tile-label">{t.customers.tileStores}</span>
                     <span className="tile-value">{selected.memberships.length}</span>
                   </div>
                 </div>
 
-                <div className="profile-label">Recent visits</div>
+                <div className="profile-label">{t.customers.recentVisits}</div>
                 {!profile && (
-                  <div className="timeline" aria-label="Loading visit history">
+                  <div className="timeline" aria-label={t.customers.loadingHistory}>
                     {[0, 1, 2].map((i) => (
                       <div key={i} className="timeline-item">
                         <span className="timeline-dot" />
@@ -307,13 +346,11 @@ export default function CustomersDirectory({
                     ))}
                   </div>
                 )}
-                {profile?.status === "error" && <div className="profile-sub">Could not load visit history.</div>}
+                {profile?.status === "error" && <div className="profile-sub">{t.customers.historyError}</div>}
                 {profile?.status === "loaded" &&
                   (profile.visits.length === 0 ? (
                     <div className="profile-sub">
-                      {selected.visitsCount > 0
-                        ? "No detailed visit records — this customer's visit count predates visit tracking."
-                        : "No recorded visits yet."}
+                      {selected.visitsCount > 0 ? t.customers.noDetailedVisits : t.customers.noVisitsYet}
                     </div>
                   ) : (
                     <div className="timeline">
@@ -322,7 +359,7 @@ export default function CustomersDirectory({
                           <span className="timeline-dot" />
                           <div className="timeline-main">
                             <span>
-                              {v.serviceName || "(unknown)"}
+                              {v.serviceName || t.common.unknown}
                               {v.staffName ? ` · ${v.staffName}` : ""}
                             </span>
                             <b>{formatMoney(v.amount)}</b>
@@ -337,7 +374,7 @@ export default function CustomersDirectory({
 
                 {selected.notes && (
                   <div className="note-chip">
-                    <b>Note</b> · {selected.notes}
+                    <b>{t.customers.note}</b> · {selected.notes}
                   </div>
                 )}
 
@@ -347,8 +384,8 @@ export default function CustomersDirectory({
                     Message
                   </a>
                   */}
-                  <button type="button" className="btn-primary" disabled title="Coming soon">
-                    Mark VIP
+                  <button type="button" className="btn-primary" disabled title={t.common.comingSoon}>
+                    {t.customers.markVip}
                   </button>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import BroadcastComposer from "@/components/BroadcastComposer";
 import { listBusinesses } from "@/lib/server-api";
 import { STATIC_BROADCAST_HISTORY, STATIC_SMS_CREDITS } from "@/lib/static-data";
+import { t } from "@/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -16,14 +17,14 @@ export default async function BroadcastsPage() {
   return (
     <div className="wrap">
       <div className="page-head">
-        <h1>Broadcasts</h1>
-        <p>Message store owners over SMS / WhatsApp · sample content until messaging goes live</p>
+        <h1>{t.broadcasts.title}</h1>
+        <p>{t.broadcasts.subtitle}</p>
       </div>
 
       <BroadcastComposer ownerCount={stores.length} />
 
       <div className="section">
-        <h2>History</h2>
+        <h2>{t.broadcasts.history}</h2>
         <div className="table-wrap">
           <table className="store-table">
             <tbody>
@@ -41,7 +42,7 @@ export default async function BroadcastsPage() {
       </div>
 
       <div className="section">
-        <h2>SMS credits</h2>
+        <h2>{t.broadcasts.smsCredits}</h2>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ whiteSpace: "nowrap", fontSize: 13, color: "var(--text-muted)" }}>
             {STATIC_SMS_CREDITS.used.toLocaleString("en-IN")} / {STATIC_SMS_CREDITS.total.toLocaleString("en-IN")}

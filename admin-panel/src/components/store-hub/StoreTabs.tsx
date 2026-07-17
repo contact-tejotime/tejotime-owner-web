@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { t } from "@/i18n";
 
 const TABS = [
-  { segment: "", label: "Overview" },
-  { segment: "customers", label: "Customers" },
-  { segment: "visits", label: "Visits" },
-  { segment: "settings", label: "Settings" },
+  { segment: "", label: t.storeHub.tabOverview },
+  { segment: "customers", label: t.storeHub.tabCustomers },
+  { segment: "visits", label: t.storeHub.tabVisits },
+  { segment: "settings", label: t.storeHub.tabSettings },
 ];
 
 export default function StoreTabs({ storeId }: { storeId: string }) {

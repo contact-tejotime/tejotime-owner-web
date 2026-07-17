@@ -3,6 +3,7 @@
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatAmount, formatAmountCompact, formatDayShort } from "@/lib/format";
 import { AXIS_INK, CHART_HEIGHT, GRID_INK, SERIES_1, TOOLTIP_STYLE } from "./chart-theme";
+import { t } from "@/i18n";
 
 export interface DailyValuePoint {
   date: string;
@@ -15,6 +16,7 @@ export interface DailyValuePoint {
  */
 export default function RevenueTrendChart({ data, currency }: { data: DailyValuePoint[]; currency: string }) {
   return (
+    <div role="img" aria-label={t.charts.revenueArea}>
     <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
       <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
         <defs>
@@ -55,5 +57,6 @@ export default function RevenueTrendChart({ data, currency }: { data: DailyValue
         />
       </AreaChart>
     </ResponsiveContainer>
+    </div>
   );
 }

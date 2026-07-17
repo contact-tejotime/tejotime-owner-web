@@ -4,6 +4,7 @@ import KpiCard from "@/components/KpiCard";
 import { RevenueTrendChart, SourcePie, VisitsBarChart } from "@/components/charts/lazy";
 import { formatCount, formatMoneyCompact, formatPercent, rupees } from "@/lib/format";
 import { getStoreAnalytics } from "@/lib/server-api";
+import { t, format } from "@/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function StoreOverviewPage({
 
   const analytics = await getStoreAnalytics(id, range);
   if (!analytics) {
-    return <div className="alert err">Could not load analytics — is the backend running?</div>;
+    return <div className="alert err">{t.storeOverview.loadError}</div>;
   }
 
   const { today, allTime } = analytics;
@@ -30,30 +31,30 @@ export default async function StoreOverviewPage({
   return (
     <>
       <div className="side-label" style={{ padding: "0 0 8px" }}>
-        Today
+        {t.storeOverview.today}
       </div>
       <div className="kpi-grid">
-        <KpiCard label="Appointments" value={formatCount(today.appointments)} sub="booked for today" />
-        <KpiCard label="Active in queue" value={formatCount(today.activeQueue)} sub="waiting + in service" />
-        <KpiCard label="Completed" value={formatCount(today.completed)} sub="visits today" />
-        <KpiCard label="Revenue today" value={formatMoneyCompact(today.revenue)} />
+        <KpiCard label={t.storeOverview.appointments} value={formatCount(today.appointments)} sub={t.storeOverview.appointmentsSub} />
+        <KpiCard label={t.storeOverview.activeQueue} value={formatCount(today.activeQueue)} sub={t.storeOverview.activeQueueSub} />
+        <KpiCard label={t.storeOverview.completed} value={formatCount(today.completed)} sub={t.storeOverview.completedSub} />
+        <KpiCard label={t.storeOverview.revenueToday} value={formatMoneyCompact(today.revenue)} />
       </div>
 
       <div className="side-label" style={{ padding: "0 0 8px" }}>
-        All time
+        {t.storeOverview.allTime}
       </div>
       <div className="kpi-grid">
-        <KpiCard label="Customers" value={formatCount(allTime.customers)} />
-        <KpiCard label="Visits" value={formatCount(allTime.visits)} />
-        <KpiCard label="Revenue" value={formatMoneyCompact(allTime.revenue)} />
-        <KpiCard label="Avg ticket" value={formatMoneyCompact(allTime.avgTicket)} />
-        <KpiCard label="Repeat rate" value={formatPercent(allTime.repeatRate)} sub="2+ visits" />
-        <KpiCard label="VIPs" value={formatCount(allTime.vipCount)} />
+        <KpiCard label={t.storeOverview.customers} value={formatCount(allTime.customers)} />
+        <KpiCard label={t.storeOverview.visits} value={formatCount(allTime.visits)} />
+        <KpiCard label={t.storeOverview.revenue} value={formatMoneyCompact(allTime.revenue)} />
+        <KpiCard label={t.storeOverview.avgTicket} value={formatMoneyCompact(allTime.avgTicket)} />
+        <KpiCard label={t.storeOverview.repeatRate} value={formatPercent(allTime.repeatRate)} sub={t.storeOverview.repeatRateSub} />
+        <KpiCard label={t.storeOverview.vips} value={formatCount(allTime.vipCount)} />
       </div>
 
       <div className="chart-card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h2 style={{ margin: 0 }}>Revenue — last {range === "30d" ? "30" : "90"} days</h2>
+          <h2 style={{ margin: 0 }}>{format(t.storeOverview.revenueLast, { days: range === "30d" ? "30" : "90" })}</h2>
           <span className="range-toggle">
             <Link href={`/stores/${id}?range=30d`} className={range === "30d" ? "active" : ""}>
               30d
@@ -68,32 +69,32 @@ export default async function StoreOverviewPage({
 
       <div className="chart-grid">
         <div className="chart-card">
-          <h2>Visits per day</h2>
+          <h2>{t.storeOverview.visitsPerDay}</h2>
           <VisitsBarChart data={visitSeries} />
         </div>
         <div className="chart-card">
-          <h2>Walk-in vs online ({range})</h2>
+          <h2>{format(t.storeOverview.walkInVsOnline, { range })}</h2>
           <SourcePie walkIn={analytics.visitSources.walkIn} online={analytics.visitSources.online} />
         </div>
         <div className="chart-card">
-          <h2>Top services by revenue ({range})</h2>
+          <h2>{format(t.storeOverview.topServices, { range })}</h2>
           <BarList
-            emptyText="No visits in this period yet"
+            emptyText={t.storeOverview.noVisitsPeriod}
             rows={analytics.topServices.map((s) => ({
               label: s.name,
-              sub: `${s.visits} visit${s.visits === 1 ? "" : "s"}`,
+              sub: format(s.visits === 1 ? t.storeOverview.visitCount : t.storeOverview.visitCountPlural, { count: s.visits }),
               value: s.revenue.amount,
               display: formatMoneyCompact(s.revenue),
             }))}
           />
         </div>
         <div className="chart-card">
-          <h2>Top staff by revenue ({range})</h2>
+          <h2>{format(t.storeOverview.topStaff, { range })}</h2>
           <BarList
-            emptyText="No visits in this period yet"
+            emptyText={t.storeOverview.noVisitsPeriod}
             rows={analytics.topStaff.map((s) => ({
               label: s.name,
-              sub: `${s.visits} visit${s.visits === 1 ? "" : "s"}`,
+              sub: format(s.visits === 1 ? t.storeOverview.visitCount : t.storeOverview.visitCountPlural, { count: s.visits }),
               value: s.revenue.amount,
               display: formatMoneyCompact(s.revenue),
             }))}

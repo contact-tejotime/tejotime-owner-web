@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { t, format } from "@/i18n";
 
-const AUDIENCES = ["All owners", "City ▾", "Plan ▾"];
+const AUDIENCES = [t.broadcasts.audienceAll, t.broadcasts.audienceCity, t.broadcasts.audiencePlan];
+// Canonical channel keys (also the checkbox state keys); labels are proper nouns.
 const CHANNELS = ["SMS", "WhatsApp", "Push"] as const;
 
 /**
@@ -17,7 +19,7 @@ export default function BroadcastComposer({ ownerCount }: { ownerCount: number }
 
   return (
     <div className="section">
-      <h2>Compose</h2>
+      <h2>{t.broadcasts.compose}</h2>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
         {AUDIENCES.map((a) => (
           <button
@@ -31,7 +33,7 @@ export default function BroadcastComposer({ ownerCount }: { ownerCount: number }
         ))}
       </div>
       <textarea
-        placeholder="New: WhatsApp booking reminders are live…"
+        placeholder={t.broadcasts.messagePlaceholder}
         value={message}
         onChange={(e) => setMessage(e.target.value)}
       />
@@ -47,11 +49,11 @@ export default function BroadcastComposer({ ownerCount }: { ownerCount: number }
             {ch}
           </label>
         ))}
-        <button type="button" className="btn-primary" disabled style={{ marginLeft: "auto" }} title="Coming soon">
-          Send to {ownerCount} owner{ownerCount === 1 ? "" : "s"}
+        <button type="button" className="btn-primary" disabled style={{ marginLeft: "auto" }} title={t.common.comingSoon}>
+          {format(ownerCount === 1 ? t.broadcasts.sendTo : t.broadcasts.sendToPlural, { count: ownerCount })}
         </button>
       </div>
-      <div className="hint">Sending is not wired up yet — messaging backend coming soon.</div>
+      <div className="hint">{t.broadcasts.notWired}</div>
     </div>
   );
 }

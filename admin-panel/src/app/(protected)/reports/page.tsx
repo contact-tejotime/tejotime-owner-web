@@ -6,6 +6,7 @@ import ReportsExplorer, {
   type VisitReportRow,
 } from "@/components/ReportsExplorer";
 import { listPlatformCustomers, listStoreVisits } from "@/lib/server-api";
+import { t } from "@/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,7 @@ export default async function ReportsPage({
   let revenueRows: RevenueReportRow[] = [];
   let customerRows: CustomerReportRow[] = [];
   let visitRows: VisitReportRow[] = [];
+  let visitsTruncated = false;
 
   if (report === "customers") {
     customerRows = customers
@@ -79,11 +81,15 @@ export default async function ReportsPage({
       revenueRows = perStore
         .flatMap(({ store, res }) =>
           res
-            ? [{ storeId: store.id, storeName: store.name || "(unnamed)", visits: res.summary.visits, revenue: res.summary.revenue }]
+            ? [{ storeId: store.id, storeName: store.name || t.common.unnamed, visits: res.summary.visits, revenue: res.summary.revenue }]
             : [],
         )
         .sort((a, b) => b.revenue.amount - a.revenue.amount);
     } else {
+      // A store's visit rows are capped by the backend; flag it so the table can
+      // say the export/list may be incomplete (the revenue summary stays accurate).
+      visitsTruncated = perStore.some(({ res }) => res != null && res.meta.total > res.meta.shown);
+
       // Visits carry customerId but no phone — join it from the customers aggregation.
       const phoneByCustomerId = new Map<string, string>();
       for (const c of customers) for (const m of c.memberships) phoneByCustomerId.set(m.customerId, c.phone);
@@ -95,7 +101,7 @@ export default async function ReportsPage({
             name: v.customerName,
             phone: (v.customerId && phoneByCustomerId.get(v.customerId)) || "—",
             storeId: store.id,
-            storeName: store.name || "(unnamed)",
+            storeName: store.name || t.common.unnamed,
             completedAt: v.completedAt,
             serviceName: v.serviceName,
             amount: v.amount,
@@ -110,20 +116,20 @@ export default async function ReportsPage({
   return (
     <div className="wrap">
       <div className="page-head">
-        <h1>Reports</h1>
-        <p>Revenue, customer and visit data across all stores · filter, then export as CSV</p>
+        <h1>{t.reports.title}</h1>
+        <p>{t.reports.subtitle}</p>
       </div>
 
       <div className="filter-row">
         <div className="range-toggle">
           <Link href={`/reports?report=revenue${dateQs}`} className={report === "revenue" ? "active" : ""}>
-            Revenue
+            {t.reports.tabRevenue}
           </Link>
           <Link href={`/reports?report=customers${dateQs}`} className={report === "customers" ? "active" : ""}>
-            Customer
+            {t.reports.tabCustomer}
           </Link>
           <Link href={`/reports?report=visits${dateQs}`} className={report === "visits" ? "active" : ""}>
-            Customer visit
+            {t.reports.tabVisits}
           </Link>
         </div>
       </div>
@@ -132,7 +138,14 @@ export default async function ReportsPage({
           component keeps its drafts in state, which survives client navigations). */}
       <DateRangeFilter key={`${from}|${to}`} from={from} to={to} />
 
-      <ReportsExplorer report={report} revenue={revenueRows} customers={customerRows} visits={visitRows} stores={stores} />
+      <ReportsExplorer
+        report={report}
+        revenue={revenueRows}
+        customers={customerRows}
+        visits={visitRows}
+        stores={stores}
+        visitsTruncated={visitsTruncated}
+      />
     </div>
   );
 }

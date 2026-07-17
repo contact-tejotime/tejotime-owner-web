@@ -11,9 +11,31 @@ import type { Money } from "./types";
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 const usd = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
+/**
+ * Parse an ISO string to a Date. Date-only values ("YYYY-MM-DD") are parsed as
+ * *local* midnight — `new Date("2026-08-01")` would otherwise be UTC midnight and
+ * shift to the previous day when formatted in a timezone behind UTC (and bucket
+ * into the wrong month). Full ISO datetimes keep their embedded offset.
+ */
+function parseIso(iso: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return new Date(iso);
+}
+
 /** Minor units → major-unit number, for chart props and math. */
 export function rupees(m: Money): number {
   return m.amount / 100;
+}
+
+/**
+ * Minor units → a plain decimal string for CSV cells (e.g. 184000 → "1840").
+ * Single source of truth for the minor-unit→major conversion in exports.
+ * NOTE: assumes 2-decimal minor units (paise/cents); confirm the backend's
+ * storage for zero-decimal currencies (JPY, KRW) before relying on it there.
+ */
+export function moneyToDecimalString(m: Money): string {
+  return String(m.amount / 100);
 }
 
 /** Major-unit number → ₹1,840 / $1,840 (symbol + grouping from the currency code). */
@@ -54,7 +76,7 @@ export function formatMoneyCompact(m: Money): string {
 
 /** ISO or YYYY-MM-DD → "10 Jun" (axis ticks / tooltip labels). */
 export function formatDayShort(iso: string): string {
-  const d = new Date(iso);
+  const d = parseIso(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
@@ -68,7 +90,7 @@ export function formatPercent(x: number | null | undefined): string {
 /** ISO → "9 Jul 2026". */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
-  const d = new Date(iso);
+  const d = parseIso(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
@@ -76,7 +98,7 @@ export function formatDate(iso: string | null | undefined): string {
 /** ISO → "9 Jul 2026, 2:30 pm". */
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
-  const d = new Date(iso);
+  const d = parseIso(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString("en-IN", {
     day: "numeric",
@@ -91,7 +113,7 @@ export function formatDateTime(iso: string | null | undefined): string {
 /** ISO → relative label: Today / 3d ago / 2w ago / 5mo ago; null → "Never". */
 export function formatRelative(iso: string | null | undefined): string {
   if (!iso) return "Never";
-  const then = new Date(iso);
+  const then = parseIso(iso);
   if (Number.isNaN(then.getTime())) return "Never";
   const days = Math.floor((Date.now() - then.getTime()) / 86_400_000);
   if (days <= 0) return "Today";
@@ -108,7 +130,7 @@ export function formatCount(n: number): string {
 /** True when the timestamp is older than `days` days (false for null/invalid). */
 export function isOlderThanDays(iso: string | null | undefined, days: number): boolean {
   if (!iso) return false;
-  const then = new Date(iso);
+  const then = parseIso(iso);
   if (Number.isNaN(then.getTime())) return false;
   return Date.now() - then.getTime() > days * 86_400_000;
 }
@@ -134,7 +156,7 @@ export function bucketByMonth(
   const byKey = new Map(buckets.map((b) => [b.key, b]));
   for (const iso of dates) {
     if (!iso) continue;
-    const d = new Date(iso);
+    const d = parseIso(iso);
     if (Number.isNaN(d.getTime())) continue;
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const bucket = byKey.get(key);

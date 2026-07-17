@@ -205,7 +205,12 @@ export function fromDetail(d: StoreDetail): StoreForm {
 
 /** Shape the form state into the backend's expected JSON body. `includeOwner` for create only. */
 export function toPayload(f: StoreForm, includeOwner: boolean) {
-  const num = (s: string) => (s.trim() === "" ? undefined : Number(s));
+  const num = (s: string) => {
+    const t = s.trim();
+    if (t === "") return undefined;
+    const n = Number(t);
+    return Number.isNaN(n) ? undefined : n; // never ship NaN (serializes to null)
+  };
   const body: Record<string, unknown> = {
     name: f.name.trim(),
     category: f.category.trim() || undefined,

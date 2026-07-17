@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PhoneField from "@/components/ui/PhoneField";
 import { combineToDigits, DEFAULT_DIAL_CODE, DEFAULT_ISO2, formatPhone } from "@/lib/phone";
+import { t } from "@/i18n";
+import { Icon } from "@/components/icons";
 import Spinner from "@/components/ui/Spinner";
 
 type Step = "mobile" | "otp";
@@ -37,13 +39,13 @@ export default function LoginPage() {
         body: JSON.stringify({ mobile }),
       });
       if (!res.ok) {
-        setError(await errorMessage(res, "Could not send OTP. Try again."));
+        setError(await errorMessage(res, t.login.otpSendError));
         return;
       }
       setStep("otp");
       setTimeout(() => otpRef.current?.focus(), 0);
     } catch {
-      setError("Network error. Is the backend running?");
+      setError(t.login.networkError);
     } finally {
       setBusy(false);
     }
@@ -60,13 +62,13 @@ export default function LoginPage() {
         body: JSON.stringify({ mobile, otp }),
       });
       if (!res.ok) {
-        setError(await errorMessage(res, "Incorrect OTP. Try again."));
+        setError(await errorMessage(res, t.login.otpVerifyError));
         return;
       }
       router.replace("/");
       router.refresh();
     } catch {
-      setError("Network error. Is the backend running?");
+      setError(t.login.networkError);
     } finally {
       setBusy(false);
     }
@@ -76,19 +78,28 @@ export default function LoginPage() {
     <div className="login-shell">
       <div className="login-card">
         <div className="brand login-brand">
-          <img src="/logo.png" alt="TejoTime" className="dot" />
-          TejoTime Admin
+          <span className="brand-mark">
+            <img src="/logo.png" alt={t.common.brandAlt} />
+          </span>
+          <span className="brand-name">
+            {t.nav.brandName}
+            <span className="brand-sub">{t.nav.brandBadge}</span>
+          </span>
         </div>
 
         {step === "mobile" ? (
           <form onSubmit={requestOtp}>
-            <h1 className="login-title">Sign in</h1>
-            <p className="login-sub">Enter your registered mobile number to receive a one-time code.</p>
-            {error && <div className="alert err">{error}</div>}
+            <h1 className="login-title">{t.login.signIn}</h1>
+            <p className="login-sub">{t.login.mobilePrompt}</p>
+            {error && (
+              <div className="alert err" role="alert">
+                {error}
+              </div>
+            )}
             <PhoneField
               id="mobile"
-              label="Mobile number"
-              placeholder="e.g. 9399385943"
+              label={t.login.mobileLabel}
+              placeholder={t.login.mobilePlaceholder}
               autoFocus
               value={{ dialCode: phoneCountry.dialCode, national, iso2: phoneCountry.iso2 }}
               onChange={(v) => {
@@ -98,17 +109,21 @@ export default function LoginPage() {
             />
             <button className="btn-primary login-btn" type="submit" disabled={busy || !national.trim()} aria-busy={busy || undefined}>
               {busy && <Spinner className="btn-spinner" />}
-              {busy ? "Sending…" : "Send OTP"}
+              {busy ? t.login.sending : t.login.sendOtp}
             </button>
           </form>
         ) : (
           <form onSubmit={verifyOtp}>
-            <h1 className="login-title">Enter code</h1>
+            <h1 className="login-title">{t.login.enterCode}</h1>
             <p className="login-sub">
-              We sent a one-time code to <strong>{formatPhone(mobile)}</strong>.
+              {t.login.otpSentTo} <strong>{formatPhone(mobile)}</strong>.
             </p>
-            {error && <div className="alert err">{error}</div>}
-            <label htmlFor="otp">One-time code</label>
+            {error && (
+              <div className="alert err" role="alert">
+                {error}
+              </div>
+            )}
+            <label htmlFor="otp">{t.login.otpLabel}</label>
             <input
               id="otp"
               ref={otpRef}
@@ -116,15 +131,19 @@ export default function LoginPage() {
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={6}
-              placeholder="4-digit code"
+              placeholder={t.login.otpPlaceholder}
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
               required
             />
-            <div className="hint">Demo OTP: <code>1234</code></div>
+            {process.env.NODE_ENV !== "production" && (
+              <div className="hint">
+                {t.login.demoOtpLabel} <code>{t.login.demoOtpCode}</code>
+              </div>
+            )}
             <button className="btn-primary login-btn" type="submit" disabled={busy || otp.length < 4} aria-busy={busy || undefined}>
               {busy && <Spinner className="btn-spinner" />}
-              {busy ? "Verifying…" : "Verify & sign in"}
+              {busy ? t.login.verifying : t.login.verify}
             </button>
             <button
               type="button"
@@ -135,7 +154,8 @@ export default function LoginPage() {
                 setError("");
               }}
             >
-              ← Use a different number
+              <Icon name="chevronLeft" size={15} style={{ display: "inline-block", verticalAlign: "-0.15em" }} />{" "}
+              {t.login.useDifferentNumber}
             </button>
           </form>
         )}

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
+import { t } from "@/i18n";
 
 export interface StatusOption {
   value: string;
@@ -51,16 +52,16 @@ export default function DateRangeFilter({
   return (
     <div className="filter-row">
       <label style={{ fontSize: 13, color: "var(--text-muted)" }}>
-        From{" "}
+        {t.dateRange.from}{" "}
         <input type="date" value={draftFrom} max={draftTo || undefined} onChange={(e) => setDraftFrom(e.target.value)} />
       </label>
       <label style={{ fontSize: 13, color: "var(--text-muted)" }}>
-        To{" "}
+        {t.dateRange.to}{" "}
         <input type="date" value={draftTo} min={draftFrom || undefined} onChange={(e) => setDraftTo(e.target.value)} />
       </label>
       {statusOptions && (
         <select value={draftStatus} onChange={(e) => setDraftStatus(e.target.value)}>
-          <option value="">All statuses</option>
+          <option value="">{t.dateRange.allStatuses}</option>
           {statusOptions.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
@@ -69,7 +70,7 @@ export default function DateRangeFilter({
         </select>
       )}
       <Button type="button" className="btn-add" onClick={apply} loading={isPending}>
-        Apply
+        {t.common.apply}
       </Button>
     </div>
   );

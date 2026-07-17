@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { t, format } from "@/i18n";
 import ConfirmDialog from "./ConfirmDialog";
 
 /**
@@ -45,7 +46,7 @@ export default function StoreStatusToggle({
       router.refresh();
     } catch (e) {
       setOn(!next);
-      setError(e instanceof Error ? e.message : "Update failed");
+      setError(e instanceof Error ? e.message : t.storeStatus.updateFailed);
     } finally {
       setBusy(false);
       setConfirming(false);
@@ -59,22 +60,22 @@ export default function StoreStatusToggle({
         className={`switch ${size === "sm" ? "sm" : ""} ${on ? "on" : ""}`}
         role="switch"
         aria-checked={on}
-        aria-label={`${on ? "Disable" : "Enable"} ${storeName}`}
+        aria-label={format(on ? t.storeStatus.disableLabel : t.storeStatus.enableLabel, { name: storeName })}
         disabled={busy}
         onClick={() => (on ? setConfirming(true) : apply(true))}
       >
         <span className="knob" />
       </button>
       {error && (
-        <span className="toggle-error" title={error}>
-          Failed — fix in Settings
+        <span className="toggle-error" role="alert" title={error}>
+          {t.storeStatus.failed}
         </span>
       )}
       {confirming && (
         <ConfirmDialog
-          title={`Disable ${storeName}?`}
-          body="The microsite goes offline and online bookings stop. Existing data is kept."
-          confirmLabel="Disable store"
+          title={format(t.storeStatus.disableTitle, { name: storeName })}
+          body={t.storeStatus.disableBody}
+          confirmLabel={t.storeStatus.disableConfirm}
           danger
           busy={busy}
           onConfirm={() => apply(false)}

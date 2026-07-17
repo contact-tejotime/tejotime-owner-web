@@ -1,5 +1,6 @@
 import StoresTable from "@/components/StoresTable";
 import { listBusinessesWithMetrics } from "@/lib/server-api";
+import { t, format } from "@/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -8,10 +9,8 @@ export default async function StoresListPage() {
   return (
     <div className="wrap">
       <div className="page-head">
-        <h1>All stores</h1>
-        <p>
-          {stores.length} store{stores.length === 1 ? "" : "s"}
-        </p>
+        <h1>{t.stores.title}</h1>
+        <p>{format(stores.length === 1 ? t.stores.count : t.stores.countPlural, { count: stores.length })}</p>
       </div>
       <StoresTable stores={stores} />
     </div>

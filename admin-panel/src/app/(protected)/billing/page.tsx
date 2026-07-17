@@ -4,14 +4,15 @@ import { formatAmount, formatCount } from "@/lib/format";
 import { listBusinessesWithMetrics } from "@/lib/server-api";
 import { PREMIUM_PLAN_PRICE_INR } from "@/lib/static-data";
 import type { StoreMetrics } from "@/lib/types";
+import { t, format } from "@/i18n";
 
 export const dynamic = "force-dynamic";
 
 const STATUS_BADGE: Record<StoreMetrics["subscriptionStatus"], { label: string; className: string }> = {
-  active: { label: "Active", className: "badge badge-active" },
-  trialing: { label: "Trialing", className: "badge badge-amber" },
-  past_due: { label: "Past due", className: "badge badge-red" },
-  canceled: { label: "Canceled", className: "badge badge-inactive" },
+  active: { label: t.billing.statusActive, className: "badge badge-active" },
+  trialing: { label: t.billing.statusTrialing, className: "badge badge-amber" },
+  past_due: { label: t.billing.statusPastDue, className: "badge badge-red" },
+  canceled: { label: t.billing.statusCanceled, className: "badge badge-inactive" },
 };
 
 /**
@@ -28,18 +29,18 @@ export default async function BillingPage() {
   return (
     <div className="wrap">
       <div className="page-head">
-        <h1>Subscriptions &amp; billing</h1>
-        <p>Plans and subscription status across all stores</p>
+        <h1>{t.billing.title}</h1>
+        <p>{t.billing.subtitle}</p>
       </div>
 
       <div className="kpi-grid">
-        <KpiCard label="Free plan" value={`${formatCount(free.length)} stores`} sub={formatAmount(0, "INR")} />
+        <KpiCard label={t.billing.freePlan} value={format(t.billing.freeStores, { count: formatCount(free.length) })} sub={formatAmount(0, "INR")} />
         <KpiCard
-          label="Premium"
-          value={`${formatCount(premium.length)} stores`}
-          sub={`${formatAmount(PREMIUM_PLAN_PRICE_INR, "INR")}/mo`}
+          label={t.billing.premium}
+          value={format(t.billing.premiumStores, { count: formatCount(premium.length) })}
+          sub={format(t.billing.perMonth, { price: formatAmount(PREMIUM_PLAN_PRICE_INR, "INR") })}
         />
-        <KpiCard label="MRR" value={formatAmount(mrr, "INR")} sub="premium × plan price" />
+        <KpiCard label={t.billing.mrr} value={formatAmount(mrr, "INR")} sub={t.billing.mrrSub} />
       </div>
 
       <div className="section">
@@ -47,16 +48,16 @@ export default async function BillingPage() {
           <table className="store-table">
             <thead>
               <tr>
-                <th>Store</th>
-                <th>Plan</th>
-                <th>Status</th>
+                <th>{t.billing.colStore}</th>
+                <th>{t.billing.colPlan}</th>
+                <th>{t.billing.colStatus}</th>
               </tr>
             </thead>
             <tbody>
               {stores.length === 0 && (
                 <tr>
                   <td colSpan={3} className="empty-note">
-                    No stores yet
+                    {t.billing.empty}
                   </td>
                 </tr>
               )}
@@ -65,11 +66,11 @@ export default async function BillingPage() {
                 return (
                   <tr key={s.id}>
                     <td className="nm">
-                      <Link href={`/stores/${s.id}`}>{s.name || "(unnamed)"}</Link>
+                      <Link href={`/stores/${s.id}`}>{s.name || t.common.unnamed}</Link>
                     </td>
                     <td>
                       <span className={`badge ${s.plan === "premium" ? "badge-plan-premium" : "badge-plan-free"}`}>
-                        {s.plan === "premium" ? "Premium" : "Free"}
+                        {s.plan === "premium" ? t.billing.planPremium : t.billing.planFree}
                       </span>
                     </td>
                     <td>
@@ -81,10 +82,7 @@ export default async function BillingPage() {
             </tbody>
           </table>
         </div>
-        <div className="dashed-note">
-          Dunning (planned): remind on day 1 / 3 / 7 past due → downgrade to Free on day 14. Row actions: Retry charge ·
-          Send reminder.
-        </div>
+        <div className="dashed-note">{t.billing.dunningNote}</div>
       </div>
     </div>
   );
