@@ -4,6 +4,7 @@ import { currencySymbol } from '@/lib/currencies';
 import { mapHours } from '@/lib/hours';
 import { AppointmentEntry, Customer, ServiceColorToken, ServiceVM, Staff } from '@/data/sample';
 import { StatusKind } from '@/components/ui/StatusBadge';
+import { t, format } from '@/i18n';
 
 export interface Money {
   amount: number;
@@ -35,7 +36,7 @@ export function mapCard(c: any, seatColor: ServiceColorToken = 'secondary'): Car
     initials: c.initials,
     seatName: c.seatName,
     seatColor,
-    srcLabel: c.online ? 'Online' : 'Walk-in',
+    srcLabel: c.online ? t.format.online : t.format.walkIn,
     online: !!c.online,
     rightText: c.rightText,
     inService: c.status === 'in_service',
@@ -53,7 +54,7 @@ export function mapSeat(s: any, i = 0): SeatGroupVM {
     serving: !!s.serving,
     servingName: s.servingName ?? '',
     subLine: s.subLine ?? '',
-    waitBadge: s.waitBadge ?? 'Free',
+    waitBadge: s.waitBadge ?? t.format.free,
     waitN: s.waitingCount ?? 0,
     clearMinutes: s.clearMinutes ?? 0,
     free: !!s.free,
@@ -78,7 +79,7 @@ export function mapService(s: any, i = 0): ServiceVM {
   return {
     id: s.id,
     name: s.name,
-    duration: `${s.durationMinutes} min`,
+    duration: format(t.format.durationMin, { min: s.durationMinutes }),
     price: formatMoney(s.price),
     color: colorByIndex(i),
     durationMinutes: s.durationMinutes ?? 0,
@@ -129,7 +130,7 @@ export function mapCustomer(c: any): Customer {
     name: c.name,
     phone: c.phone,
     visits: c.visitsCount ?? 0,
-    last: c.lastVisitLabel ?? '—',
+    last: c.lastVisitLabel ?? t.common.dash,
     spend: formatMoney(c.totalSpend),
     vip: !!c.isVip,
   };

@@ -4,6 +4,7 @@
  */
 import { QueueEntry, Service, ServiceColorToken, Staff } from '@/data/sample';
 import { initials } from '@/lib/format';
+import { t, format } from '@/i18n';
 
 const isActive = (q: QueueEntry) => q.status === 'waiting' || q.status === 'in-service';
 
@@ -92,9 +93,9 @@ function buildCard(
     initials: initials(c.name),
     seatName: seat?.name ?? '',
     seatColor: seat?.color ?? 'secondary',
-    srcLabel: c.src === 'online' ? 'Online' : 'Walk-in',
+    srcLabel: c.src === 'online' ? t.format.online : t.format.walkIn,
     online: c.src === 'online',
-    rightText: inService ? 'In service' : rightText,
+    rightText: inService ? t.format.inService : rightText,
     inService,
     isWaiting: c.status === 'waiting',
   };
@@ -116,9 +117,9 @@ export function buildSeatGroups(
 
     let cum = serving.reduce((m, q) => m + estMins(q, services), 0);
     let n = 0;
-    const servCards = serving.map((c) => buildCard(c, ++n, 'In service', st));
+    const servCards = serving.map((c) => buildCard(c, ++n, t.format.inService, st));
     const waitCards = waits.map((c) => {
-      const lbl = cum <= 0 ? 'Next up' : `~${cum} min`;
+      const lbl = cum <= 0 ? t.format.nextUp : format(t.format.waitEta, { min: cum });
       const card = buildCard(c, ++n, lbl, st);
       cum += estMins(c, services);
       return card;
@@ -133,9 +134,9 @@ export function buildSeatGroups(
       serving: serving.length > 0,
       servingName: serving.length ? serving[0].name : '',
       subLine: serving.length
-        ? `Serving ${serving[0].name.split(' ')[0]} · ~${clearM} min`
-        : 'Available · ready for walk-in',
-      waitBadge: waits.length > 0 ? `${waits.length} waiting` : 'Free',
+        ? format(t.format.servingEta, { name: serving[0].name.split(' ')[0], min: clearM })
+        : t.format.availableWalkIn,
+      waitBadge: waits.length > 0 ? format(t.format.waitingCount, { count: waits.length }) : t.format.free,
       waitN: waits.length,
       clearMinutes: clearM,
       free: waits.length === 0,

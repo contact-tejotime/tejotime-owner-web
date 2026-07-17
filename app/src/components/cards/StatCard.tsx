@@ -7,7 +7,7 @@ import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { useTheme } from '@/theme/ThemeProvider';
 
-export function StatCard({
+function StatCardComponent({
   label,
   value,
   delta,
@@ -38,6 +38,9 @@ export function StatCard({
     </View>
   );
 }
+
+/** Memoized — KPI tiles get primitive props, so unchanged values skip re-render. */
+export const StatCard = React.memo(StatCardComponent);
 
 const createStatCardStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
   StyleSheet.create({

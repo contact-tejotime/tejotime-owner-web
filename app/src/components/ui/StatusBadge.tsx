@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Animated, StyleSheet, TextStyle, View } from 'react-native';
 
 import { TText } from '@/components/common';
+import { t } from '@/i18n';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
@@ -21,21 +22,21 @@ export type StatusKind =
 type Tone = 'neutral' | 'primary' | 'info' | 'success' | 'warning' | 'error';
 
 const STATUS_MAP: Record<StatusKind, { label: string; tone: Tone }> = {
-  waiting: { label: 'Waiting', tone: 'warning' },
-  upcoming: { label: 'Upcoming', tone: 'info' },
-  'in-service': { label: 'In service', tone: 'primary' },
-  serving: { label: 'In service', tone: 'primary' },
-  completed: { label: 'Completed', tone: 'success' },
-  cancelled: { label: 'Cancelled', tone: 'neutral' },
-  'no-show': { label: 'No-show', tone: 'error' },
-  confirmed: { label: 'Confirmed', tone: 'success' },
+  waiting: { label: t.status.waiting, tone: 'warning' },
+  upcoming: { label: t.status.upcoming, tone: 'info' },
+  'in-service': { label: t.status.inService, tone: 'primary' },
+  serving: { label: t.status.inService, tone: 'primary' },
+  completed: { label: t.status.completed, tone: 'success' },
+  cancelled: { label: t.status.cancelled, tone: 'neutral' },
+  'no-show': { label: t.status.noShow, tone: 'error' },
+  confirmed: { label: t.status.confirmed, tone: 'success' },
 };
 
 export function StatusBadge({ status }: { status: StatusKind }) {
   const theme = useTheme();
   const meta = STATUS_MAP[status] ?? { label: status, tone: 'neutral' as Tone };
-  const t = useMemo(() => statusTonePair(meta.tone, theme.colors), [meta.tone, theme.colors]);
-  const s = useMemo(() => createStatusBadgeStyles(theme, t), [theme, t]);
+  const tonePair = useMemo(() => statusTonePair(meta.tone, theme.colors), [meta.tone, theme.colors]);
+  const s = useMemo(() => createStatusBadgeStyles(theme, tonePair), [theme, tonePair]);
   const live = status === 'in-service' || status === 'serving' || status === 'waiting';
 
   const [pulse] = useState(() => new Animated.Value(0));

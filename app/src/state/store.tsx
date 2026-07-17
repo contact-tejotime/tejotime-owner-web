@@ -19,6 +19,7 @@ import {
 import { DayHoursVM, toApiHours } from '@/lib/hours';
 import { TAB_ROUTES } from '@/navigation/routes';
 import { showToast } from '@/lib/toast';
+import { t, format } from '@/i18n';
 
 export type Plan = 'free' | 'premium';
 type Sheet = 'walkin' | null;
@@ -55,6 +56,13 @@ type State = {
   authed: boolean;
   authLoading: boolean;
   signInLoading: boolean;
+  signOutLoading: boolean;
+  bootstrapping: boolean; // first parallel data load after auth
+  refreshing: boolean; // pull-to-refresh in progress
+  walkinLoading: boolean;
+  upgradeLoading: boolean;
+  detailBusy: boolean; // a start/checkout/no-show action on the open detail card
+  checkInId: string | null; // appointment id currently being checked in
   queueStaff: string; // 'all' | staff id
   plan: Plan;
   sheet: Sheet;
@@ -76,6 +84,7 @@ type State = {
 type Store = State & {
   signIn: (phone: string, password: string) => void;
   signOut: () => void;
+  refresh: () => Promise<void>;
   setQueueStaff: (id: string) => void;
   setSearch: (v: string) => void;
   openAlerts: () => void;
@@ -134,6 +143,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     authed: false,
     authLoading: true,
     signInLoading: false,
+    signOutLoading: false,
+    bootstrapping: false,
+    refreshing: false,
+    walkinLoading: false,
+    upgradeLoading: false,
+    detailBusy: false,
+    checkInId: null,
     queueStaff: 'all',
     plan: 'free',
     sheet: null,
@@ -224,7 +240,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const bootstrap = useCallback(async () => {
+  const loadAll = useCallback(async () => {
     await Promise.all([
       loadQueue(),
       loadServices(),
@@ -235,6 +251,26 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       loadBusiness(),
     ]);
   }, [loadQueue, loadServices, loadStaff, loadAppointments, loadCustomers, loadDashboard, loadBusiness]);
+
+  /** First data load after auth — flips `bootstrapping` so screens can show a spinner. */
+  const bootstrap = useCallback(async () => {
+    setS((p) => ({ ...p, bootstrapping: true }));
+    try {
+      await loadAll();
+    } finally {
+      setS((p) => ({ ...p, bootstrapping: false }));
+    }
+  }, [loadAll]);
+
+  /** Pull-to-refresh — re-fetches everything, surfaced via `refreshing`. */
+  const refresh = useCallback(async () => {
+    setS((p) => ({ ...p, refreshing: true }));
+    try {
+      await loadAll();
+    } finally {
+      setS((p) => ({ ...p, refreshing: false }));
+    }
+  }, [loadAll]);
 
   const connectSocket = useCallback(() => {
     const token = getAccessToken();
@@ -257,7 +293,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setS((p) => ({ ...p, plan: d.plan }));
       loadCustomers();
     });
-    sock.on('notification:new', (d: any) => showToast(d?.body ?? 'New notification', 'info'));
+    sock.on('notification:new', (d: any) => showToast(d?.body ?? t.toast.newNotification, 'info'));
   }, [loadAppointments, loadDashboard, loadQueue, loadCustomers]);
 
   const teardown = useCallback(() => {
@@ -271,7 +307,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setOnAuthFail(() => {
       teardown();
       setS((p) => ({ ...p, authed: false, authLoading: false }));
-      showToast('Session expired', 'error');
+      showToast(t.toast.sessionExpired, 'error');
     });
     (async () => {
       const has = await initSession();
@@ -308,14 +344,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       ...s,
       signIn: async (phone, password) => {
         if (!phone.trim() || !password.trim()) {
-          showToast('Enter your phone number and password', 'error');
+          showToast(t.toast.enterPhonePassword, 'error');
           return;
         }
         patch(() => ({ signInLoading: true }));
         try {
           const res: any = await api.login(phone.trim(), password);
           const message =
-            res?.message ?? (res?.user?.name ? `Welcome back, ${res.user.name}` : 'Signed in successfully');
+            res?.message ??
+            (res?.user?.name ? format(t.toast.welcomeBackName, { name: res.user.name }) : t.toast.signedIn);
           setS((p) => ({
             ...p,
             authed: true,
@@ -327,31 +364,33 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           connectSocket();
           bootstrap();
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Sign in failed', 'error');
+          showToast((e as ApiError)?.message ?? t.toast.signInFailed, 'error');
           patch(() => ({ signInLoading: false }));
         }
       },
       signOut: async () => {
-        let message = 'Signed out successfully';
+        patch(() => ({ signOutLoading: true }));
+        let message = t.toast.signedOut;
         let type: 'success' | 'error' | 'info' = 'success';
         try {
           const res: any = await api.logout();
           if (res?.message) message = res.message;
         } catch (e) {
-          message = (e as ApiError)?.message ?? 'Signed out locally';
+          message = (e as ApiError)?.message ?? t.toast.signedOutLocally;
           type = 'info';
         }
         teardown();
-        setS((p) => ({ ...p, authed: false }));
+        setS((p) => ({ ...p, authed: false, signOutLoading: false }));
         showToast(message, type);
       },
+      refresh,
       setQueueStaff: (id) => patch(() => ({ queueStaff: id })),
       setSearch: (v) => {
         patch(() => ({ search: v }));
         if (searchTimer.current) clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => loadCustomers(v || undefined), 300);
       },
-      openAlerts: () => showToast('No new notifications', 'info'),
+      openAlerts: () => showToast(t.toast.noNewNotifications, 'info'),
       openWalkin: () => patch(() => ({ sheet: 'walkin', walkin: { ...emptyWalkin } })),
       closeWalkin: () => patch(() => ({ sheet: null })),
       openQr: () => patch(() => ({ qr: true })),
@@ -361,9 +400,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       pickService: (name) => patch((p) => ({ walkin: { ...p.walkin, service: name, error: '' } })),
       addWalkin: async ({ name, phone }) => {
         const w = s.walkin;
-        if (!name.trim()) return patch(() => ({ walkin: { ...w, error: 'Enter a customer name' } }));
-        if (!w.service) return patch(() => ({ walkin: { ...w, error: 'Pick a service' } }));
+        if (!name.trim()) return patch(() => ({ walkin: { ...w, error: t.toast.enterName } }));
+        if (!w.service) return patch(() => ({ walkin: { ...w, error: t.toast.pickService } }));
         const serviceId = s.services.find((sv) => sv.name === w.service)?.id ?? null;
+        patch(() => ({ walkinLoading: true }));
         try {
           const res: any = await api.addWalkin({
             name: name.trim(),
@@ -372,71 +412,87 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             staffId: w.staffId,
             position: w.position,
           });
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), sheet: null }));
-          showToast(w.position === 'next' ? 'Added as next' : 'Added to queue', 'success');
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), sheet: null, walkinLoading: false }));
+          showToast(w.position === 'next' ? t.toast.addedAsNext : t.toast.addedToQueue, 'success');
           loadDashboard();
         } catch (e) {
-          patch(() => ({ walkin: { ...s.walkin, error: (e as ApiError)?.message ?? 'Could not add' } }));
+          patch(() => ({ walkinLoading: false, walkin: { ...s.walkin, error: (e as ApiError)?.message ?? t.toast.couldNotAdd } }));
         }
       },
       openDetail: (id) => patch(() => ({ detailId: id })),
       closeDetail: () => patch(() => ({ detailId: null })),
       startService: async (id) => {
+        patch(() => ({ detailBusy: true }));
         try {
           const res: any = await api.startService(id);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null }));
-          showToast('Service started', 'success');
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null, detailBusy: false }));
+          showToast(t.toast.serviceStarted, 'success');
         } catch (e) {
+          patch(() => ({ detailBusy: false }));
           const err = e as ApiError;
           if (err.code === 'SEAT_BUSY') {
             const card = flatCards(s.seats).find((c) => c.id === id);
             const seat = s.staff.find((st) => st.id === card?.staffId);
             const seatGroup = s.seats.find((g) => g.id === card?.staffId);
             showToast(
-              `${seat?.name ?? 'This seat'} is already serving ${seatGroup?.servingName?.split(' ')[0] ?? 'someone'}. Finish that first.`,
+              format(t.toast.seatBusyShort, {
+                seat: seat?.name ?? t.detail.seatBusyFallback,
+                name: seatGroup?.servingName?.split(' ')[0] ?? t.detail.someone,
+              }),
               'error',
             );
           } else {
-            showToast(err.message ?? 'Could not start', 'error');
+            showToast(err.message ?? t.toast.couldNotStart, 'error');
           }
         }
       },
       checkout: async (id) => {
+        patch(() => ({ detailBusy: true }));
         try {
           const res: any = await api.checkout(id);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null }));
-          showToast(res.promoted ? `${String(res.promoted.name).split(' ')[0]} now in service` : 'Checked out', 'success');
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null, detailBusy: false }));
+          showToast(
+            res.promoted ? format(t.toast.nowInService, { name: String(res.promoted.name).split(' ')[0] }) : t.toast.checkedOut,
+            'success',
+          );
           loadDashboard();
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Could not check out', 'error');
+          patch(() => ({ detailBusy: false }));
+          showToast((e as ApiError)?.message ?? t.toast.couldNotCheckOut, 'error');
         }
       },
       noShow: async (id) => {
+        patch(() => ({ detailBusy: true }));
         try {
           const res: any = await api.noShow(id);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null }));
-          showToast('Marked no-show', 'success');
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null, detailBusy: false }));
+          showToast(t.toast.markedNoShow, 'success');
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Error', 'error');
+          patch(() => ({ detailBusy: false }));
+          showToast((e as ApiError)?.message ?? t.toast.error, 'error');
         }
       },
       reassign: async (id, staffId) => {
+        patch(() => ({ detailBusy: true }));
         try {
           const res: any = await api.reassign(id, staffId);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats) }));
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailBusy: false }));
           const nm = s.staff.find((st) => st.id === staffId)?.name ?? '';
-          showToast(`Moved${nm ? ` to ${nm}` : ''}`, 'success');
+          showToast(nm ? format(t.toast.movedTo, { name: nm }) : t.toast.moved, 'success');
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Error', 'error');
+          patch(() => ({ detailBusy: false }));
+          showToast((e as ApiError)?.message ?? t.toast.error, 'error');
         }
       },
       extendService: async (id, label, mins) => {
+        patch(() => ({ detailBusy: true }));
         try {
           const res: any = await api.extend(id, label, mins);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats) }));
-          showToast(`+${mins} min · ${label} added`, 'success');
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailBusy: false }));
+          showToast(format(t.toast.extendAdded, { mins, label }), 'success');
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Error', 'error');
+          patch(() => ({ detailBusy: false }));
+          showToast((e as ApiError)?.message ?? t.toast.error, 'error');
         }
       },
       setDragId: (id) => patch(() => ({ dragId: id })),
@@ -458,35 +514,39 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
       },
       checkInAppt: async (a) => {
+        patch(() => ({ checkInId: a.id }));
         try {
           await api.checkIn(a.id);
-          setS((p) => ({ ...p, appts: p.appts.filter((x) => x.id !== a.id) }));
+          setS((p) => ({ ...p, checkInId: null, appts: p.appts.filter((x) => x.id !== a.id) }));
           router.push(TAB_ROUTES.queue as any);
-          showToast(`${a.name} added to queue`, 'success');
+          showToast(format(t.toast.addedToQueueName, { name: a.name }), 'success');
           loadQueue();
           loadDashboard();
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Could not check in', 'error');
+          patch(() => ({ checkInId: null }));
+          showToast((e as ApiError)?.message ?? t.toast.couldNotCheckIn, 'error');
         }
       },
       upgrade: async () => {
+        patch(() => ({ upgradeLoading: true }));
         try {
           await api.upgrade();
-          setS((p) => ({ ...p, plan: 'premium' }));
-          showToast('Welcome to Premium', 'success');
+          setS((p) => ({ ...p, plan: 'premium', upgradeLoading: false }));
+          showToast(t.toast.welcomePremium, 'success');
           loadCustomers(s.search || undefined);
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Upgrade failed', 'error');
+          patch(() => ({ upgradeLoading: false }));
+          showToast((e as ApiError)?.message ?? t.toast.upgradeFailed, 'error');
         }
       },
       saveProfile: async ({ name, address }) => {
         try {
           const res: any = await api.updateBusiness({ name, address });
           setS((p) => ({ ...p, business: mapBusinessDetail(res) }));
-          showToast('Profile saved', 'success');
+          showToast(t.toast.profileSaved, 'success');
           return true;
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Could not save profile', 'error');
+          showToast((e as ApiError)?.message ?? t.toast.couldNotSaveProfile, 'error');
           return false;
         }
       },
@@ -497,7 +557,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           const res: any = await api.setHours(toApiHours(next));
           if (seq === hoursSeq.current) setS((p) => ({ ...p, business: mapBusinessDetail(res) }));
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Could not save hours', 'error');
+          showToast((e as ApiError)?.message ?? t.toast.couldNotSaveHours, 'error');
           if (seq === hoursSeq.current) loadBusiness();
         }
       },
@@ -511,10 +571,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             position: s.services.length,
           });
           await loadServices();
-          showToast('Service added', 'success');
+          showToast(t.toast.serviceAdded, 'success');
           return true;
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Could not add service', 'error');
+          showToast((e as ApiError)?.message ?? t.toast.couldNotAddService, 'error');
           return false;
         }
       },
@@ -522,10 +582,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         try {
           await api.updateService(id, { name, durationMinutes, priceAmount: Math.round(priceRupees * 100) });
           await loadServices();
-          showToast('Service updated', 'success');
+          showToast(t.toast.serviceUpdated, 'success');
           return true;
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Could not update service', 'error');
+          showToast((e as ApiError)?.message ?? t.toast.couldNotUpdateService, 'error');
           return false;
         }
       },
@@ -533,10 +593,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         try {
           await api.deleteService(id);
           await loadServices();
-          showToast('Service removed', 'success');
+          showToast(t.toast.serviceRemoved, 'success');
           return true;
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Could not remove service', 'error');
+          showToast((e as ApiError)?.message ?? t.toast.couldNotRemoveService, 'error');
           return false;
         }
       },
@@ -544,31 +604,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         try {
           await api.createStaff({
             name,
-            roleLabel: roleLabel || 'Stylist',
+            roleLabel: roleLabel || t.common.stylist,
             colorToken: COLOR_PALETTE[s.staff.length % COLOR_PALETTE.length],
             position: s.staff.length,
           });
           await loadStaff();
-          showToast('Staff member added', 'success');
+          showToast(t.toast.staffAdded, 'success');
           return true;
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Could not add staff', 'error');
+          showToast((e as ApiError)?.message ?? t.toast.couldNotAddStaff, 'error');
           return false;
         }
       },
       updateStaffMember: async (id, { name, roleLabel }) => {
         try {
-          await api.updateStaff(id, { name, roleLabel: roleLabel || 'Stylist' });
+          await api.updateStaff(id, { name, roleLabel: roleLabel || t.common.stylist });
           await loadStaff();
-          showToast('Staff updated', 'success');
+          showToast(t.toast.staffUpdated, 'success');
           return true;
         } catch (e) {
-          showToast((e as ApiError)?.message ?? 'Could not update staff', 'error');
+          showToast((e as ApiError)?.message ?? t.toast.couldNotUpdateStaff, 'error');
           return false;
         }
       },
     };
-  }, [s, patch, connectSocket, bootstrap, teardown, loadCustomers, loadDashboard, loadQueue, loadServices, loadStaff, loadBusiness]);
+  }, [s, patch, refresh, connectSocket, bootstrap, teardown, loadCustomers, loadDashboard, loadQueue, loadServices, loadStaff, loadBusiness]);
 
   return <AppStateContext.Provider value={store}>{children}</AppStateContext.Provider>;
 }

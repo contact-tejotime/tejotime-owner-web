@@ -11,7 +11,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 
 type Meta = { label: string; value: string | number };
 
-export function CustomerCard({
+function CustomerCardComponent({
   name,
   phone,
   meta = [],
@@ -60,6 +60,9 @@ export function CustomerCard({
     </Pressable>
   );
 }
+
+/** Memoized so unchanged rows skip re-render during list/store updates. */
+export const CustomerCard = React.memo(CustomerCardComponent);
 
 const createCustomerCardStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
   StyleSheet.create({

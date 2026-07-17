@@ -6,6 +6,7 @@ import { TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { useResponsive } from '@/hooks/useResponsive';
+import { t } from '@/i18n';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
@@ -27,26 +28,26 @@ export function QRSheet() {
         <View style={[s.sheet, centerStyle]}>
           <View style={s.handle} />
           <TText variant="h4" weight="semibold" align="center">
-            Your booking QR
+            {t.qr.title}
           </TText>
           <TText variant="bodySm" color="textMuted" align="center" style={s.subtitle}>
-            Customers scan to join your queue
+            {t.qr.subtitle}
           </TText>
           <View style={s.qrBox}>
             <Icon name="qrCode" size={120} color={theme.colors.textSubtle} />
           </View>
           <TText variant="bodySm" color="textMuted" weight="medium" align="center" style={s.url}>
-            tejotime.com/sharp-cuts
+            {store.business?.slug ? `tejotime.com/${store.business.slug}` : 'tejotime.com/sharp-cuts'}
           </TText>
           <View style={s.actions}>
             <View style={s.actionCell}>
               <Button variant="outline" fullWidth onPress={store.closeQr}>
-                Download
+                {t.qr.download}
               </Button>
             </View>
             <View style={s.actionCell}>
               <Button variant="primary" fullWidth onPress={store.closeQr}>
-                Share
+                {t.qr.share}
               </Button>
             </View>
           </View>

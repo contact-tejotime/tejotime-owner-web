@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { TButton, TInput, TText } from '@/components/common';
 import { EditSheet } from '@/components/settings/EditSheet';
+import { t } from '@/i18n';
 import { ServiceVM } from '@/data/sample';
 import { styles } from '@/styles';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -24,7 +25,7 @@ export function ServiceEditSheet({
   onRemove: () => void;
 }) {
   return (
-    <EditSheet visible={open} title={service ? 'Edit service' : 'Add service'} onClose={onClose}>
+    <EditSheet visible={open} title={service ? t.serviceSheet.editTitle : t.serviceSheet.addTitle} onClose={onClose}>
       {open && (
         <ServiceForm key={service?.id ?? 'new'} service={service} saving={saving} onSave={onSave} onRemove={onRemove} />
       )}
@@ -59,7 +60,7 @@ function ServiceForm({
     const durationMinutes = parseInt(duration, 10);
     const priceRupees = parseFloat(price);
     if (!name.trim() || !durationMinutes || durationMinutes < 1 || !priceRupees || priceRupees <= 0) {
-      setError('Enter a name, duration and price.');
+      setError(t.serviceSheet.error);
       return;
     }
     onSave({ name: name.trim(), durationMinutes, priceRupees });
@@ -67,12 +68,12 @@ function ServiceForm({
 
   return (
     <View style={styles.g4}>
-      <TInput label="Service name" placeholder="e.g. Hair colour" value={name} onChangeText={set(setName)} />
+      <TInput label={t.serviceSheet.nameLabel} placeholder={t.serviceSheet.namePlaceholder} value={name} onChangeText={set(setName)} />
       <View style={sheetStyles.row}>
         <View style={styles.flex}>
           <TInput
-            label="Duration (min)"
-            placeholder="30"
+            label={t.serviceSheet.durationLabel}
+            placeholder={t.serviceSheet.durationPlaceholder}
             keyboardType="number-pad"
             value={duration}
             onChangeText={set(setDuration)}
@@ -80,9 +81,9 @@ function ServiceForm({
         </View>
         <View style={styles.flex}>
           <TInput
-            label="Price"
-            prefix="₹"
-            placeholder="350"
+            label={t.serviceSheet.priceLabel}
+            prefix={t.serviceSheet.pricePrefix}
+            placeholder={t.serviceSheet.pricePlaceholder}
             keyboardType="number-pad"
             value={price}
             onChangeText={set(setPrice)}
@@ -95,11 +96,11 @@ function ServiceForm({
         </TText>
       )}
       <TButton variant="primary" size="lg" fullWidth loading={saving} onPress={save}>
-        Save service
+        {t.serviceSheet.save}
       </TButton>
       {service && (
         <TButton variant="ghost" fullWidth textColor={colors.error} disabled={saving} onPress={onRemove}>
-          Remove service
+          {t.serviceSheet.remove}
         </TButton>
       )}
     </View>

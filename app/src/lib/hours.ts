@@ -1,4 +1,5 @@
 /** Working-hours view models + converters between API time strings and 12h labels. */
+import { t, format } from '@/i18n';
 
 export type DayHoursVM = {
   /** 0 = Sunday … 6 = Saturday (backend convention). */
@@ -17,7 +18,7 @@ export type ApiHour = {
   isClosed: boolean;
 };
 
-export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+export const DAY_NAMES: string[] = t.days.long;
 
 /** Monday-first display order of dayOfWeek values. */
 export const DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -30,18 +31,18 @@ export const TIME_OPTIONS: string[] = (() => {
   const out: string[] = [];
   for (let h = 6; h <= 23; h++) {
     for (const m of ['00', '30']) {
-      out.push(`${((h + 11) % 12) + 1}:${m} ${h < 12 ? 'AM' : 'PM'}`);
+      out.push(`${((h + 11) % 12) + 1}:${m} ${h < 12 ? t.days.am : t.days.pm}`);
     }
   }
   return out;
 })();
 
 /** 'HH:MM' or 'HH:MM:SS' → 'h:MM AM/PM'. */
-export function to12h(t: string): string {
-  const [hStr, mStr] = t.split(':');
+export function to12h(time: string): string {
+  const [hStr, mStr] = time.split(':');
   const h = parseInt(hStr, 10);
-  if (Number.isNaN(h)) return t;
-  return `${((h + 11) % 12) + 1}:${mStr ?? '00'} ${h < 12 ? 'AM' : 'PM'}`;
+  if (Number.isNaN(h)) return time;
+  return `${((h + 11) % 12) + 1}:${mStr ?? '00'} ${h < 12 ? t.days.am : t.days.pm}`;
 }
 
 /** 'h:MM AM/PM' → 'HH:MM'. */
@@ -82,7 +83,7 @@ export function toApiHours(hours: DayHoursVM[]): ApiHour[] {
 /** e.g. '6 days a week · 9:00 AM – 9:00 PM' for the settings list subtitle. */
 export function hoursSummary(hours?: DayHoursVM[]): string {
   const open = (hours ?? []).filter((h) => h.open);
-  if (!open.length) return 'Set your hours';
+  if (!open.length) return t.hours.empty;
   const first = open[0];
-  return `${open.length} days a week · ${first.from} – ${first.to}`;
+  return format(t.hours.summary, { count: open.length, from: first.from, to: first.to });
 }

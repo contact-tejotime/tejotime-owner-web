@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { TButton, TText } from '@/components/common';
 import { ServiceEditSheet, SettingsPageShell } from '@/components/settings';
 import { Icon } from '@/components/ui/Icon';
+import { t } from '@/i18n';
 import { ServiceVM } from '@/data/sample';
 import { useAppState } from '@/state/store';
 import { styles } from '@/styles';
@@ -42,7 +43,12 @@ export default function ServicesPricing() {
   };
 
   return (
-    <SettingsPageShell title="Services & pricing">
+    <SettingsPageShell title={t.services.title}>
+      {store.services.length === 0 && (
+        <TText variant="bodySm" color="textMuted" style={styles.pt2}>
+          {t.services.empty}
+        </TText>
+      )}
       <View style={s.card}>
         {store.services.map((sv, i) => (
           <Pressable key={sv.id} onPress={() => openEdit(sv)} style={[s.row, i < store.services.length - 1 && s.rowBorder]}>
@@ -68,7 +74,7 @@ export default function ServicesPricing() {
         leadingIcon={<Icon name="plus" size={18} color={theme.colors.textStrong} />}
         onPress={() => openEdit(null)}
         style={s.addButton}>
-        Add service
+        {t.services.add}
       </TButton>
       <ServiceEditSheet
         open={sheetOpen}

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { TButton, TText } from '@/components/common';
 import { SettingsPageShell, StaffEditSheet } from '@/components/settings';
 import { Icon } from '@/components/ui/Icon';
+import { t } from '@/i18n';
 import { Staff } from '@/data/sample';
 import { useAppState } from '@/state/store';
 import { styles } from '@/styles';
@@ -34,7 +35,12 @@ export default function StaffSeats() {
   };
 
   return (
-    <SettingsPageShell title="Staff & seats">
+    <SettingsPageShell title={t.staff.title}>
+      {store.staff.length === 0 && (
+        <TText variant="bodySm" color="textMuted" style={styles.pt2}>
+          {t.staff.empty}
+        </TText>
+      )}
       <View style={s.card}>
         {store.staff.map((st, i) => (
           <Pressable key={st.id} onPress={() => openEdit(st)} style={[s.row, i < store.staff.length - 1 && s.rowBorder]}>
@@ -48,7 +54,7 @@ export default function StaffSeats() {
                 {st.name}
               </TText>
               <TText variant="caption" color="textMuted" style={s.sub}>
-                {st.roleLabel ?? 'Stylist'}
+                {st.roleLabel ?? t.staff.roleFallback}
               </TText>
             </View>
             <Icon name="chevronRight" size={18} color={theme.colors.textSubtle} />
@@ -56,7 +62,7 @@ export default function StaffSeats() {
         ))}
       </View>
       <TText variant="caption" color="textSubtle" style={s.footnote}>
-        Each staff member gets their own seat and queue.
+        {t.staff.note}
       </TText>
       <TButton
         variant="outline"
@@ -64,7 +70,7 @@ export default function StaffSeats() {
         leadingIcon={<Icon name="plus" size={18} color={theme.colors.textStrong} />}
         onPress={() => openEdit(null)}
         style={s.addButton}>
-        Add staff member
+        {t.staff.add}
       </TButton>
       <StaffEditSheet
         open={sheetOpen}

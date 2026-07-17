@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { TKeyboardScreen, TResponsiveContainer, TScreenScroll, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
+import { t } from '@/i18n';
 import { styles } from '@/styles';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -17,7 +18,7 @@ export function SettingsPageShell({ title, children }: { title: string; children
       {/* Keyboard-aware so form fields (e.g. Business profile) aren't covered. */}
       <TKeyboardScreen isScrollView={false} style={styles.flex}>
         <View style={shellStyles.header}>
-          <IconButton variant="ghost" onPress={() => router.back()} accessibilityLabel="Back">
+          <IconButton variant="ghost" onPress={() => router.back()} accessibilityLabel={t.common.back}>
             <Icon name="chevronLeft" size={22} color={colors.textStrong} />
           </IconButton>
           <TText variant="h5" color="textStrong" weight="bold">

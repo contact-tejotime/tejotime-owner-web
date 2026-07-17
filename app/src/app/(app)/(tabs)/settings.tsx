@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { THeader, TScreenScroll, TSettingsRow, TSwitch, TText } from '@/components/common';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
+import { t, format } from '@/i18n';
 import { appVersion, businessProfile, notificationsSub, subscription } from '@/data/settings';
 import { hoursSummary } from '@/lib/hours';
 import { SETTINGS_ROUTES, SettingsPageId } from '@/navigation/routes';
@@ -25,42 +26,42 @@ export default function Settings() {
 
   return (
     <>
-      <THeader title="Settings" subtitle={biz?.name ?? 'TejoTime'} avatar />
+      <THeader title={t.settings.title} subtitle={biz?.name ?? t.common.brand} avatar />
       <TScreenScroll>
         <TText variant="caption" color="textSubtle" weight="semibold" style={s.groupTitle}>
-          BUSINESS
+          {t.settings.groupBusiness}
         </TText>
         <View style={s.card}>
           <TSettingsRow
             icon="building"
-            label="Business profile"
-            sub={[biz?.name, biz?.area].filter(Boolean).join(' · ') || 'Set up your business'}
+            label={t.settings.businessProfile}
+            sub={[biz?.name, biz?.area].filter(Boolean).join(' · ') || t.settings.businessProfileSub}
             onPress={goTo('profile')}
           />
-          <TSettingsRow icon="clock" label="Working hours" sub={hoursSummary(biz?.hours)} onPress={goTo('hours')} />
+          <TSettingsRow icon="clock" label={t.settings.workingHours} sub={hoursSummary(biz?.hours)} onPress={goTo('hours')} />
           <TSettingsRow
             icon="scissors"
-            label="Services & pricing"
-            sub={`${store.services.length} services`}
+            label={t.settings.servicesPricing}
+            sub={format(t.settings.servicesCount, { count: store.services.length })}
             onPress={goTo('services')}
           />
           <TSettingsRow
             icon="users"
-            label="Staff & seats"
-            sub={`${store.staff.length} seats`}
+            label={t.settings.staffSeats}
+            sub={format(t.settings.seatsCount, { count: store.staff.length })}
             onPress={goTo('staff')}
             showBorder={false}
           />
         </View>
 
         <TText variant="caption" color="textSubtle" weight="semibold" style={s.groupTitle}>
-          BOOKINGS & QUEUE
+          {t.settings.groupBookings}
         </TText>
         <View style={s.card}>
-          <TSettingsRow icon="qrCode" label="Booking QR code" sub={bookingUrl} onPress={store.openQr} />
+          <TSettingsRow icon="qrCode" label={t.settings.bookingQr} sub={bookingUrl} onPress={store.openQr} />
           <TSettingsRow
             icon="bell"
-            label="Notifications & reminders"
+            label={t.settings.notifications}
             sub={notificationsSub}
             onPress={goTo('notifications')}
             showBorder={false}
@@ -68,12 +69,12 @@ export default function Settings() {
         </View>
 
         <TText variant="caption" color="textSubtle" weight="semibold" style={s.groupTitle}>
-          ACCOUNT
+          {t.settings.groupAccount}
         </TText>
         <View style={s.card}>
           <TSettingsRow
             icon="creditCard"
-            label="Subscription"
+            label={t.settings.subscription}
             sub={subscription.listSub}
             onPress={goTo('subscription')}
             trailing={
@@ -87,22 +88,26 @@ export default function Settings() {
           />
           <TSettingsRow
             icon="settings"
-            label="Dark mode"
-            sub="Easier on the eyes at night"
+            label={t.settings.darkMode}
+            sub={t.settings.darkModeSub}
             trailing={<TSwitch checked={theme.dark} onChange={theme.setDark} />}
             showBorder={false}
           />
         </View>
 
-        <Pressable onPress={store.signOut} style={s.signOutCard}>
-          <Icon name="logOut" size={18} color={theme.colors.error} />
+        <Pressable onPress={store.signOut} disabled={store.signOutLoading} style={s.signOutCard}>
+          {store.signOutLoading ? (
+            <ActivityIndicator size="small" color={theme.colors.error} />
+          ) : (
+            <Icon name="logOut" size={18} color={theme.colors.error} />
+          )}
           <TText variant="bodyMd" color="error" weight="semibold">
-            Sign out
+            {t.settings.signOut}
           </TText>
         </Pressable>
 
         <TText variant="caption" color="textSubtle" align="center" style={s.footer}>
-          TejoTime {appVersion} · Signed in as {businessProfile.username}
+          {format(t.settings.footer, { version: appVersion, username: businessProfile.username })}
         </TText>
       </TScreenScroll>
     </>

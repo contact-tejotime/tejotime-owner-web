@@ -8,7 +8,7 @@ import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { useTheme } from '@/theme/ThemeProvider';
 
-export function ServiceCard({
+function ServiceCardComponent({
   name,
   duration,
   price,
@@ -58,6 +58,9 @@ export function ServiceCard({
     </Pressable>
   );
 }
+
+/** Memoized so unchanged service rows skip re-render. */
+export const ServiceCard = React.memo(ServiceCardComponent);
 
 const createServiceCardStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
   StyleSheet.create({

@@ -4,8 +4,9 @@ import { StyleSheet, View } from 'react-native';
 
 import { QueueCard } from '@/components/cards/QueueCard';
 import { StatCard } from '@/components/cards/StatCard';
-import { TButton, THeader, TScreenScroll, TSectionTitle } from '@/components/common';
+import { TButton, THeader, TScreenScroll, TSectionTitle, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
+import { t } from '@/i18n';
 import { IconButton } from '@/components/ui/IconButton';
 import { flatCards } from '@/lib/queue';
 import { formatMoney } from '@/lib/mappers';
@@ -22,26 +23,26 @@ export default function Dashboard() {
   const d = store.dashboard;
 
   const kpis = [
-    { key: 'appts', label: "Today's appts", value: d ? String(d.todaysAppointments) : '—', delta: undefined },
-    { key: 'active', label: 'Active', value: d ? String(d.activeNow) : '—', delta: undefined },
-    { key: 'checkin', label: 'Check in', value: d ? String(d.checkInCount) : '—', delta: undefined },
-    { key: 'revenue', label: "Today's revenue", value: d ? formatMoney(d.revenue) : '—', delta: undefined },
+    { key: 'appts', label: t.dashboard.kpiAppts, value: d ? String(d.todaysAppointments) : t.common.dash, delta: undefined },
+    { key: 'active', label: t.dashboard.kpiActive, value: d ? String(d.activeNow) : t.common.dash, delta: undefined },
+    { key: 'checkin', label: t.dashboard.kpiCheckIn, value: d ? String(d.checkInCount) : t.common.dash, delta: undefined },
+    { key: 'revenue', label: t.dashboard.kpiRevenue, value: d ? formatMoney(d.revenue) : t.common.dash, delta: undefined },
   ];
 
   return (
     <>
       <THeader
         avatar
-        title="Sharp Cuts"
+        title={store.business?.name ?? t.common.brand}
         subtitle="Andheri West · Open till 9 PM"
         action={
-          <IconButton variant="soft" accessibilityLabel="Notifications" onPress={store.openAlerts}>
+          <IconButton variant="soft" accessibilityLabel={t.dashboard.notifications} onPress={store.openAlerts}>
             <Icon name="bell" size={20} color={colors.textBody} />
           </IconButton>
         }
       />
-      <TScreenScroll>
-        <TSectionTitle>Quick actions</TSectionTitle>
+      <TScreenScroll refreshing={store.refreshing} onRefresh={store.refresh}>
+        <TSectionTitle>{t.dashboard.quickActions}</TSectionTitle>
         <View style={dashboardStyles.actions}>
           <View style={dashboardStyles.actionCell}>
             <TButton
@@ -49,7 +50,7 @@ export default function Dashboard() {
               fullWidth
               onPress={store.openWalkin}
               leadingIcon={<Icon name="plus" size={18} color="#fff" />}>
-              Add walk-in
+              {t.dashboard.addWalkIn}
             </TButton>
           </View>
           <View style={dashboardStyles.actionCell}>
@@ -58,7 +59,7 @@ export default function Dashboard() {
               fullWidth
               onPress={store.openQr}
               leadingIcon={<Icon name="qrCode" size={18} color={colors.textStrong} />}>
-              Show QR
+              {t.dashboard.showQr}
             </TButton>
           </View>
         </View>
@@ -66,18 +67,22 @@ export default function Dashboard() {
         <TSectionTitle
           action={
             <TButton variant="ghost" size="sm" onPress={() => router.push(TAB_ROUTES.queue as any)} textColor={colors.primary}>
-              View all
+              {t.dashboard.viewAll}
             </TButton>
           }>
-          Active queue
+          {t.dashboard.activeQueue}
         </TSectionTitle>
         <View style={dashboardStyles.queueList}>
-          {queuePreview.map((c) => (
-            <QueueCard key={c.id} card={c} onPress={() => store.openDetail(c.id)} />
-          ))}
+          {queuePreview.length === 0 ? (
+            <TText variant="bodySm" color="textMuted">
+              {t.dashboard.emptyQueue}
+            </TText>
+          ) : (
+            queuePreview.map((c) => <QueueCard key={c.id} card={c} onPress={() => store.openDetail(c.id)} />)
+          )}
         </View>
 
-        <TSectionTitle>Today&apos;s summary</TSectionTitle>
+        <TSectionTitle>{t.dashboard.todaysSummary}</TSectionTitle>
         <View style={dashboardStyles.kpiGrid}>
           {kpis.map((k) => (
             <View key={k.key} style={dashboardStyles.kpiCell}>

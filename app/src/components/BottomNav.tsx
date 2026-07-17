@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TText } from '@/components/common';
 import { Icon, IconName } from '@/components/ui/Icon';
+import { t } from '@/i18n';
 import { TAB_ROUTES, TabId, tabFromPathname } from '@/navigation/routes';
 import { styles } from '@/styles';
 import { moderateScale, scaleFont } from '@/styles/scale';
@@ -12,11 +13,11 @@ import type { ThemeStyleProps } from '@/styles/types';
 import { useTheme } from '@/theme/ThemeProvider';
 
 const NAV: { id: TabId; label: string; icon: IconName }[] = [
-  { id: 'dashboard', label: 'Home', icon: 'layoutDashboard' },
-  { id: 'queue', label: 'Queue', icon: 'users' },
-  { id: 'appointments', label: 'Appts', icon: 'calendar' },
-  { id: 'customers', label: 'Clients', icon: 'user' },
-  { id: 'settings', label: 'Settings', icon: 'settings' },
+  { id: 'dashboard', label: t.nav.home, icon: 'layoutDashboard' },
+  { id: 'queue', label: t.nav.queue, icon: 'users' },
+  { id: 'appointments', label: t.nav.appts, icon: 'calendar' },
+  { id: 'customers', label: t.nav.clients, icon: 'user' },
+  { id: 'settings', label: t.nav.settings, icon: 'settings' },
 ];
 
 export function BottomNav() {

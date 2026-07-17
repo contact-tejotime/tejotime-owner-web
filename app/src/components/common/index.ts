@@ -6,6 +6,7 @@ export { PhoneInput } from './PhoneInput';
 export { TSearchInput } from './TSearchInput';
 export { TSwitch } from './TSwitch';
 export { TLoader } from './TLoader';
+export { TSplashScreen } from './TSplashScreen';
 export { TKeyboardScreen } from './TKeyboardScreen';
 export { TSettingsRow } from './TSettingsRow';
 export { TFormattedDate } from './TFormattedDate';

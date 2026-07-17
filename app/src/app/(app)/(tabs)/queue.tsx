@@ -3,6 +3,7 @@ import {
   LayoutChangeEvent,
   PanResponder,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleProp,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
 import { QueueCard } from '@/components/cards/QueueCard';
 import { TButton, THeader, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
+import { t, format } from '@/i18n';
 import { CardVM, SeatGroupVM } from '@/lib/queue';
 import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
@@ -160,28 +162,33 @@ export default function Queue() {
   const s = useMemo(() => createQueueStyles(theme), [theme]);
 
   const groupsAll = store.seats;
-  const activeCount = groupsAll.reduce((n, g) => n + g.cards.length, 0);
-  const waitingCount = groupsAll.reduce((n, g) => n + g.waitN, 0);
   const allView = store.queueStaff === 'all';
-  const groups = groupsAll.filter((g) => allView || store.queueStaff === g.id);
 
-  const chips = [{ id: 'all', label: 'All', count: waitingCount }].concat(
-    groupsAll.map((g) => ({ id: g.id, label: g.name, count: g.waitN })),
-  );
+  const { activeCount, groups, chips } = useMemo(() => {
+    const active = groupsAll.reduce((n, g) => n + g.cards.length, 0);
+    const waiting = groupsAll.reduce((n, g) => n + g.waitN, 0);
+    return {
+      activeCount: active,
+      groups: groupsAll.filter((g) => allView || store.queueStaff === g.id),
+      chips: [{ id: 'all', label: t.queue.all, count: waiting }].concat(
+        groupsAll.map((g) => ({ id: g.id, label: g.name, count: g.waitN })),
+      ),
+    };
+  }, [groupsAll, allView, store.queueStaff]);
 
   const summary =
     store.dragId != null
-      ? 'Drop to reorder this seat'
-      : `${groupsAll.length} seats · ${activeCount} in queue`;
+      ? t.queue.dropToReorder
+      : format(t.queue.summary, { seats: groupsAll.length, active: activeCount });
 
   return (
     <>
       <THeader
-        title="Queue"
+        title={t.queue.title}
         subtitle={summary}
         action={
           <TButton variant="primary" size="sm" onPress={store.openWalkin} leadingIcon={<Icon name="plus" size={16} color="#fff" />}>
-            Walk-in
+            {t.queue.walkIn}
           </TButton>
         }
       />
@@ -211,7 +218,7 @@ export default function Queue() {
       {store.dragId != null && (
         <View style={s.dragBanner}>
           <TText variant="bodySm" color="primarySoftFg" weight="semibold">
-            Drag up or down · release to drop in this seat
+            {t.queue.dragHint}
           </TText>
         </View>
       )}
@@ -221,8 +228,21 @@ export default function Queue() {
         contentContainerStyle={s.mainScrollContent}
         showsVerticalScrollIndicator={false}
         scrollEnabled={store.dragId == null}
-        onScrollBeginDrag={() => (scrollAt.current = Date.now())}>
-        {allView ? (
+        onScrollBeginDrag={() => (scrollAt.current = Date.now())}
+        refreshControl={
+          <RefreshControl
+            refreshing={store.refreshing}
+            onRefresh={store.refresh}
+            enabled={store.dragId == null}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
+        }>
+        {groups.length === 0 ? (
+          <TText variant="bodySm" color="textMuted" align="center" style={styles.pt6}>
+            {t.queue.empty}
+          </TText>
+        ) : allView ? (
           <View style={s.seatList}>
             {groups.map((g) => (
               <Pressable key={g.id} onPress={() => store.setQueueStaff(g.id)} style={s.seatRow}>
@@ -272,7 +292,7 @@ export default function Queue() {
                     {g.empty && (
                       <View style={s.emptySeat}>
                         <TText variant="bodySm" color="textSubtle" align="center">
-                          Seat free · add a walk-in
+                          {t.queue.seatFree}
                         </TText>
                       </View>
                     )}

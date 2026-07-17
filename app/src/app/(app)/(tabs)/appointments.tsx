@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { TButton, TFormattedDate, THeader, TScreenScroll, TSectionTitle, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
+import { t } from '@/i18n';
 import { IconButton } from '@/components/ui/IconButton';
 import { useAppState } from '@/state/store';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -18,35 +19,46 @@ export default function Appointments() {
   return (
     <>
       <THeader
-        title="Appointments"
+        title={t.appointments.title}
         subtitle="Thursday, 24 June"
         action={
-          <IconButton variant="soft" accessibilityLabel="Add" onPress={store.openWalkin}>
+          <IconButton variant="soft" accessibilityLabel={t.appointments.add} onPress={store.openWalkin}>
             <Icon name="plus" size={20} color={theme.colors.textBody} />
           </IconButton>
         }
       />
-      <TScreenScroll>
-        <TSectionTitle>Upcoming today</TSectionTitle>
+      <TScreenScroll refreshing={store.refreshing} onRefresh={store.refresh}>
+        <TSectionTitle>{t.appointments.upcomingToday}</TSectionTitle>
         <View style={s.list}>
-          {store.appts.map((a) => (
-            <View key={a.id} style={s.row}>
-              <TFormattedDate value={a.time} variant="bodySm" color="textMuted" weight="semibold" style={s.time} />
-              <View style={s.card}>
-                <View style={s.body}>
-                  <TText variant="bodyMd" color="textStrong" weight="semibold">
-                    {a.name}
-                  </TText>
-                  <TText variant="caption" color="textMuted" style={s.service}>
-                    {a.service}
-                  </TText>
+          {store.appts.length === 0 ? (
+            <TText variant="bodySm" color="textMuted">
+              {t.appointments.empty}
+            </TText>
+          ) : (
+            store.appts.map((a) => (
+              <View key={a.id} style={s.row}>
+                <TFormattedDate value={a.time} variant="bodySm" color="textMuted" weight="semibold" style={s.time} />
+                <View style={s.card}>
+                  <View style={s.body}>
+                    <TText variant="bodyMd" color="textStrong" weight="semibold">
+                      {a.name}
+                    </TText>
+                    <TText variant="caption" color="textMuted" style={s.service}>
+                      {a.service}
+                    </TText>
+                  </View>
+                  <TButton
+                    variant="ghost"
+                    size="sm"
+                    loading={store.checkInId === a.id}
+                    onPress={() => store.checkInAppt(a)}
+                    textColor={theme.colors.primary}>
+                    {t.appointments.addToQueue}
+                  </TButton>
                 </View>
-                <TButton variant="ghost" size="sm" onPress={() => store.checkInAppt(a)} textColor={theme.colors.primary}>
-                  Add to queue
-                </TButton>
               </View>
-            </View>
-          ))}
+            ))
+          )}
         </View>
       </TScreenScroll>
     </>

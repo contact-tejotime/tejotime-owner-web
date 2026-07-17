@@ -3,6 +3,7 @@ import { View } from 'react-native';
 
 import { TButton, TInput, TText } from '@/components/common';
 import { EditSheet } from '@/components/settings/EditSheet';
+import { t } from '@/i18n';
 import { Staff } from '@/data/sample';
 import { styles } from '@/styles';
 
@@ -21,7 +22,7 @@ export function StaffEditSheet({
   onSave: (f: { name: string; roleLabel: string }) => void;
 }) {
   return (
-    <EditSheet visible={open} title={member ? 'Edit staff member' : 'Add staff member'} onClose={onClose}>
+    <EditSheet visible={open} title={member ? t.staffSheet.editTitle : t.staffSheet.addTitle} onClose={onClose}>
       {open && <StaffForm key={member?.id ?? 'new'} member={member} saving={saving} onSave={onSave} />}
     </EditSheet>
   );
@@ -38,12 +39,12 @@ function StaffForm({
   onSave: (f: { name: string; roleLabel: string }) => void;
 }) {
   const [name, setName] = useState(member?.name ?? '');
-  const [role, setRole] = useState(member?.roleLabel ?? 'Stylist');
+  const [role, setRole] = useState(member?.roleLabel ?? t.staffSheet.roleFallback);
   const [error, setError] = useState('');
 
   const save = () => {
     if (!name.trim()) {
-      setError('Enter a name.');
+      setError(t.staffSheet.error);
       return;
     }
     onSave({ name: name.trim(), roleLabel: role.trim() });
@@ -52,22 +53,22 @@ function StaffForm({
   return (
     <View style={styles.g4}>
       <TInput
-        label="Name"
-        placeholder="Full name"
+        label={t.staffSheet.nameLabel}
+        placeholder={t.staffSheet.namePlaceholder}
         value={name}
         onChangeText={(v) => {
           setName(v);
           setError('');
         }}
       />
-      <TInput label="Role" placeholder="e.g. Stylist" value={role} onChangeText={setRole} />
+      <TInput label={t.staffSheet.roleLabel} placeholder={t.staffSheet.rolePlaceholder} value={role} onChangeText={setRole} />
       {!!error && (
         <TText variant="bodySm" color="error">
           {error}
         </TText>
       )}
       <TButton variant="primary" size="lg" fullWidth loading={saving} onPress={save}>
-        Save
+        {t.staffSheet.save}
       </TButton>
     </View>
   );

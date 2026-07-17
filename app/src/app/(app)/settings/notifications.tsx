@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { TSwitch, TText } from '@/components/common';
 import { SettingsPageShell } from '@/components/settings';
+import { t } from '@/i18n';
 import { NotificationPref, notificationPrefs } from '@/data/settings';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
@@ -18,7 +19,7 @@ export default function Notifications() {
     setPrefs((prev) => prev.map((p) => (p.id === id ? { ...p, enabled } : p)));
 
   return (
-    <SettingsPageShell title="Notifications">
+    <SettingsPageShell title={t.notifications.title}>
       <View style={s.card}>
         {prefs.map((p, i) => (
           <View key={p.id} style={[s.row, i < prefs.length - 1 && s.rowBorder]}>
@@ -35,7 +36,7 @@ export default function Notifications() {
         ))}
       </View>
       <TText variant="caption" color="textSubtle" style={s.footnote}>
-        Customer messages are sent by SMS from your business name.
+        {t.notifications.note}
       </TText>
     </SettingsPageShell>
   );

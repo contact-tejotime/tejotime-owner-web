@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TText } from '@/components/common/TText';
 import { Icon } from '@/components/ui/Icon';
+import { t } from '@/i18n';
 import { flagEmoji, searchCountries, type Country } from '@/lib/phone';
 import { styles } from '@/styles';
 import { moderateScale, rSize, scaleFont } from '@/styles/scale';
@@ -39,7 +40,7 @@ export function PhoneInput({
   onChangeCountry,
   onChangeNational,
   editable = true,
-  placeholder = 'Phone number',
+  placeholder = t.phone.placeholder,
   containerStyle,
 }: Props) {
   const theme = useTheme();
@@ -71,7 +72,7 @@ export function PhoneInput({
           disabled={!editable}
           style={s.cc}
           accessibilityRole="button"
-          accessibilityLabel="Select country code">
+          accessibilityLabel={t.phone.selectCode}>
           <TText variant="bodyMd" style={s.flag as TextStyle}>
             {flagEmoji(iso2)}
           </TText>
@@ -105,12 +106,12 @@ export function PhoneInput({
           <View style={s.sheet}>
             <View style={s.handle} />
             <TText variant="h4" weight="semibold" style={s.sheetTitle}>
-              Select country
+              {t.phone.selectCountry}
             </TText>
             <View style={s.searchWrap}>
               <Icon name="search" size={18} color={theme.colors.textMuted} />
               <TextInput
-                placeholder="Search country or code…"
+                placeholder={t.phone.searchPlaceholder}
                 placeholderTextColor={theme.colors.textSubtle}
                 value={query}
                 onChangeText={setQuery}
@@ -143,7 +144,7 @@ export function PhoneInput({
               }}
               ListEmptyComponent={
                 <TText variant="bodySm" color="textMuted" style={s.empty}>
-                  No matches
+                  {t.phone.noMatches}
                 </TText>
               }
             />

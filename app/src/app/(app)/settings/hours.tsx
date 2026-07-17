@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { TSwitch, TText } from '@/components/common';
 import { SettingsPageShell, TimeSelect } from '@/components/settings';
+import { t } from '@/i18n';
 import { DayHoursVM } from '@/lib/hours';
 import { useAppState } from '@/state/store';
 import { styles } from '@/styles';
@@ -20,7 +21,7 @@ export default function WorkingHours() {
     store.saveHours(hours.map((h) => (h.dayOfWeek === dayOfWeek ? { ...h, ...fields } : h)));
 
   return (
-    <SettingsPageShell title="Working hours">
+    <SettingsPageShell title={t.hours.title}>
       <View style={s.card}>
         {hours.map((h, i) => (
           <View key={h.dayOfWeek} style={[s.row, i < hours.length - 1 && s.rowBorder]}>
@@ -32,20 +33,20 @@ export default function WorkingHours() {
               <>
                 <TimeSelect value={h.from} onChange={(from) => update(h.dayOfWeek, { from })} />
                 <TText variant="bodySm" color="textSubtle">
-                  –
+                  {t.hours.separator}
                 </TText>
                 <TimeSelect value={h.to} onChange={(to) => update(h.dayOfWeek, { to })} />
               </>
             ) : (
               <TText variant="bodySm" color="textSubtle" weight="medium">
-                Closed
+                {t.hours.closed}
               </TText>
             )}
           </View>
         ))}
       </View>
       <TText variant="caption" color="textSubtle" style={s.footnote}>
-        Closed days are hidden from your online booking page automatically.
+        {t.hours.note}
       </TText>
     </SettingsPageShell>
   );

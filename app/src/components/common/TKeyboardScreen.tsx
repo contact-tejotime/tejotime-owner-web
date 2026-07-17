@@ -14,30 +14,40 @@ export function TKeyboardScreen({
   style,
   contentContainerStyle,
   isScrollView = true,
+  keyboardVerticalOffset = 0,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
   /** When false, render a plain KeyboardAvoidingView for screens that manage their own scrolling. */
   isScrollView?: boolean;
+  keyboardVerticalOffset?: number;
 }) {
-  const behavior = Platform.OS === 'ios' ? 'padding' : undefined;
+  const behavior = Platform.OS === 'ios' ? 'padding' : 'padding';
 
   if (!isScrollView) {
     return (
-      <KeyboardAvoidingView style={[styles.flex, style]} behavior={behavior}>
+      <KeyboardAvoidingView
+        style={[styles.flex, style]}
+        behavior={behavior}
+        keyboardVerticalOffset={keyboardVerticalOffset}>
         {children}
       </KeyboardAvoidingView>
     );
   }
 
   return (
-    <KeyboardAvoidingView style={[styles.flex, style]} behavior={behavior}>
+    <KeyboardAvoidingView
+      style={[styles.flex, style]}
+      behavior={behavior}
+      keyboardVerticalOffset={keyboardVerticalOffset}>
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[{ flexGrow: 1 }, contentContainerStyle]}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
+        bounces={false}>
         {children}
       </ScrollView>
     </KeyboardAvoidingView>

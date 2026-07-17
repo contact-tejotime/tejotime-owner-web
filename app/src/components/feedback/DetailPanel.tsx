@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useResponsive } from '@/hooks/useResponsive';
+import { t, format } from '@/i18n';
 import { flatCards } from '@/lib/queue';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
@@ -16,10 +17,10 @@ import { useServiceColor } from '@/theme/serviceColor';
 import { useTheme } from '@/theme/ThemeProvider';
 
 const EXTRAS = [
-  { label: 'Shave', mins: 10 },
-  { label: 'Beard trim', mins: 15 },
-  { label: 'Hair wash', mins: 10 },
-  { label: 'Hair color', mins: 30 },
+  { label: t.detail.extras.shave, mins: 10 },
+  { label: t.detail.extras.beardTrim, mins: 15 },
+  { label: t.detail.extras.hairWash, mins: 10 },
+  { label: t.detail.extras.hairColor, mins: 30 },
 ];
 
 function Row({ label, children, s }: { label: string; children: React.ReactNode; s: ReturnType<typeof createDetailPanelStyles> }) {
@@ -40,13 +41,18 @@ export function DetailPanel() {
   const { centerStyle } = useResponsive(640);
   const s = useMemo(() => createDetailPanelStyles(theme), [theme]);
 
-  const cards = flatCards(store.seats);
-  const card = store.detailId ? cards.find((c) => c.id === store.detailId) : undefined;
+  const { card, seat, seatGroup } = useMemo(() => {
+    const c = store.detailId ? flatCards(store.seats).find((x) => x.id === store.detailId) : undefined;
+    return {
+      card: c,
+      seat: c ? store.staff.find((st) => st.id === c.staffId) : undefined,
+      seatGroup: c ? store.seats.find((g) => g.id === c.staffId) : undefined,
+    };
+  }, [store.detailId, store.seats, store.staff]);
   const open = !!card;
-  const seat = card ? store.staff.find((st) => st.id === card.staffId) : undefined;
   const seatColor = seat ? resolveColor(seat.color) : theme.colors.textSubtle;
-  const seatGroup = card ? store.seats.find((g) => g.id === card.staffId) : undefined;
   const seatBusy = !!seatGroup?.serving;
+  const busy = store.detailBusy;
 
   return (
     <Modal transparent visible={open} animationType="fade" onRequestClose={store.closeDetail}>
@@ -59,7 +65,7 @@ export function DetailPanel() {
                 <Icon name="chevronLeft" size={22} color={theme.colors.textBody} />
               </Pressable>
               <TText variant="h5" weight="bold">
-                Customer
+                {t.detail.customer}
               </TText>
             </View>
 
@@ -77,27 +83,27 @@ export function DetailPanel() {
               </View>
 
               <View style={s.rows}>
-                <Row label="Seat" s={s}>
+                <Row label={t.detail.seat} s={s}>
                   <View style={s.seatRow}>
                     <View style={s.seatDotBg(seatColor)} />
                     <TText variant="bodyMd" weight="semibold">
-                      {seat?.name ?? '—'}
+                      {seat?.name ?? t.common.dash}
                     </TText>
                   </View>
                 </Row>
-                <Row label="Service" s={s}>
+                <Row label={t.detail.service} s={s}>
                   <TText variant="bodyMd" weight="semibold">
                     {card.service}
                   </TText>
                 </Row>
-                <Row label="Source" s={s}>
+                <Row label={t.detail.source} s={s}>
                   <TText variant="bodyMd" weight="semibold">
-                    {card.online ? 'Booked online' : 'Walk-in'}
+                    {card.online ? t.detail.bookedOnline : t.detail.walkIn}
                   </TText>
                 </Row>
-                <Row label="Position" s={s}>
+                <Row label={t.detail.position} s={s}>
                   <TText variant="bodyMd" weight="semibold">
-                    #{card.pos} in {seat?.name ?? 'this'}&apos;s line
+                    {format(t.detail.positionLine, { pos: card.pos, seat: seat?.name ?? t.detail.thisSeat })}
                   </TText>
                 </Row>
               </View>
@@ -107,13 +113,17 @@ export function DetailPanel() {
               {card.status === 'waiting' && (
                 <>
                   <TText variant="bodySm" weight="semibold" color="textBody">
-                    Move to another seat
+                    {t.detail.moveToSeat}
                   </TText>
                   <View style={s.chipWrap}>
                     {store.staff
                       .filter((st) => st.id !== card.staffId)
                       .map((st) => (
-                        <Pressable key={st.id} onPress={() => store.reassign(card.id, st.id)} style={s.chip}>
+                        <Pressable
+                          key={st.id}
+                          disabled={busy}
+                          onPress={() => store.reassign(card.id, st.id)}
+                          style={s.chip}>
                           <View style={s.chipDotBg(resolveColor(st.color))} />
                           <TText variant="bodySm" weight="semibold" color="textBody">
                             {st.name}
@@ -123,35 +133,47 @@ export function DetailPanel() {
                   </View>
                   {seatBusy && (
                     <TText variant="bodySm" color="textMuted" style={s.busyNote}>
-                      {seat?.name ?? 'This seat'} is already serving {seatGroup?.servingName ?? 'someone'}. Complete that
-                      service first, or move this customer to another seat.
+                      {format(t.detail.seatBusy, {
+                        seat: seat?.name ?? t.detail.seatBusyFallback,
+                        name: seatGroup?.servingName ?? t.detail.someone,
+                      })}
                     </TText>
                   )}
-                  <Button variant="primary" size="lg" fullWidth disabled={seatBusy} onPress={() => store.startService(card.id)}>
-                    Start service
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                    loading={busy}
+                    disabled={seatBusy}
+                    onPress={() => store.startService(card.id)}>
+                    {t.detail.startService}
                   </Button>
-                  <Button variant="outline" fullWidth onPress={() => store.noShow(card.id)}>
-                    Mark no-show
+                  <Button variant="outline" fullWidth disabled={busy} onPress={() => store.noShow(card.id)}>
+                    {t.detail.markNoShow}
                   </Button>
                 </>
               )}
               {card.status === 'in-service' && (
                 <>
                   <TText variant="bodySm" weight="semibold" color="textBody">
-                    Customer changed their mind? Add to this service
+                    {t.detail.changedMind}
                   </TText>
                   <View style={s.extraWrap}>
                     {EXTRAS.map((e) => (
-                      <Pressable key={e.label} onPress={() => store.extendService(card.id, e.label, e.mins)} style={s.extraChip}>
+                      <Pressable
+                        key={e.label}
+                        disabled={busy}
+                        onPress={() => store.extendService(card.id, e.label, e.mins)}
+                        style={s.extraChip}>
                         <Icon name="plus" size={15} color={theme.colors.textBody} />
                         <TText variant="bodySm" weight="semibold" color="textBody">
-                          {e.label} · +{e.mins}m
+                          {format(t.detail.extendChip, { label: e.label, mins: e.mins })}
                         </TText>
                       </Pressable>
                     ))}
                   </View>
-                  <Button variant="primary" size="lg" fullWidth onPress={() => store.checkout(card.id)}>
-                    Complete &amp; start next
+                  <Button variant="primary" size="lg" fullWidth loading={busy} onPress={() => store.checkout(card.id)}>
+                    {t.detail.completeNext}
                   </Button>
                 </>
               )}

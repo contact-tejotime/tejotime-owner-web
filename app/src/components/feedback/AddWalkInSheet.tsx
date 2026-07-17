@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, TextStyle, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Input } from '@/components/ui/Input';
 import { useResponsive } from '@/hooks/useResponsive';
+import { t, format } from '@/i18n';
 import { combineToE164, DEFAULT_DIAL_CODE, DEFAULT_ISO2 } from '@/lib/phone';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
@@ -50,45 +51,61 @@ export function AddWalkInSheet() {
   const [national, setNational] = useState('');
   const { centerStyle } = useResponsive(560);
 
-  // Reset the typed fields each time the sheet opens (mirrors the store's openWalkin reset).
-  useEffect(() => {
+  // Reset the typed fields when the sheet opens (render-phase previous-value
+  // pattern — mirrors the store's openWalkin reset without a setState-in-effect).
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setName('');
       setDialCode(DEFAULT_DIAL_CODE);
       setIso2(DEFAULT_ISO2);
       setNational('');
     }
-  }, [open]);
+  }
   const overlay = useMemo(() => createSheetOverlayStyles(), []);
   const s = useMemo(() => createAddWalkInSheetStyles(theme, insets.bottom), [theme, insets.bottom]);
 
-  const seatById = Object.fromEntries(store.seats.map((g) => [g.id, g]));
-  let autoSeat = store.staff[0]?.id ?? '';
-  let bestLoad = Infinity;
-  store.staff.forEach((st) => {
-    const load = seatById[st.id]?.clearMinutes ?? 0;
-    if (load < bestLoad) {
-      bestLoad = load;
-      autoSeat = st.id;
-    }
-  });
-  const autoName = store.staff.find((st) => st.id === autoSeat)?.name ?? '';
+  // Derived seat options — recomputed only when the seats/staff change.
+  const staffOptions = useMemo(() => {
+    const seatById = Object.fromEntries(store.seats.map((g) => [g.id, g]));
+    let autoSeat = store.staff[0]?.id ?? '';
+    let bestLoad = Infinity;
+    store.staff.forEach((st) => {
+      const load = seatById[st.id]?.clearMinutes ?? 0;
+      if (load < bestLoad) {
+        bestLoad = load;
+        autoSeat = st.id;
+      }
+    });
+    const autoName = store.staff.find((st) => st.id === autoSeat)?.name ?? '';
 
-  const staffOptions = [
-    { id: 'auto', name: 'Any seat', initial: '✦', sub: `Soonest free · ${autoName}`, color: theme.colors.textSubtle },
-    ...store.staff.map((st) => {
-      const g = seatById[st.id];
-      const w = g?.waitN ?? 0;
-      const load = g?.clearMinutes ?? 0;
-      return {
-        id: st.id,
-        name: st.name,
-        initial: st.name[0],
-        sub: w === 0 ? 'Free now' : `${w} waiting · ~${load}m`,
-        color: resolveColor(st.color),
-      };
-    }),
-  ];
+    return [
+      {
+        id: 'auto',
+        name: t.walkin.anySeat,
+        auto: true,
+        initial: '',
+        sub: format(t.walkin.soonestFree, { name: autoName }),
+        color: theme.colors.textSubtle,
+      },
+      ...store.staff.map((st) => {
+        const g = seatById[st.id];
+        const w = g?.waitN ?? 0;
+        const load = g?.clearMinutes ?? 0;
+        return {
+          id: st.id,
+          name: st.name,
+          auto: false,
+          initial: st.name[0],
+          sub: w === 0 ? t.walkin.freeNow : format(t.walkin.load, { waiting: w, load }),
+          color: resolveColor(st.color),
+        };
+      }),
+    ];
+    // resolveColor is derived from theme; theme.colors covers it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.seats, store.staff, theme.colors]);
 
   return (
     <Modal transparent visible={open} animationType="slide" onRequestClose={store.closeWalkin}>
@@ -97,19 +114,19 @@ export function AddWalkInSheet() {
         <View style={[s.sheet, centerStyle]}>
           <View style={s.handle} />
           <TText variant="h4" weight="semibold" style={s.title}>
-            Add walk-in
+            {t.walkin.title}
           </TText>
           <ScrollView showsVerticalScrollIndicator={false}>
             <Input
-              label="Customer name"
-              placeholder="Full name"
+              label={t.walkin.nameLabel}
+              placeholder={t.walkin.namePlaceholder}
               value={name}
               onChangeText={setName}
               containerStyle={s.nameInput}
             />
             <PhoneInput
-              label="Phone"
-              placeholder="98xxx xxxxx"
+              label={t.walkin.phoneLabel}
+              placeholder={t.walkin.phonePlaceholder}
               dialCode={dialCode}
               iso2={iso2}
               national={national}
@@ -121,7 +138,7 @@ export function AddWalkInSheet() {
             />
 
             <TText variant="bodySm" weight="medium" color="textBody" style={s.sectionLabel}>
-              Service
+              {t.walkin.service}
             </TText>
             <View style={s.list}>
               {store.services.map((sv) => (
@@ -143,7 +160,7 @@ export function AddWalkInSheet() {
             )}
 
             <TText variant="bodySm" weight="medium" color="textBody" style={s.sectionLabel}>
-              Assign to seat
+              {t.walkin.assignSeat}
             </TText>
             <View style={s.list}>
               {staffOptions.map((o) => {
@@ -151,9 +168,13 @@ export function AddWalkInSheet() {
                 return (
                   <Pressable key={o.id} onPress={() => store.setWalkinStaff(o.id)} style={s.seatOptionStyle(sel)}>
                     <View style={s.seatAvatarBg(o.color)}>
-                      <TText weight="bold" style={s.seatAvatarText}>
-                        {o.initial}
-                      </TText>
+                      {o.auto ? (
+                        <Icon name="sparkles" size={15} color="#fff" />
+                      ) : (
+                        <TText weight="bold" style={s.seatAvatarText}>
+                          {o.initial}
+                        </TText>
+                      )}
                     </View>
                     <View style={s.seatBody}>
                       <TText variant="bodyMd" weight="semibold">
@@ -170,20 +191,25 @@ export function AddWalkInSheet() {
             </View>
 
             <TText variant="bodySm" weight="medium" color="textBody" style={s.sectionLabel}>
-              Add to queue as
+              {t.walkin.addAs}
             </TText>
             <View style={s.segmentWrap}>
-              <SegButton label="End of queue" on={store.walkin.position === 'end'} onPress={() => store.setWalkinPosition('end')} s={s} />
-              <SegButton label="Next up" on={store.walkin.position === 'next'} onPress={() => store.setWalkinPosition('next')} s={s} />
+              <SegButton label={t.walkin.endOfQueue} on={store.walkin.position === 'end'} onPress={() => store.setWalkinPosition('end')} s={s} />
+              <SegButton label={t.walkin.nextUp} on={store.walkin.position === 'next'} onPress={() => store.setWalkinPosition('next')} s={s} />
             </View>
             <TText variant="caption" color="textSubtle" style={s.hint}>
-              Next up places them right after the customer in service.
+              {t.walkin.nextUpNote}
             </TText>
           </ScrollView>
 
           <View style={s.footer}>
-            <Button variant="primary" size="lg" fullWidth onPress={() => store.addWalkin({ name, phone: combineToE164(dialCode, national) })}>
-              Add to queue
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              loading={store.walkinLoading}
+              onPress={() => store.addWalkin({ name, phone: combineToE164(dialCode, national) })}>
+              {t.walkin.add}
             </Button>
           </View>
         </View>

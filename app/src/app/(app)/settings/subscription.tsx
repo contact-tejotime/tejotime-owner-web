@@ -5,6 +5,7 @@ import { TButton, TText } from '@/components/common';
 import { SettingsPageShell } from '@/components/settings';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
+import { t } from '@/i18n';
 import { subscription } from '@/data/settings';
 import { showToast } from '@/lib/toast';
 import { styles } from '@/styles';
@@ -17,7 +18,7 @@ export default function Subscription() {
   const s = useMemo(() => createSubscriptionStyles(theme), [theme]);
 
   return (
-    <SettingsPageShell title="Subscription">
+    <SettingsPageShell title={t.subscription.title}>
       <View style={s.card}>
         <View style={s.planRow}>
           <TText variant="h4" color="textStrong" weight="extrabold" style={s.planName}>
@@ -45,12 +46,12 @@ export default function Subscription() {
         variant="primary"
         size="lg"
         fullWidth
-        onPress={() => showToast('Welcome to Premium', 'success')}
+        onPress={() => showToast(t.toast.welcomePremium, 'success')}
         style={s.cta}>
         {subscription.cta}
       </TButton>
       <TText variant="caption" color="textSubtle" align="center" style={s.footnote}>
-        Cancel anytime. Your data stays safe.
+        {t.subscription.footnote}
       </TText>
     </SettingsPageShell>
   );

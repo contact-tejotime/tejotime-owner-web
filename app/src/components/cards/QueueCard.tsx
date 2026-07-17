@@ -9,7 +9,7 @@ import type { ThemeStyleProps } from '@/styles/types';
 import { useServiceColor } from '@/theme/serviceColor';
 import { useTheme } from '@/theme/ThemeProvider';
 
-export function QueueCard({
+function QueueCardComponent({
   card,
   onPress,
   showSeat = true,
@@ -60,6 +60,9 @@ export function QueueCard({
     </Pressable>
   );
 }
+
+/** Memoized so an unchanged card skips re-render when the queue list re-renders. */
+export const QueueCard = React.memo(QueueCardComponent);
 
 function tint(hex: string, alpha: number) {
   if (hex.startsWith('#') && hex.length === 7) {

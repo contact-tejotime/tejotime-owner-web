@@ -1,4 +1,5 @@
 import { QueueEntry } from '@/data/sample';
+import { t, format } from '@/i18n';
 
 /** Two-letter initials from a name. */
 export function initials(name = ''): string {
@@ -8,12 +9,12 @@ export function initials(name = ''): string {
 
 /** Trailing wait/status label shown on queue rows. */
 export function waitLabel(c: Pick<QueueEntry, 'status' | 'wait'>): string {
-  if (c.status === 'in-service') return 'In service';
-  return c.wait ? `~${c.wait} min wait` : '';
+  if (c.status === 'in-service') return t.format.inService;
+  return c.wait ? format(t.format.waitMin, { wait: c.wait }) : '';
 }
 
 /** Format appointment time strings for display. */
-export function formatAppointmentDate(value?: string | Date | null, fallback = '—'): string {
+export function formatAppointmentDate(value?: string | Date | null, fallback: string = t.common.dash): string {
   if (!value) return fallback;
   if (value instanceof Date) {
     return value.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });

@@ -6,7 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppStateProvider } from '@/state/store';
-import { TToast } from '@/components/common';
+import { TSplashScreen, TToast } from '@/components/common';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { styles } from '@/styles';
 
@@ -36,7 +36,7 @@ export default function RootLayout() {
     if (loaded) SplashScreen.hideAsync();
   }, [loaded]);
 
-  if (!loaded) return null;
+  if (!loaded) return <TSplashScreen />;
 
   return (
     <GestureHandlerRootView style={styles.flex}>

@@ -15,7 +15,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.tejotime.tejotimemobile"
+      "package": "com.tejotime.tejotimemobile",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "output": "static",
@@ -30,6 +31,11 @@
           "image": "./assets/images/logo-full.png",
           "imageWidth": 280,
           "resizeMode": "contain",
+          "ios": {
+            "backgroundColor": "#FFFFFF",
+            "image": "./assets/images/logo-full.png",
+            "imageWidth": 280
+          },
           "android": {
             "backgroundColor": "#FFFFFF",
             "image": "./assets/images/logo-full.png",

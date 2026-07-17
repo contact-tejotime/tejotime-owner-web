@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { TButton, TInput, TSettingsRow } from '@/components/common';
 import { SettingsPageShell } from '@/components/settings';
 import { Badge } from '@/components/ui/Badge';
+import { t } from '@/i18n';
 import { businessProfile } from '@/data/settings';
 import { useAppState } from '@/state/store';
 import { styles } from '@/styles';
@@ -15,7 +16,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 export default function BusinessProfile() {
   const store = useAppState();
   return (
-    <SettingsPageShell title="Business profile">
+    <SettingsPageShell title={t.profile.title}>
       {/* Keyed on the business id so the form re-seeds if the business loads after mount. */}
       <ProfileForm key={store.business?.id ?? 'pending'} />
     </SettingsPageShell>
@@ -43,29 +44,29 @@ function ProfileForm() {
 
   return (
     <View style={s.form}>
-      <TInput label="Business name" value={name} onChangeText={setName} />
+      <TInput label={t.profile.nameLabel} value={name} onChangeText={setName} />
       <TInput
-        label="Phone"
+        label={t.profile.phoneLabel}
         prefix={`+${biz?.countryCode ?? '91'}`}
         value={biz?.phoneNumber ?? ''}
         disabled
       />
-      <TInput label="Address" value={address} onChangeText={setAddress} />
+      <TInput label={t.profile.addressLabel} value={address} onChangeText={setAddress} />
       <View style={s.card}>
         <TSettingsRow
           icon="qrCode"
-          label="Public booking page"
+          label={t.profile.bookingPage}
           sub={bookingUrl}
           showBorder={false}
           trailing={
             <Badge tone="success" size="sm">
-              Live
+              {t.profile.live}
             </Badge>
           }
         />
       </View>
       <TButton variant="primary" size="lg" fullWidth loading={saving} onPress={save}>
-        Save changes
+        {t.profile.save}
       </TButton>
     </View>
   );
