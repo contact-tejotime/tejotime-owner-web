@@ -116,7 +116,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const [saveOpen, setSaveOpen] = useState(false); // "Save contact" (vCard) sheet
   // Live vCard endpoint for this store. The backend rebuilds the .vcf from the current
   // business row on every request, so a saved contact always reflects the latest details.
-  const vcardUrl = `${API_BASE_URL}/public/businesses/${initialSite.slug}/vcard`;
+  // `?open=1` serves it inline so a phone (tap, or scanning the desktop QR) opens the
+  // Add-Contact card directly instead of downloading a file to open manually.
+  const vcardUrl = `${API_BASE_URL}/public/businesses/${initialSite.slug}/vcard?open=1`;
   // Single mobile breakpoint (JS + inline styles) driving both the nav collapse and the
   // hero stacking — reliably applies via React rendering on every load and hot-reload.
   const isMobile = useMediaQuery("(max-width: 860px)");
@@ -458,17 +460,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const openWith = (barberId: string) => openJoin("queue", barberId);
 
   // ---- Save contact (vCard) ----
-  // Phone: hand the live .vcf straight to the OS (Add-Contact flow) within the tap gesture.
-  // Computer: open the QR-only sheet to scan onto a phone.
-  const downloadVcard = () => {
-    const a = document.createElement("a");
-    a.href = vcardUrl;
-    a.download = `${site.name || "contact"}.vcf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+  // Phone: navigate to the inline .vcf so the OS opens the Add-Contact card directly (no file to
+  // open manually). Same-tab navigation within the tap gesture — the page visually stays put while
+  // the OS card appears. Computer: open the QR-only sheet to scan onto a phone.
+  const openVcard = () => {
+    window.location.href = vcardUrl;
   };
-  const onSaveContact = () => (isHandheld ? downloadVcard() : setSaveOpen(true));
+  const onSaveContact = () => (isHandheld ? openVcard() : setSaveOpen(true));
 
   // ---- Track my turn (look up an existing ticket by phone, e.g. from another browser) ----
   const openTrack = () => {
@@ -1224,6 +1222,15 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               })}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Mobile only: a "Save contact" action just above the Visit us section, so a phone
+          visitor scrolling toward the bottom can save the shop without reaching back up to the
+          hamburger. Reuses onSaveContact (handheld → live .vcf, computer → QR sheet). */}
+      {isMobile && (
+        <div style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)", padding: "24px clamp(16px, 4vw, 32px)" }}>
+          <Button fullWidth variant="outline" onClick={onSaveContact} leadingIcon={<Icon name="user" size={16} />}>Save contact</Button>
         </div>
       )}
 

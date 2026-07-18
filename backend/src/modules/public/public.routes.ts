@@ -42,7 +42,11 @@ publicRouter.get(
   asyncHandler(async (req, res) => {
     const vcf = await pub.getVCard(req.params.slug);
     res.setHeader('Content-Type', 'text/vcard; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${req.params.slug}.vcf"`);
+    // `?open=1` → inline, so a phone hands the .vcf straight to the OS and opens the Add-Contact
+    // card directly (customer microsite, no download-then-open detour). Default stays `attachment`
+    // so the admin "Download vCard" button and any other caller still get a saved file.
+    const inline = req.query.open === '1' || req.query.open === 'true';
+    res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${req.params.slug}.vcf"`);
     // Never let a phone/browser/CDN serve a stale contact — every scan re-fetches the
     // latest details, so owner edits show up immediately on the next save-to-contacts.
     res.setHeader('Cache-Control', 'no-store, max-age=0');

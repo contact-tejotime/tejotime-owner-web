@@ -5,20 +5,13 @@ import { QRCodeSVG } from "qrcode.react";
 import { Icon } from "@/components/Icon";
 
 /**
- * "Save contact" sheet for the customer microsite. Two ways to save the store as a
- * phone contact, both pointing at the live `.vcf` endpoint (rebuilt from the current
- * business row on every request, so it never goes stale):
+ * Desktop-only "Save contact" sheet for the customer microsite. Shown when the visitor is on a
+ * computer (the phone path in MicrositeClient navigates straight to the .vcf instead). They can't
+ * tap-to-save on the machine they're on, so they scan this QR with their phone's camera.
  *
- *  1. Direct tap — the primary flow. The visitor is already on their phone with the
- *     site open, so tapping "Add to my contacts" hands the browser the .vcf. iOS opens
- *     the native "Add Contact" preview; Android downloads it and the Contacts app imports
- *     it. No scanning, no second device. The backend's `Content-Disposition: attachment`
- *     header drives the save even though the URL is cross-origin (the `download` filename
- *     hint is only honoured same-origin, which is fine — the header already names the file).
- *
- *  2. QR fallback — for someone viewing on a desktop/laptop. They can't tap-to-save on the
- *     machine they're on, so they scan the QR with their phone's camera to open the same
- *     .vcf on the device where the contact should land.
+ * The QR encodes the live `.vcf` URL with `?open=1`, which the backend serves `inline` — so the
+ * scanning phone opens the OS Add-Contact card directly rather than downloading a file. The .vcf is
+ * rebuilt from the current business row on every request, so a saved contact never goes stale.
  */
 export default function SaveContactSheet({
   open,
