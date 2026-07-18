@@ -33,6 +33,23 @@ publicRouter.get(
   }),
 );
 
+// Live vCard (.vcf): rebuilt from the current business row on every request, so a scanned
+// QR always saves the latest contact details. The QR image itself only needs the stable URL.
+publicRouter.get(
+  '/businesses/:slug/vcard',
+  limiters.publicRead,
+  validate({ params: slugParam }),
+  asyncHandler(async (req, res) => {
+    const vcf = await pub.getVCard(req.params.slug);
+    res.setHeader('Content-Type', 'text/vcard; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${req.params.slug}.vcf"`);
+    // Never let a phone/browser/CDN serve a stale contact — every scan re-fetches the
+    // latest details, so owner edits show up immediately on the next save-to-contacts.
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.send(vcf);
+  }),
+);
+
 // Phone-keyed microsite: the customer-facing URL is www.tejotime.com/<phone> where <phone>
 // is the business's full international number (country_code + national number, digits only).
 // This 2-segment path can't collide with the 1-segment '/businesses/:slug'.

@@ -4,9 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { TButton, TInput, TSettingsRow } from '@/components/common';
 import { SettingsPageShell } from '@/components/settings';
-import { Badge } from '@/components/ui/Badge';
 import { t } from '@/i18n';
-import { businessProfile } from '@/data/settings';
 import { useAppState } from '@/state/store';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
@@ -32,8 +30,6 @@ function ProfileForm() {
   const [address, setAddress] = useState(biz?.address ?? '');
   const [saving, setSaving] = useState(false);
 
-  const bookingUrl = biz?.slug ? `tejotime.com/${biz.slug}` : businessProfile.bookingUrl;
-
   const save = async () => {
     if (!name.trim()) return;
     setSaving(true);
@@ -55,14 +51,10 @@ function ProfileForm() {
       <View style={s.card}>
         <TSettingsRow
           icon="qrCode"
-          label={t.profile.bookingPage}
-          sub={bookingUrl}
+          label={t.profile.contactQr}
+          sub={t.profile.contactSub}
           showBorder={false}
-          trailing={
-            <Badge tone="success" size="sm">
-              {t.profile.live}
-            </Badge>
-          }
+          onPress={store.openQr}
         />
       </View>
       <TButton variant="primary" size="lg" fullWidth loading={saving} onPress={save}>

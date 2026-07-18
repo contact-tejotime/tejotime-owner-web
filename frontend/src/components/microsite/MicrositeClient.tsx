@@ -11,6 +11,8 @@ import { currencySymbol } from "@/lib/currencies";
 import { combineToE164, DEFAULT_DIAL_CODE, DEFAULT_ISO2, formatPhone, splitPhone } from "@/lib/phone";
 import { connectCustomer, type CustomerAuth } from "@/lib/socket";
 import { useMediaQuery } from "@/lib/useMediaQuery";
+import { API_BASE_URL } from "@/lib/config";
+import SaveContactSheet from "./SaveContactSheet";
 import "./salon.css";
 
 const AVATAR_COLORS = ["var(--primary)", "var(--secondary)", "var(--amber-500)"];
@@ -111,6 +113,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const shopPhone = site.phoneNumber ? formatPhone(combineToE164(site.countryCode ?? "", site.phoneNumber)) : null;
   const [navSolid, setNavSolid] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false); // mobile hamburger dropdown
+  const [saveOpen, setSaveOpen] = useState(false); // "Save contact" (vCard) sheet
+  // Live vCard endpoint for this store. The backend rebuilds the .vcf from the current
+  // business row on every request, so a saved contact always reflects the latest details.
+  const vcardUrl = `${API_BASE_URL}/public/businesses/${initialSite.slug}/vcard`;
   // Single mobile breakpoint (JS + inline styles) driving both the nav collapse and the
   // hero stacking — reliably applies via React rendering on every load and hot-reload.
   const isMobile = useMediaQuery("(max-width: 860px)");
@@ -897,6 +903,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           {/* Desktop: action buttons · Mobile: hamburger toggle */}
           {!isMobile ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Button variant="outline" onClick={() => setSaveOpen(true)} leadingIcon={<Icon name="user" size={16} />}>Save contact</Button>
               <Button variant="primary" onClick={openTrack}>Track my turn</Button>
             </div>
           ) : (
@@ -924,6 +931,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             ))}
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
               <Button fullWidth onClick={() => { setMenuOpen(false); openQueue(); }}>Join queue</Button>
+              <Button fullWidth variant="outline" onClick={() => { setMenuOpen(false); setSaveOpen(true); }} leadingIcon={<Icon name="user" size={16} />}>Save contact</Button>
             </div>
           </div>
         )}
@@ -1285,6 +1293,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           <span style={{ font: "var(--fw-bold) 13px/1 var(--font-sans)", color: "var(--primary)" }}>Track →</span>
         </div>
       )}
+
+      {/* ===== SAVE CONTACT (vCard) SHEET ===== */}
+      <SaveContactSheet open={saveOpen} onClose={() => setSaveOpen(false)} vcardUrl={vcardUrl} storeName={site.name} />
 
       {/* ===== JOIN / BOOK MODAL ===== */}
       {joinOpen && (

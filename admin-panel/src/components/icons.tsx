@@ -46,6 +46,8 @@ export const ICONS: Record<string, string> = {
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>',
   externalLink:
     '<path d="M18 13.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5.5"/><path d="M14 3h7v7"/><path d="M10.5 13.5 21 3"/>',
+  qrCode:
+    '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 14v.01M14 20v.01M17 17h.01M20 17v4M17 20h4"/>',
 };
 
 export type IconName = keyof typeof ICONS;

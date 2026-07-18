@@ -35,7 +35,7 @@
     "notifications": "Notifications",
     "quickActions": "Quick actions",
     "addWalkIn": "Add walk-in",
-    "showQr": "Show QR",
+    "showQr": "Contact QR",
     "viewAll": "View all",
     "activeQueue": "Active queue",
     "todaysSummary": "Today's summary",
@@ -121,8 +121,8 @@
     "nameLabel": "Business name",
     "phoneLabel": "Phone",
     "addressLabel": "Address",
-    "bookingPage": "Public booking page",
-    "live": "Live",
+    "contactQr": "Contact QR",
+    "contactSub": "Scan to save this store as a contact.",
     "save": "Save changes"
   },
   "services": {
@@ -198,10 +198,9 @@
     }
   },
   "qr": {
-    "title": "Your booking QR",
-    "subtitle": "Customers scan to join your queue",
-    "download": "Download",
-    "share": "Share"
+    "contactTitle": "{name} — contact QR",
+    "subtitle": "Scan to save this store as a contact.",
+    "print": "Print"
   },
   "serviceSheet": {
     "editTitle": "Edit service",

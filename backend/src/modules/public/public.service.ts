@@ -50,6 +50,42 @@ export async function getMicrosite(slug: string) {
   return buildMicrosite(b);
 }
 
+// Escape the characters vCard treats as structural (RFC 6350 §3.4): backslash, comma,
+// semicolon, and newlines. Order matters — escape the backslash first.
+function vcardEscape(value: string): string {
+  return String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\n/g, '\\n')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;');
+}
+
+// Build a vCard 3.0 for a store from its live business row. Kept deliberately minimal
+// (name / phone / address / microsite URL) so a scan drops a clean contact into the phone.
+// Rebuilt on every request, so it always reflects the latest owner edits.
+export async function getVCard(slug: string): Promise<string> {
+  const b = await resolveBusiness(slug);
+  const name = vcardEscape(b.name ?? '');
+  const tel = `${b.country_code ?? ''}${b.phone_number ?? ''}`.replace(/\D/g, '');
+  // ADR structured value: PO;ext;street;locality;region;postal;country
+  const adr = `;;${vcardEscape(b.address ?? '')};${vcardEscape(b.area ?? '')};;;`;
+  const url = b.phone_full ? `https://www.tejotime.com/${b.phone_full}` : '';
+
+  const lines = [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    `N:${name};;;;`,
+    `FN:${name}`,
+    `ORG:${name}`,
+  ];
+  if (tel) lines.push(`TEL;TYPE=CELL:+${tel}`);
+  if (b.address || b.area) lines.push(`ADR;TYPE=WORK:${adr}`);
+  if (url) lines.push(`URL:${url}`);
+  lines.push('END:VCARD');
+
+  return lines.join('\r\n');
+}
+
 // The URL segment is the full number, digits only (country_code + national number
 // concatenated). Match it against the derived phone_full column. We intentionally do NOT
 // reuse normalizePhone(): its '+' / India-10-digit-default logic doesn't apply to a
