@@ -120,6 +120,11 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // Single mobile breakpoint (JS + inline styles) driving both the nav collapse and the
   // hero stacking — reliably applies via React rendering on every load and hot-reload.
   const isMobile = useMediaQuery("(max-width: 860px)");
+  // True touch/handheld (phone / most tablets) vs a computer — decides whether "Save contact"
+  // downloads the .vcf directly (phone already in hand) or shows a QR to scan (computer).
+  // Distinct from isMobile, which is only viewport width. Evaluated on click (post-hydration),
+  // so useMediaQuery's SSR-desktop-first default never causes a wrong branch or flash.
+  const isHandheld = useMediaQuery("(pointer: coarse) and (hover: none)");
   const [liveWait, setLiveWait] = useState(initialSite.live.waitMinutes);
   const [liveCount, setLiveCount] = useState(initialSite.live.queueCount);
   const [liveStaff, setLiveStaff] = useState<MicrositeStaff[]>(initialSite.staff ?? []);
@@ -451,6 +456,19 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const openQueue = () => openJoin("queue");
   const openBook = () => openJoin("book");
   const openWith = (barberId: string) => openJoin("queue", barberId);
+
+  // ---- Save contact (vCard) ----
+  // Phone: hand the live .vcf straight to the OS (Add-Contact flow) within the tap gesture.
+  // Computer: open the QR-only sheet to scan onto a phone.
+  const downloadVcard = () => {
+    const a = document.createElement("a");
+    a.href = vcardUrl;
+    a.download = `${site.name || "contact"}.vcf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+  const onSaveContact = () => (isHandheld ? downloadVcard() : setSaveOpen(true));
 
   // ---- Track my turn (look up an existing ticket by phone, e.g. from another browser) ----
   const openTrack = () => {
@@ -903,7 +921,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           {/* Desktop: action buttons · Mobile: hamburger toggle */}
           {!isMobile ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Button variant="outline" onClick={() => setSaveOpen(true)} leadingIcon={<Icon name="user" size={16} />}>Save contact</Button>
+              <Button variant="outline" onClick={onSaveContact} leadingIcon={<Icon name="user" size={16} />}>Save contact</Button>
               <Button variant="primary" onClick={openTrack}>Track my turn</Button>
             </div>
           ) : (
@@ -931,7 +949,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             ))}
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
               <Button fullWidth onClick={() => { setMenuOpen(false); openQueue(); }}>Join queue</Button>
-              <Button fullWidth variant="outline" onClick={() => { setMenuOpen(false); setSaveOpen(true); }} leadingIcon={<Icon name="user" size={16} />}>Save contact</Button>
+              <Button fullWidth variant="outline" onClick={() => { setMenuOpen(false); onSaveContact(); }} leadingIcon={<Icon name="user" size={16} />}>Save contact</Button>
             </div>
           </div>
         )}

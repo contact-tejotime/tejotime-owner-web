@@ -67,45 +67,22 @@ export default function SaveContactSheet({
         {/* header */}
         <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <span id={titleId} style={{ font: "var(--fw-extrabold) 20px/1.15 var(--font-sans)", color: "var(--text-strong)" }}>
-            Save {storeName} to your contacts
+            Scan to save {storeName}
           </span>
           <div onClick={onClose} aria-label="Close" style={{ flexShrink: 0, width: 34, height: 34, borderRadius: "50%", background: "var(--surface-page)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--text-muted)" }}>
             <Icon name="x" size={18} />
           </div>
         </div>
 
-        <div style={{ padding: "22px 24px 26px", overflow: "auto" }}>
-          <p style={{ font: "var(--fw-regular) 14px/1.5 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 18px" }}>
-            Saves our number, address &amp; website straight to your phone — so you can call or find us again in one tap.
-          </p>
-
-          {/* Primary flow: tap to save on the phone you're already holding. */}
-          <a
-            href={vcardUrl}
-            download={`${storeName || "contact"}.vcf`}
-            onClick={onClose}
-            style={{ display: "inline-flex", width: "100%", alignItems: "center", justifyContent: "center", gap: 9, height: "var(--control-h-lg)", padding: "0 22px", font: "var(--fw-semibold) var(--fs-body-lg)/1 var(--font-sans)", letterSpacing: "var(--ls-snug)", borderRadius: "var(--radius-md)", background: "var(--primary)", color: "var(--text-on-brand)", border: "1px solid transparent", boxShadow: "var(--shadow-xs)", textDecoration: "none", cursor: "pointer" }}
-          >
-            <Icon name="user" size={18} />
-            Add to my contacts
-          </a>
-
-          {/* Divider */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "22px 0 18px" }}>
-            <span style={{ flex: 1, height: 1, background: "var(--border-subtle)" }} />
-            <span style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "var(--text-subtle)" }}>on a computer?</span>
-            <span style={{ flex: 1, height: 1, background: "var(--border-subtle)" }} />
+        {/* Computer flow: the visitor is on a desktop, so they scan this QR with their phone's
+            camera to open the same live .vcf on the device the contact should land on. */}
+        <div style={{ padding: "24px 24px 28px", overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+          <div style={{ padding: 16, background: "#fff", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
+            <QRCodeSVG value={vcardUrl} size={188} level="M" marginSize={0} />
           </div>
-
-          {/* QR fallback: scan with a phone to open the same .vcf on the device you want it on. */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-            <div style={{ padding: 14, background: "#fff", borderRadius: 14, border: "1px solid var(--border-subtle)" }}>
-              <QRCodeSVG value={vcardUrl} size={148} level="M" marginSize={0} />
-            </div>
-            <span style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", textAlign: "center", maxWidth: 260 }}>
-              Scan with your phone&apos;s camera to save {storeName} on your phone.
-            </span>
-          </div>
+          <span style={{ font: "var(--fw-regular) 14px/1.5 var(--font-sans)", color: "var(--text-muted)", textAlign: "center", maxWidth: 280 }}>
+            Point your phone&apos;s camera at this code to save {storeName}&apos;s number, address &amp; website to your contacts.
+          </span>
         </div>
       </div>
     </div>
