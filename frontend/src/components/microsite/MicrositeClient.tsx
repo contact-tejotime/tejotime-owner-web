@@ -351,6 +351,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     id: s.id,
     name: s.name,
     role: s.roleLabel ?? "",
+    photo: s.avatarUrl,
     busy: s.busy,
     count: s.queueCount,
     wait: s.waitLabel,
@@ -377,6 +378,15 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const reviewCount = site.reviewCount ?? 0;
   const establishedYear = site.establishedYear ?? 2014;
   const yearsOpen = Math.max(1, new Date().getFullYear() - establishedYear);
+
+  // Trust stats — only surface cells with real data (no "in town" / "0 team members" / "★ 0"
+  // placeholders). Rendered as a row at the bottom of the About section.
+  const trustCells = [
+    site.establishedYear != null && site.area ? [`${yearsOpen}+ yrs`, `in ${site.area}`] : null,
+    barbers.length > 0 ? [`${barbers.length} ${site.teamNoun ?? "team members"}`, "expert team"] : null,
+    site.statValue && site.statLabel ? [site.statValue, site.statLabel] : null,
+    reviewCount > 0 ? [`★ ${rating}`, `${reviewCount} reviews`] : null,
+  ].filter(Boolean) as [string, string][];
 
   // ---- resend countdown ----
   const stopResend = () => {
@@ -994,32 +1004,55 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         </div>
       </div>
 
-      {/* ===== TRUST BAR ===== */}
-      {(() => {
-        // Only surface cells that have real data — no "in town" / "0 team members" / "★ 0" placeholders.
-        const trustCells = [
-          site.establishedYear != null && site.area ? [`${yearsOpen}+ yrs`, `in ${site.area}`] : null,
-          barbers.length > 0 ? [`${barbers.length} ${site.teamNoun ?? "team members"}`, "expert team"] : null,
-          site.statValue && site.statLabel ? [site.statValue, site.statLabel] : null,
-          reviewCount > 0 ? [`★ ${rating}`, `${reviewCount} reviews`] : null,
-        ].filter(Boolean) as [string, string][];
-        if (trustCells.length === 0) return null;
-        return (
-          <div style={{ background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)" }}>
-            <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "26px clamp(16px, 4vw, 32px)", display: "flex", justifyContent: "space-around", textAlign: "center", gap: 20, flexWrap: "wrap" }}>
-              {trustCells.map(([big, small]) => (
-                <div key={small}>
-                  <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--primary)" }}>{big}</div>
-                  <div style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 6 }}>{small}</div>
-                </div>
-              ))}
-            </div>
+      {/* ===== TEAM · LIVE AVAILABILITY ===== */}
+      {barbers.length > 0 && (
+      <div id="team" style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 64px) clamp(16px, 4vw, 32px)" }}>
+        <div style={revealStyle}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
+            <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 4vw, 30px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: 0 }}>Our team · live availability</h2>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)" }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)", animation: "ttPulse 1.8s ease-in-out infinite" }} />
+              Updated live · pick a barber when you join
+            </span>
           </div>
-        );
-      })()}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 16, marginTop: 24 }}>
+            {barbers.map((b) => (
+              <div key={b.id} className="salonBarberCard" style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 20, background: "var(--surface-card)", boxShadow: "var(--shadow-xs)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 16 }}>
+                  {b.photo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={b.photo} alt={b.name} style={{ width: 54, height: 54, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                  ) : (
+                    <div style={{ width: 54, height: 54, borderRadius: "50%", background: b.avBg, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", font: "var(--fw-bold) 19px/1 var(--font-sans)", flexShrink: 0 }}>{b.name[0]}</div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ font: "var(--fw-bold) 17px/1 var(--font-sans)", color: "var(--text-strong)" }}>{b.name}</div>
+                    <div style={{ font: "var(--fw-regular) 13px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{b.role}</div>
+                  </div>
+                  <span style={{ flexShrink: 0, whiteSpace: "nowrap", font: "var(--fw-semibold) 11px/1 var(--font-sans)", padding: "5px 11px", borderRadius: 999, ...(b.busy ? { background: "var(--surface-sunken)", color: "var(--text-body)" } : { background: "var(--success-soft)", color: "var(--success-soft-fg)" }) }}>
+                    {b.busy ? "Busy" : "Free now"}
+                  </span>
+                </div>
+                <div style={{ display: "flex", border: "1px solid var(--border-subtle)", borderRadius: 11, overflow: "hidden", marginBottom: 16 }}>
+                  <div style={{ flex: 1, textAlign: "center", padding: "11px 4px", borderRight: "1px solid var(--border-subtle)" }}>
+                    <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{b.count}</div>
+                    <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>in queue</div>
+                  </div>
+                  <div style={{ flex: 1.3, textAlign: "center", padding: "11px 4px" }}>
+                    <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: b.busy ? "var(--text-strong)" : "var(--success)" }}>{b.wait}</div>
+                    <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{b.busy ? "wait" : "walk in"}</div>
+                  </div>
+                </div>
+                <Button variant="outline" fullWidth onClick={() => openWith(b.id)}>Join {b.name}&apos;s line</Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      )}
 
       {/* ===== ABOUT ===== */}
-      {showAbout && (
+      {(showAbout || trustCells.length > 0) && (
         <div id="about" style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 72px) clamp(16px, 4vw, 32px) 40px" }}>
           <div style={{ ...revealStyle, display: "flex", gap: "clamp(24px, 4vw, 48px)", alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
             {hasAboutText && (
@@ -1061,6 +1094,17 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               </div>
             )}
           </div>
+          {/* Trust stats — merged into the bottom of About as a bordered row. */}
+          {trustCells.length > 0 && (
+            <div style={{ ...revealStyle, display: "flex", justifyContent: "space-around", textAlign: "center", gap: 20, flexWrap: "wrap", marginTop: 40, paddingTop: 32, borderTop: "1px solid var(--border-subtle)" }}>
+              {trustCells.map(([big, small]) => (
+                <div key={small}>
+                  <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--primary)" }}>{big}</div>
+                  <div style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 6 }}>{small}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1102,48 +1146,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                   <Icon name="scissors" size={18} />
                 </div>
                 <span style={{ flex: 1, font: "var(--fw-semibold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{sv.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      )}
-
-      {/* ===== TEAM · LIVE AVAILABILITY ===== */}
-      {barbers.length > 0 && (
-      <div id="team" style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 64px) clamp(16px, 4vw, 32px)" }}>
-        <div style={revealStyle}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
-            <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 4vw, 30px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: 0 }}>Our team · live availability</h2>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)" }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)", animation: "ttPulse 1.8s ease-in-out infinite" }} />
-              Updated live · pick a barber when you join
-            </span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 16, marginTop: 24 }}>
-            {barbers.map((b) => (
-              <div key={b.id} className="salonBarberCard" style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 20, background: "var(--surface-card)", boxShadow: "var(--shadow-xs)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 16 }}>
-                  <div style={{ width: 54, height: 54, borderRadius: "50%", background: b.avBg, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", font: "var(--fw-bold) 19px/1 var(--font-sans)", flexShrink: 0 }}>{b.name[0]}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ font: "var(--fw-bold) 17px/1 var(--font-sans)", color: "var(--text-strong)" }}>{b.name}</div>
-                    <div style={{ font: "var(--fw-regular) 13px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{b.role}</div>
-                  </div>
-                  <span style={{ flexShrink: 0, whiteSpace: "nowrap", font: "var(--fw-semibold) 11px/1 var(--font-sans)", padding: "5px 11px", borderRadius: 999, ...(b.busy ? { background: "var(--surface-sunken)", color: "var(--text-body)" } : { background: "var(--success-soft)", color: "var(--success-soft-fg)" }) }}>
-                    {b.busy ? "Busy" : "Free now"}
-                  </span>
-                </div>
-                <div style={{ display: "flex", border: "1px solid var(--border-subtle)", borderRadius: 11, overflow: "hidden", marginBottom: 16 }}>
-                  <div style={{ flex: 1, textAlign: "center", padding: "11px 4px", borderRight: "1px solid var(--border-subtle)" }}>
-                    <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{b.count}</div>
-                    <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>in queue</div>
-                  </div>
-                  <div style={{ flex: 1.3, textAlign: "center", padding: "11px 4px" }}>
-                    <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: b.busy ? "var(--text-strong)" : "var(--success)" }}>{b.wait}</div>
-                    <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{b.busy ? "wait" : "walk in"}</div>
-                  </div>
-                </div>
-                <Button variant="outline" fullWidth onClick={() => openWith(b.id)}>Join {b.name}&apos;s line</Button>
               </div>
             ))}
           </div>

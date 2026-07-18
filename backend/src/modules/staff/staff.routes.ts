@@ -19,6 +19,7 @@ function staffDTO(s: any) {
     isActive: s.is_active,
     position: s.position,
     userId: s.user_id,
+    avatarUrl: s.avatar_url ?? null,
   };
 }
 
@@ -29,6 +30,7 @@ const upsertSchema = z
     colorToken: z.enum(COLOR_TOKENS).default('secondary'),
     acceptsWalkIns: z.boolean().default(true),
     position: z.coerce.number().int().min(0).optional(),
+    photoUrl: z.string().url().max(500).nullable().optional(),
   })
   .strict();
 
@@ -65,6 +67,7 @@ staffRouter.post(
         color_token: b.colorToken,
         accepts_walk_ins: b.acceptsWalkIns,
         position: b.position ?? 0,
+        avatar_url: b.photoUrl ?? null,
       })
       .select()
       .single();
@@ -87,6 +90,7 @@ staffRouter.patch(
     if (b.acceptsWalkIns !== undefined) row.accepts_walk_ins = b.acceptsWalkIns;
     if (b.position !== undefined) row.position = b.position;
     if (b.isActive !== undefined) row.is_active = b.isActive;
+    if (b.photoUrl !== undefined) row.avatar_url = b.photoUrl;
     const { data, error } = await supabase
       .from('staff')
       .update(row)

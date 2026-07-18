@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -27,7 +28,7 @@ export default function StaffSeats() {
     setSheetOpen(true);
   };
 
-  const onSave = async (f: { name: string; roleLabel: string }) => {
+  const onSave = async (f: { name: string; roleLabel: string; photoUrl: string | null }) => {
     setSaving(true);
     const ok = editing ? await store.updateStaffMember(editing.id, f) : await store.createStaffMember(f);
     setSaving(false);
@@ -44,11 +45,15 @@ export default function StaffSeats() {
       <View style={s.card}>
         {store.staff.map((st, i) => (
           <Pressable key={st.id} onPress={() => openEdit(st)} style={[s.row, i < store.staff.length - 1 && s.rowBorder]}>
-            <View style={[s.avatar, { backgroundColor: staffColor(st.color) }]}>
-              <TText variant="bodyMd" weight="bold" style={s.avatarText}>
-                {st.name[0]}
-              </TText>
-            </View>
+            {st.photoUrl ? (
+              <Image source={{ uri: st.photoUrl }} style={s.avatar} contentFit="cover" />
+            ) : (
+              <View style={[s.avatar, { backgroundColor: staffColor(st.color) }]}>
+                <TText variant="bodyMd" weight="bold" style={s.avatarText}>
+                  {st.name[0]}
+                </TText>
+              </View>
+            )}
             <View style={s.body}>
               <TText variant="bodyMd" color="textStrong" weight="semibold">
                 {st.name}

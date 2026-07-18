@@ -90,6 +90,7 @@ const storeFieldsSchema = z.object({
       z.object({
         name: z.string().trim().min(1).max(80),
         roleLabel: z.string().max(80).nullable().optional(),
+        avatarUrl: z.string().url().max(500).nullable().optional(),
       }),
     )
     .min(1, 'Add at least one staff member')
@@ -131,7 +132,7 @@ const verifyOtpSchema = z.object({ mobile: z.string().min(6).max(20), otp: z.str
 
 const uploadSignSchema = z
   .object({
-    assetType: z.enum(['hero', 'about', 'gallery', 'logo']),
+    assetType: z.enum(['hero', 'about', 'gallery', 'logo', 'avatar']),
     contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
     byteSize: z.coerce.number().int().positive().max(MAX_IMAGE_BYTES),
   })

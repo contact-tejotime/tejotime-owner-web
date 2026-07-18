@@ -42,7 +42,7 @@ export interface StoreFields {
   amenities: string[];
   gallery: { url: string; alt?: string | null }[];
   services: { name: string; durationMinutes: number; priceRupees: number }[];
-  staff: { name: string; roleLabel?: string | null }[];
+  staff: { name: string; roleLabel?: string | null; avatarUrl?: string | null }[];
   faqs?: { q: string; a: string }[];
   reviews?: { stars: number; text: string; authorName: string }[];
 }
@@ -143,6 +143,7 @@ async function insertChildren(bid: string, input: StoreFields, currency: string)
     business_id: bid,
     name: s.name,
     role_label: s.roleLabel ?? null,
+    avatar_url: s.avatarUrl ?? null,
     position,
   }));
   const { error: staffErr } = await supabase.from('staff').insert(staffRows);
@@ -417,6 +418,7 @@ export async function getBusinessDetail(id: string) {
     staff: (staff ?? []).map((s) => ({
       name: s.name,
       roleLabel: s.role_label ?? '',
+      avatarUrl: s.avatar_url ?? '',
     })),
     faqs: (Array.isArray(b.faqs) ? b.faqs : []) as { q: string; a: string }[],
     reviews: (Array.isArray(b.reviews) ? b.reviews : []) as { stars: number; text: string; authorName: string }[],

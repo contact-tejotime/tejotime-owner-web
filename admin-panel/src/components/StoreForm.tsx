@@ -432,12 +432,13 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
               <button type="button" className="btn-remove" onClick={() => set("staff", removeAt(form.staff, i))}>
                 {t.common.remove}
               </button>
+              <ImageUpload label="Photo" assetType="avatar" value={s.avatarUrl} onChange={(url) => setStaff(i, { avatarUrl: url })} />
             </div>
           ))}
           <button
             type="button"
             className="btn-add"
-            onClick={() => set("staff", [...form.staff, { name: "", roleLabel: "" }])}
+            onClick={() => set("staff", [...form.staff, { name: "", roleLabel: "", avatarUrl: "" }])}
           >
             {t.storeForm.addStaff}
           </button>

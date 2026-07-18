@@ -89,7 +89,13 @@ export function mapService(s: any, i = 0): ServiceVM {
 }
 
 export function mapStaff(s: any, i = 0): Staff {
-  return { id: s.id, name: s.name, color: colorByIndex(i), roleLabel: s.roleLabel ?? undefined };
+  return {
+    id: s.id,
+    name: s.name,
+    color: colorByIndex(i),
+    roleLabel: s.roleLabel ?? undefined,
+    photoUrl: s.avatarUrl ?? null,
+  };
 }
 
 export function mapBusinessDetail(r: any) {

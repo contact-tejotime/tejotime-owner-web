@@ -113,8 +113,8 @@ type Store = State & {
   createService: (f: { name: string; durationMinutes: number; priceRupees: number }) => Promise<boolean>;
   updateService: (id: string, f: { name: string; durationMinutes: number; priceRupees: number }) => Promise<boolean>;
   removeService: (id: string) => Promise<boolean>;
-  createStaffMember: (f: { name: string; roleLabel: string }) => Promise<boolean>;
-  updateStaffMember: (id: string, f: { name: string; roleLabel: string }) => Promise<boolean>;
+  createStaffMember: (f: { name: string; roleLabel: string; photoUrl: string | null }) => Promise<boolean>;
+  updateStaffMember: (id: string, f: { name: string; roleLabel: string; photoUrl: string | null }) => Promise<boolean>;
 };
 
 const emptyWalkin: WalkIn = { service: null, position: 'end', staffId: 'auto', error: '' };
@@ -600,13 +600,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
       },
-      createStaffMember: async ({ name, roleLabel }) => {
+      createStaffMember: async ({ name, roleLabel, photoUrl }) => {
         try {
           await api.createStaff({
             name,
             roleLabel: roleLabel || t.common.stylist,
             colorToken: COLOR_PALETTE[s.staff.length % COLOR_PALETTE.length],
             position: s.staff.length,
+            photoUrl,
           });
           await loadStaff();
           showToast(t.toast.staffAdded, 'success');
@@ -616,9 +617,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
       },
-      updateStaffMember: async (id, { name, roleLabel }) => {
+      updateStaffMember: async (id, { name, roleLabel, photoUrl }) => {
         try {
-          await api.updateStaff(id, { name, roleLabel: roleLabel || t.common.stylist });
+          await api.updateStaff(id, { name, roleLabel: roleLabel || t.common.stylist, photoUrl });
           await loadStaff();
           showToast(t.toast.staffUpdated, 'success');
           return true;

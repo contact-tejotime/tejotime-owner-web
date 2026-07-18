@@ -17,6 +17,7 @@ export interface ServiceRow {
 export interface StaffRow {
   name: string;
   roleLabel: string;
+  avatarUrl: string; // "" when no photo
 }
 export interface GalleryRow {
   url: string;
@@ -123,7 +124,7 @@ export const EMPTY_FORM: StoreForm = {
   amenities: [],
   gallery: [],
   services: [{ name: "", durationMinutes: 30, priceRupees: 0 }],
-  staff: [{ name: "", roleLabel: "" }],
+  staff: [{ name: "", roleLabel: "", avatarUrl: "" }],
   faqs: [],
   reviews: [],
   ownerPassword: "",
@@ -252,6 +253,7 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
     staff: f.staff.map((s) => ({
       name: s.name.trim(),
       roleLabel: s.roleLabel.trim() || null,
+      avatarUrl: s.avatarUrl.trim() || null,
     })),
     faqs: f.faqs.filter((x) => x.q.trim() && x.a.trim()).map((x) => ({ q: x.q.trim(), a: x.a.trim() })),
     reviews: f.reviews

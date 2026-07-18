@@ -39,6 +39,7 @@ export interface MicrositeStaff {
   id: string;
   name: string;
   roleLabel: string | null;
+  avatarUrl: string | null;
   busy: boolean;
   queueCount: number;
   waitMinutes: number;

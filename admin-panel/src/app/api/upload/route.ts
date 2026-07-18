@@ -13,7 +13,7 @@ const BACKEND = process.env.BACKEND_API_BASE_URL ?? "http://localhost:8080/api/v
 
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_BYTES = 5_000_000;
-const ASSET_TYPES = new Set(["hero", "about", "gallery", "logo"]);
+const ASSET_TYPES = new Set(["hero", "about", "gallery", "logo", "avatar"]);
 
 export async function POST(req: NextRequest) {
   const token = await getAdminToken();

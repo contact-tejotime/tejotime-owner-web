@@ -44,7 +44,13 @@
         }
       ],
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow TejoTime to access your photos so you can add staff member photos."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

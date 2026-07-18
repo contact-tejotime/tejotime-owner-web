@@ -130,9 +130,14 @@ export const api = {
     raw('PATCH', `/services/${id}`, b),
   deleteService: (id: string) => raw('DELETE', `/services/${id}`),
 
-  createStaff: (b: { name: string; roleLabel?: string; colorToken?: string; position?: number }) =>
+  createStaff: (b: { name: string; roleLabel?: string; colorToken?: string; position?: number; photoUrl?: string | null }) =>
     raw('POST', '/staff', b),
-  updateStaff: (id: string, b: { name?: string; roleLabel?: string }) => raw('PATCH', `/staff/${id}`, b),
+  updateStaff: (id: string, b: { name?: string; roleLabel?: string; photoUrl?: string | null }) =>
+    raw('PATCH', `/staff/${id}`, b),
+
+  /** Get a Supabase signed upload URL for an owner-scoped image (logo/hero/gallery/avatar). */
+  signUpload: (b: { assetType: string; contentType: string; byteSize: number }) =>
+    raw<{ uploadUrl: string; publicUrl: string; token: string; fileKey: string }>('POST', '/uploads/sign', b),
 
   upgrade: () => raw('POST', '/subscription/upgrade'),
 };

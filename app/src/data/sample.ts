@@ -23,6 +23,7 @@ export type Staff = {
   name: string;
   color: ServiceColorToken;
   roleLabel?: string;
+  photoUrl?: string | null;
 };
 
 export type QueueEntry = {
