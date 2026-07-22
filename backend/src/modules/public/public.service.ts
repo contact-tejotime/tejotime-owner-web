@@ -5,12 +5,33 @@ import { Errors } from '../../domain/errors';
 import { money } from '../../domain/money';
 import { normalizePhone } from '../../lib/phone';
 import { dayjs } from '../../lib/time';
+import { createTtlCache } from '../../lib/ttl-cache';
 import { buildSeatGroups, soonestSeat, ticketPosition } from '../../lib/queue-engine';
 import { emitToOwners, emitToTicket } from '../../realtime/emitters';
 import { ticketKey } from '../auth/token.service';
 import { findOrCreateCustomer } from '../customers/customer.repo';
 import { loadQueueContext } from '../queue/queue.context';
 import { broadcastQueue } from '../queue/queue.service';
+
+/** Short TTL so poll fallbacks coalesce under load without serving stale wait labels for long. */
+const LIVE_CACHE_TTL_MS = 5_000;
+
+type AvailabilityPayload = { waitMinutes: number; queueCount: number; updatedAt: string };
+type StaffAvailabilityPayload = {
+  staff: Array<{
+    id: string;
+    name: string;
+    roleLabel: string | null;
+    avatarUrl: string | null;
+    busy: boolean;
+    queueCount: number;
+    waitMinutes: number;
+    waitLabel: string;
+  }>;
+};
+
+const availabilityCache = createTtlCache<AvailabilityPayload>(LIVE_CACHE_TTL_MS);
+const staffCache = createTtlCache<StaffAvailabilityPayload>(LIVE_CACHE_TTL_MS);
 
 async function resolveBusiness(slug: string) {
   const { data } = await supabase.from('business').select('*').eq('slug', slug).eq('is_active', true).maybeSingle();
@@ -184,17 +205,29 @@ async function buildMicrosite(b: any) {
 }
 
 export async function getAvailability(slug: string) {
+  const hit = availabilityCache.get(slug);
+  if (hit) return hit;
+
   const b = await resolveBusiness(slug);
   const ctx = await loadQueueContext(b.id);
   const { waitMinutes, queueCount } = liveAvailability(ctx);
-  return { waitMinutes, queueCount, updatedAt: new Date().toISOString() };
+  const result: AvailabilityPayload = {
+    waitMinutes,
+    queueCount,
+    updatedAt: new Date().toISOString(),
+  };
+  availabilityCache.set(slug, result);
+  return result;
 }
 
 export async function getStaffAvailability(slug: string) {
+  const hit = staffCache.get(slug);
+  if (hit) return hit;
+
   const b = await resolveBusiness(slug);
   const ctx = await loadQueueContext(b.id);
   const { groups } = liveAvailability(ctx);
-  return {
+  const result: StaffAvailabilityPayload = {
     staff: ctx.staffRows.map((s) => {
       const g = groups.find((x) => x.id === s.id);
       return {
@@ -209,6 +242,8 @@ export async function getStaffAvailability(slug: string) {
       };
     }),
   };
+  staffCache.set(slug, result);
+  return result;
 }
 
 export async function getSlots(slug: string, date: string, serviceId?: string, staffId?: string) {

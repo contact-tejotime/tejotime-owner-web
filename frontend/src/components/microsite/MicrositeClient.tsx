@@ -103,6 +103,19 @@ function displayWaitMinutes(ticket: Ticket | null, nowTs: number | null): number
   return Math.min(wait, hold + Math.max(0, decayable - elapsed));
 }
 
+/** Wall-clock decay for shop/staff wait snapshots between socket pushes. */
+function displayStaffWaitMinutes(waitMinutes: number, asOf: string | null, nowTs: number | null): number {
+  if (waitMinutes <= 0 || nowTs == null || !asOf) return waitMinutes;
+  const anchor = Date.parse(asOf);
+  if (Number.isNaN(anchor)) return waitMinutes;
+  const elapsed = Math.max(0, Math.floor((nowTs - anchor) / 60000));
+  return Math.max(0, waitMinutes - elapsed);
+}
+
+function staffWaitLabel(waitMinutes: number): string {
+  return waitMinutes > 0 ? `~${waitMinutes}m` : "Free";
+}
+
 type View = "flow" | "already" | "blocked" | "left" | "track";
 
 export default function MicrositeClient({ initialSite }: { initialSite: Microsite }) {
@@ -130,6 +143,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const [liveWait, setLiveWait] = useState(initialSite.live.waitMinutes);
   const [liveCount, setLiveCount] = useState(initialSite.live.queueCount);
   const [liveStaff, setLiveStaff] = useState<MicrositeStaff[]>(initialSite.staff ?? []);
+  // Anchors for client-side wait decay between server/socket snapshots.
+  const [liveAsOf, setLiveAsOf] = useState<string | null>(null);
+  const [staffAsOf, setStaffAsOf] = useState<string | null>(null);
 
   const [joinOpen, setJoinOpen] = useState(false);
   const [mode, setMode] = useState<"queue" | "book">("queue");
@@ -182,6 +198,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
   const socketRef = useRef<Socket | null>(null);
   const ticketPoll = useRef<ReturnType<typeof setInterval> | null>(null);
+  const availabilityPoll = useRef<ReturnType<typeof setInterval> | null>(null);
+  const siteSlugRef = useRef(site.slug);
+  siteSlugRef.current = site.slug;
   const resendTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const storeRef = useRef<Store>(defaultStore());
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
@@ -196,7 +215,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // ---- realtime: availability (+ poll fallback) ----
+  // ---- realtime: availability (+ poll fallback when socket is down) ----
   const stopTicketPoll = () => {
     if (ticketPoll.current) clearInterval(ticketPoll.current);
     ticketPoll.current = null;
@@ -207,13 +226,54 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     writeStore(storeKey, store);
     setHeld(null);
   };
+
+  const stopAvailabilityPoll = () => {
+    if (availabilityPoll.current) {
+      clearInterval(availabilityPoll.current);
+      availabilityPoll.current = null;
+    }
+  };
+
+  const fetchLiveSnapshot = () => {
+    const slug = siteSlugRef.current;
+    publicApi
+      .getAvailability(slug)
+      .then((a) => {
+        setLiveWait(a.waitMinutes);
+        setLiveCount(a.queueCount);
+        setLiveAsOf(new Date().toISOString());
+      })
+      .catch(() => {});
+    publicApi
+      .getStaffAvailability(slug)
+      .then((r) => {
+        setLiveStaff(r.staff);
+        setStaffAsOf(new Date().toISOString());
+      })
+      .catch(() => {});
+  };
+
+  /** HTTP fallback while the customer socket is down. Idempotent — connect_error may fire often. */
+  const startAvailabilityPoll = () => {
+    if (availabilityPoll.current) return;
+    fetchLiveSnapshot();
+    availabilityPoll.current = setInterval(fetchLiveSnapshot, 15000);
+  };
+
   const bindSocket = (s: Socket) => {
+    s.on("connect", () => stopAvailabilityPoll());
+    s.on("disconnect", () => startAvailabilityPoll());
+    s.on("connect_error", () => startAvailabilityPoll());
     s.on("availability:updated", (d: { waitMinutes: number; queueCount: number }) => {
       setLiveWait(d.waitMinutes);
       setLiveCount(d.queueCount);
+      setLiveAsOf(new Date().toISOString());
     });
     s.on("staff:availability", (d: { staff: MicrositeStaff[] }) => {
-      if (d.staff) setLiveStaff(d.staff);
+      if (d.staff) {
+        setLiveStaff(d.staff);
+        setStaffAsOf(new Date().toISOString());
+      }
     });
     s.on("ticket:updated", (d: { ahead: number; waitMinutes: number; serviceRemainingMinutes?: number; status: string; isYourTurn?: boolean; at?: string }) => {
       setTicket((prev) =>
@@ -259,7 +319,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   };
 
   const openSocket = (auth: CustomerAuth) => {
-    socketRef.current?.close();
+    const prev = socketRef.current;
+    if (prev) {
+      // Drop listeners before close so intentional reconnects don't trip the poll fallback.
+      prev.removeAllListeners();
+      prev.close();
+    }
     const s = connectCustomer(auth);
     bindSocket(s);
     socketRef.current = s;
@@ -285,37 +350,29 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
   useEffect(() => {
     openSocket({ businessId: site.id });
-    const poll = setInterval(() => {
-      publicApi
-        .getAvailability(site.slug)
-        .then((a) => {
-          setLiveWait(a.waitMinutes);
-          setLiveCount(a.queueCount);
-        })
-        .catch(() => {});
-      publicApi
-        .getStaffAvailability(site.slug)
-        .then((r) => setLiveStaff(r.staff))
-        .catch(() => {});
-    }, 15000);
+    // One-shot so first paint is fresh before any socket push; ongoing polls only when socket is down.
+    fetchLiveSnapshot();
     return () => {
-      clearInterval(poll);
-      socketRef.current?.close();
+      stopAvailabilityPoll();
+      const s = socketRef.current;
+      if (s) {
+        s.removeAllListeners();
+        s.close();
+      }
       socketRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [site.id]);
 
-  // ---- live countdown tick (drives displayWaitMinutes between server updates) ----
-  // Only re-runs when the ticket flips active/inactive (a primitive), so the 15s interval keeps
-  // ticking instead of being torn down on every 5s poll. setState happens only in the timer
-  // callback (never synchronously in the effect body). Pushes re-anchor nowTs in bindSocket.
+  // ---- live countdown tick (ticket pill + staff/shop wait decay between server updates) ----
   const ticketActive = !!ticket && isActive(ticket.status);
+  const needsClock = ticketActive || liveWait > 0 || liveStaff.some((s) => s.waitMinutes > 0);
   useEffect(() => {
-    if (!ticketActive) return;
+    if (!needsClock) return;
+    setNowTs(Date.now());
     const id = setInterval(() => setNowTs(Date.now()), 15000);
     return () => clearInterval(id);
-  }, [ticketActive]);
+  }, [needsClock]);
 
   // ---- restore a held ticket (resume pill / "already in line") ----
   useEffect(() => {
@@ -360,17 +417,20 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     dur: `${s.durationMinutes} min`,
     price: Math.round(s.price.amount / 100),
   }));
-  const barbers = liveStaff.map((s, i) => ({
-    id: s.id,
-    name: s.name,
-    role: s.roleLabel ?? "",
-    photo: s.avatarUrl,
-    busy: s.busy,
-    count: s.queueCount,
-    wait: s.waitLabel,
-    waitMin: s.waitMinutes,
-    avBg: AVATAR_COLORS[i % AVATAR_COLORS.length],
-  }));
+  const barbers = liveStaff.map((s, i) => {
+    const waitMin = displayStaffWaitMinutes(s.waitMinutes, staffAsOf, nowTs);
+    return {
+      id: s.id,
+      name: s.name,
+      role: s.roleLabel ?? "",
+      photo: s.avatarUrl,
+      busy: s.busy,
+      count: s.queueCount,
+      wait: staffWaitLabel(waitMin),
+      waitMin,
+      avBg: AVATAR_COLORS[i % AVATAR_COLORS.length],
+    };
+  });
   const amenities = site.amenities ?? [];
   const gallery = site.gallery ?? [];
   const faqs = Array.isArray(site.faqs) ? site.faqs : [];
@@ -828,11 +888,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const sel = services.find((x) => x.id === cart);
   // Shop-wide "soonest free chair" wait. A 0 means a chair is open right now, so read
   // it as an invitation ("Walk in now") rather than the nonsensical "~0 min wait".
-  const waitHeadline = liveWait > 0 ? `~${liveWait} min wait` : "Walk in now";
+  const displayLiveWait = displayStaffWaitMinutes(liveWait, liveAsOf, nowTs);
+  const waitHeadline = displayLiveWait > 0 ? `~${displayLiveWait} min wait` : "Walk in now";
   // Join-form summary wait, barber-aware: a specific barber shows their own chair's
   // clear time; "Any" falls back to the shop-wide soonest value.
   const selBarber = barbers.find((b) => b.id === barber);
-  const joinWaitMin = barber === "any" ? liveWait : selBarber?.waitMin ?? liveWait;
+  const joinWaitMin = barber === "any" ? displayLiveWait : selBarber?.waitMin ?? displayLiveWait;
   const joinWaitText = joinWaitMin > 0 ? `~${joinWaitMin} min wait` : "no wait — walk in";
   const modeTitle =
     view === "track"

@@ -17,8 +17,10 @@ export interface RawEntry {
   token: string | null;
   joined_at: string;
   started_at: string | null;
+  appointment_id: string | null;
   notified_two_away_at: string | null;
   notified_turn_at: string | null;
+  notified_eta_15_at: string | null;
 }
 
 export interface QueueContext {

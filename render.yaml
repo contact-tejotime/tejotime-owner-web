@@ -35,8 +35,12 @@ services:
         value: "2592000"
       - key: FREE_PLAN_CUSTOMER_LIMIT
         value: "2"
-      - key: TWO_AWAY_THRESHOLD
-        value: "2"
+      - key: ETA_NOTIFY_MINUTES
+        value: "15"
+      - key: WHATSAPP_ENABLED
+        value: "false"
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
       - key: TICKET_ABANDON_HOURS
         value: "4"
       - key: BOOKING_SLOT_MINUTES

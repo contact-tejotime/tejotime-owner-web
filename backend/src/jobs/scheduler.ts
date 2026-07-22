@@ -6,8 +6,8 @@ import { broadcastQueue } from '../modules/queue/queue.service';
 
 /**
  * In-process scheduled jobs (single instance). Swap for BullMQ + Redis workers
- * when scaling — see docs/09-background-jobs.md. Reminder/SMS/email dispatch and
- * subscription-provider sync are DEFERRED until credentials are provided.
+ * when scaling — see docs/09-background-jobs.md. Reminder/SMS/email/WhatsApp
+ * provider sync are DEFERRED until credentials are provided.
  */
 
 /**
@@ -35,6 +35,34 @@ async function staleCleanup() {
   logger.info({ count: ids.length }, 'Stale tickets cleaned up');
 }
 
+/**
+ * Recompute ETA / fire the ~15-minute WhatsApp alert for businesses that have
+ * waiting online live-queue entries. Needed because wall-clock decay of the
+ * in-service chair can cross the threshold with no owner mutation.
+ * Idempotent via notified_eta_15_at conditional claim inside broadcastQueue.
+ */
+export async function etaNotifySweep(): Promise<void> {
+  const { data } = await supabase
+    .from('queue_entry')
+    .select('business_id')
+    .eq('status', 'waiting')
+    .eq('source', 'online')
+    .is('appointment_id', null)
+    .is('notified_eta_15_at', null)
+    .not('customer_phone', 'is', null);
+  if (!data?.length) return;
+
+  const businessIds = [...new Set(data.map((r) => r.business_id))];
+  for (const bid of businessIds) {
+    try {
+      await broadcastQueue(bid);
+    } catch (err) {
+      logger.error({ err, businessId: bid }, 'etaNotifySweep broadcast failed');
+    }
+  }
+  logger.debug({ businesses: businessIds.length }, 'ETA notify sweep completed');
+}
+
 async function purgeOtp() {
   await supabase.from('otp_verification').delete().lt('expires_at', new Date().toISOString());
 }
@@ -44,6 +72,10 @@ async function purgeSessions() {
 }
 
 export function startScheduler(): void {
+  // Every 60 seconds: recompute ETA alerts for active online queues (wall-clock decay).
+  cron.schedule('* * * * *', () => {
+    etaNotifySweep().catch((err) => logger.error({ err }, 'etaNotifySweep failed'));
+  });
   // Every 15 minutes: stale ticket cleanup.
   cron.schedule('*/15 * * * *', () => {
     staleCleanup().catch((err) => logger.error({ err }, 'staleCleanup failed'));
@@ -56,5 +88,5 @@ export function startScheduler(): void {
   cron.schedule('10 0 * * *', () => {
     purgeSessions().catch((err) => logger.error({ err }, 'purgeSessions failed'));
   });
-  logger.info('Scheduler started (stale-cleanup, otp-purge, session-purge)');
+  logger.info('Scheduler started (eta-notify-sweep, stale-cleanup, otp-purge, session-purge)');
 }

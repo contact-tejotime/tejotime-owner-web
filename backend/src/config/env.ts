@@ -37,7 +37,8 @@ const schema = z.object({
   PASSWORD_PEPPER: z.string().default(''),
 
   FREE_PLAN_CUSTOMER_LIMIT: z.coerce.number().int().nonnegative().default(2),
-  TWO_AWAY_THRESHOLD: z.coerce.number().int().nonnegative().default(2),
+  /** Minutes of wait at/under which the online-queue WhatsApp alert fires (once). */
+  ETA_NOTIFY_MINUTES: z.coerce.number().int().positive().default(15),
   TICKET_ABANDON_HOURS: z.coerce.number().int().positive().default(4),
   BOOKING_SLOT_MINUTES: z.coerce.number().int().positive().default(30),
 
@@ -45,6 +46,23 @@ const schema = z.object({
   PAYMENTS_ENABLED: boolish(false),
   SMS_ENABLED: boolish(false),
   EMAIL_ENABLED: boolish(false),
+  WHATSAPP_ENABLED: boolish(false),
+  /** Provider base URL — leave blank until credentials are supplied. */
+  WHATSAPP_API_URL: z.string().default(''),
+  WHATSAPP_API_TOKEN: z.string().default(''),
+  /** Meta webhook verify token — must match the value entered in the Meta dashboard. */
+  WHATSAPP_VERIFY_TOKEN: z.string().default(''),
+  WHATSAPP_TEMPLATE_ETA_15: z.string().default('eta_15'),
+
+  /**
+   * Temporary Twilio SMS stand-in for ETA-15 alerts (swap for real WhatsApp later).
+   * When WHATSAPP_ENABLED=true and these are set, whatsappSender POSTs to Twilio Messages.
+   */
+  TWILIO_ACCOUNT_SID: z.string().default(''),
+  TWILIO_AUTH_TOKEN: z.string().default(''),
+  TWILIO_FROM: z.string().default(''),
+  /** Optional override: when set, ALL alert sends go here (never message real customers in test). */
+  TWILIO_TEST_TO: z.string().default(''),
 
   OTP_LENGTH: z.coerce.number().int().min(4).max(8).default(4),
   OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),

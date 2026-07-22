@@ -5,6 +5,7 @@ import { SERVICE_EXTRAS } from '../../config/constants';
 import { Errors } from '../../domain/errors';
 import { normalizePhone } from '../../lib/phone';
 import { initials } from '../../lib/format';
+import { shouldNotifyEta15 } from '../../lib/eta-notify';
 import {
   buildSeatGroups,
   flatCards,
@@ -14,8 +15,9 @@ import {
   SeatGroupVM,
 } from '../../lib/queue-engine';
 import { emitToOwners, emitToPublic, emitToTicket } from '../../realtime/emitters';
+import { whatsappSender } from '../../integrations/whatsapp';
 import { findOrCreateCustomer } from '../customers/customer.repo';
-import { loadQueueContext, QueueContext } from './queue.context';
+import { loadQueueContext, QueueContext, RawEntry } from './queue.context';
 
 // ---------- DTO mappers ----------
 function cardToDTO(c: CardVM) {
@@ -161,42 +163,92 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
 
     // "It's your turn!" — once per ticket.
     if (isYourTurn && !entry.notified_turn_at) {
-      await supabase.from('queue_entry').update({ notified_turn_at: new Date().toISOString() }).eq('id', entry.id);
-      emitToTicket(entry.id, 'ticket:ready', { token: entry.token });
-      await recordNotification(businessId, entry, 'your_turn', "It's your turn — please head in.");
+      const claimed = await claimNotifyStamp(entry.id, 'notified_turn_at');
+      if (claimed) {
+        emitToTicket(entry.id, 'ticket:ready', { token: entry.token });
+        await recordAlertNotification(businessId, entry, 'your_turn', "It's your turn — please head in.");
+      }
       continue;
     }
 
-    // "2 away" — once per ticket.
+    // ~15-minute ETA window — once per online live-queue ticket (not walk-ins / appointments).
     if (
-      pos.status === 'waiting' &&
-      pos.ahead <= env.TWO_AWAY_THRESHOLD &&
-      pos.ahead > 0 &&
-      !entry.notified_two_away_at &&
-      entry.customer_phone
+      shouldNotifyEta15({
+        source: entry.source,
+        appointmentId: entry.appointment_id,
+        status: pos.status,
+        waitMinutes: pos.waitMinutes,
+        notifiedEta15At: entry.notified_eta_15_at,
+        customerPhone: entry.customer_phone,
+        thresholdMinutes: env.ETA_NOTIFY_MINUTES,
+      })
     ) {
-      await supabase
-        .from('queue_entry')
-        .update({ notified_two_away_at: new Date().toISOString() })
-        .eq('id', entry.id);
-      emitToTicket(entry.id, 'ticket:two_away', { ahead: pos.ahead });
-      await recordNotification(businessId, entry, 'two_away', `You're ${pos.ahead} away — almost your turn.`);
+      const claimed = await claimNotifyStamp(entry.id, 'notified_eta_15_at');
+      if (claimed) {
+        emitToTicket(entry.id, 'ticket:eta_15', {
+          waitMinutes: pos.waitMinutes,
+          thresholdMinutes: env.ETA_NOTIFY_MINUTES,
+        });
+        const body = `You're about ${pos.waitMinutes} minutes away — almost your turn.`;
+        await recordAlertNotification(businessId, entry, env.WHATSAPP_TEMPLATE_ETA_15 || 'eta_15', body);
+      }
     }
   }
 }
 
-/** Persists an outbound notification. SMS dispatch is DEFERRED (SMS_ENABLED=false). */
-async function recordNotification(businessId: string, entry: any, template: string, body: string): Promise<void> {
-  await supabase.from('notification').insert({
-    business_id: businessId,
-    queue_entry_id: entry.id,
-    channel: env.SMS_ENABLED && entry.customer_phone ? 'sms' : 'in_app',
-    template,
-    to_address: entry.customer_phone,
-    body,
-    status: 'queued',
-  });
-  // When SMS_ENABLED becomes true, enqueue the sms.dispatch job here.
+/**
+ * Conditional claim: only one concurrent caller wins. Returns true if this caller
+ * stamped the column (and should therefore send the notification).
+ */
+async function claimNotifyStamp(
+  entryId: string,
+  column: 'notified_turn_at' | 'notified_eta_15_at',
+): Promise<boolean> {
+  const { data } = await supabase
+    .from('queue_entry')
+    .update({ [column]: new Date().toISOString() })
+    .eq('id', entryId)
+    .is(column, null)
+    .select('id');
+  return !!data?.length;
+}
+
+/** Persists an outbound alert and dispatches via the existing Twilio test-number path. */
+async function recordAlertNotification(
+  businessId: string,
+  entry: RawEntry,
+  template: string,
+  body: string,
+): Promise<void> {
+  const hasPhone = !!entry.customer_phone;
+  const channel = hasPhone ? 'whatsapp' : 'in_app';
+  const { data, error } = await supabase
+    .from('notification')
+    .insert({
+      business_id: businessId,
+      queue_entry_id: entry.id,
+      channel,
+      template,
+      to_address: entry.customer_phone,
+      body,
+      status: hasPhone ? 'queued' : 'sent',
+      sent_at: hasPhone ? null : new Date().toISOString(),
+    })
+    .select('id')
+    .single();
+
+  if (error || !data?.id || !entry.customer_phone) return;
+
+  const result = await whatsappSender.send(entry.customer_phone, body, template);
+  await supabase
+    .from('notification')
+    .update({
+      status: result.id ? 'sent' : 'failed',
+      provider_message_id: result.id,
+      sent_at: result.id ? new Date().toISOString() : null,
+      error: result.id ? null : 'Twilio send failed or deferred',
+    })
+    .eq('id', data.id);
 }
 
 // ---------- Mutations ----------

@@ -215,3 +215,81 @@ describe('buildSeatGroups — backward compatible defaults', () => {
     expect(john.clearMinutes).toBe(135); // 45 + 90 — unchanged from pre-elapsed behaviour
   });
 });
+
+describe('ETA decrease on completion (checkout ahead)', () => {
+  it('lowers wait for the online customer when the person ahead finishes', () => {
+    const before: EngineEntry[] = [
+      q({ id: 'serving', name: 'In Chair', service: 'Haircut', status: 'in_service', staffId: 'john', startedAt: ago(0) }), // 30
+      q({ id: 'online', name: 'Online', service: 'Haircut', status: 'waiting', staffId: 'john', source: 'online' }), // wait 30
+      q({ id: 'behind', name: 'Behind', service: 'Haircut', status: 'waiting', staffId: 'john' }), // wait 60
+    ];
+    expect(ticketPosition('online', before, staff, services, NOW).waitMinutes).toBe(30);
+    expect(ticketPosition('behind', before, staff, services, NOW).waitMinutes).toBe(60);
+
+    // Serving checks out; online promoted to in_service.
+    const after: EngineEntry[] = [
+      q({ id: 'online', name: 'Online', service: 'Haircut', status: 'in_service', staffId: 'john', startedAt: ago(0), source: 'online' }),
+      q({ id: 'behind', name: 'Behind', service: 'Haircut', status: 'waiting', staffId: 'john' }),
+    ];
+    expect(ticketPosition('online', after, staff, services, NOW).waitMinutes).toBe(0);
+    expect(ticketPosition('behind', after, staff, services, NOW).waitMinutes).toBe(30);
+  });
+});
+
+describe('ETA increase on walk-in insert ahead (position next)', () => {
+  it('raises wait when a walk-in is inserted in front of an online waiter', () => {
+    const before: EngineEntry[] = [
+      q({ id: 'serving', name: 'In Chair', service: 'Haircut', status: 'in_service', staffId: 'john', startedAt: ago(0) }), // 30 remaining
+      q({ id: 'online', name: 'Online', service: 'Haircut', status: 'waiting', staffId: 'john', source: 'online' }), // wait 30
+    ];
+    expect(ticketPosition('online', before, staff, services, NOW).waitMinutes).toBe(30);
+
+    // Owner adds walk-in as "Next up" — inserted ahead of the online customer.
+    const after: EngineEntry[] = [
+      q({ id: 'serving', name: 'In Chair', service: 'Haircut', status: 'in_service', staffId: 'john', startedAt: ago(0) }),
+      q({ id: 'walkin', name: 'Walk-in', service: 'Haircut & Beard', status: 'waiting', staffId: 'john', source: 'walk_in' }), // 45
+      q({ id: 'online', name: 'Online', service: 'Haircut', status: 'waiting', staffId: 'john', source: 'online' }),
+    ];
+    const waitAfter = ticketPosition('online', after, staff, services, NOW).waitMinutes;
+    expect(waitAfter).toBe(75); // 30 remaining + 45 walk-in
+    expect(waitAfter).toBeGreaterThan(30);
+  });
+
+  it('does not delay people already waiting when walk-in is appended (position end)', () => {
+    const before: EngineEntry[] = [
+      q({ id: 'serving', name: 'In Chair', service: 'Haircut', status: 'in_service', staffId: 'john', startedAt: ago(0) }),
+      q({ id: 'online', name: 'Online', service: 'Haircut', status: 'waiting', staffId: 'john', source: 'online' }),
+    ];
+    const waitBefore = ticketPosition('online', before, staff, services, NOW).waitMinutes;
+
+    const after: EngineEntry[] = [
+      q({ id: 'serving', name: 'In Chair', service: 'Haircut', status: 'in_service', staffId: 'john', startedAt: ago(0) }),
+      q({ id: 'online', name: 'Online', service: 'Haircut', status: 'waiting', staffId: 'john', source: 'online' }),
+      q({ id: 'walkin', name: 'Walk-in', service: 'Haircut & Beard', status: 'waiting', staffId: 'john', source: 'walk_in' }),
+    ];
+    const waitAfter = ticketPosition('online', after, staff, services, NOW).waitMinutes;
+    expect(waitAfter).toBe(waitBefore);
+    expect(waitAfter).toBe(30);
+  });
+});
+
+describe('decay-only path into 15-minute window', () => {
+  it('online waiter wait crosses from above 15 into <=15 as the chair decays', () => {
+    // Hair Color 90 min in chair; online waiter wait = remaining of chair.
+    const atElapsed = (elapsed: number): EngineEntry[] => [
+      q({
+        id: 'serving',
+        name: 'In Chair',
+        service: 'Hair Color',
+        status: 'in_service',
+        staffId: 'john',
+        startedAt: ago(elapsed),
+      }),
+      q({ id: 'online', name: 'Online', service: 'Haircut', status: 'waiting', staffId: 'john', source: 'online' }),
+    ];
+    // At 70 elapsed → remaining 20 → above 15
+    expect(ticketPosition('online', atElapsed(70), staff, services, NOW).waitMinutes).toBe(20);
+    // At 76 elapsed → remaining 14 → inside 15-minute window (scheduler would fire here)
+    expect(ticketPosition('online', atElapsed(76), staff, services, NOW).waitMinutes).toBe(14);
+  });
+});
