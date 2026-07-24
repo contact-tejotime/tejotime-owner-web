@@ -38,7 +38,7 @@ All configuration is injected via environment (12-factor). Never commit secrets.
 | `JWT_REFRESH_SECRET` | — | |
 | `JWT_REFRESH_TTL` | `2592000` | 30 days |
 | `JWT_KEY_ID` | `k1` | rotation `kid` |
-| `PASSWORD_PEPPER` | — | added to argon2 hashing |
+| `PASSWORD_PEPPER` | — | peppers owner **and** admin password hashing (bcrypt). Admin login password is stored in the DB (`admins.password_hash`), not an env var. |
 | `OTP_PEPPER` | — | OTP hashing |
 | `OTP_TTL_SECONDS` | `300` | |
 | `OTP_LENGTH` | `4` | matches `OTPInput` (default 4) |

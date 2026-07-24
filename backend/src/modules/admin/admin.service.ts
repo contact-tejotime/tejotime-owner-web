@@ -278,6 +278,26 @@ export async function isKnownAdmin(mobile: string): Promise<boolean> {
 }
 
 /**
+ * Admin-panel login: a known-admin mobile plus a password verified against the
+ * bcrypt hash stored on the `admins` row and peppered with PASSWORD_PEPPER —
+ * identical to owner login (auth.service.ts). Mints the admin JWT the panel
+ * sends as `Authorization: Bearer` on every backend call.
+ */
+export async function loginAdmin(rawMobile: string, password: string) {
+  const mobile = rawMobile.replace(/\D/g, '');
+  const { data: admin } = await supabase
+    .from('admins')
+    .select('mobile, password_hash')
+    .eq('mobile', mobile)
+    .maybeSingle();
+  if (!admin) throw Errors.unauthenticated('Not a registered admin');
+  if (!admin.password_hash) throw Errors.invalidCredentials('Incorrect password');
+  const ok = await bcrypt.compare(password + env.PASSWORD_PEPPER, admin.password_hash);
+  if (!ok) throw Errors.invalidCredentials('Incorrect password');
+  return { ok: true, mobile, token: signAdminToken(mobile) };
+}
+
+/**
  * Step 1 of admin login: the panel submits a mobile number. We verify it's a
  * known admin, then (in the real impl) generate + SMS an OTP. For the demo we
  * just acknowledge — the code is always DEMO_ADMIN_OTP.

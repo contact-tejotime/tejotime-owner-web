@@ -129,6 +129,9 @@ const dateRangeQuery = z.object({ from: dateStr.optional(), to: dateStr.optional
 
 const requestOtpSchema = z.object({ mobile: z.string().min(6).max(20) }).strict();
 const verifyOtpSchema = z.object({ mobile: z.string().min(6).max(20), otp: z.string().min(1).max(10) }).strict();
+const loginSchema = z
+  .object({ mobile: z.string().min(6).max(20), password: z.string().min(1).max(200) })
+  .strict();
 
 const uploadSignSchema = z
   .object({
@@ -157,6 +160,16 @@ adminRouter.post(
   validate({ body: verifyOtpSchema }),
   asyncHandler(async (req: Request, res: Response) => {
     res.json(await admin.verifyAdminOtp(req.body.mobile, req.body.otp));
+  }),
+);
+
+// Mobile + shared static password login (mints the admin JWT).
+adminRouter.post(
+  '/auth/login',
+  limiters.login,
+  validate({ body: loginSchema }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await admin.loginAdmin(req.body.mobile, req.body.password));
   }),
 );
 

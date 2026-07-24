@@ -22,5 +22,10 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|api/admin-auth|_next/static|_next/image|favicon.ico).*)"],
+  // Skip auth gate for login, OTP auth APIs, Next internals, and public static files
+  // (e.g. /logo.png). Without this, unauthenticated login-page <img> requests get
+  // redirected to HTML and show as a broken image.
+  matcher: [
+    "/((?!login|api/admin-auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+  ],
 };

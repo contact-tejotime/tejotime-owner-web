@@ -649,6 +649,33 @@ button {
   width: 100%;
   margin-top: 16px;
 }
+.password-label {
+  margin-top: 14px;
+}
+.password-field {
+  position: relative;
+}
+.password-field input {
+  padding-right: 40px;
+}
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.password-toggle:hover {
+  color: var(--text-body);
+}
 .login-link {
   display: block;
   width: 100%;

@@ -8,7 +8,14 @@
 import 'dotenv/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import bcrypt from 'bcryptjs';
 import { Client } from 'pg';
+
+// Admin login passwords live in the DB (admins.password_hash) and are peppered
+// like owner logins, so the hash is computed here in JS (pepper is
+// deployment-specific and can't live in a static .sql file). Any admin row
+// still missing a hash gets the demo password — existing mobiles are left alone.
+const DEMO_ADMIN_PASSWORD = 'admin456';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -62,6 +69,21 @@ async function main() {
       await client.end();
       process.exit(1);
     }
+  }
+
+  // Ensure every admin row has a login password (bcrypt + pepper), mirroring how
+  // owners are seeded. Idempotent: only fills null hashes, so a changed admin
+  // password is never reset. Does not invent/change admin mobiles.
+  const pepper = process.env.PASSWORD_PEPPER ?? '';
+  const adminHash = await bcrypt.hash(DEMO_ADMIN_PASSWORD + pepper, 10);
+  const res = await client.query(
+    'update admins set password_hash = $1 where password_hash is null returning mobile',
+    [adminHash],
+  );
+  if (res.rowCount) {
+    console.log(
+      `✓ set demo admin password (${DEMO_ADMIN_PASSWORD}) for: ${res.rows.map((r: { mobile: string }) => r.mobile).join(', ')}`,
+    );
   }
 
   await client.end();

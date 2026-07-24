@@ -18,9 +18,6 @@ import "./salon.css";
 const AVATAR_COLORS = ["var(--primary)", "var(--secondary)", "var(--amber-500)"];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-// Demo verification: the live backend has no OTP endpoint, so the OTP screen is a
-// client-side gate (see plan). The real joinQueue/bookSlot fires once it passes.
-const DEMO_OTP = "1234";
 // Client-side abuse simulation: after this many joins from one phone in a session we
 // show the "too many attempts" view (the backend enforces only a generic per-IP 429).
 const BLOCK_AT = 3;
@@ -74,9 +71,6 @@ function writeStore(key: string, s: Store) {
     /* ignore */
   }
 }
-
-/** Compare two phone strings by their digits only (ignores spacing/formatting). */
-const sameDigits = (a: string, b: string) => a.replace(/\D/g, "") === b.replace(/\D/g, "");
 
 /** A ticket "exists / is live" only while in queue (waiting) or in process (in_service).
  *  Anything else — completed, cancelled, no_show — means there's no active entry. */
@@ -151,7 +145,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const [mode, setMode] = useState<"queue" | "book">("queue");
   const [view, setView] = useState<View>("flow");
   const [step, setStep] = useState(1);
-  const [tstep, setTstep] = useState(1); // Track-my-turn sub-step: 1 phone → 2 OTP → 3 not-found
+  const [tstep, setTstep] = useState(1); // Track-my-turn sub-step: 1 phone → 3 not-found
   const [cart, setCart] = useState<string | null>(null);
   const [name, setName] = useState("");
   // Phone entry is split into a searchable country code + national number. `phone`
@@ -184,15 +178,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // to the server value — no hydration mismatch); then updated every 15s while a ticket is active.
   const [nowTs, setNowTs] = useState<number | null>(null);
 
-  // OTP + new modal views
-  const [otp, setOtp] = useState(["", "", "", ""]);
-  const [otpError, setOtpError] = useState("");
-  const [resendIn, setResendIn] = useState(0);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [leftMsg, setLeftMsg] = useState("");
   const [held, setHeld] = useState<HeldRecord | null>(null);
-  // Phone verified via OTP this session — lets a follow-on Join skip a duplicate OTP.
-  const [verifiedPhone, setVerifiedPhone] = useState("");
   // Name pulled from the track lookup (returning customer) to pre-fill Join.
   const [trackedName, setTrackedName] = useState("");
 
@@ -201,9 +189,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const availabilityPoll = useRef<ReturnType<typeof setInterval> | null>(null);
   const siteSlugRef = useRef(site.slug);
   siteSlugRef.current = site.slug;
-  const resendTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const storeRef = useRef<Store>(defaultStore());
-  const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   // ---- nav shadow on scroll ----
   useEffect(() => {
@@ -404,7 +390,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   useEffect(
     () => () => {
       if (ticketPoll.current) clearInterval(ticketPoll.current);
-      if (resendTimer.current) clearInterval(resendTimer.current);
     },
     [],
   );
@@ -461,31 +446,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     reviewCount > 0 ? [`★ ${rating}`, `${reviewCount} reviews`] : null,
   ].filter(Boolean) as [string, string][];
 
-  // ---- resend countdown ----
-  const stopResend = () => {
-    if (resendTimer.current) clearInterval(resendTimer.current);
-    resendTimer.current = null;
-  };
-  const startResend = () => {
-    stopResend();
-    setResendIn(30);
-    resendTimer.current = setInterval(() => {
-      setResendIn((n) => {
-        if (n <= 1) {
-          stopResend();
-          return 0;
-        }
-        return n - 1;
-      });
-    }, 1000);
-  };
-
   // ---- modal control ----
   const openJoin = (m: "queue" | "book", preselectBarber = "any") => {
     setMode(m);
     setConfirmLeave(false);
-    setOtp(["", "", "", ""]);
-    setOtpError("");
     setFormError("");
     const store = storeRef.current;
     const lp = store.lastPhone;
@@ -532,8 +496,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const openTrack = () => {
     setMode("queue");
     setConfirmLeave(false);
-    setOtp(["", "", "", ""]);
-    setOtpError("");
     setFormError("");
     // Same browser: if we already hold a live ticket locally, jump straight to it.
     if (held) {
@@ -548,39 +510,15 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setView("track");
     setJoinOpen(true);
   };
-  const trackSendOtp = () => {
+  // Track lookup: enter phone → show the live slot, or the "not found" screen (tstep 3).
+  const runTrack = async () => {
     if (phone.replace(/\D/g, "").length < 4) {
       setFormError("Enter your phone number");
       return;
     }
-    setFormError("");
-    setOtp(["", "", "", ""]);
-    setOtpError("");
-    setTstep(2);
-    startResend();
-  };
-  const trackBack = () => {
-    stopResend();
-    setOtpError("");
-    setTstep(1);
-  };
-  const trackVerify = async () => {
-    const code = otp.join("");
-    if (code.length < 4) {
-      setOtpError("Enter the 4-digit code");
-      return;
-    }
-    if (code !== DEMO_OTP) {
-      setOtpError("Incorrect code. For this demo, enter 1 2 3 4.");
-      setOtp(["", "", "", ""]);
-      otpRefs.current[0]?.focus();
-      return;
-    }
     const p = phone.trim();
     setSubmitting(true);
-    setOtpError("");
-    setVerifiedPhone(p); // this phone is now OTP-verified for the session → Join can skip re-OTP
-    stopResend();
+    setFormError("");
     try {
       const r = await publicApi.trackByPhone(site.slug, { phone: p });
       const store = storeRef.current;
@@ -612,13 +550,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         setTstep(3);
       }
     } catch (e) {
-      setOtpError((e as Error)?.message ?? "Something went wrong");
+      setFormError((e as Error)?.message ?? "Something went wrong");
     } finally {
       setSubmitting(false);
     }
   };
-  // From the Track "no active booking" screen: carry the verified phone + known name into a
-  // fresh Join. verifiedPhone stays set so Step 2 skips the second OTP; only service is left.
+  // From the Track "no active booking" screen: carry the phone + known name into a
+  // fresh Join; only service selection is left.
   const joinAfterTrack = () => {
     setMode("queue");
     setView("flow");
@@ -626,9 +564,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setCart(null);
     setBarber("any");
     setName(trackedName || storeRef.current.lastName || "");
-    seedPhone(verifiedPhone);
-    setOtp(["", "", "", ""]);
-    setOtpError("");
+    seedPhone(storeRef.current.lastPhone || "");
     setFormError("");
     setBooking(null);
     setJustTurn(false);
@@ -640,7 +576,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const closeJoin = () => {
     setJoinOpen(false);
     setConfirmLeave(false);
-    stopResend();
     // Keep the live ticket socket + poll alive when we still hold a ticket, so the
     // resume pill stays current; otherwise fall back to the availability-only socket.
     if (!held) {
@@ -695,68 +630,19 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     }
     return false;
   };
-  // Step 2 -> OTP screen (demo verification gate) — used when the phone is NOT yet verified.
-  const sendOtp = () => {
-    if (detailsInvalid()) return;
-    if (blockGuard(phone.trim())) return;
-    setFormError("");
-    setOtp(["", "", "", ""]);
-    setOtpError("");
-    setStep(3);
-    startResend();
-  };
-  // Step 2 -> join directly, skipping OTP because this phone was already verified this session.
+  // Step 2 -> perform the join/book directly (no verification gate).
   const confirmJoin = () => {
     if (detailsInvalid()) return;
     if (blockGuard(phone.trim())) return;
     performJoinOrBook();
   };
-  const resendOtp = () => {
-    if (resendIn > 0) return;
-    setOtp(["", "", "", ""]);
-    setOtpError("");
-    startResend();
-    otpRefs.current[0]?.focus();
-  };
-  const backToDetails = () => {
-    stopResend();
-    setOtpError("");
-    setStep(2);
-  };
 
-  const onOtpInput = (i: number, value: string) => {
-    const raw = value.replace(/\D/g, "");
-    if (raw.length > 1) {
-      // pasted full/partial code
-      const next = raw.slice(0, 4).split("");
-      while (next.length < 4) next.push("");
-      setOtp(next);
-      setOtpError("");
-      const last = Math.min(raw.length, 4) - 1;
-      otpRefs.current[last]?.focus();
-      return;
-    }
-    setOtp((prev) => {
-      const next = [...prev];
-      next[i] = raw.slice(-1);
-      return next;
-    });
-    setOtpError("");
-    if (raw && i < 3) otpRefs.current[i + 1]?.focus();
-  };
-  const onOtpKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !otp[i] && i > 0) otpRefs.current[i - 1]?.focus();
-  };
-
-  // Perform the REAL join/book. Reached after OTP (verifyOtp) OR directly when the phone was
-  // already verified this session (confirmJoin) — the single place that talks to the API.
+  // Perform the REAL join/book — the single place that talks to the join/book API.
   const performJoinOrBook = async () => {
     if (!cart) return;
     const p = phone.trim();
     setSubmitting(true);
-    setOtpError("");
     setFormError("");
-    stopResend();
     try {
       if (mode === "queue") {
         const t = await publicApi.joinQueue(site.slug, {
@@ -812,32 +698,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         writeStore(storeKey, store);
         setView("blocked");
       } else {
-        // Surface on whichever screen we're on: Step 3 shows otpError, Step 2 shows formError.
         const msg = (e as Error)?.message ?? "Something went wrong";
-        setOtpError(msg);
         setFormError(msg);
       }
     } finally {
       setSubmitting(false);
     }
   };
-  // OTP verified -> remember the phone for the session, then perform the real join/book.
-  const verifyOtp = () => {
-    const code = otp.join("");
-    if (code.length < 4) {
-      setOtpError("Enter the 4-digit code");
-      return;
-    }
-    if (code !== DEMO_OTP) {
-      setOtpError("Incorrect code. For this demo, enter 1 2 3 4.");
-      setOtp(["", "", "", ""]);
-      otpRefs.current[0]?.focus();
-      return;
-    }
-    setVerifiedPhone(phone.trim());
-    performJoinOrBook();
-  };
-
   // ---- leave / rejoin ----
   const askLeave = () => setConfirmLeave(true);
   const cancelLeave = () => setConfirmLeave(false);
@@ -874,8 +741,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setName("");
     seedPhone("");
     setBarber("any");
-    setOtp(["", "", "", ""]);
-    setOtpError("");
     setBooking(null);
     setJustTurn(false);
     setConfirmLeave(false);
@@ -953,8 +818,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         : "0%";
 
   const cantConfirm = !name.trim() || phone.replace(/\D/g, "").length < 4 || (mode === "book" && !selectedSlot);
-  // This exact phone was already OTP-verified this session → Step 2 joins directly (no 2nd OTP).
-  const phoneVerified = !!verifiedPhone && sameDigits(phone, verifiedPhone);
 
   return (
     <div style={{ position: "relative", overflowX: "hidden" }}>
@@ -1487,72 +1350,15 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                         </span>
                         <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)" }}>{sel ? `${curSym}${sel.price}` : ""}</span>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "10px 12px", marginBottom: 16 }}>
-                        <span style={{ color: phoneVerified ? "var(--success)" : "var(--secondary)", display: "flex", flexShrink: 0 }}>
-                          <Icon name={phoneVerified ? "check" : "bell"} size={15} />
-                        </span>
-                        <span style={{ font: "var(--fw-medium) 12px/1.35 var(--font-sans)", color: "var(--text-muted)" }}>
-                          {phoneVerified
-                            ? "Your number is already verified — no code needed. You'll get your token right after you confirm."
-                            : "We'll text a 4-digit code to verify your number. No app, no password."}
-                        </span>
-                      </div>
                       {formError && <div style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--error)", marginBottom: 12 }}>{formError}</div>}
                       <div style={{ display: "flex", gap: 10 }}>
                         <Button variant="outline" size="lg" onClick={backTo1}>Back</Button>
                         <div style={{ flex: 1 }}>
-                          <Button variant="primary" size="lg" fullWidth loading={submitting} disabled={cantConfirm || submitting} onClick={phoneVerified ? confirmJoin : sendOtp}>
-                            {phoneVerified ? (mode === "book" ? "Confirm booking →" : "Join the queue →") : "Send verification code →"}
+                          <Button variant="primary" size="lg" fullWidth loading={submitting} disabled={cantConfirm || submitting} onClick={confirmJoin}>
+                            {mode === "book" ? "Confirm booking →" : "Join the queue →"}
                           </Button>
                         </div>
                       </div>
-                    </div>
-                  )}
-
-                  {/* STEP 3: OTP verify */}
-                  {step === 3 && (
-                    <div style={{ animation: "ttStep .32s ease both" }}>
-                      <div style={{ width: 52, height: 52, borderRadius: 14, background: "color-mix(in srgb, var(--primary) 10%, var(--surface-card))", color: "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-                        <Icon name="bell" size={24} />
-                      </div>
-                      <h3 style={{ font: "var(--fw-extrabold) 20px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>Verify your number</h3>
-                      <p style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 20px" }}>
-                        We sent a 4-digit code to <span style={{ font: "var(--fw-semibold) 13px/1 var(--font-sans)", color: "var(--text-strong)" }}>{formatPhone(phone)}</span>. Enter it to confirm you&apos;re a real customer.
-                      </p>
-                      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-                        {otp.map((v, i) => (
-                          <input
-                            key={i}
-                            ref={(el) => {
-                              otpRefs.current[i] = el;
-                            }}
-                            value={v}
-                            onChange={(e) => onOtpInput(i, e.target.value)}
-                            onKeyDown={(e) => onOtpKeyDown(i, e)}
-                            type="tel"
-                            maxLength={1}
-                            inputMode="numeric"
-                            className="salonOtpBox"
-                            style={{ width: 52, height: 60, textAlign: "center", font: "var(--fw-extrabold) 24px/1 var(--font-sans)", color: "var(--text-strong)", borderRadius: 12, outline: "none", background: "var(--surface-card)", border: `1.5px solid ${otpError ? "var(--error)" : v ? "var(--primary)" : "var(--border-default)"}` }}
-                          />
-                        ))}
-                      </div>
-                      {otpError && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 7, color: "var(--error)", font: "var(--fw-medium) 12px/1.3 var(--font-sans)", marginBottom: 12 }}>
-                          <Icon name="x" size={14} />
-                          {otpError}
-                        </div>
-                      )}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                        <span onClick={resendOtp} style={{ font: "var(--fw-semibold) 12px/1 var(--font-sans)", ...(resendIn > 0 ? { color: "var(--text-subtle)", cursor: "default" } : { color: "var(--primary)", cursor: "pointer" }) }}>
-                          {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
-                        </span>
-                        <span style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "var(--text-subtle)" }}>Demo code: 1 2 3 4</span>
-                      </div>
-                      <Button variant="primary" size="lg" fullWidth loading={submitting} disabled={submitting} onClick={verifyOtp}>
-                        {mode === "book" ? "Verify & book →" : "Verify & join queue →"}
-                      </Button>
-                      <div onClick={backToDetails} style={{ textAlign: "center", font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 14, cursor: "pointer" }}>← Change number</div>
                     </div>
                   )}
 
@@ -1642,58 +1448,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       </div>
                       <h3 style={{ font: "var(--fw-extrabold) 20px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>Check your place in line</h3>
                       <p style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 18px" }}>
-                        Enter the phone number you joined or booked with. We&apos;ll verify it&apos;s you, then show your slot.
+                        Enter the phone number you joined or booked with, and we&apos;ll show your slot.
                       </p>
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>Phone number</div>
                       <PhoneField country={phoneCountry} national={national} onCountryChange={setPhoneCountry} onNationalChange={setNational} marginBottom={18} />
                       {formError && <div style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--error)", marginBottom: 12 }}>{formError}</div>}
-                      <Button variant="primary" size="lg" fullWidth disabled={phone.replace(/\D/g, "").length < 4} onClick={trackSendOtp}>
-                        Send verification code →
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* TRACK STEP 2: OTP verify */}
-                  {tstep === 2 && (
-                    <div style={{ animation: "ttStep .32s ease both" }}>
-                      <h3 style={{ font: "var(--fw-extrabold) 20px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>Verify your number</h3>
-                      <p style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 20px" }}>
-                        We sent a 4-digit code to <span style={{ font: "var(--fw-semibold) 13px/1 var(--font-sans)", color: "var(--text-strong)" }}>{formatPhone(phone)}</span>.
-                      </p>
-                      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-                        {otp.map((v, i) => (
-                          <input
-                            key={i}
-                            ref={(el) => {
-                              otpRefs.current[i] = el;
-                            }}
-                            value={v}
-                            onChange={(e) => onOtpInput(i, e.target.value)}
-                            onKeyDown={(e) => onOtpKeyDown(i, e)}
-                            type="tel"
-                            maxLength={1}
-                            inputMode="numeric"
-                            className="salonOtpBox"
-                            style={{ width: 52, height: 60, textAlign: "center", font: "var(--fw-extrabold) 24px/1 var(--font-sans)", color: "var(--text-strong)", borderRadius: 12, outline: "none", background: "var(--surface-card)", border: `1.5px solid ${otpError ? "var(--error)" : v ? "var(--primary)" : "var(--border-default)"}` }}
-                          />
-                        ))}
-                      </div>
-                      {otpError && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 7, color: "var(--error)", font: "var(--fw-medium) 12px/1.3 var(--font-sans)", marginBottom: 12 }}>
-                          <Icon name="x" size={14} />
-                          {otpError}
-                        </div>
-                      )}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                        <span onClick={resendOtp} style={{ font: "var(--fw-semibold) 12px/1 var(--font-sans)", ...(resendIn > 0 ? { color: "var(--text-subtle)", cursor: "default" } : { color: "var(--primary)", cursor: "pointer" }) }}>
-                          {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
-                        </span>
-                        <span style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "var(--text-subtle)" }}>Demo code: 1 2 3 4</span>
-                      </div>
-                      <Button variant="primary" size="lg" fullWidth loading={submitting} disabled={submitting} onClick={trackVerify}>
+                      <Button variant="primary" size="lg" fullWidth loading={submitting} disabled={phone.replace(/\D/g, "").length < 4 || submitting} onClick={runTrack}>
                         Show my slot →
                       </Button>
-                      <div onClick={trackBack} style={{ textAlign: "center", font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 14, cursor: "pointer" }}>← Change number</div>
                     </div>
                   )}
 
