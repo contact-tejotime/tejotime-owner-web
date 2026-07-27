@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // Same monorepo-root problem, for the standalone build's file tracer instead
+  // of the dev bundler — without this it can trace outside this project.
+  outputFileTracingRoot: __dirname,
+  // Minimal self-contained server for the Docker runtime image (see Dockerfile).
+  output: "standalone",
 
   ...(assetPrefix ? { assetPrefix } : {}),
 

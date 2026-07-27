@@ -1,14 +1,20 @@
 # Railway service config for the admin panel (Next.js).
 # Set the service's Root Directory to `admin-panel` in the Railway dashboard.
 #
-# BACKEND_API_BASE_URL is read server-side at runtime, but NEXT_PUBLIC_* vars are
-# baked in at BUILD time — set those before the first deploy.
+# BACKEND_API_BASE_URL is read server-side at runtime — a normal service
+# variable, no special handling. NEXT_PUBLIC_FRONTEND_URL is baked in at BUILD
+# time — Dockerfile declares it as an ARG so it also flows into the build
+# stage (not automatic by default). Set it before the first deploy. See
+# Dockerfile.
 
 [build]
-builder = "NIXPACKS"
-buildCommand = "npm install --include=dev && npm run build"
+# Explicit so it's obvious we build from ./Dockerfile rather than Nixpacks
+# (deprecated on Railway — Railpack/Nixpacks auto-detection no longer applies).
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "npm run start"
+# No custom start/health commands — the Dockerfile's CMD and Railway's default
+# port-listening check are the single source of truth.
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
