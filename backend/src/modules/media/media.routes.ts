@@ -27,6 +27,12 @@ mediaRouter.get(
     // Let clients reuse the redirect for a while, but always expire it well
     // before the signature it points at goes stale.
     res.set('Cache-Control', `public, max-age=${Math.floor(env.S3_DOWNLOAD_URL_TTL / 2)}`);
+    // Helmet's default Cross-Origin-Resource-Policy: same-origin blocks the
+    // admin panel / microsite (sibling subdomains, not this exact origin) from
+    // loading these as <img> elements. 'same-site' is enough for that and
+    // stricter than 'cross-origin' — every real consumer lives under
+    // tejotime.com; nothing else needs to embed these images in a browser.
+    res.set('Cross-Origin-Resource-Policy', 'same-site');
     res.redirect(302, signed);
   }),
 );
