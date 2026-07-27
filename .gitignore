@@ -63,3 +63,5 @@ android/
 backend/.env.render
 backend/.env.railway
 frontend/.env.render
+frontend/.env.railway
+admin-panel/.env.railway

@@ -1,0 +1,56 @@
+# Render Blueprint — frontend + admin-panel only. Backend runs on Railway (see
+# DEPLOY.md); it is not part of this blueprint.
+#
+# Secrets/URLs are marked `sync: false` — enter them in the Render dashboard, or
+# via the Blueprint's env-var prompt on first deploy (never committed). Values
+# match frontend/.env.railway and admin-panel/.env.railway.
+
+services:
+  # ---------- Frontend: Next.js 16 customer microsite (SSR) ----------
+  - type: web
+    name: tejotime-web
+    runtime: node
+    rootDir: frontend
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run start
+    autoDeploy: true
+    domains:
+      - www.tejotime.com
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      # NEXT_PUBLIC_* are baked at BUILD time — set them, then redeploy (not
+      # just restart) whenever they change.
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false   # https://api.tejotime.com/api/v1
+      - key: NEXT_PUBLIC_SOCKET_URL
+        sync: false   # https://api.tejotime.com
+      - key: NEXT_PUBLIC_ASSET_PREFIX
+        sync: false   # https://www.tejotime.com
+
+  # ---------- Admin panel: Next.js 16 admin dashboard ----------
+  - type: web
+    name: tejotime-admin
+    runtime: node
+    rootDir: admin-panel
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    # Overrides package.json's "start" script, which hardcodes `next start -p
+    # 3001` so it doesn't collide with the frontend's port 3000 in local dev.
+    # Render expects the app on its own assigned $PORT, not a fixed one.
+    startCommand: next start -p $PORT
+    autoDeploy: true
+    domains:
+      - admin.tejotime.com
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      - key: BACKEND_API_BASE_URL
+        sync: false   # https://api.tejotime.com/api/v1
+      - key: NEXT_PUBLIC_FRONTEND_URL
+        sync: false   # https://www.tejotime.com
