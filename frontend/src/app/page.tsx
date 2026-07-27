@@ -1,117 +1,911 @@
-const features = [
-  {
-    title: "Online booking",
-    body: "Let customers book appointments 24/7 from any device — no calls, no back-and-forth.",
-  },
-  {
-    title: "Live queue",
-    body: "Show real-time wait times and keep walk-ins moving with a queue everyone can see.",
-  },
-  {
-    title: "Reminders",
-    body: "Automatic SMS and email reminders that cut no-shows and keep your day on track.",
-  },
-  {
-    title: "Customer management",
-    body: "Every customer, visit and note in one place — build relationships that come back.",
-  },
-];
+"use client";
+
+import { useEffect, useState } from "react";
+import { Icon } from "@/components/landing/Icon";
+import { Logo } from "@/components/landing/Logo";
+import { Button, Input } from "@/components/landing/ui";
+import {
+  bookingBullets,
+  bookingDays,
+  features,
+  footerCols,
+  industries,
+  inquiryPerks,
+  kpis,
+  marquee,
+  ownerBullets,
+  queueMock,
+  slots,
+  stats,
+  testimonials,
+} from "@/components/landing/landingData";
+
+const MAX = 1200;
 
 export default function Home() {
-  return (
-    <main
-      style={{
-        maxWidth: "var(--container-max)",
-        margin: "0 auto",
-        padding: "clamp(48px, 10vw, 96px) clamp(16px, 5vw, 24px)",
-      }}
-    >
-      <section style={{ textAlign: "center", marginBottom: 72 }}>
-        <p
-          style={{
-            fontFamily: "var(--font-script)",
-            fontSize: "clamp(22px, 4vw, 28px)",
-            color: "var(--secondary)",
-            margin: 0,
-          }}
-        >
-          TejoTime
-        </p>
-        <h1
-          style={{
-            fontSize: "clamp(30px, 7vw, 48px)",
-            lineHeight: 1.1,
-            fontWeight: 800,
-            color: "var(--text-strong)",
-            margin: "12px auto 20px",
-            maxWidth: 780,
-          }}
-        >
-          Run your queue, bookings &{" "}
-          <span className="tt-grad-text">customers</span> in one place
-        </h1>
-        <p
-          style={{
-            fontSize: 18,
-            color: "var(--text-muted)",
-            maxWidth: 620,
-            margin: "0 auto 32px",
-          }}
-        >
-          The digital OS for small business. Online booking, a live queue,
-          reminders and customer management — without a developer or IT team.
-        </p>
-        <a
-          href="#features"
-          style={{
-            display: "inline-block",
-            background: "var(--primary)",
-            color: "var(--text-on-brand)",
-            padding: "14px 28px",
-            borderRadius: "var(--radius-pill)",
-            fontWeight: 600,
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          Get started
-        </a>
-      </section>
+  const [showInquiry, setShowInquiry] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
-      <section
-        id="features"
+  const openInquiry = () => {
+    setSubmitted(false);
+    setShowInquiry(true);
+  };
+  const closeInquiry = () => setShowInquiry(false);
+
+  // Lock scroll while the modal is open.
+  useEffect(() => {
+    document.body.style.overflow = showInquiry ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showInquiry]);
+
+  // Scroll reveal, count-up, feature tilt and the custom site cursor.
+  useEffect(() => {
+    const reduce =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add("in");
+            io.unobserve(e.target);
+          }
+        });
+      },
+      { threshold: 0.14, rootMargin: "0px 0px -6% 0px" }
+    );
+    document.querySelectorAll<HTMLElement>(".reveal").forEach((el, i) => {
+      el.style.transitionDelay = (i % 4) * 70 + "ms";
+      io.observe(el);
+    });
+
+    const cio = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (!e.isIntersecting) return;
+          const el = e.target as HTMLElement;
+          cio.unobserve(el);
+          const to = parseFloat(el.getAttribute("data-count") || "0") || 0;
+          const dur = 1400;
+          const start = performance.now();
+          const tick = (now: number) => {
+            const p = Math.min((now - start) / dur, 1);
+            const eased = 1 - Math.pow(1 - p, 3);
+            const v = to * eased;
+            el.textContent =
+              to >= 100 ? Math.round(v).toLocaleString("en-IN") : v.toFixed(1);
+            if (p < 1) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        });
+      },
+      { threshold: 0.5 }
+    );
+    document
+      .querySelectorAll<HTMLElement>("[data-count]")
+      .forEach((el) => cio.observe(el));
+
+    // Feature cards: cursor spotlight + subtle 3D tilt.
+    const featCleanups: (() => void)[] = [];
+    document.querySelectorAll<HTMLElement>(".tt-feat").forEach((el) => {
+      const onMove = (e: MouseEvent) => {
+        const r = el.getBoundingClientRect();
+        const x = e.clientX - r.left;
+        const y = e.clientY - r.top;
+        el.style.setProperty("--mx", x + "px");
+        el.style.setProperty("--my", y + "px");
+        if (reduce) return;
+        const rx = (0.5 - y / r.height) * 7;
+        const ry = (x / r.width - 0.5) * 9;
+        el.style.transform = `perspective(820px) rotateX(${rx.toFixed(
+          2
+        )}deg) rotateY(${ry.toFixed(2)}deg) translateY(-6px)`;
+      };
+      const onLeave = () => {
+        el.style.transform = "";
+      };
+      el.addEventListener("mousemove", onMove);
+      el.addEventListener("mouseleave", onLeave);
+      featCleanups.push(() => {
+        el.removeEventListener("mousemove", onMove);
+        el.removeEventListener("mouseleave", onLeave);
+      });
+    });
+
+    // Custom site cursor: arrow + trailing ring (fine pointers only).
+    let cursorCleanup: (() => void) | undefined;
+    if (!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) {
+      const ring = document.createElement("div");
+      ring.id = "tt-cur-ring";
+      const arrow = document.createElement("div");
+      arrow.id = "tt-cur-arrow";
+      arrow.innerHTML =
+        '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"><path d="M3 2 L3 18.5 L7.4 14.4 L10.3 20.8 L13 19.6 L10.1 13.4 L16 13.2 Z"/></svg>';
+      document.body.appendChild(ring);
+      document.body.appendChild(arrow);
+      document.documentElement.classList.add("tt-cursor-on");
+
+      let mx = window.innerWidth / 2;
+      let my = window.innerHeight / 2;
+      let rx = mx;
+      let ry = my;
+      let raf = 0;
+      const hovSel =
+        "a,button,[role=button],.tt-feat,.tt-chip,input,label,img";
+
+      const onMove = (e: MouseEvent) => {
+        mx = e.clientX;
+        my = e.clientY;
+        arrow.style.transform = `translate(${mx}px,${my}px)`;
+        const t = e.target as HTMLElement;
+        const hit = !!(t.closest && t.closest(hovSel));
+        ring.classList.toggle("is-hover", hit);
+        arrow.classList.toggle("is-hover", hit);
+      };
+      const onDown = () => ring.classList.add("is-down");
+      const onUp = () => ring.classList.remove("is-down");
+      const onLeave = () => {
+        ring.style.opacity = "0";
+        arrow.style.opacity = "0";
+      };
+      const onEnter = () => {
+        ring.style.opacity = "1";
+        arrow.style.opacity = "1";
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mousedown", onDown);
+      window.addEventListener("mouseup", onUp);
+      document.addEventListener("mouseleave", onLeave);
+      document.addEventListener("mouseenter", onEnter);
+
+      const loop = () => {
+        rx += (mx - rx) * 0.2;
+        ry += (my - ry) * 0.2;
+        ring.style.transform = `translate(${rx}px,${ry}px) translate(-50%,-50%)`;
+        raf = requestAnimationFrame(loop);
+      };
+      loop();
+
+      cursorCleanup = () => {
+        cancelAnimationFrame(raf);
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mousedown", onDown);
+        window.removeEventListener("mouseup", onUp);
+        document.removeEventListener("mouseleave", onLeave);
+        document.removeEventListener("mouseenter", onEnter);
+        document.documentElement.classList.remove("tt-cursor-on");
+        ring.remove();
+        arrow.remove();
+      };
+    }
+
+    return () => {
+      io.disconnect();
+      cio.disconnect();
+      featCleanups.forEach((fn) => fn());
+      cursorCleanup?.();
+    };
+  }, []);
+
+  return (
+    <div style={{ overflowX: "hidden" }}>
+      {/* ===================== NAV ===================== */}
+      <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
-          gap: 20,
+          position: "sticky",
+          top: 0,
+          zIndex: 40,
+          backdropFilter: "saturate(1.4) blur(10px)",
+          background: "rgba(255,255,255,.82)",
+          borderBottom: "1px solid var(--border-subtle)",
         }}
       >
-        {features.map((f) => (
-          <article
-            key={f.title}
-            style={{
-              background: "var(--surface-card)",
-              border: "1px solid var(--border-subtle)",
-              borderRadius: "var(--radius-lg)",
-              padding: 28,
-              boxShadow: "var(--shadow-sm)",
-            }}
-          >
-            <h2
+        <div
+          style={{
+            maxWidth: MAX,
+            margin: "0 auto",
+            height: 68,
+            padding: "0 28px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 42 }}>
+            <Logo height={38} />
+            <div
+              className="tt-nav-links"
+              style={{ display: "flex", gap: 28, alignItems: "center" }}
+            >
+              <a href="#features" className="tt-nav-link">Features</a>
+              <a href="#industries" className="tt-nav-link">Industries</a>
+              <a href="#vision" className="tt-nav-link">Vision</a>
+            </div>
+          </div>
+          <Button variant="primary" trailingIcon="arrowRight" onClick={openInquiry}>
+            Get started
+          </Button>
+        </div>
+      </div>
+
+      {/* ===================== HERO ===================== */}
+      <div style={{ position: "relative", overflow: "hidden", background: "var(--surface-card)" }}>
+        <div
+          className="tt-blob"
+          style={{
+            position: "absolute",
+            top: -120,
+            right: -80,
+            width: 520,
+            height: 520,
+            borderRadius: "50%",
+            background: "radial-gradient(circle at 30% 30%,var(--blue-100),transparent 70%)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          className="tt-blob"
+          style={{
+            position: "absolute",
+            bottom: -160,
+            left: -120,
+            width: 480,
+            height: 480,
+            borderRadius: "50%",
+            background: "radial-gradient(circle at 60% 40%,var(--teal-100),transparent 70%)",
+            pointerEvents: "none",
+            animationDelay: "-6s",
+          }}
+        />
+
+        <div
+          className="tt-hero-grid"
+          style={{
+            position: "relative",
+            maxWidth: MAX,
+            margin: "0 auto",
+            padding: "72px 28px 84px",
+            display: "grid",
+            gridTemplateColumns: "1.05fr .95fr",
+            gap: 56,
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <div
+              className="tt-row"
               style={{
-                fontSize: 20,
-                fontWeight: 700,
-                color: "var(--text-strong)",
-                margin: "0 0 8px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 14px",
+                borderRadius: 999,
+                background: "var(--primary-soft)",
+                border: "1px solid var(--blue-200)",
+                marginBottom: 22,
               }}
             >
-              {f.title}
-            </h2>
-            <p style={{ margin: 0, color: "var(--text-body)", lineHeight: 1.5 }}>
-              {f.body}
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--secondary)" }} />
+              <span
+                style={{
+                  font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)",
+                  color: "var(--primary-soft-fg)",
+                  letterSpacing: ".01em",
+                }}
+              >
+                The digital OS for small business
+              </span>
+            </div>
+            <h1
+              className="tt-hero-h1"
+              style={{
+                font: "var(--fw-extrabold) 54px/1.04 var(--font-sans)",
+                letterSpacing: "-.03em",
+                color: "var(--text-strong)",
+                margin: "0 0 20px",
+              }}
+            >
+              Run your queue, bookings &amp; customers —{" "}
+              <span className="tt-grad-text">all in one place.</span>
+            </h1>
+            <p
+              style={{
+                font: "var(--fw-regular) var(--fs-body-lg)/1.55 var(--font-sans)",
+                color: "var(--text-body)",
+                maxWidth: 520,
+                margin: "0 0 16px",
+              }}
+            >
+              More than online appointments. TejoTime gives any appointment-based
+              business the tools big companies use — without the developer, the IT
+              team, or the price tag.
             </p>
-          </article>
-        ))}
-      </section>
-    </main>
+            <div style={{ display: "flex", gap: 14, marginTop: 26, flexWrap: "wrap" }}>
+              <span className="tt-cta-pulse" style={{ display: "inline-flex", borderRadius: "var(--radius-md)" }}>
+                <Button variant="primary" size="lg" trailingIcon="arrowRight" onClick={openInquiry}>
+                  Get started
+                </Button>
+              </span>
+              <Button variant="outline" size="lg" onClick={openInquiry}>
+                Request a demo
+              </Button>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 28 }}>
+              <div style={{ display: "flex" }}>
+                <span style={avatarStyle("var(--blue-200)", "var(--blue-700)", 0)}>SC</span>
+                <span style={avatarStyle("var(--teal-200)", "var(--teal-700)", -10)}>DR</span>
+                <span style={avatarStyle("var(--amber-200)", "var(--amber-700)", -10)}>CW</span>
+              </div>
+              <div
+                style={{
+                  font: "var(--fw-medium) var(--fs-body-sm)/1.4 var(--font-sans)",
+                  color: "var(--text-muted)",
+                }}
+              >
+                Loved by barber shops, salons, clinics
+                <br />&amp; service centers across India
+              </div>
+            </div>
+          </div>
+
+          {/* animated product mock */}
+          <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
+            <div
+              className="tt-float"
+              style={{
+                width: 340,
+                background: "var(--surface-card)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-xl)",
+                boxShadow: "var(--shadow-xl)",
+                padding: 18,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <div>
+                  <div style={{ font: "var(--fw-bold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>
+                    Live queue
+                  </div>
+                  <div style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 4 }}>
+                    Sharp Cuts · today
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 11px", borderRadius: 999, background: "var(--success-soft)" }}>
+                  <span className="tt-pulse-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--success)" }} />
+                  <span style={{ font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--success-soft-fg)" }}>Open</span>
+                </div>
+              </div>
+              {queueMock.map((q) => (
+                <div
+                  key={q.token}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "11px 12px",
+                    borderRadius: "var(--radius-md)",
+                    background: q.bg,
+                    border: `1px solid ${q.border}`,
+                    marginBottom: 9,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 10,
+                      background: q.tokBg,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)",
+                      color: q.tokFg,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {q.token}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ font: "var(--fw-semibold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>{q.name}</div>
+                    <div style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 3 }}>{q.service}</div>
+                  </div>
+                  <div style={{ font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)", color: q.statusFg, whiteSpace: "nowrap" }}>{q.status}</div>
+                </div>
+              ))}
+              <Button variant="secondary" fullWidth leadingIcon="plus" onClick={openInquiry}>
+                Add walk-in
+              </Button>
+            </div>
+
+            {/* floating toast */}
+            <div
+              className="tt-float2"
+              style={{
+                position: "absolute",
+                top: -30,
+                left: -44,
+                background: "var(--surface-card)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-lg)",
+                boxShadow: "var(--shadow-lg)",
+                padding: "12px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                animationDelay: "-2s",
+                zIndex: 2,
+              }}
+            >
+              <span style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--success-soft)", color: "var(--success)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name="checkCircle" size={18} />
+              </span>
+              <div>
+                <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)" }}>New booking</div>
+                <div style={{ font: "var(--fw-regular) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 3 }}>Asha · 4:30 PM</div>
+              </div>
+            </div>
+
+            {/* floating stat */}
+            <div
+              className="tt-float2"
+              style={{
+                position: "absolute",
+                bottom: -20,
+                right: -22,
+                background: "var(--brand-ink)",
+                borderRadius: "var(--radius-lg)",
+                boxShadow: "var(--shadow-lg)",
+                padding: "13px 16px",
+                animationDelay: "-3.5s",
+              }}
+            >
+              <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "#fff", fontVariantNumeric: "tabular-nums" }}>~25 min</div>
+              <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--blue-200)", marginTop: 5 }}>est. wait to clear</div>
+            </div>
+          </div>
+        </div>
+
+        {/* trust marquee */}
+        <div
+          style={{
+            position: "relative",
+            borderTop: "1px solid var(--border-subtle)",
+            padding: "18px 0",
+            overflow: "hidden",
+            WebkitMaskImage: "linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)",
+            maskImage: "linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)",
+          }}
+        >
+          <div className="tt-marquee-track">
+            {marquee.map((m, i) => (
+              <span
+                key={i}
+                style={{
+                  font: "var(--fw-semibold) var(--fs-body-md)/1 var(--font-sans)",
+                  color: "var(--text-subtle)",
+                  whiteSpace: "nowrap",
+                  padding: "0 28px",
+                }}
+              >
+                {m}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ===================== FEATURES ===================== */}
+      <div id="features" style={{ maxWidth: MAX, margin: "0 auto", padding: "84px 28px 40px" }}>
+        <div className="reveal" style={{ textAlign: "center", maxWidth: 680, margin: "0 auto 48px" }}>
+          <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>
+            Everything you need
+          </div>
+          <h2 style={{ font: "var(--fw-extrabold) 38px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", margin: "0 0 14px" }}>
+            One platform to run the whole business
+          </h2>
+          <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.55 var(--font-sans)", color: "var(--text-body)", margin: 0 }}>
+            No web designer. No IT consultant. No expensive software. Just the tools
+            to look professional and stay organised.
+          </p>
+        </div>
+        <div className="tt-features-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }}>
+          {features.map((f) => (
+            <div
+              key={f.title}
+              className="reveal tt-feat"
+              style={{
+                background: "var(--surface-card)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-lg)",
+                boxShadow: "var(--shadow-xs)",
+                padding: "26px 24px",
+              }}
+            >
+              <span className="tt-feat-arrow">
+                <Icon name="arrowRight" size={18} />
+              </span>
+              <div
+                className="tt-feat-icon"
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 13,
+                  background: f.iconBg,
+                  color: f.iconFg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 18,
+                }}
+              >
+                <Icon name={f.icon} size={24} />
+              </div>
+              <h3 style={{ font: "var(--fw-bold) var(--fs-h5)/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 9px" }}>{f.title}</h3>
+              <p style={{ font: "var(--fw-regular) var(--fs-body-md)/1.55 var(--font-sans)", color: "var(--text-body)", margin: 0 }}>{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ===================== DETAIL ROWS ===================== */}
+      <div style={{ maxWidth: MAX, margin: "0 auto", padding: "50px 28px" }}>
+        {/* Online booking */}
+        <div className="reveal tt-detail-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center", marginBottom: 60 }}>
+          <div>
+            <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--secondary)", marginBottom: 12 }}>
+              Online booking
+            </div>
+            <h3 style={{ font: "var(--fw-extrabold) 30px/1.15 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>
+              Let customers book 24/7
+            </h3>
+            <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.55 var(--font-sans)", color: "var(--text-body)", margin: "0 0 20px" }}>
+              Your own page at tejotime.com/yourbusiness. No missed calls, no WhatsApp
+              confusion — just bookings that land straight in your queue.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {bookingBullets.map((b) => (
+                <div key={b} style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                  <span style={bulletIconStyle("var(--success-soft)", "var(--success)")}>
+                    <Icon name="check" size={15} />
+                  </span>
+                  <span style={{ font: "var(--fw-medium) var(--fs-body-md)/1.4 var(--font-sans)", color: "var(--text-body)" }}>{b}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="tt-panel" style={{ background: "linear-gradient(160deg,var(--blue-50),var(--teal-50))", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-xl)", padding: 26, boxShadow: "var(--shadow-sm)" }}>
+            <div style={{ background: "var(--surface-card)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-xs)", padding: 18, display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 13, background: "linear-gradient(135deg,var(--brand-ink),var(--primary))", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", font: "var(--fw-extrabold) var(--fs-body-md)/1 var(--font-sans)", flexShrink: 0 }}>SC</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ font: "var(--fw-bold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>Sharp Cuts</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6 }}>
+                    <span style={{ color: "var(--amber-500)", display: "flex" }}><Icon name="star" size={13} /></span>
+                    <span style={{ font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-body)" }}>4.9</span>
+                    <span style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)" }}>· Barber · 0.4 km</span>
+                  </div>
+                </div>
+                <span style={{ padding: "5px 11px", borderRadius: 999, background: "var(--success-soft)", color: "var(--success-soft-fg)", font: "var(--fw-semibold) 11px/1 var(--font-sans)" }}>Open</span>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 14px", borderRadius: "var(--radius-md)", border: "1.5px solid var(--primary)", background: "var(--primary-soft)" }}>
+                <div>
+                  <div style={{ font: "var(--fw-semibold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>Haircut + beard</div>
+                  <div style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>45 min</div>
+                </div>
+                <div style={{ font: "var(--fw-extrabold) var(--fs-body-lg)/1 var(--font-sans)", color: "var(--primary)", fontVariantNumeric: "tabular-nums" }}>₹250</div>
+              </div>
+
+              <div>
+                <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)", marginBottom: 10 }}>Select a date</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 7 }}>
+                  {bookingDays.map((d) => (
+                    <div key={d.d} style={{ textAlign: "center", padding: "9px 0", borderRadius: "var(--radius-md)", border: `1px solid ${d.border}`, background: d.bg }}>
+                      <div style={{ font: "var(--fw-semibold) 10px/1 var(--font-sans)", color: d.subFg, textTransform: "uppercase", letterSpacing: ".04em" }}>{d.d}</div>
+                      <div style={{ font: "var(--fw-bold) var(--fs-body-md)/1 var(--font-sans)", color: d.fg, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>{d.n}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)", marginBottom: 10 }}>Choose a time</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 9 }}>
+                  {slots.map((s) => (
+                    <div key={s.t} style={{ textAlign: "center", padding: "10px 0", borderRadius: "var(--radius-md)", border: `1px solid ${s.border}`, background: s.bg, color: s.fg, font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)", fontVariantNumeric: "tabular-nums" }}>{s.t}</div>
+                  ))}
+                </div>
+              </div>
+
+              <Button variant="primary" size="lg" fullWidth onClick={openInquiry}>
+                Confirm booking
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Owner app */}
+        <div className="reveal tt-detail-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center" }}>
+          <div className="tt-panel" style={{ order: 1, background: "linear-gradient(160deg,var(--teal-50),var(--blue-50))", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-xl)", padding: 26, boxShadow: "var(--shadow-sm)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {kpis.map((k) => (
+                <div key={k.label} style={{ background: "var(--surface-card)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-xs)", padding: 16 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 9, background: k.bg, color: k.fg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 11 }}>
+                    <Icon name={k.icon} size={18} />
+                  </div>
+                  <div style={{ font: "var(--fw-extrabold) var(--fs-h4)/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{k.value}</div>
+                  <div style={{ font: "var(--fw-medium) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{k.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ order: 2 }}>
+            <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>
+              Owner app
+            </div>
+            <h3 style={{ font: "var(--fw-extrabold) 30px/1.15 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>
+              Run your day from your phone
+            </h3>
+            <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.55 var(--font-sans)", color: "var(--text-body)", margin: "0 0 20px" }}>
+              Queue, walk-ins, appointments, staff and customers — one dashboard that
+              updates live. See exactly what&apos;s happening, wherever you are.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {ownerBullets.map((b) => (
+                <div key={b} style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                  <span style={bulletIconStyle("var(--primary-soft)", "var(--primary)")}>
+                    <Icon name="check" size={15} />
+                  </span>
+                  <span style={{ font: "var(--fw-medium) var(--fs-body-md)/1.4 var(--font-sans)", color: "var(--text-body)" }}>{b}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ===================== STATS BAND ===================== */}
+      <div className="tt-hero-grad" style={{ margin: "40px 0", padding: "64px 28px" }}>
+        <div className="tt-stats-grid" style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 30, textAlign: "center" }}>
+          {stats.map((st) => (
+            <div key={st.label} className="reveal">
+              <div style={{ font: "var(--fw-extrabold) 46px/1 var(--font-sans)", color: "#fff", fontVariantNumeric: "tabular-nums", letterSpacing: "-.02em" }}>
+                <span data-count={st.to}>0</span>
+                {st.suffix}
+              </div>
+              <div style={{ font: "var(--fw-medium) var(--fs-body-md)/1.3 var(--font-sans)", color: "rgba(255,255,255,.85)", marginTop: 10 }}>{st.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ===================== INDUSTRIES ===================== */}
+      <div id="industries" style={{ maxWidth: 1100, margin: "0 auto", padding: "64px 28px", textAlign: "center" }}>
+        <div className="reveal" style={{ marginBottom: 38 }}>
+          <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>
+            Built for every business
+          </div>
+          <h2 style={{ font: "var(--fw-extrabold) 38px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", margin: 0 }}>
+            If you book it or queue it, TejoTime runs it
+          </h2>
+        </div>
+        <div className="reveal" style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center" }}>
+          {industries.map((ind) => (
+            <span key={ind} className="tt-chip" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", borderRadius: 999, border: "1px solid var(--border-subtle)", background: "var(--surface-card)", font: "var(--fw-semibold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-body)", boxShadow: "var(--shadow-xs)" }}>{ind}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* ===================== VISION ===================== */}
+      <div id="vision" style={{ maxWidth: 900, margin: "0 auto", padding: "64px 28px", textAlign: "center" }}>
+        <div className="reveal">
+          <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--secondary)", marginBottom: 18 }}>
+            Our goal
+          </div>
+          <h2 style={{ font: "var(--fw-extrabold) 44px/1.18 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", margin: "0 0 22px" }}>
+            From your first customer to your thousandth,{" "}
+            <span className="tt-grad-text">TejoTime grows with you.</span>
+          </h2>
+          <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.6 var(--font-sans)", color: "var(--text-body)", margin: "0 auto", maxWidth: 640 }}>
+            Every small business deserves the technology large companies use. We make
+            enterprise-grade tools affordable for every entrepreneur — and we add more
+            every month.
+          </p>
+        </div>
+      </div>
+
+      {/* ===================== TESTIMONIALS ===================== */}
+      <div style={{ maxWidth: MAX, margin: "0 auto", padding: "30px 28px 64px" }}>
+        <div className="tt-testimonials-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }}>
+          {testimonials.map((t) => (
+            <div key={t.name} className="reveal tt-lift" style={{ position: "relative", display: "flex", flexDirection: "column", background: "var(--surface-card)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-xs)", padding: "30px 28px 26px", overflow: "hidden" }}>
+              <span aria-hidden="true" style={{ position: "absolute", top: 6, right: 20, font: "var(--fw-extrabold) 96px/1 Georgia,serif", color: "var(--primary)", opacity: 0.08, pointerEvents: "none" }}>&rdquo;</span>
+              <div style={{ display: "flex", gap: 3, color: "var(--amber-500)", marginBottom: 16 }}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Icon key={i} name="star" size={16} />
+                ))}
+              </div>
+              <p style={{ flex: 1, font: "var(--fw-medium) var(--fs-body-md)/1.65 var(--font-sans)", color: "var(--text-body)", margin: "0 0 22px", position: "relative" }}>{t.quote}</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 18, borderTop: "1px solid var(--border-subtle)" }}>
+                <span style={{ width: 44, height: 44, borderRadius: "50%", background: t.avBg, color: t.avFg, display: "flex", alignItems: "center", justifyContent: "center", font: "var(--fw-bold) var(--fs-body-sm) var(--font-sans)", flexShrink: 0 }}>{t.initials}</span>
+                <div>
+                  <div style={{ font: "var(--fw-bold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>{t.name}</div>
+                  <div style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{t.role}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ===================== CTA BAND ===================== */}
+      <div style={{ maxWidth: MAX, margin: "0 auto", padding: "0 28px 70px" }}>
+        <div className="reveal tt-hero-grad" style={{ borderRadius: "var(--radius-xl)", padding: "60px 40px", textAlign: "center", position: "relative", overflow: "hidden", boxShadow: "var(--shadow-lg)" }}>
+          <h2 style={{ font: "var(--fw-extrabold) 40px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "#fff", margin: "0 0 14px" }}>
+            Ready to grow with TejoTime?
+          </h2>
+          <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.5 var(--font-sans)", color: "rgba(255,255,255,.9)", margin: "0 auto 28px", maxWidth: 520 }}>
+            Tell us about your business — we&apos;ll set everything up and walk you
+            through it. No tech skills needed.
+          </p>
+          <div style={{ display: "inline-flex" }}>
+            <Button variant="outline" size="lg" onDark trailingIcon="arrowRight" onClick={openInquiry}>
+              Send an inquiry
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* ===================== FOOTER ===================== */}
+      <div style={{ borderTop: "1px solid var(--border-subtle)", background: "var(--surface-card)" }}>
+        <div className="tt-footer-grid" style={{ maxWidth: MAX, margin: "0 auto", padding: "48px 28px 28px", display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr 1fr", gap: 40 }}>
+          <div>
+            <div style={{ marginBottom: 14 }}>
+              <Logo height={38} />
+            </div>
+            <p style={{ font: "var(--fw-regular) var(--fs-body-md)/1.5 var(--font-sans)", color: "var(--text-muted)", margin: 0, maxWidth: 260 }}>
+              Enterprise technology. Small business pricing. Your business, your brand,
+              your customers.
+            </p>
+          </div>
+          {footerCols.map((col) => (
+            <div key={col.title}>
+              <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)", marginBottom: 14, textTransform: "uppercase", letterSpacing: ".05em" }}>{col.title}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {col.links.map((lk) => (
+                  <span key={lk} style={{ font: "var(--fw-regular) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-muted)", cursor: "pointer" }}>{lk}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ borderTop: "1px solid var(--border-subtle)" }}>
+          <div style={{ maxWidth: MAX, margin: "0 auto", padding: "18px 28px", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-subtle)" }}>
+            <span>© 2026 TejoTime · Easy appointments for small business</span>
+            <span>Privacy · Terms · Contact</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ===================== INQUIRY MODAL ===================== */}
+      {showInquiry && (
+        <div
+          onClick={closeInquiry}
+          className="tt-modal-backdrop"
+          style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,23,42,.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="tt-modal-card"
+            style={{ width: 480, maxWidth: "100%", background: "var(--surface-card)", borderRadius: "var(--radius-xl)", boxShadow: "var(--shadow-xl)", overflow: "hidden", maxHeight: "92vh", display: "flex", flexDirection: "column" }}
+          >
+            {/* gradient header */}
+            <div className="tt-mhead-grad" style={{ position: "relative", padding: "26px 28px 22px", overflow: "hidden", flexShrink: 0 }}>
+              <div className="tt-blob" style={{ position: "absolute", top: -46, right: -34, width: 170, height: 170, borderRadius: "50%", background: "rgba(255,255,255,.1)" }} />
+              <div className="tt-blob" style={{ position: "absolute", bottom: -50, left: -20, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,.07)", animationDelay: "-4s" }} />
+              <div onClick={closeInquiry} className="tt-close-btn" style={{ position: "absolute", top: 18, right: 18, width: 34, height: 34, borderRadius: "50%", background: "rgba(255,255,255,.18)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", zIndex: 2 }}>
+                <Icon name="x" size={18} />
+              </div>
+              <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 13 }}>
+                <div className="tt-float" style={{ width: 46, height: 46, borderRadius: 13, background: "rgba(255,255,255,.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0 }}>
+                  <Icon name="calendar" size={24} />
+                </div>
+                <div>
+                  <h3 style={{ font: "var(--fw-extrabold) var(--fs-h4)/1.1 var(--font-sans)", color: "#fff", margin: 0, letterSpacing: "-.02em" }}>Request access</h3>
+                  <p style={{ font: "var(--fw-regular) var(--fs-body-sm)/1.35 var(--font-sans)", color: "rgba(255,255,255,.85)", margin: "5px 0 0" }}>We&apos;ll set you up — no tech skills needed.</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: "22px 28px 26px", overflow: "auto" }}>
+              {submitted ? (
+                <div style={{ textAlign: "center", padding: "18px 0 6px" }}>
+                  <div style={{ position: "relative", width: 72, height: 72, margin: "0 auto 18px" }}>
+                    <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "2px solid var(--success)", animation: "ttRingPop 1.1s ease-out infinite" }} />
+                    <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "2px solid var(--success)", animation: "ttRingPop 1.1s ease-out .4s infinite" }} />
+                    <div style={{ position: "relative", width: 72, height: 72, borderRadius: "50%", background: "var(--success-soft)", color: "var(--success)", display: "flex", alignItems: "center", justifyContent: "center", animation: "ttPopBadge .5s cubic-bezier(.34,1.5,.5,1) both" }}>
+                      <Icon name="checkCircle" size={36} />
+                    </div>
+                  </div>
+                  <h3 style={{ font: "var(--fw-bold) var(--fs-h5)/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 8px" }}>Inquiry received!</h3>
+                  <p style={{ font: "var(--fw-regular) var(--fs-body-md)/1.5 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 22px" }}>
+                    Our team will reach out within one business day to get you set up.
+                  </p>
+                  <Button variant="primary" fullWidth onClick={closeInquiry}>
+                    Done
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="tt-stagger" style={{ display: "flex", flexDirection: "column" }}>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+                      {inquiryPerks.map((p) => (
+                        <div key={p} style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, padding: "8px 9px", borderRadius: "var(--radius-md)", background: "var(--surface-page)", border: "1px solid var(--border-subtle)" }}>
+                          <span style={{ color: "var(--success)", display: "flex", flexShrink: 0 }}><Icon name="check" size={14} /></span>
+                          <span style={{ font: "var(--fw-semibold) 11.5px/1.2 var(--font-sans)", color: "var(--text-body)" }}>{p}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ marginBottom: 15 }}>
+                      <Input label="Business name" placeholder="e.g. Sharp Cuts" leadingIcon="building" />
+                    </div>
+                    <div style={{ marginBottom: 15 }}>
+                      <Input label="Address" placeholder="Shop / clinic address" leadingIcon="mapPin" />
+                    </div>
+                    <div>
+                      <Input label="Phone number" prefix="+91" placeholder="00000 00000" leadingIcon="phone" />
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 22 }}>
+                    <Button variant="primary" fullWidth trailingIcon="arrowRight" onClick={() => setSubmitted(true)}>
+                      Submit inquiry
+                    </Button>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginTop: 14 }}>
+                    <span style={{ color: "var(--text-subtle)", display: "flex" }}><Icon name="checkCircle" size={14} /></span>
+                    <p style={{ font: "var(--fw-regular) var(--fs-body-sm)/1.4 var(--font-sans)", color: "var(--text-subtle)", margin: 0 }}>
+                      We&apos;ll never share your details. Reply within one business day.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
+}
+
+function avatarStyle(bg: string, fg: string, ml: number): React.CSSProperties {
+  return {
+    width: 34,
+    height: 34,
+    borderRadius: "50%",
+    background: bg,
+    border: "2px solid #fff",
+    marginLeft: ml,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    font: "var(--fw-bold) 12px var(--font-sans)",
+    color: fg,
+  };
+}
+
+function bulletIconStyle(bg: string, fg: string): React.CSSProperties {
+  return {
+    width: 24,
+    height: 24,
+    borderRadius: "50%",
+    background: bg,
+    color: fg,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  };
 }

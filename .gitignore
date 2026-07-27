@@ -61,4 +61,5 @@ ios/
 android/
 
 backend/.env.render
+backend/.env.railway
 frontend/.env.render
