@@ -7,7 +7,7 @@ const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_BYTES = 5_000_000;
 
 /**
- * Pick a square image from the library and upload it to Supabase Storage via the
+ * Pick a square image from the library and upload it to object storage via the
  * backend's signed-URL flow. Returns the public URL, or null if the user canceled
  * or denied permission. Throws on sign/upload failure (caller should toast).
  */
@@ -40,10 +40,11 @@ export async function pickAndUploadAvatar(): Promise<string | null> {
   // 1) Signed upload URL from the backend (tenant-scoped by the auth token).
   const { uploadUrl, publicUrl } = await api.signUpload({ assetType: 'avatar', contentType, byteSize });
 
-  // 2) PUT the bytes to Supabase Storage (mirrors the admin-panel upload proxy).
+  // 2) PUT the bytes to object storage (mirrors the admin-panel upload proxy). The
+  // signed URL covers content-type, so no extra headers — an unsigned one breaks it.
   const put = await fetch(uploadUrl, {
     method: 'PUT',
-    headers: { 'content-type': contentType, 'x-upsert': 'true' },
+    headers: { 'content-type': contentType },
     body: blob,
   });
   if (!put.ok) throw new Error(`Upload failed (${put.status})`);

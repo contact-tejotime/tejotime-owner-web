@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { supabase } from '../../db/supabase';
+import { many, one } from '../../db/pool';
 import { COLOR_TOKENS } from '../../config/constants';
 import { Errors } from '../../domain/errors';
 import { asyncHandler } from '../../http/async-handler';
@@ -44,10 +44,13 @@ staffRouter.get(
   limiters.ownerRead,
   validate({ query: z.object({ active: z.enum(['true', 'false']).optional() }) }),
   asyncHandler(async (req, res) => {
-    let q = supabase.from('staff').select('*').eq('business_id', req.principal!.businessId);
-    if (req.query.active === 'true') q = q.eq('is_active', true);
-    const { data } = await q.order('position');
-    res.json({ data: (data ?? []).map(staffDTO) });
+    const where = ['business_id = $1'];
+    if (req.query.active === 'true') where.push('is_active = true');
+    const data = await many(
+      `select * from staff where ${where.join(' and ')} order by position`,
+      [req.principal!.businessId],
+    );
+    res.json({ data: data.map(staffDTO) });
   }),
 );
 
@@ -58,20 +61,20 @@ staffRouter.post(
   validate({ body: upsertSchema }),
   asyncHandler(async (req, res) => {
     const b = req.body;
-    const { data, error } = await supabase
-      .from('staff')
-      .insert({
-        business_id: req.principal!.businessId,
-        name: b.name,
-        role_label: b.roleLabel ?? null,
-        color_token: b.colorToken,
-        accepts_walk_ins: b.acceptsWalkIns,
-        position: b.position ?? 0,
-        avatar_url: b.photoUrl ?? null,
-      })
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
+    const data = await one(
+      `insert into staff (business_id, name, role_label, color_token, accepts_walk_ins, position, avatar_url)
+       values ($1, $2, $3, $4, $5, $6, $7)
+       returning *`,
+      [
+        req.principal!.businessId,
+        b.name,
+        b.roleLabel ?? null,
+        b.colorToken,
+        b.acceptsWalkIns,
+        b.position ?? 0,
+        b.photoUrl ?? null,
+      ],
+    );
     res.status(201).json(staffDTO(data));
   }),
 );
@@ -91,14 +94,15 @@ staffRouter.patch(
     if (b.position !== undefined) row.position = b.position;
     if (b.isActive !== undefined) row.is_active = b.isActive;
     if (b.photoUrl !== undefined) row.avatar_url = b.photoUrl;
-    const { data, error } = await supabase
-      .from('staff')
-      .update(row)
-      .eq('id', req.params.id)
-      .eq('business_id', req.principal!.businessId)
-      .select()
-      .maybeSingle();
-    if (error) throw new Error(error.message);
+    // Only the keys the caller supplied are assigned; column names are literals, never request data.
+    const columns = Object.keys(row);
+    const sets = columns.map((c, i) => `${c} = $${i + 1}`).join(', ');
+    const data = await one(
+      `update staff set ${sets}
+        where id = $${columns.length + 1} and business_id = $${columns.length + 2}
+        returning *`,
+      [...Object.values(row), req.params.id, req.principal!.businessId],
+    );
     if (!data) throw Errors.notFound('Staff not found');
     res.json(staffDTO(data));
   }),
@@ -111,21 +115,18 @@ staffRouter.delete(
   validate({ params: z.object({ id: z.string().uuid() }) }),
   asyncHandler(async (req, res) => {
     // Guard: a seat with active queue entries cannot be deactivated.
-    const { count } = await supabase
-      .from('queue_entry')
-      .select('id', { count: 'exact', head: true })
-      .eq('business_id', req.principal!.businessId)
-      .eq('staff_id', req.params.id)
-      .in('status', ['waiting', 'in_service']);
-    if ((count ?? 0) > 0) throw Errors.conflict('SEAT_HAS_ACTIVE_ENTRIES', 'Seat has active queue entries');
-    const { data, error } = await supabase
-      .from('staff')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('id', req.params.id)
-      .eq('business_id', req.principal!.businessId)
-      .select()
-      .maybeSingle();
-    if (error) throw new Error(error.message);
+    const active = await one<{ count: number }>(
+      `select count(*)::int as count from queue_entry
+        where business_id = $1 and staff_id = $2 and status = any($3::queue_status[])`,
+      [req.principal!.businessId, req.params.id, ['waiting', 'in_service']],
+    );
+    if ((active?.count ?? 0) > 0) throw Errors.conflict('SEAT_HAS_ACTIVE_ENTRIES', 'Seat has active queue entries');
+    const data = await one(
+      `update staff set is_active = false, updated_at = $1
+        where id = $2 and business_id = $3
+        returning *`,
+      [new Date().toISOString(), req.params.id, req.principal!.businessId],
+    );
     if (!data) throw Errors.notFound('Staff not found');
     res.json({ ok: true });
   }),

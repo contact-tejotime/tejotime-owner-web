@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase } from '../db/supabase';
+import { pool } from '../db/pool';
 
 export const healthRouter = Router();
 
@@ -10,8 +10,9 @@ healthRouter.get('/healthz', (_req, res) => {
 
 /** Readiness — the database is reachable. */
 healthRouter.get('/readyz', async (_req, res) => {
-  const { error } = await supabase.from('business').select('id', { head: true, count: 'exact' }).limit(1);
-  if (error) {
+  try {
+    await pool.query('select 1');
+  } catch {
     res.status(503).json({ status: 'unavailable', db: false });
     return;
   }

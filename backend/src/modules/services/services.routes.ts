@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { supabase } from '../../db/supabase';
+import { many, one } from '../../db/pool';
 import { money } from '../../domain/money';
 import { COLOR_TOKENS } from '../../config/constants';
 import { Errors } from '../../domain/errors';
@@ -42,10 +42,13 @@ servicesRouter.get(
   limiters.ownerRead,
   validate({ query: z.object({ active: z.enum(['true', 'false']).optional() }) }),
   asyncHandler(async (req, res) => {
-    let q = supabase.from('service').select('*').eq('business_id', req.principal!.businessId);
-    if (req.query.active === 'true') q = q.eq('is_active', true);
-    const { data } = await q.order('position');
-    res.json({ data: (data ?? []).map(serviceDTO) });
+    const where = ['business_id = $1'];
+    if (req.query.active === 'true') where.push('is_active = true');
+    const data = await many(
+      `select * from service where ${where.join(' and ')} order by position`,
+      [req.principal!.businessId],
+    );
+    res.json({ data: data.map(serviceDTO) });
   }),
 );
 
@@ -57,25 +60,26 @@ servicesRouter.post(
   asyncHandler(async (req, res) => {
     const b = req.body;
     // New services inherit the business currency (per-store setting; column default is INR).
-    const { data: biz } = await supabase
-      .from('business')
-      .select('currency')
-      .eq('id', req.principal!.businessId)
-      .maybeSingle();
-    const { data, error } = await supabase
-      .from('service')
-      .insert({
-        business_id: req.principal!.businessId,
-        name: b.name,
-        duration_minutes: b.durationMinutes,
-        price_paise: b.priceAmount,
-        color_token: b.colorToken,
-        position: b.position ?? 0,
-        ...(biz?.currency ? { currency: biz.currency } : {}),
-      })
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
+    const biz = await one('select currency from business where id = $1', [req.principal!.businessId]);
+    const columns = ['business_id', 'name', 'duration_minutes', 'price_paise', 'color_token', 'position'];
+    const params: any[] = [
+      req.principal!.businessId,
+      b.name,
+      b.durationMinutes,
+      b.priceAmount,
+      b.colorToken,
+      b.position ?? 0,
+    ];
+    if (biz?.currency) {
+      columns.push('currency');
+      params.push(biz.currency);
+    }
+    const data = await one(
+      `insert into service (${columns.join(', ')})
+       values (${columns.map((_, i) => `$${i + 1}`).join(', ')})
+       returning *`,
+      params,
+    );
     res.status(201).json(serviceDTO(data));
   }),
 );
@@ -94,14 +98,15 @@ servicesRouter.patch(
     if (b.colorToken !== undefined) row.color_token = b.colorToken;
     if (b.position !== undefined) row.position = b.position;
     if (b.isActive !== undefined) row.is_active = b.isActive;
-    const { data, error } = await supabase
-      .from('service')
-      .update(row)
-      .eq('id', req.params.id)
-      .eq('business_id', req.principal!.businessId)
-      .select()
-      .maybeSingle();
-    if (error) throw new Error(error.message);
+    // Only the keys the caller supplied are assigned; column names are literals, never request data.
+    const columns = Object.keys(row);
+    const sets = columns.map((c, i) => `${c} = $${i + 1}`).join(', ');
+    const data = await one(
+      `update service set ${sets}
+        where id = $${columns.length + 1} and business_id = $${columns.length + 2}
+        returning *`,
+      [...Object.values(row), req.params.id, req.principal!.businessId],
+    );
     if (!data) throw Errors.notFound('Service not found');
     res.json(serviceDTO(data));
   }),
@@ -113,14 +118,12 @@ servicesRouter.delete(
   authorize('owner', 'manager'),
   validate({ params: z.object({ id: z.string().uuid() }) }),
   asyncHandler(async (req, res) => {
-    const { data, error } = await supabase
-      .from('service')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('id', req.params.id)
-      .eq('business_id', req.principal!.businessId)
-      .select()
-      .maybeSingle();
-    if (error) throw new Error(error.message);
+    const data = await one(
+      `update service set is_active = false, updated_at = $1
+        where id = $2 and business_id = $3
+        returning *`,
+      [new Date().toISOString(), req.params.id, req.principal!.businessId],
+    );
     if (!data) throw Errors.notFound('Service not found');
     res.json({ ok: true });
   }),

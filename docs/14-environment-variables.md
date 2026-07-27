@@ -60,13 +60,16 @@ All configuration is injected via environment (12-factor). Never commit secrets.
 ### Object storage
 | Var | Example |
 |---|---|
-| `STORAGE_PROVIDER` | `s3` \| `r2` \| `supabase` |
-| `S3_ENDPOINT` | `https://s3.ap-south-1.amazonaws.com` |
-| `S3_REGION` | `ap-south-1` |
+| `S3_ENDPOINT` | `https://t3.storageapi.dev` (Railway Buckets) |
+| `S3_REGION` | `auto` |
 | `S3_BUCKET` | `tejotime-media` |
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | — |
-| `CDN_BASE_URL` | `https://cdn.tejotime.com` |
+| `S3_FORCE_PATH_STYLE` | `false` — `true` only for buckets that require path-style URLs |
+| `S3_UPLOAD_URL_TTL` / `S3_DOWNLOAD_URL_TTL` | `600` / `3600` (seconds) |
 | `UPLOAD_MAX_BYTES` | `5242880` |
+
+The bucket is private, so there is no CDN/public base URL: stored image URLs point at
+`{APP_BASE_URL}/media/{key}`, which redirects to a signed GET. See [10 — File Storage](./10-file-storage.md).
 
 ### SMS
 | Var | Example | Notes |

@@ -1,0 +1,14 @@
+# Railway service config for the admin panel (Next.js).
+# Set the service's Root Directory to `admin-panel` in the Railway dashboard.
+#
+# BACKEND_API_BASE_URL is read server-side at runtime, but NEXT_PUBLIC_* vars are
+# baked in at BUILD time — set those before the first deploy.
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm install --include=dev && npm run build"
+
+[deploy]
+startCommand = "npm run start"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

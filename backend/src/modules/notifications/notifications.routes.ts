@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { supabase } from '../../db/supabase';
+import { exec, many, one } from '../../db/pool';
 import { asyncHandler } from '../../http/async-handler';
 import { authenticate } from '../../middleware/authenticate';
 import { validate } from '../../middleware/validate';
@@ -15,18 +15,19 @@ notificationsRouter.get(
   validate({ query: z.object({ unread: z.enum(['true', 'false']).optional() }) }),
   asyncHandler(async (req, res) => {
     const businessId = req.principal!.businessId;
-    let q = supabase.from('notification').select('*').eq('business_id', businessId);
-    if (req.query.unread === 'true') q = q.is('read_at', null);
-    const { data } = await q.order('created_at', { ascending: false }).limit(50);
+    const unreadOnly = req.query.unread === 'true' ? ' and read_at is null' : '';
+    const data = await many(
+      `select * from notification where business_id = $1${unreadOnly} order by created_at desc limit 50`,
+      [businessId],
+    );
 
-    const { count } = await supabase
-      .from('notification')
-      .select('id', { count: 'exact', head: true })
-      .eq('business_id', businessId)
-      .is('read_at', null);
+    const countRow = await one<{ count: number }>(
+      'select count(*)::int as count from notification where business_id = $1 and read_at is null',
+      [businessId],
+    );
 
     res.json({
-      data: (data ?? []).map((n) => ({
+      data: data.map((n) => ({
         id: n.id,
         template: n.template,
         body: n.body,
@@ -35,7 +36,7 @@ notificationsRouter.get(
         readAt: n.read_at,
         createdAt: n.created_at,
       })),
-      unreadCount: count ?? 0,
+      unreadCount: countRow?.count ?? 0,
     });
   }),
 );
@@ -46,13 +47,16 @@ notificationsRouter.post(
   validate({ body: z.object({ ids: z.array(z.string().uuid()).optional() }).strict() }),
   asyncHandler(async (req, res) => {
     const businessId = req.principal!.businessId;
-    let q = supabase
-      .from('notification')
-      .update({ read_at: new Date().toISOString() })
-      .eq('business_id', businessId)
-      .is('read_at', null);
-    if (req.body.ids?.length) q = q.in('id', req.body.ids);
-    await q;
+    const params: unknown[] = [new Date().toISOString(), businessId];
+    let idFilter = '';
+    if (req.body.ids?.length) {
+      params.push(req.body.ids);
+      idFilter = ` and id = any($${params.length}::uuid[])`;
+    }
+    await exec(
+      `update notification set read_at = $1 where business_id = $2 and read_at is null${idFilter}`,
+      params,
+    );
     res.json({ ok: true });
   }),
 );

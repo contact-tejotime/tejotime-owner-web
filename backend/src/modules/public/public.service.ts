@@ -1,4 +1,4 @@
-import { supabase } from '../../db/supabase';
+import { many, one } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
 import { Errors } from '../../domain/errors';
@@ -34,7 +34,7 @@ const availabilityCache = createTtlCache<AvailabilityPayload>(LIVE_CACHE_TTL_MS)
 const staffCache = createTtlCache<StaffAvailabilityPayload>(LIVE_CACHE_TTL_MS);
 
 async function resolveBusiness(slug: string) {
-  const { data } = await supabase.from('business').select('*').eq('slug', slug).eq('is_active', true).maybeSingle();
+  const data = await one('select * from business where slug = $1 and is_active = true', [slug]);
   if (!data) throw Errors.notFound('Business not found');
   return data;
 }
@@ -113,12 +113,7 @@ export async function getVCard(slug: string): Promise<string> {
 // pre-concatenated international number and would corrupt some inputs.
 async function resolveBusinessByPhone(phoneDigits: string) {
   const digits = phoneDigits.replace(/\D/g, '');
-  const { data } = await supabase
-    .from('business')
-    .select('*')
-    .eq('phone_full', digits)
-    .eq('is_active', true)
-    .maybeSingle();
+  const data = await one('select * from business where phone_full = $1 and is_active = true', [digits]);
   if (!data) throw Errors.notFound('Business not found');
   return data;
 }
@@ -131,12 +126,12 @@ export async function getMicrositeByPhone(phoneDigits: string) {
 async function buildMicrosite(b: any) {
   // Single round-trip wave: hours/amenities/gallery run alongside the queue context,
   // which already loads active services (reused below instead of a duplicate query).
-  const [{ data: hours }, { data: amenities }, { data: gallery }, ctx, { data: categoryRow }] = await Promise.all([
-    supabase.from('business_hour').select('*').eq('business_id', b.id).order('day_of_week'),
-    supabase.from('amenity').select('*').eq('business_id', b.id).order('position'),
-    supabase.from('gallery_image').select('*').eq('business_id', b.id).order('position'),
+  const [hours, amenities, gallery, ctx, categoryRow] = await Promise.all([
+    many('select * from business_hour where business_id = $1 order by day_of_week', [b.id]),
+    many('select * from amenity where business_id = $1 order by position', [b.id]),
+    many('select * from gallery_image where business_id = $1 order by position', [b.id]),
     loadQueueContext(b.id),
-    supabase.from('master_data').select('team_noun').eq('type', 'business_category').eq('name', b.category ?? '').maybeSingle(),
+    one(`select team_noun from master_data where type = 'business_category' and name = $1`, [b.category ?? '']),
   ]);
   const services = ctx.serviceRows;
 
@@ -250,17 +245,15 @@ export async function getSlots(slug: string, date: string, serviceId?: string, s
   const b = await resolveBusiness(slug);
   const tz = b.timezone;
   const day = dayjs.tz(date, tz);
-  const { data: hours } = await supabase
-    .from('business_hour')
-    .select('*')
-    .eq('business_id', b.id)
-    .eq('day_of_week', day.day())
-    .maybeSingle();
+  const hours = await one('select * from business_hour where business_id = $1 and day_of_week = $2', [
+    b.id,
+    day.day(),
+  ]);
   if (!hours || hours.is_closed) return { date, slots: [] };
 
   let duration = env.BOOKING_SLOT_MINUTES;
   if (serviceId) {
-    const { data: svc } = await supabase.from('service').select('duration_minutes').eq('id', serviceId).maybeSingle();
+    const svc = await one('select duration_minutes from service where id = $1', [serviceId]);
     if (svc) duration = svc.duration_minutes;
   }
 
@@ -270,16 +263,21 @@ export async function getSlots(slug: string, date: string, serviceId?: string, s
 
   // Existing bookings to exclude (per staff if specified).
   let taken = new Set<string>();
-  let bq = supabase
-    .from('appointment')
-    .select('scheduled_start_at, staff_id')
-    .eq('business_id', b.id)
-    .in('status', ['pending', 'confirmed'])
-    .gte('scheduled_start_at', open.utc().toISOString())
-    .lte('scheduled_start_at', close.utc().toISOString());
-  if (staffId) bq = bq.eq('staff_id', staffId);
-  const { data: booked } = await bq;
-  taken = new Set((booked ?? []).map((a) => dayjs(a.scheduled_start_at).toISOString()));
+  const bookedParams: unknown[] = [b.id, open.utc().toISOString(), close.utc().toISOString()];
+  let staffFilter = '';
+  if (staffId) {
+    bookedParams.push(staffId);
+    staffFilter = ` and staff_id = $${bookedParams.length}`;
+  }
+  const booked = await many(
+    `select scheduled_start_at, staff_id from appointment
+      where business_id = $1
+        and status in ('pending', 'confirmed')
+        and scheduled_start_at >= $2
+        and scheduled_start_at <= $3${staffFilter}`,
+    bookedParams,
+  );
+  taken = new Set(booked.map((a) => dayjs(a.scheduled_start_at).toISOString()));
 
   const now = dayjs().tz(tz);
   const slots: { startAt: string; label: string }[] = [];
@@ -312,12 +310,7 @@ export async function joinQueue(
 
   const ctx = await loadQueueContext(b.id);
 
-  const { data: svc } = await supabase
-    .from('service')
-    .select('id, name')
-    .eq('id', input.serviceId)
-    .eq('business_id', b.id)
-    .maybeSingle();
+  const svc = await one('select id, name from service where id = $1 and business_id = $2', [input.serviceId, b.id]);
   if (!svc) throw Errors.notFound('Service not found');
 
   let staffId = input.preferredStaffId && input.preferredStaffId !== 'any' ? input.preferredStaffId : null;
@@ -366,12 +359,10 @@ export async function bookSlot(
   input: { serviceId: string; name: string; phone: string; preferredStaffId?: string; slotStart: string },
 ) {
   const b = await resolveBusiness(slug);
-  const { data: svc } = await supabase
-    .from('service')
-    .select('id, name, duration_minutes')
-    .eq('id', input.serviceId)
-    .eq('business_id', b.id)
-    .maybeSingle();
+  const svc = await one('select id, name, duration_minutes from service where id = $1 and business_id = $2', [
+    input.serviceId,
+    b.id,
+  ]);
   if (!svc) throw Errors.notFound('Service not found');
 
   const phone = normalizePhone(input.phone);
@@ -380,24 +371,25 @@ export async function bookSlot(
   const start = new Date(input.slotStart);
   const end = new Date(start.getTime() + svc.duration_minutes * 60_000);
 
-  const { data, error } = await supabase
-    .from('appointment')
-    .insert({
-      business_id: b.id,
-      customer_id: customerId,
-      customer_name: input.name,
-      customer_phone: phone,
-      service_id: svc.id,
-      service_name: svc.name,
-      staff_id: staffId,
-      scheduled_start_at: start.toISOString(),
-      scheduled_end_at: end.toISOString(),
-      status: 'confirmed',
-      source: 'online',
-    })
-    .select()
-    .single();
-  if (error) throw new Error(error.message);
+  const data = await one(
+    `insert into appointment
+       (business_id, customer_id, customer_name, customer_phone, service_id, service_name,
+        staff_id, scheduled_start_at, scheduled_end_at, status, source)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', 'online')
+     returning *`,
+    [
+      b.id,
+      customerId,
+      input.name,
+      phone,
+      svc.id,
+      svc.name,
+      staffId,
+      start.toISOString(),
+      end.toISOString(),
+    ],
+  );
+  if (!data) throw new Error('Failed to create appointment');
 
   emitToOwners(b.id, 'appointment:created', {
     appointment: { id: data.id, customerName: data.customer_name, serviceName: data.service_name, scheduledStartAt: data.scheduled_start_at, status: data.status },
@@ -408,7 +400,7 @@ export async function bookSlot(
     serviceName: svc.name,
     scheduledStartAt: data.scheduled_start_at,
     status: 'confirmed',
-    staffName: staffId ? (await supabase.from('staff').select('name').eq('id', staffId).maybeSingle()).data?.name : null,
+    staffName: staffId ? (await one('select name from staff where id = $1', [staffId]))?.name : null,
   };
 }
 
@@ -455,22 +447,22 @@ async function ticketDetailFromEntry(entry: any, withSocket = false) {
 async function findActiveTicketByPhone(business: any, rawPhone: string) {
   const phone = normalizePhone(rawPhone);
   const today = dayjs().tz(business.timezone).format('YYYY-MM-DD');
-  const { data: entry } = await supabase
-    .from('queue_entry')
-    .select('*')
-    .eq('business_id', business.id)
-    .eq('customer_phone', phone)
-    .eq('token_day', today)
-    .in('status', ['waiting', 'in_service'])
-    .order('joined_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const entry = await one(
+    `select * from queue_entry
+      where business_id = $1
+        and customer_phone = $2
+        and token_day = $3
+        and status in ('waiting', 'in_service')
+      order by joined_at
+      limit 1`,
+    [business.id, phone, today],
+  );
   if (!entry) return null;
   return ticketDetailFromEntry(entry, true);
 }
 
 export async function getTicket(ticketId: string) {
-  const { data: entry } = await supabase.from('queue_entry').select('*').eq('id', ticketId).maybeSingle();
+  const entry = await one('select * from queue_entry where id = $1', [ticketId]);
   if (!entry) throw Errors.notFound('Ticket not found');
   return ticketDetailFromEntry(entry);
 }
@@ -484,18 +476,16 @@ export async function trackByPhone(slug: string, input: { phone: string }) {
   const ticket = await findActiveTicketByPhone(b, input.phone);
   // Return the caller's known name (if this phone is a past customer) so a follow-on Join can
   // pre-fill it. Read-only; the endpoint is OTP-gated so returning the caller's own name is ok.
-  const { data: cust } = await supabase
-    .from('customer')
-    .select('name')
-    .eq('business_id', b.id)
-    .eq('phone', normalizePhone(input.phone))
-    .maybeSingle();
+  const cust = await one('select name from customer where business_id = $1 and phone = $2', [
+    b.id,
+    normalizePhone(input.phone),
+  ]);
   const customerName = cust?.name ?? null;
   return ticket ? { found: true, customerName, ...ticket } : { found: false, customerName };
 }
 
 export async function leaveTicket(ticketId: string) {
-  const { data: entry } = await supabase.from('queue_entry').select('business_id, status').eq('id', ticketId).maybeSingle();
+  const entry = await one('select business_id, status from queue_entry where id = $1', [ticketId]);
   if (!entry) throw Errors.notFound('Ticket not found');
   if (entry.status !== 'waiting') {
     throw Errors.conflict('INVALID_STATE', 'Cannot leave queue while service is in progress');

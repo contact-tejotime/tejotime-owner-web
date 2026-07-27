@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
-import { supabase } from '../../db/supabase';
+import type { PoolClient } from 'pg';
+import { many, one, transaction } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
 import { Errors } from '../../domain/errors';
@@ -63,13 +64,23 @@ function slugify(name: string): string {
   );
 }
 
+/**
+ * Build the `($1, $2), ($3, $4)` placeholder list for a multi-row insert, pushing
+ * each value onto `params` as it goes (Array.push returns the new length, which is
+ * exactly the 1-based placeholder index).
+ */
+function bulkValues(rows: unknown[][], params: unknown[]): string {
+  return rows.map((row) => `(${row.map((v) => `$${params.push(v)}`).join(', ')})`).join(', ');
+}
+
 /** Return a value for a unique text column that isn't already taken (base, base-2, base-3, …). */
 async function uniqueValue(column: 'slug' | 'handle', base: string): Promise<string> {
+  // `column` and `table` are both from a closed set — never caller-supplied.
   const table = column === 'slug' ? 'business' : 'app_user';
   for (let n = 1; n < 1000; n += 1) {
     const candidate = n === 1 ? base : `${base}-${n}`;
-    const { data } = await supabase.from(table).select('id').eq(column, candidate).maybeSingle();
-    if (!data) return candidate;
+    const row = await one(`select id from ${table} where ${column} = $1`, [candidate]);
+    if (!row) return candidate;
   }
   // Extremely unlikely; keep the flow deterministic rather than throwing.
   return `${base}-${Date.now()}`;
@@ -95,67 +106,95 @@ function businessColumns(input: StoreFields) {
     rating: input.rating ?? 0,
     review_count: input.reviewCount ?? 0,
     payments: input.payments && input.payments.length ? input.payments : ['UPI', 'Card', 'Cash'],
-    faqs: input.faqs ?? [],
-    reviews: input.reviews ?? [],
+    // faqs/reviews are jsonb — serialize explicitly, otherwise pg would send a
+    // JS array as a Postgres array literal and the insert would fail.
+    faqs: JSON.stringify(input.faqs ?? []),
+    reviews: JSON.stringify(input.reviews ?? []),
   };
 }
 
 /** Insert all child rows (hours, amenities, gallery, services, staff) for a business. */
-async function insertChildren(bid: string, input: StoreFields, currency: string) {
+async function insertChildren(client: PoolClient, bid: string, input: StoreFields, currency: string) {
   if (input.hours.length) {
-    const rows = input.hours.map((h) => ({
-      business_id: bid,
-      day_of_week: h.dayOfWeek,
-      opens_at: h.isClosed ? null : h.opensAt || null,
-      closes_at: h.isClosed ? null : h.closesAt || null,
-      is_closed: h.isClosed,
-    }));
-    const { error } = await supabase.from('business_hour').insert(rows);
-    if (error) throw new Error(error.message);
+    const params: unknown[] = [];
+    const values = bulkValues(
+      input.hours.map((h) => [
+        bid,
+        h.dayOfWeek,
+        h.isClosed ? null : h.opensAt || null,
+        h.isClosed ? null : h.closesAt || null,
+        h.isClosed,
+      ]),
+      params,
+    );
+    await client.query(
+      `insert into business_hour (business_id, day_of_week, opens_at, closes_at, is_closed) values ${values}`,
+      params,
+    );
   }
 
   if (input.amenities.length) {
-    const rows = input.amenities.map((label, position) => ({ business_id: bid, label, position }));
-    const { error } = await supabase.from('amenity').insert(rows);
-    if (error) throw new Error(error.message);
+    const params: unknown[] = [];
+    const values = bulkValues(
+      input.amenities.map((label, position) => [bid, label, position]),
+      params,
+    );
+    await client.query(`insert into amenity (business_id, label, position) values ${values}`, params);
   }
 
   if (input.gallery.length) {
-    const rows = input.gallery.map((g, position) => ({ business_id: bid, url: g.url, alt: g.alt ?? null, position }));
-    const { error } = await supabase.from('gallery_image').insert(rows);
-    if (error) throw new Error(error.message);
+    const params: unknown[] = [];
+    const values = bulkValues(
+      input.gallery.map((g, position) => [bid, g.url, g.alt ?? null, position]),
+      params,
+    );
+    await client.query(`insert into gallery_image (business_id, url, alt, position) values ${values}`, params);
   }
 
   // Money stored as integer minor units (major × 100), matching domain/money.ts.
   // Service rows carry the business currency so owner-app DTOs stay consistent.
-  const serviceRows = input.services.map((s, position) => ({
-    business_id: bid,
-    name: s.name,
-    duration_minutes: s.durationMinutes,
-    price_paise: Math.round(s.priceRupees * 100),
-    currency,
-    position,
-  }));
-  const { error: svcErr } = await supabase.from('service').insert(serviceRows);
-  if (svcErr) throw new Error(svcErr.message);
+  if (input.services.length) {
+    const params: unknown[] = [];
+    const values = bulkValues(
+      input.services.map((s, position) => [
+        bid,
+        s.name,
+        s.durationMinutes,
+        Math.round(s.priceRupees * 100),
+        currency,
+        position,
+      ]),
+      params,
+    );
+    await client.query(
+      `insert into service (business_id, name, duration_minutes, price_paise, currency, position) values ${values}`,
+      params,
+    );
+  }
 
-  const staffRows = input.staff.map((s, position) => ({
-    business_id: bid,
-    name: s.name,
-    role_label: s.roleLabel ?? null,
-    avatar_url: s.avatarUrl ?? null,
-    position,
-  }));
-  const { error: staffErr } = await supabase.from('staff').insert(staffRows);
-  if (staffErr) throw new Error(staffErr.message);
+  if (input.staff.length) {
+    const params: unknown[] = [];
+    const values = bulkValues(
+      input.staff.map((s, position) => [bid, s.name, s.roleLabel ?? null, s.avatarUrl ?? null, position]),
+      params,
+    );
+    await client.query(
+      `insert into staff (business_id, name, role_label, avatar_url, position) values ${values}`,
+      params,
+    );
+  }
 }
 
 /** Ensure a phone_full isn't already used by a *different* business (409 otherwise). */
 async function assertPhoneFree(phoneFull: string, exceptId?: string) {
-  let q = supabase.from('business').select('id').eq('phone_full', phoneFull);
-  if (exceptId) q = q.neq('id', exceptId);
-  const { data } = await q.maybeSingle();
-  if (data) throw Errors.conflict('PHONE_IN_USE', `A store already uses the number ${phoneFull}`);
+  const params: unknown[] = [phoneFull];
+  let exclusion = '';
+  if (exceptId) {
+    params.push(exceptId);
+    exclusion = ` and id <> $${params.length}`;
+  }
+  const row = await one(`select id from business where phone_full = $1${exclusion}`, params);
+  if (row) throw Errors.conflict('PHONE_IN_USE', `A store already uses the number ${phoneFull}`);
 }
 
 export async function createBusiness(input: CreateBusinessInput) {
@@ -167,9 +206,16 @@ export async function createBusiness(input: CreateBusinessInput) {
   const slug = await uniqueValue('slug', slugify(input.name));
   const currency = input.currency ?? env.DEFAULT_CURRENCY;
 
-  const { data: business, error: bizErr } = await supabase
-    .from('business')
-    .insert({
+  // Owner login — phone (digits-only full number) + password, so the store is usable in the
+  // mobile app. Same hashing as db/seed.ts (bcrypt over password + PASSWORD_PEPPER).
+  const ownerPhone = (input.owner.phone ?? phoneFull).replace(/\D/g, '');
+  const handle = await uniqueValue('handle', slug);
+  const passwordHash = await bcrypt.hash(input.owner.password + env.PASSWORD_PEPPER, 10);
+
+  // One transaction for the whole store, so a partial failure can never leave a
+  // half-provisioned business behind.
+  const bid = await transaction(async (client) => {
+    const row = {
       slug,
       country_code: countryCode,
       phone_number: phoneNumber,
@@ -178,45 +224,34 @@ export async function createBusiness(input: CreateBusinessInput) {
       token_prefix: 'A',
       is_active: true,
       ...businessColumns(input),
-    })
-    .select()
-    .single();
-  if (bizErr || !business) throw new Error(bizErr?.message ?? 'Failed to create business');
-  const bid = business.id as string;
+    };
+    const cols = Object.keys(row);
+    const { rows } = await client.query(
+      `insert into business (${cols.join(', ')})
+       values (${cols.map((_, i) => `$${i + 1}`).join(', ')})
+       returning id`,
+      cols.map((c) => (row as Record<string, unknown>)[c]),
+    );
+    const id = rows[0].id as string;
 
-  try {
     // Subscription (parity with the seed: free plan, trialing).
-    const { error } = await supabase.from('subscription').insert({ business_id: bid, plan: 'free', status: 'trialing' });
-    if (error) throw new Error(error.message);
+    await client.query(`insert into subscription (business_id, plan, status) values ($1, 'free', 'trialing')`, [id]);
 
-    // Owner login — phone (digits-only full number) + password, so the store is usable in the
-    // mobile app. Same hashing as db/seed.ts (bcrypt over password + PASSWORD_PEPPER).
-    const ownerPhone = (input.owner.phone ?? phoneFull).replace(/\D/g, '');
-    const handle = await uniqueValue('handle', slug);
-    const passwordHash = await bcrypt.hash(input.owner.password + env.PASSWORD_PEPPER, 10);
-    const { error: userErr } = await supabase.from('app_user').insert({
-      business_id: bid,
-      handle,
-      phone: ownerPhone,
-      name: `${input.name} Owner`,
-      role: 'owner',
-      password_hash: passwordHash,
-    });
-    if (userErr) throw new Error(userErr.message);
+    await client.query(
+      `insert into app_user (business_id, handle, phone, name, role, password_hash)
+       values ($1, $2, $3, $4, 'owner', $5)`,
+      [id, handle, ownerPhone, `${input.name} Owner`, passwordHash],
+    );
 
-    await insertChildren(bid, input, currency);
-  } catch (err) {
-    // No cross-table transaction over PostgREST — roll back manually so a partial failure
-    // doesn't leave a half-provisioned store. The FK cascade removes all children.
-    await supabase.from('business').delete().eq('id', bid);
-    throw err;
-  }
+    await insertChildren(client, id, input, currency);
+    return id;
+  });
 
   return { id: bid, slug, phoneFull, micrositePath: `/${phoneFull}` };
 }
 
 export async function updateBusiness(id: string, input: UpdateBusinessInput) {
-  const { data: existing } = await supabase.from('business').select('id, currency').eq('id', id).maybeSingle();
+  const existing = await one('select id, currency from business where id = $1', [id]);
   if (!existing) throw Errors.notFound('Store not found');
 
   const countryCode = input.countryCode.replace(/\D/g, '');
@@ -228,30 +263,33 @@ export async function updateBusiness(id: string, input: UpdateBusinessInput) {
   const currency = input.currency ?? existing.currency ?? env.DEFAULT_CURRENCY;
 
   // Update the business row itself. Slug + owner login are intentionally left untouched.
-  const { error: upErr } = await supabase
-    .from('business')
-    .update({
-      country_code: countryCode,
-      phone_number: phoneNumber,
-      timezone: input.timezone || env.DEFAULT_TIMEZONE,
-      updated_at: new Date().toISOString(),
-      // Deactivating hides the public microsite (public routes filter is_active = true).
-      ...(input.isActive !== undefined ? { is_active: input.isActive } : {}),
-      ...(input.currency !== undefined ? { currency } : {}),
-      ...businessColumns(input),
-    })
-    .eq('id', id);
-  if (upErr) throw new Error(upErr.message);
+  const row = {
+    country_code: countryCode,
+    phone_number: phoneNumber,
+    timezone: input.timezone || env.DEFAULT_TIMEZONE,
+    updated_at: new Date().toISOString(),
+    // Deactivating hides the public microsite (public routes filter is_active = true).
+    ...(input.isActive !== undefined ? { is_active: input.isActive } : {}),
+    ...(input.currency !== undefined ? { currency } : {}),
+    ...businessColumns(input),
+  };
+  const cols = Object.keys(row);
 
-  // Replace all children (delete-then-insert, mirroring the owner setHours/setAmenities pattern).
-  await Promise.all([
-    supabase.from('business_hour').delete().eq('business_id', id),
-    supabase.from('amenity').delete().eq('business_id', id),
-    supabase.from('gallery_image').delete().eq('business_id', id),
-    supabase.from('service').delete().eq('business_id', id),
-    supabase.from('staff').delete().eq('business_id', id),
-  ]);
-  await insertChildren(id, input, currency);
+  // The row update and the child replacement share one transaction: the children are
+  // deleted before being re-inserted, so a failure partway through would otherwise
+  // strip a live store of its hours, services and staff.
+  await transaction(async (client) => {
+    await client.query(
+      `update business set ${cols.map((c, i) => `${c} = $${i + 1}`).join(', ')} where id = $${cols.length + 1}`,
+      [...cols.map((c) => (row as Record<string, unknown>)[c]), id],
+    );
+
+    // Replace all children (delete-then-insert, mirroring the owner setHours/setAmenities pattern).
+    for (const table of ['business_hour', 'amenity', 'gallery_image', 'service', 'staff']) {
+      await client.query(`delete from ${table} where business_id = $1`, [id]);
+    }
+    await insertChildren(client, id, input, currency);
+  });
 
   return { id, phoneFull, micrositePath: `/${phoneFull}` };
 }
@@ -273,8 +311,8 @@ const DEMO_ADMIN_OTP = '1234';
 
 /** Is this digits-only mobile in the admins allow-list? */
 export async function isKnownAdmin(mobile: string): Promise<boolean> {
-  const { data } = await supabase.from('admins').select('mobile').eq('mobile', mobile).maybeSingle();
-  return Boolean(data);
+  const row = await one('select mobile from admins where mobile = $1', [mobile]);
+  return Boolean(row);
 }
 
 /**
@@ -285,11 +323,7 @@ export async function isKnownAdmin(mobile: string): Promise<boolean> {
  */
 export async function loginAdmin(rawMobile: string, password: string) {
   const mobile = rawMobile.replace(/\D/g, '');
-  const { data: admin } = await supabase
-    .from('admins')
-    .select('mobile, password_hash')
-    .eq('mobile', mobile)
-    .maybeSingle();
+  const admin = await one('select mobile, password_hash from admins where mobile = $1', [mobile]);
   if (!admin) throw Errors.unauthenticated('Not a registered admin');
   if (!admin.password_hash) throw Errors.invalidCredentials('Incorrect password');
   const ok = await bcrypt.compare(password + env.PASSWORD_PEPPER, admin.password_hash);
@@ -325,25 +359,21 @@ export async function verifyAdminOtp(rawMobile: string, otp: string) {
 }
 
 export async function listLookups(type: string) {
-  const { data } = await supabase
-    .from('master_data')
-    .select('id, name')
-    .eq('type', type)
-    .eq('is_active', true)
-    .order('position');
-  return { data: (data ?? []).map((r) => ({ id: r.id, name: r.name })) };
+  const rows = await many('select id, name from master_data where type = $1 and is_active = true order by position', [
+    type,
+  ]);
+  return { data: rows.map((r) => ({ id: r.id, name: r.name })) };
 }
 
 export async function listBusinesses(withMetrics = false) {
-  const [{ data }, metricRows, subscriptionRows] = await Promise.all([
-    supabase
-      .from('business')
-      .select('id, name, slug, category, city, country_code, phone_number, is_active, currency, created_at')
-      .order('created_at', { ascending: false }),
+  const [data, metricRows, subscriptionRows] = await Promise.all([
+    many(
+      `select id, name, slug, category, city, country_code, phone_number, is_active, currency, created_at
+         from business
+        order by created_at desc`,
+    ),
     withMetrics ? callRpc<any[]>('admin_store_metrics', {}) : Promise.resolve(null),
-    withMetrics
-      ? supabase.from('subscription').select('business_id, status').then((r) => r.data)
-      : Promise.resolve(null),
+    withMetrics ? many('select business_id, status from subscription') : Promise.resolve(null),
   ]);
 
   // admin_store_metrics has no row for the demo store; missing entries fall back to zeros.
@@ -351,7 +381,7 @@ export async function listBusinesses(withMetrics = false) {
   const subscriptionStatusById = new Map((subscriptionRows ?? []).map((s) => [s.business_id, s.status]));
 
   return {
-    data: (data ?? []).map((b) => {
+    data: data.map((b) => {
       const base = {
         id: b.id,
         name: b.name,
@@ -383,17 +413,16 @@ export async function listBusinesses(withMetrics = false) {
 
 /** Full store detail shaped for the edit form (inverse of businessColumns / insertChildren). */
 export async function getBusinessDetail(id: string) {
-  const { data: b } = await supabase.from('business').select('*').eq('id', id).maybeSingle();
+  const b = await one('select * from business where id = $1', [id]);
   if (!b) throw Errors.notFound('Store not found');
 
-  const [{ data: hours }, { data: amenities }, { data: gallery }, { data: services }, { data: staff }] =
-    await Promise.all([
-      supabase.from('business_hour').select('*').eq('business_id', id).order('day_of_week'),
-      supabase.from('amenity').select('*').eq('business_id', id).order('position'),
-      supabase.from('gallery_image').select('*').eq('business_id', id).order('position'),
-      supabase.from('service').select('*').eq('business_id', id).eq('is_active', true).order('position'),
-      supabase.from('staff').select('*').eq('business_id', id).eq('is_active', true).order('position'),
-    ]);
+  const [hours, amenities, gallery, services, staff] = await Promise.all([
+    many('select * from business_hour where business_id = $1 order by day_of_week', [id]),
+    many('select * from amenity where business_id = $1 order by position', [id]),
+    many('select * from gallery_image where business_id = $1 order by position', [id]),
+    many('select * from service where business_id = $1 and is_active = true order by position', [id]),
+    many('select * from staff where business_id = $1 and is_active = true order by position', [id]),
+  ]);
 
   const hhmm = (t: string | null) => (t ? t.slice(0, 5) : '');
 
@@ -415,27 +444,28 @@ export async function getBusinessDetail(id: string) {
     heroImageUrl: b.hero_image_url ?? '',
     aboutImageUrl: b.about_image_url ?? '',
     establishedYear: b.established_year != null ? String(b.established_year) : '',
-    rating: b.rating != null ? String(b.rating) : '',
+    // numeric(2,1) arrives as a string ('4.0') — normalize so the edit form shows '4'.
+    rating: b.rating != null ? String(Number(b.rating)) : '',
     reviewCount: b.review_count != null ? String(b.review_count) : '',
     payments: (b.payments ?? []).join(', '),
     currency: b.currency ?? 'INR',
     countryCode: b.country_code ?? '',
     phoneNumber: b.phone_number ?? '',
     phoneFull: `${b.country_code ?? ''}${b.phone_number ?? ''}`,
-    hours: (hours ?? []).map((h) => ({
+    hours: hours.map((h) => ({
       dayOfWeek: h.day_of_week,
       opensAt: hhmm(h.opens_at),
       closesAt: hhmm(h.closes_at),
       isClosed: h.is_closed,
     })),
-    amenities: (amenities ?? []).map((a) => a.label),
-    gallery: (gallery ?? []).map((g) => ({ url: g.url, alt: g.alt ?? '' })),
-    services: (services ?? []).map((s) => ({
+    amenities: amenities.map((a) => a.label),
+    gallery: gallery.map((g) => ({ url: g.url, alt: g.alt ?? '' })),
+    services: services.map((s) => ({
       name: s.name,
       durationMinutes: s.duration_minutes,
       priceRupees: s.price_paise / 100,
     })),
-    staff: (staff ?? []).map((s) => ({
+    staff: staff.map((s) => ({
       name: s.name,
       roleLabel: s.role_label ?? '',
       avatarUrl: s.avatar_url ?? '',

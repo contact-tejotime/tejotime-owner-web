@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { supabase } from '../db/supabase';
+import { exec, many } from '../db/pool';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { broadcastQueue } from '../modules/queue/queue.service';
@@ -17,20 +17,20 @@ import { broadcastQueue } from '../modules/queue/queue.service';
  */
 async function staleCleanup() {
   const cutoff = new Date(Date.now() - env.TICKET_ABANDON_HOURS * 3_600_000).toISOString();
-  const { data } = await supabase
-    .from('queue_entry')
-    .select('id, business_id')
-    .in('status', ['waiting', 'in_service'])
-    .lt('joined_at', cutoff);
-  if (!data?.length) return;
+  const rows = await many(
+    `select id, business_id from queue_entry
+      where status in ('waiting', 'in_service') and joined_at < $1`,
+    [cutoff],
+  );
+  if (!rows.length) return;
 
-  const ids = data.map((r) => r.id);
-  await supabase
-    .from('queue_entry')
-    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-    .in('id', ids);
+  const ids = rows.map((r) => r.id);
+  await exec(`update queue_entry set status = 'cancelled', updated_at = $1 where id = any($2::uuid[])`, [
+    new Date().toISOString(),
+    ids,
+  ]);
 
-  const businessIds = [...new Set(data.map((r) => r.business_id))];
+  const businessIds = [...new Set(rows.map((r) => r.business_id))];
   for (const bid of businessIds) await broadcastQueue(bid);
   logger.info({ count: ids.length }, 'Stale tickets cleaned up');
 }
@@ -42,17 +42,17 @@ async function staleCleanup() {
  * Idempotent via notified_eta_15_at conditional claim inside broadcastQueue.
  */
 export async function etaNotifySweep(): Promise<void> {
-  const { data } = await supabase
-    .from('queue_entry')
-    .select('business_id')
-    .eq('status', 'waiting')
-    .eq('source', 'online')
-    .is('appointment_id', null)
-    .is('notified_eta_15_at', null)
-    .not('customer_phone', 'is', null);
-  if (!data?.length) return;
+  const rows = await many(
+    `select business_id from queue_entry
+      where status = 'waiting'
+        and source = 'online'
+        and appointment_id is null
+        and notified_eta_15_at is null
+        and customer_phone is not null`,
+  );
+  if (!rows.length) return;
 
-  const businessIds = [...new Set(data.map((r) => r.business_id))];
+  const businessIds = [...new Set(rows.map((r) => r.business_id))];
   for (const bid of businessIds) {
     try {
       await broadcastQueue(bid);
@@ -64,11 +64,11 @@ export async function etaNotifySweep(): Promise<void> {
 }
 
 async function purgeOtp() {
-  await supabase.from('otp_verification').delete().lt('expires_at', new Date().toISOString());
+  await exec('delete from otp_verification where expires_at < $1', [new Date().toISOString()]);
 }
 
 async function purgeSessions() {
-  await supabase.from('auth_session').delete().lt('expires_at', new Date().toISOString());
+  await exec('delete from auth_session where expires_at < $1', [new Date().toISOString()]);
 }
 
 export function startScheduler(): void {

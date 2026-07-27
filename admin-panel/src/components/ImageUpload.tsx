@@ -6,7 +6,7 @@ import { t, format } from "@/i18n";
 import { Icon } from "@/components/icons";
 import Spinner from "@/components/ui/Spinner";
 
-/** POST a file to the admin panel's server proxy, which pushes it to Supabase and returns the URL. */
+/** POST a file to the admin panel's server proxy, which pushes it to object storage and returns the URL. */
 async function uploadImage(file: File, assetType: string): Promise<string> {
   const fd = new FormData();
   fd.append("file", file);

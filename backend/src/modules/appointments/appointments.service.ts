@@ -1,4 +1,4 @@
-import { supabase } from '../../db/supabase';
+import { many, one } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { Errors } from '../../domain/errors';
 import { normalizePhone } from '../../lib/phone';
@@ -28,15 +28,24 @@ function apptDTO(a: any) {
 
 export async function listAppointments(businessId: string, opts: { date?: string; status?: string; tz?: string }) {
   const tz = opts.tz;
-  let q = supabase.from('appointment').select('*').eq('business_id', businessId);
+  // Either an explicit status filter or the business day window — never both.
+  const where = ['business_id = $1'];
+  const params: unknown[] = [businessId];
   if (opts.status) {
-    q = q.eq('status', opts.status);
+    params.push(opts.status);
+    where.push(`status = $${params.length}`);
   } else {
     const { startIso, endIso } = businessDayRange(tz, opts.date);
-    q = q.gte('scheduled_start_at', startIso).lte('scheduled_start_at', endIso);
+    params.push(startIso);
+    where.push(`scheduled_start_at >= $${params.length}`);
+    params.push(endIso);
+    where.push(`scheduled_start_at <= $${params.length}`);
   }
-  const { data } = await q.order('scheduled_start_at', { ascending: true });
-  return { data: (data ?? []).map(apptDTO) };
+  const data = await many(
+    `select * from appointment where ${where.join(' and ')} order by scheduled_start_at`,
+    params,
+  );
+  return { data: data.map(apptDTO) };
 }
 
 export async function createAppointment(
@@ -53,12 +62,10 @@ export async function createAppointment(
   let serviceName: string | null = null;
   let durationMinutes = 30;
   if (input.serviceId) {
-    const { data: svc } = await supabase
-      .from('service')
-      .select('name, duration_minutes')
-      .eq('id', input.serviceId)
-      .eq('business_id', businessId)
-      .maybeSingle();
+    const svc = await one('select name, duration_minutes from service where id = $1 and business_id = $2', [
+      input.serviceId,
+      businessId,
+    ]);
     if (!svc) throw Errors.notFound('Service not found');
     serviceName = svc.name;
     durationMinutes = svc.duration_minutes;
@@ -68,25 +75,25 @@ export async function createAppointment(
   const start = new Date(input.scheduledStartAt);
   const end = new Date(start.getTime() + durationMinutes * 60_000);
 
-  const { data, error } = await supabase
-    .from('appointment')
-    .insert({
-      business_id: businessId,
-      customer_id: customerId,
-      customer_name: input.customerName,
-      customer_phone: phone,
-      service_id: input.serviceId ?? null,
-      service_name: serviceName,
-      staff_id: input.staffId ?? null,
-      scheduled_start_at: start.toISOString(),
-      scheduled_end_at: end.toISOString(),
-      status: 'confirmed',
-      source: 'owner',
-      notes: input.notes ?? null,
-    })
-    .select()
-    .single();
-  if (error) throw new Error(error.message);
+  const data = await one(
+    `insert into appointment
+       (business_id, customer_id, customer_name, customer_phone, service_id, service_name,
+        staff_id, scheduled_start_at, scheduled_end_at, status, source, notes)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', 'owner', $10)
+     returning *`,
+    [
+      businessId,
+      customerId,
+      input.customerName,
+      phone,
+      input.serviceId ?? null,
+      serviceName,
+      input.staffId ?? null,
+      start.toISOString(),
+      end.toISOString(),
+      input.notes ?? null,
+    ],
+  );
   emitToOwners(businessId, 'appointment:created', { appointment: apptDTO(data) });
   return apptDTO(data);
 }
@@ -114,14 +121,12 @@ export async function checkIn(businessId: string, appointmentId: string) {
 }
 
 export async function setStatus(businessId: string, appointmentId: string, status: 'cancelled' | 'no_show') {
-  const { data, error } = await supabase
-    .from('appointment')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', appointmentId)
-    .eq('business_id', businessId)
-    .select()
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+  const data = await one(
+    `update appointment set status = $1, updated_at = $2
+      where id = $3 and business_id = $4
+      returning *`,
+    [status, new Date().toISOString(), appointmentId, businessId],
+  );
   if (!data) throw Errors.notFound('Appointment not found');
   emitToOwners(businessId, 'appointment:updated', { appointment: apptDTO(data) });
   return apptDTO(data);

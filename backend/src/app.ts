@@ -23,6 +23,7 @@ import { uploadsRouter } from './modules/uploads/uploads.routes';
 import { publicRouter } from './modules/public/public.routes';
 import { webhooksRouter } from './modules/webhooks/webhooks.routes';
 import { adminRouter } from './modules/admin/admin.routes';
+import { mediaRouter } from './modules/media/media.routes';
 
 export function createApp() {
   const app = express();
@@ -37,6 +38,10 @@ export function createApp() {
 
   // Health (unversioned).
   app.use('/', healthRouter);
+
+  // Image reads (unversioned + public): the URLs are persisted in the database,
+  // so this path must stay stable and must not sit behind auth.
+  app.use('/media', mediaRouter);
 
   // Versioned API.
   app.use(`${API_PREFIX}/auth`, authRouter);

@@ -1,12 +1,28 @@
 import { randomUUID } from 'node:crypto';
-import { supabase } from '../db/supabase';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { env } from '../config/env';
 
 /**
- * Supabase Storage helpers, shared by the owner uploads route and the admin panel's
- * provisioning uploads. Serving is via public URLs (the bucket is created public); writes
- * use short-lived signed upload URLs so the client PUTs bytes straight to Storage.
+ * S3-compatible object storage (Railway Buckets), shared by the owner uploads
+ * route and the admin panel's provisioning uploads.
+ *
+ * The bucket is PRIVATE — Railway has no public-object mode — so we never hand
+ * out a bucket URL directly. Writes use a short-lived signed PUT the client
+ * uploads to; reads go through this API's GET /media/* route, which redirects to
+ * a freshly signed GET. That keeps the URL we persist in the database stable
+ * forever while the bytes still stream straight from the bucket.
  */
+
+const s3 = new S3Client({
+  endpoint: env.S3_ENDPOINT,
+  region: env.S3_REGION,
+  forcePathStyle: env.S3_FORCE_PATH_STYLE,
+  credentials: {
+    accessKeyId: env.S3_ACCESS_KEY_ID,
+    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+  },
+});
 
 export const IMAGE_MIME_EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -17,42 +33,38 @@ export const IMAGE_MIME_EXT: Record<string, string> = {
 /** Max image size accepted for a signed upload (bytes). */
 export const MAX_IMAGE_BYTES = 5_000_000;
 
-let bucketEnsured = false;
-async function ensureBucket() {
-  if (bucketEnsured) return;
-  const { data } = await supabase.storage.getBucket(env.SUPABASE_STORAGE_BUCKET);
-  if (!data) {
-    await supabase.storage.createBucket(env.SUPABASE_STORAGE_BUCKET, { public: true });
-  }
-  bucketEnsured = true;
+/** Public path prefix served by the media router. */
+export const MEDIA_PATH = '/media';
+
+/** The permanent, database-safe URL for an object key. */
+export function mediaUrl(fileKey: string): string {
+  return `${env.APP_BASE_URL.replace(/\/+$/, '')}${MEDIA_PATH}/${fileKey}`;
 }
 
 export interface SignedUpload {
   uploadUrl: string; // absolute — the client PUTs the file bytes here
-  token: string;
   fileKey: string;
-  publicUrl: string;
+  publicUrl: string; // stable /media/... URL, safe to persist
 }
 
-/**
- * Create a signed upload URL for a new object at `<keyPrefix>/<uuid>.<ext>`.
- * `data.signedUrl` from supabase-js is a relative path, so we return an absolute URL the
- * caller can PUT to directly.
- */
+/** Create a signed upload URL for a new object at `<keyPrefix>/<uuid>.<ext>`. */
 export async function signUpload(contentType: string, keyPrefix: string): Promise<SignedUpload> {
   const ext = IMAGE_MIME_EXT[contentType];
   if (!ext) throw new Error('Unsupported content type');
-  await ensureBucket();
 
   const fileKey = `${keyPrefix}/${randomUUID()}.${ext}`;
-  const { data, error } = await supabase.storage.from(env.SUPABASE_STORAGE_BUCKET).createSignedUploadUrl(fileKey);
-  if (error || !data) throw new Error(error?.message ?? 'Failed to sign upload');
+  const uploadUrl = await getSignedUrl(
+    s3,
+    new PutObjectCommand({ Bucket: env.S3_BUCKET, Key: fileKey, ContentType: contentType }),
+    { expiresIn: env.S3_UPLOAD_URL_TTL },
+  );
 
-  const signed = data.signedUrl;
-  const uploadUrl = signed.startsWith('http')
-    ? signed
-    : `${env.SUPABASE_URL}/storage/v1${signed.startsWith('/') ? '' : '/'}${signed}`;
-  const publicUrl = supabase.storage.from(env.SUPABASE_STORAGE_BUCKET).getPublicUrl(fileKey).data.publicUrl;
+  return { uploadUrl, fileKey, publicUrl: mediaUrl(fileKey) };
+}
 
-  return { uploadUrl, token: data.token, fileKey, publicUrl };
+/** Sign a short-lived GET for an existing object — used by the /media redirect. */
+export function signDownload(fileKey: string): Promise<string> {
+  return getSignedUrl(s3, new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: fileKey }), {
+    expiresIn: env.S3_DOWNLOAD_URL_TTL,
+  });
 }

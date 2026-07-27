@@ -135,9 +135,9 @@ export const api = {
   updateStaff: (id: string, b: { name?: string; roleLabel?: string; photoUrl?: string | null }) =>
     raw('PATCH', `/staff/${id}`, b),
 
-  /** Get a Supabase signed upload URL for an owner-scoped image (logo/hero/gallery/avatar). */
+  /** Get a signed upload URL for an owner-scoped image (logo/hero/gallery/avatar). */
   signUpload: (b: { assetType: string; contentType: string; byteSize: number }) =>
-    raw<{ uploadUrl: string; publicUrl: string; token: string; fileKey: string }>('POST', '/uploads/sign', b),
+    raw<{ uploadUrl: string; publicUrl: string; fileKey: string }>('POST', '/uploads/sign', b),
 
   upgrade: () => raw('POST', '/subscription/upgrade'),
 };

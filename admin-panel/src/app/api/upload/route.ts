@@ -3,11 +3,11 @@ import { getAdminToken } from "@/lib/session";
 import { t, format } from "@/i18n";
 
 /**
- * Photo upload proxy (server-side, so the admin JWT and Supabase never touch the browser):
+ * Photo upload proxy (server-side, so the admin JWT and storage credentials never touch the browser):
  *   1. receive the file (multipart) from the panel,
- *   2. ask the backend for a Supabase signed upload URL (Bearer admin JWT),
- *   3. PUT the bytes to Supabase,
- *   4. return the public URL to store on the form.
+ *   2. ask the backend for a signed upload URL (Bearer admin JWT),
+ *   3. PUT the bytes to object storage,
+ *   4. return the stable /media/... URL to store on the form.
  */
 const BACKEND = process.env.BACKEND_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -62,13 +62,14 @@ export async function POST(req: NextRequest) {
   }
   const { uploadUrl, publicUrl } = signJson as { uploadUrl: string; publicUrl: string };
 
-  // 2) PUT the bytes straight to Supabase Storage (server-to-server).
+  // 2) PUT the bytes straight to object storage (server-to-server). The signed URL
+  // covers content-type, so no extra headers — an unsigned one breaks the signature.
   let putRes: Response;
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     putRes = await fetch(uploadUrl, {
       method: "PUT",
-      headers: { "content-type": file.type, "x-upsert": "true" },
+      headers: { "content-type": file.type },
       body: buffer,
       cache: "no-store",
     });

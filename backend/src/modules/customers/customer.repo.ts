@@ -1,4 +1,4 @@
-import { supabase } from '../../db/supabase';
+import { one } from '../../db/pool';
 import { normalizePhone } from '../../lib/phone';
 
 /** Find a customer by phone within a business, or create a lightweight record. */
@@ -10,28 +10,24 @@ export async function findOrCreateCustomer(
   const phone = phoneRaw ? normalizePhone(phoneRaw) : null;
   if (!phone) return null;
 
-  const { data: existing } = await supabase
-    .from('customer')
-    .select('id')
-    .eq('business_id', businessId)
-    .eq('phone', phone)
-    .maybeSingle();
+  const existing = await one<{ id: string }>(
+    'select id from customer where business_id = $1 and phone = $2',
+    [businessId, phone],
+  );
   if (existing) return existing.id;
 
-  const { data, error } = await supabase
-    .from('customer')
-    .insert({ business_id: businessId, name, phone })
-    .select('id')
-    .single();
-  if (error) {
+  try {
+    const created = await one<{ id: string }>(
+      'insert into customer (business_id, name, phone) values ($1, $2, $3) returning id',
+      [businessId, name, phone],
+    );
+    return created?.id ?? null;
+  } catch {
     // Unique race — re-select.
-    const { data: retry } = await supabase
-      .from('customer')
-      .select('id')
-      .eq('business_id', businessId)
-      .eq('phone', phone)
-      .maybeSingle();
+    const retry = await one<{ id: string }>(
+      'select id from customer where business_id = $1 and phone = $2',
+      [businessId, phone],
+    );
     return retry?.id ?? null;
   }
-  return data.id;
 }

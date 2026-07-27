@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
-// 👇 makes the browser load the store's CSS/JS/fonts straight from Render,
-//    bypassing Vercel's /_next handling that was 404ing the stylesheet.
+// 👇 makes the browser load the store's CSS/JS/fonts straight from this service's
+//    own origin, bypassing Vercel's /_next handling that was 404ing the stylesheet.
 //    Leave NEXT_PUBLIC_ASSET_PREFIX empty locally so assets load from localhost.
 const assetPrefix = process.env.NEXT_PUBLIC_ASSET_PREFIX?.trim();
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase } from '../../db/supabase';
+import { one } from '../../db/pool';
 import { money } from '../../domain/money';
 import { businessDayRange } from '../../lib/time';
 import { asyncHandler } from '../../http/async-handler';
@@ -14,43 +14,47 @@ dashboardRouter.get(
   limiters.ownerRead,
   asyncHandler(async (req, res) => {
     const businessId = req.principal!.businessId;
-    const { data: biz } = await supabase.from('business').select('timezone, currency').eq('id', businessId).maybeSingle();
+    const biz = await one('select timezone, currency from business where id = $1', [businessId]);
     const tz = biz?.timezone;
     const { startIso, endIso } = businessDayRange(tz);
 
-    const [apptCount, activeRows, completedRows] = await Promise.all([
-      supabase
-        .from('appointment')
-        .select('id', { count: 'exact', head: true })
-        .eq('business_id', businessId)
-        .gte('scheduled_start_at', startIso)
-        .lte('scheduled_start_at', endIso),
-      supabase
-        .from('queue_entry')
-        .select('status')
-        .eq('business_id', businessId)
-        .in('status', ['waiting', 'in_service']),
-      supabase
-        .from('visit')
-        .select('amount_paise')
-        .eq('business_id', businessId)
-        .gte('completed_at', startIso)
-        .lte('completed_at', endIso),
+    // Postgres can aggregate these directly, so each KPI is one round trip instead
+    // of pulling the day's rows back to count them in JS.
+    const [apptCount, activeCounts, completedTotals] = await Promise.all([
+      one<{ count: number }>(
+        `select count(*)::int as count
+           from appointment
+          where business_id = $1 and scheduled_start_at >= $2 and scheduled_start_at <= $3`,
+        [businessId, startIso, endIso],
+      ),
+      one<{ active: number; waiting: number }>(
+        `select count(*)::int as active,
+                count(*) filter (where status = 'waiting')::int as waiting
+           from queue_entry
+          where business_id = $1 and status = any($2::queue_status[])`,
+        [businessId, ['waiting', 'in_service']],
+      ),
+      one<{ completed: number; revenue: string }>(
+        `select count(*)::int as completed, coalesce(sum(amount_paise), 0)::bigint as revenue
+           from visit
+          where business_id = $1 and completed_at >= $2 and completed_at <= $3`,
+        [businessId, startIso, endIso],
+      ),
     ]);
 
-    const active = activeRows.data ?? [];
-    const waiting = active.filter((e) => e.status === 'waiting').length;
-    const completedList = completedRows.data ?? [];
-    const revenue = completedList.reduce((sum, v) => sum + Number(v.amount_paise ?? 0), 0);
+    const activeNow = activeCounts?.active ?? 0;
+    const waiting = activeCounts?.waiting ?? 0;
+    const completed = completedTotals?.completed ?? 0;
+    const revenue = Number(completedTotals?.revenue ?? 0);
 
     res.json({
       date: startIso.slice(0, 10),
       kpis: {
-        todaysAppointments: apptCount.count ?? 0,
-        activeNow: active.length,
+        todaysAppointments: apptCount?.count ?? 0,
+        activeNow,
         waitingNow: waiting,
-        checkInCount: active.length,
-        completed: completedList.length,
+        checkInCount: activeNow,
+        completed,
         revenue: money(revenue, biz?.currency),
       },
       // Deltas require a comparison window (docs/17 Q33) — omitted until defined.

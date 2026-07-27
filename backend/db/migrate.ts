@@ -1,6 +1,5 @@
 /**
- * Migration runner — the ONLY place a direct pg connection is used (DDL cannot
- * run over PostgREST). Applies db/migrations/*.sql in filename order and records
+ * Migration runner. Applies db/migrations/*.sql in filename order and records
  * them in schema_migrations. Idempotent: already-applied files are skipped.
  *
  *   npm run migrate
@@ -10,6 +9,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import bcrypt from 'bcryptjs';
 import { Client } from 'pg';
+import { pgSsl } from '../src/db/ssl';
 
 // Admin login passwords live in the DB (admins.password_hash) and are peppered
 // like owner logins, so the hash is computed here in JS (pepper is
@@ -17,18 +17,18 @@ import { Client } from 'pg';
 // still missing a hash gets the demo password — existing mobiles are left alone.
 const DEMO_ADMIN_PASSWORD = 'admin456';
 
-const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
+if (!process.env.DATABASE_URL) {
   console.error('DATABASE_URL is required');
   process.exit(1);
 }
+const DATABASE_URL: string = process.env.DATABASE_URL;
 
 const MIGRATIONS_DIR = join(__dirname, 'migrations');
 
 async function main() {
   const client = new Client({
     connectionString: DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: pgSsl(DATABASE_URL),
   });
   await client.connect();
   console.log('Connected to Postgres.');

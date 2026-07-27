@@ -1,5 +1,10 @@
 # 13 — Deployment Architecture
 
+> **Target-state document.** What is actually deployed today is the much simpler
+> Railway topology in [DEPLOY.md](../DEPLOY.md): three Node services, managed
+> Postgres, and a Railway Bucket — no Redis, workers, or Kubernetes yet. This
+> page describes where the architecture goes as load grows.
+
 ## 1. Topology
 
 ```
@@ -32,9 +37,9 @@
 |---|---|---|
 | API + realtime | Node/Express + Socket.IO in containers | Horizontal (N replicas) behind LB; WebSocket-capable LB with sticky sessions or WS-only transport |
 | Workers | Same image, `CMD=worker`, BullMQ | Horizontal (M replicas), per-queue concurrency |
-| DB | Managed PostgreSQL 16 (RDS/Cloud SQL/Supabase) + **PgBouncer** | Vertical + read replicas; connection pooling mandatory |
+| DB | Managed PostgreSQL 16 (Railway/RDS/Cloud SQL) + **PgBouncer** | Vertical + read replicas; connection pooling mandatory |
 | Cache/queue/pubsub | Managed Redis 7 (cluster or HA pair) | Used by rate-limiter, Socket.IO adapter, BullMQ, availability cache |
-| Object storage | S3 / R2 / Supabase Storage + CDN | Managed |
+| Object storage | S3-compatible (Railway Buckets / S3 / R2) + CDN | Managed |
 | Web (marketing + microsite) | Next.js on Vercel or container; microsite `/{slug}` uses ISR/SSR + CDN | Edge-cached |
 | Edge | Cloudflare (WAF, DDoS, bot mgmt, global rate limit) | Managed |
 

@@ -1,4 +1,4 @@
-import { supabase } from '../../db/supabase';
+import { exec, many, one, transaction } from '../../db/pool';
 import { env } from '../../config/env';
 import { Errors } from '../../domain/errors';
 
@@ -36,16 +36,15 @@ function businessDTO(b: any, hours: any[], amenities: any[], gallery: any[], pla
 }
 
 export async function getBusiness(businessId: string) {
-  const [{ data: b }, { data: hours }, { data: amenities }, { data: gallery }, { data: sub }] =
-    await Promise.all([
-      supabase.from('business').select('*').eq('id', businessId).maybeSingle(),
-      supabase.from('business_hour').select('*').eq('business_id', businessId).order('day_of_week'),
-      supabase.from('amenity').select('*').eq('business_id', businessId).order('position'),
-      supabase.from('gallery_image').select('*').eq('business_id', businessId).order('position'),
-      supabase.from('subscription').select('plan').eq('business_id', businessId).maybeSingle(),
-    ]);
+  const [b, hours, amenities, gallery, sub] = await Promise.all([
+    one('select * from business where id = $1', [businessId]),
+    many('select * from business_hour where business_id = $1 order by day_of_week', [businessId]),
+    many('select * from amenity where business_id = $1 order by position', [businessId]),
+    many('select * from gallery_image where business_id = $1 order by position', [businessId]),
+    one('select plan from subscription where business_id = $1', [businessId]),
+  ]);
   if (!b) throw Errors.notFound('Business not found');
-  return businessDTO(b, hours ?? [], amenities ?? [], gallery ?? [], sub?.plan ?? 'free');
+  return businessDTO(b, hours, amenities, gallery, sub?.plan ?? 'free');
 }
 
 export async function updateBusiness(businessId: string, patch: Record<string, any>) {
@@ -64,13 +63,17 @@ export async function updateBusiness(businessId: string, patch: Record<string, a
   };
   const row: Record<string, any> = { updated_at: new Date().toISOString() };
   for (const [k, v] of Object.entries(patch)) if (map[k] !== undefined) row[map[k]!] = v;
-  const { error } = await supabase.from('business').update(row).eq('id', businessId);
-  if (error) throw new Error(error.message);
+  // Only the keys the caller supplied are assigned; column names come from `map`, never the request.
+  const columns = Object.keys(row);
+  const sets = columns.map((c, i) => `${c} = $${i + 1}`).join(', ');
+  await exec(`update business set ${sets} where id = $${columns.length + 1}`, [
+    ...Object.values(row),
+    businessId,
+  ]);
   return getBusiness(businessId);
 }
 
 export async function setHours(businessId: string, hours: any[]) {
-  await supabase.from('business_hour').delete().eq('business_id', businessId);
   const rows = hours.map((h) => ({
     business_id: businessId,
     day_of_week: h.dayOfWeek,
@@ -78,25 +81,46 @@ export async function setHours(businessId: string, hours: any[]) {
     closes_at: h.isClosed ? null : h.closesAt,
     is_closed: !!h.isClosed,
   }));
-  if (rows.length) {
-    const { error } = await supabase.from('business_hour').insert(rows);
-    if (error) throw new Error(error.message);
-  }
+  // Replace-in-place: the delete must not stand on its own if the insert fails.
+  await transaction(async (client) => {
+    await client.query('delete from business_hour where business_id = $1', [businessId]);
+    if (!rows.length) return;
+    const params: any[] = [];
+    const tuples = rows.map((r) => {
+      const o = params.length;
+      params.push(r.business_id, r.day_of_week, r.opens_at, r.closes_at, r.is_closed);
+      return `($${o + 1}, $${o + 2}, $${o + 3}, $${o + 4}, $${o + 5})`;
+    });
+    await client.query(
+      `insert into business_hour (business_id, day_of_week, opens_at, closes_at, is_closed)
+       values ${tuples.join(', ')}`,
+      params,
+    );
+  });
   return getBusiness(businessId);
 }
 
 export async function setAmenities(businessId: string, labels: string[]) {
-  await supabase.from('amenity').delete().eq('business_id', businessId);
-  if (labels.length) {
-    await supabase
-      .from('amenity')
-      .insert(labels.map((label, position) => ({ business_id: businessId, label, position })));
-  }
+  // Replace-in-place: the delete must not stand on its own if the insert fails.
+  await transaction(async (client) => {
+    await client.query('delete from amenity where business_id = $1', [businessId]);
+    if (!labels.length) return;
+    const params: any[] = [];
+    const tuples = labels.map((label, position) => {
+      const o = params.length;
+      params.push(businessId, label, position);
+      return `($${o + 1}, $${o + 2}, $${o + 3})`;
+    });
+    await client.query(
+      `insert into amenity (business_id, label, position) values ${tuples.join(', ')}`,
+      params,
+    );
+  });
   return getBusiness(businessId);
 }
 
 export async function getQr(businessId: string) {
-  const { data: b } = await supabase.from('business').select('slug').eq('id', businessId).maybeSingle();
+  const b = await one('select slug from business where id = $1', [businessId]);
   if (!b) throw Errors.notFound('Business not found');
   const bookingUrl = `${env.PUBLIC_WEB_URL}/${b.slug}`;
   // QR PNG generation deferred (renders client-side from bookingUrl for now).

@@ -1,8 +1,8 @@
 # TejoTime API (Backend)
 
-Express + Supabase + Socket.IO + TypeScript. **No ORM** — data access goes through
-`@supabase/supabase-js`, and the concurrency-sensitive queue operations are
-PostgreSQL `plpgsql` functions called via `supabase.rpc()` (each runs in one
+Express + PostgreSQL + Socket.IO + TypeScript. **No ORM** — data access is
+parameterized SQL over a `pg` pool, and the concurrency-sensitive queue operations
+are PostgreSQL `plpgsql` functions called via `callRpc()` (each runs in one
 transaction under a per-business advisory lock). Implements the specification in
 [`../docs`](../docs).
 
@@ -11,10 +11,11 @@ transaction under a per-business advisory lock). Implements the specification in
 | Concern | Choice |
 |---|---|
 | API | Express 4 + TypeScript (CommonJS, run with `tsx`) |
-| Data access | `@supabase/supabase-js` (service role) + `plpgsql` RPCs for atomic queue ops |
+| Data access | `pg` pool + parameterized SQL, `plpgsql` RPCs for atomic queue ops |
 | Realtime | Socket.IO 4 (`/owner`, `/customer` namespaces) — single instance |
 | Auth | Custom JWT (owner handle + password via bcrypt), customer OTP scaffolded |
 | Jobs | `node-cron` in-process (stale cleanup, OTP/session purge) |
+| Storage | Railway Buckets (S3-compatible) via `@aws-sdk/client-s3`; private, served through `GET /media/*` |
 | Migrations | plain `.sql` applied by a tiny `pg`-based CLI (dev only) |
 | Validation | Zod · **Logging** pino · **Rate limit** express-rate-limit (in-memory) |
 
@@ -23,8 +24,8 @@ transaction under a per-business advisory lock). Implements the specification in
 ```bash
 cd backend
 npm install
-cp .env.example .env      # fill in Supabase + secrets (already provided in .env for this project)
-npm run migrate           # create tables + functions in Supabase
+cp .env.example .env      # fill in DATABASE_URL, S3_* + secrets (already provided in .env for this project)
+npm run migrate           # create tables + functions
 npm run seed              # load the "Sharp Cuts" demo tenant
 npm run dev               # http://localhost:8080
 ```
@@ -50,7 +51,7 @@ npm run dev               # http://localhost:8080
 db/            migrations/*.sql (schema + plpgsql functions), migrate.ts, seed.ts
 src/
   config/      env (zod-validated), logger, constants
-  db/          supabase client, rpc helper
+  db/          pg pool + query helpers, rpc helper, ssl
   domain/      enums, errors, money
   lib/         queue-engine (ported from app/src/lib/queue.ts), phone, time, format
   middleware/  authenticate, authorize, validate, rate-limit, error-handler, request-id
@@ -71,7 +72,7 @@ tests/unit/    queue-engine golden tests
 - **customers**: `GET /customers` (plan-gated), `GET/POST/PATCH /customers/:id`, `GET /customers/:id/visits`
 - **business/services/staff**: profile + hours + amenities + QR, services & staff CRUD
 - **dashboard**: `GET /dashboard/summary` · **subscription**: `GET /subscription`, `POST /subscription/upgrade`
-- **uploads**: `POST /uploads/sign` (Supabase Storage) · **notifications**: `GET /notifications`, `POST /notifications/read`
+- **uploads**: `POST /uploads/sign` (signed S3 PUT) · **media**: `GET /media/*` (public image reads) · **notifications**: `GET /notifications`, `POST /notifications/read`
 - **public**: `GET /public/businesses/:slug[/availability|/staff|/slots]`, `POST .../queue`, `POST .../appointments`, `GET/DELETE /public/tickets/:id`
 - **health**: `GET /healthz`, `GET /readyz`
 

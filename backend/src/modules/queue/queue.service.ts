@@ -1,4 +1,4 @@
-import { supabase } from '../../db/supabase';
+import { exec, one } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
 import { SERVICE_EXTRAS } from '../../config/constants';
@@ -95,12 +95,7 @@ export async function getEntryDetail(businessId: string, entryId: string) {
       etaMinutes: card.etaMinutes,
     };
   }
-  const { data: row } = await supabase
-    .from('queue_entry')
-    .select('*')
-    .eq('business_id', businessId)
-    .eq('id', entryId)
-    .maybeSingle();
+  const row = await one('select * from queue_entry where business_id = $1 and id = $2', [businessId, entryId]);
   if (!row) throw Errors.notFound('Queue entry not found');
   return {
     id: row.id,
@@ -204,13 +199,12 @@ async function claimNotifyStamp(
   entryId: string,
   column: 'notified_turn_at' | 'notified_eta_15_at',
 ): Promise<boolean> {
-  const { data } = await supabase
-    .from('queue_entry')
-    .update({ [column]: new Date().toISOString() })
-    .eq('id', entryId)
-    .is(column, null)
-    .select('id');
-  return !!data?.length;
+  // `column` is a narrow union, never caller-supplied — safe to inline.
+  const stamped = await exec(
+    `update queue_entry set ${column} = $1 where id = $2 and ${column} is null`,
+    [new Date().toISOString(), entryId],
+  );
+  return stamped > 0;
 }
 
 /** Persists an outbound alert and dispatches via the existing Twilio test-number path. */
@@ -222,33 +216,47 @@ async function recordAlertNotification(
 ): Promise<void> {
   const hasPhone = !!entry.customer_phone;
   const channel = hasPhone ? 'whatsapp' : 'in_app';
-  const { data, error } = await supabase
-    .from('notification')
-    .insert({
-      business_id: businessId,
-      queue_entry_id: entry.id,
-      channel,
-      template,
-      to_address: entry.customer_phone,
-      body,
-      status: hasPhone ? 'queued' : 'sent',
-      sent_at: hasPhone ? null : new Date().toISOString(),
-    })
-    .select('id')
-    .single();
 
-  if (error || !data?.id || !entry.customer_phone) return;
+  // Notification bookkeeping must never break the mutation that triggered it,
+  // so a failed insert is swallowed exactly as the previous client's error
+  // return value was.
+  let row: { id: string } | null = null;
+  try {
+    row = await one<{ id: string }>(
+      `insert into notification
+         (business_id, queue_entry_id, channel, template, to_address, body, status, sent_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
+       returning id`,
+      [
+        businessId,
+        entry.id,
+        channel,
+        template,
+        entry.customer_phone,
+        body,
+        hasPhone ? 'queued' : 'sent',
+        hasPhone ? null : new Date().toISOString(),
+      ],
+    );
+  } catch {
+    return;
+  }
+
+  if (!row?.id || !entry.customer_phone) return;
 
   const result = await whatsappSender.send(entry.customer_phone, body, template);
-  await supabase
-    .from('notification')
-    .update({
-      status: result.id ? 'sent' : 'failed',
-      provider_message_id: result.id,
-      sent_at: result.id ? new Date().toISOString() : null,
-      error: result.id ? null : 'Twilio send failed or deferred',
-    })
-    .eq('id', data.id);
+  await exec(
+    `update notification
+        set status = $1, provider_message_id = $2, sent_at = $3, error = $4
+      where id = $5`,
+    [
+      result.id ? 'sent' : 'failed',
+      result.id,
+      result.id ? new Date().toISOString() : null,
+      result.id ? null : 'Twilio send failed or deferred',
+      row.id,
+    ],
+  );
 }
 
 // ---------- Mutations ----------

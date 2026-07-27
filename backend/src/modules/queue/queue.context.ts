@@ -1,4 +1,4 @@
-import { supabase } from '../../db/supabase';
+import { many } from '../../db/pool';
 import { ColorToken } from '../../config/constants';
 import { EngineEntry, EngineService, EngineStaff } from '../../lib/queue-engine';
 import { QueueSource, QueueStatus } from '../../domain/enums';
@@ -34,32 +34,18 @@ export interface QueueContext {
 
 /** Load everything the queue engine needs for a business (active entries only). */
 export async function loadQueueContext(businessId: string): Promise<QueueContext> {
-  const [staffRes, serviceRes, entryRes] = await Promise.all([
-    supabase
-      .from('staff')
-      .select('*')
-      .eq('business_id', businessId)
-      .eq('is_active', true)
-      .order('position', { ascending: true }),
-    supabase
-      .from('service')
-      .select('*')
-      .eq('business_id', businessId)
-      .eq('is_active', true)
-      .order('position', { ascending: true }),
-    supabase
-      .from('queue_entry')
-      .select('*')
-      .eq('business_id', businessId)
-      .in('status', ['waiting', 'in_service'])
-      .order('staff_id', { ascending: true })
-      .order('position', { ascending: true })
-      .order('joined_at', { ascending: true }),
+  const [staffRows, serviceRows, entryRows] = await Promise.all([
+    many('select * from staff where business_id = $1 and is_active = true order by position', [businessId]),
+    many('select * from service where business_id = $1 and is_active = true order by position', [businessId]),
+    many(
+      `select * from queue_entry
+        where business_id = $1 and status in ('waiting', 'in_service')
+        order by staff_id, position, joined_at`,
+      [businessId],
+    ),
   ]);
 
-  const staffRows = staffRes.data ?? [];
-  const serviceRows = serviceRes.data ?? [];
-  const entries = (entryRes.data ?? []) as RawEntry[];
+  const entries = entryRows as RawEntry[];
 
   const engineStaff: EngineStaff[] = staffRows.map((s) => ({
     id: s.id,

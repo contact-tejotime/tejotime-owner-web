@@ -30,6 +30,6 @@ uploadsRouter.post(
     if (req.body.byteSize > MAX_IMAGE_BYTES) throw Errors.validation('File too large (max 5MB)');
     // Tenant-scoped key prefix — businessId comes from the token, never client input.
     const result = await signUpload(req.body.contentType, `${req.body.assetType}/${req.principal!.businessId}`);
-    res.json({ uploadUrl: result.uploadUrl, token: result.token, fileKey: result.fileKey, publicUrl: result.publicUrl });
+    res.json({ uploadUrl: result.uploadUrl, fileKey: result.fileKey, publicUrl: result.publicUrl });
   }),
 );

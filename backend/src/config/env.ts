@@ -21,10 +21,25 @@ const schema = z.object({
   DEFAULT_CURRENCY: z.string().length(3).default('INR'),
   CORS_ALLOWED_ORIGINS: z.string().default(''),
 
-  SUPABASE_URL: z.string().url(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20),
+  /** Postgres connection string — used by the runtime pool AND the migration CLI. */
   DATABASE_URL: z.string().min(1),
-  SUPABASE_STORAGE_BUCKET: z.string().default('media'),
+  DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
+
+  /**
+   * S3-compatible object storage (Railway Buckets). The bucket is private, so
+   * reads go through GET /media/* which redirects to a short-lived signed URL.
+   */
+  S3_ENDPOINT: z.string().url(),
+  S3_REGION: z.string().default('auto'),
+  S3_ACCESS_KEY_ID: z.string().min(1),
+  S3_SECRET_ACCESS_KEY: z.string().min(1),
+  S3_BUCKET: z.string().min(1),
+  /** Older Railway buckets need path-style URLs; newer ones use virtual-hosted style. */
+  S3_FORCE_PATH_STYLE: boolish(false),
+  /** Lifetime of a signed upload (PUT) URL, seconds. */
+  S3_UPLOAD_URL_TTL: z.coerce.number().int().positive().default(600),
+  /** Lifetime of a signed download (GET) URL that /media/* redirects to, seconds. */
+  S3_DOWNLOAD_URL_TTL: z.coerce.number().int().positive().default(3_600),
 
   JWT_ACCESS_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16),

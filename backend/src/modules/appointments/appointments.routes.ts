@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { supabase } from '../../db/supabase';
+import { one } from '../../db/pool';
 import { Errors } from '../../domain/errors';
 import { asyncHandler } from '../../http/async-handler';
 import { authenticate } from '../../middleware/authenticate';
@@ -9,7 +9,7 @@ import { limiters } from '../../middleware/rate-limit';
 import * as appts from './appointments.service';
 
 async function businessTz(businessId: string): Promise<string | undefined> {
-  const { data } = await supabase.from('business').select('timezone').eq('id', businessId).maybeSingle();
+  const data = await one('select timezone from business where id = $1', [businessId]);
   return data?.timezone;
 }
 
@@ -22,7 +22,9 @@ appointmentsRouter.get(
   validate({
     query: z.object({
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-      status: z.string().optional(),
+      // Must match the appointment_status enum — an unknown value now reaches
+      // Postgres and errors, where PostgREST used to quietly return no rows.
+      status: z.enum(['pending', 'confirmed', 'checked_in', 'completed', 'cancelled', 'no_show']).optional(),
     }),
   }),
   asyncHandler(async (req, res) => {
@@ -62,12 +64,10 @@ appointmentsRouter.get(
   limiters.ownerRead,
   validate({ params: z.object({ id: z.string().uuid() }) }),
   asyncHandler(async (req, res) => {
-    const { data } = await supabase
-      .from('appointment')
-      .select('*')
-      .eq('id', req.params.id)
-      .eq('business_id', req.principal!.businessId)
-      .maybeSingle();
+    const data = await one('select * from appointment where id = $1 and business_id = $2', [
+      req.params.id,
+      req.principal!.businessId,
+    ]);
     if (!data) throw Errors.notFound('Appointment not found');
     res.json({
       id: data.id,

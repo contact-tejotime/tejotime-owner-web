@@ -1,4 +1,4 @@
-import { supabase } from '../../db/supabase';
+import { many, one } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
 import { money } from '../../domain/money';
@@ -7,8 +7,8 @@ import { businessDayRange, dayjs, lastVisitLabel } from '../../lib/time';
 
 /**
  * Cross-tenant analytics for the admin panel. Read-only: grouped aggregates come
- * from the SQL functions in db/migrations/0010_admin_analytics.sql (PostgREST has
- * no GROUP BY), row lists from plain PostgREST queries. Platform-wide numbers use
+ * from the SQL functions in db/migrations/0010_admin_analytics.sql, row lists
+ * from plain queries. Platform-wide numbers use
  * env.DEFAULT_TIMEZONE; per-store numbers use that business's own timezone.
  */
 
@@ -24,11 +24,7 @@ interface BusinessLite {
 }
 
 async function getBusinessLite(id: string): Promise<BusinessLite> {
-  const { data } = await supabase
-    .from('business')
-    .select('id, name, slug, timezone, currency')
-    .eq('id', id)
-    .maybeSingle();
+  const data = await one('select id, name, slug, timezone, currency from business where id = $1', [id]);
   if (!data) throw Errors.notFound('Store not found');
   return {
     id: data.id,
@@ -40,14 +36,20 @@ async function getBusinessLite(id: string): Promise<BusinessLite> {
 }
 
 interface DailyRow {
-  day: string;
+  /** `date` column — pg hands this back as a JS Date at local midnight. */
+  day: string | Date;
   visits: number;
   revenue_paise: number;
 }
 
+/** Calendar date of a `date` column, whichever representation the driver returned. */
+function dayKey(day: string | Date): string {
+  return day instanceof Date ? dayjs(day).format('YYYY-MM-DD') : String(day).slice(0, 10);
+}
+
 /** Zero-fill a daily series so every day in [firstDay, firstDay + days) has a point. */
 function fillDays(firstDay: dayjs.Dayjs, days: number, rows: DailyRow[], currency: string) {
-  const byDay = new Map(rows.map((r) => [String(r.day), r]));
+  const byDay = new Map(rows.map((r) => [dayKey(r.day), r]));
   return Array.from({ length: days }, (_, i) => {
     const date = firstDay.add(i, 'day').format('YYYY-MM-DD');
     const row = byDay.get(date);
@@ -87,8 +89,8 @@ export async function getPlatformOverview() {
   // No cross-store revenue here: stores can use different currencies, so money
   // aggregates are meaningless platform-wide. Today's window of admin_daily_revenue
   // is queried only for its (demo-excluded) visit count.
-  const [bizRows, metricRows, todayRows] = await Promise.all([
-    supabase.from('business').select('id, name, slug, city, category, is_active'),
+  const [allBusinesses, metricRows, todayRows] = await Promise.all([
+    many('select id, name, slug, city, category, is_active from business'),
     callRpc<any[]>('admin_store_metrics', {}),
     callRpc<DailyRow[]>('admin_daily_revenue', {
       p_business_id: null,
@@ -98,19 +100,24 @@ export async function getPlatformOverview() {
     }),
   ]);
 
-  const allBusinesses = bizRows.data ?? [];
   const demoId = allBusinesses.find((b) => b.slug === DEMO_SLUG)?.id ?? null;
   const businesses = allBusinesses.filter((b) => b.slug !== DEMO_SLUG);
 
   // Online bookings today — appointments booked from the microsite, demo excluded.
-  let bookingsQ = supabase
-    .from('appointment')
-    .select('id', { count: 'exact', head: true })
-    .eq('source', 'online')
-    .gte('scheduled_start_at', today.startIso)
-    .lte('scheduled_start_at', today.endIso);
-  if (demoId) bookingsQ = bookingsQ.neq('business_id', demoId);
-  const { count: onlineBookings } = await bookingsQ;
+  const bookingParams: unknown[] = [today.startIso, today.endIso];
+  let demoExclusion = '';
+  if (demoId) {
+    bookingParams.push(demoId);
+    demoExclusion = ` and business_id <> $${bookingParams.length}`;
+  }
+  const bookingsRow = await one<{ count: number }>(
+    `select count(*)::int as count from appointment
+      where source = 'online'
+        and scheduled_start_at >= $1
+        and scheduled_start_at <= $2${demoExclusion}`,
+    bookingParams,
+  );
+  const onlineBookings = bookingsRow?.count ?? 0;
 
   const metrics = metricRows ?? [];
   const activeCount = businesses.filter((b) => b.is_active).length;
@@ -157,25 +164,23 @@ export async function getStoreAnalytics(id: string, range: '30d' | '90d') {
   const { firstDay, startIso, endIso } = trailingWindow(tz, days);
   const today = businessDayRange(tz);
 
-  const [apptCount, queueCount, todayVisits, totalsRows, dailyRows, sourceRows, serviceRows, staffRows] =
+  const [apptCount, queueCount, todayVisitRows, totalsRows, dailyRows, sourceRows, serviceRows, staffRows] =
     await Promise.all([
-      supabase
-        .from('appointment')
-        .select('id', { count: 'exact', head: true })
-        .eq('business_id', id)
-        .gte('scheduled_start_at', today.startIso)
-        .lte('scheduled_start_at', today.endIso),
-      supabase
-        .from('queue_entry')
-        .select('id', { count: 'exact', head: true })
-        .eq('business_id', id)
-        .in('status', ['waiting', 'in_service']),
-      supabase
-        .from('visit')
-        .select('amount_paise')
-        .eq('business_id', id)
-        .gte('completed_at', today.startIso)
-        .lte('completed_at', today.endIso),
+      one<{ count: number }>(
+        `select count(*)::int as count from appointment
+          where business_id = $1 and scheduled_start_at >= $2 and scheduled_start_at <= $3`,
+        [id, today.startIso, today.endIso],
+      ),
+      one<{ count: number }>(
+        `select count(*)::int as count from queue_entry
+          where business_id = $1 and status in ('waiting', 'in_service')`,
+        [id],
+      ),
+      many(
+        `select amount_paise from visit
+          where business_id = $1 and completed_at >= $2 and completed_at <= $3`,
+        [id, today.startIso, today.endIso],
+      ),
       callRpc<any[]>('admin_business_totals', { p_business_id: id }),
       callRpc<DailyRow[]>('admin_daily_revenue', {
         p_business_id: id,
@@ -188,7 +193,6 @@ export async function getStoreAnalytics(id: string, range: '30d' | '90d') {
       callRpc<any[]>('admin_top_staff', { p_business_id: id, p_start: startIso, p_end: endIso, p_limit: 5 }),
     ]);
 
-  const todayVisitRows = todayVisits.data ?? [];
   const todayRevenue = todayVisitRows.reduce((sum, v) => sum + Number(v.amount_paise ?? 0), 0);
 
   const totals = totalsRows?.[0] ?? {};
@@ -204,8 +208,8 @@ export async function getStoreAnalytics(id: string, range: '30d' | '90d') {
     to: todayDate(tz),
     timezone: tz,
     today: {
-      appointments: apptCount.count ?? 0,
-      activeQueue: queueCount.count ?? 0,
+      appointments: apptCount?.count ?? 0,
+      activeQueue: queueCount?.count ?? 0,
       completed: todayVisitRows.length,
       revenue: money(todayRevenue, biz.currency),
     },
@@ -244,21 +248,20 @@ export async function listStoreCustomers(id: string, search: string | undefined,
   const biz = await getBusinessLite(id);
   const cleanSearch = search?.replace(/[%,()]/g, ' ').trim();
 
-  let countQ = supabase.from('customer').select('id', { count: 'exact', head: true }).eq('business_id', id);
-  let dataQ = supabase
-    .from('customer')
-    .select('*')
-    .eq('business_id', id)
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  // One shared predicate so the count and the page can never drift apart.
+  const params: unknown[] = [id];
+  let searchFilter = '';
   if (cleanSearch) {
-    const filter = `name.ilike.%${cleanSearch}%,phone.ilike.%${cleanSearch}%`;
-    countQ = countQ.or(filter);
-    dataQ = dataQ.or(filter);
+    params.push(`%${cleanSearch}%`);
+    searchFilter = ` and (name ilike $${params.length} or phone ilike $${params.length})`;
   }
-  const [{ count: total }, { data }] = await Promise.all([countQ, dataQ]);
+  const where = `where business_id = $1${searchFilter}`;
 
-  const rows = data ?? [];
+  const [totalRow, rows] = await Promise.all([
+    one<{ count: number }>(`select count(*)::int as count from customer ${where}`, params),
+    many(`select * from customer ${where} order by created_at desc limit ${limit}`, params),
+  ]);
+  const total = totalRow?.count;
   return {
     data: rows.map((c) => ({
       id: c.id,
@@ -282,22 +285,17 @@ export async function listStoreCustomers(id: string, search: string | undefined,
 
 export async function listCustomerVisits(id: string, customerId: string) {
   const biz = await getBusinessLite(id);
-  const { data: customer } = await supabase
-    .from('customer')
-    .select('id')
-    .eq('id', customerId)
-    .eq('business_id', id)
-    .maybeSingle();
+  const customer = await one('select id from customer where id = $1 and business_id = $2', [customerId, id]);
   if (!customer) throw Errors.notFound('Customer not found');
 
-  const [{ data: visits }, staffNames] = await Promise.all([
-    supabase
-      .from('visit')
-      .select('*')
-      .eq('business_id', id)
-      .eq('customer_id', customerId)
-      .order('completed_at', { ascending: false })
-      .limit(100),
+  const [visits, staffNames] = await Promise.all([
+    many(
+      `select * from visit
+        where business_id = $1 and customer_id = $2
+        order by completed_at desc
+        limit 100`,
+      [id, customerId],
+    ),
     getStaffNames(id),
   ]);
 
@@ -313,8 +311,8 @@ export async function listCustomerVisits(id: string, customerId: string) {
 }
 
 async function getStaffNames(businessId: string): Promise<Map<string, string>> {
-  const { data } = await supabase.from('staff').select('id, name').eq('business_id', businessId);
-  return new Map((data ?? []).map((s) => [s.id, s.name]));
+  const rows = await many('select id, name from staff where business_id = $1', [businessId]);
+  return new Map(rows.map((s) => [s.id, s.name]));
 }
 
 // ---------------------------------------------------------------------------
@@ -334,21 +332,10 @@ export async function listStoreVisits(id: string, from: string | undefined, to: 
   const startIso = businessDayRange(tz, fromDate).startIso;
   const endIso = businessDayRange(tz, toDate).endIso;
 
-  const [{ count: total }, { data: visits }, dailyRows, staffNames] = await Promise.all([
-    supabase
-      .from('visit')
-      .select('id', { count: 'exact', head: true })
-      .eq('business_id', id)
-      .gte('completed_at', startIso)
-      .lte('completed_at', endIso),
-    supabase
-      .from('visit')
-      .select('*')
-      .eq('business_id', id)
-      .gte('completed_at', startIso)
-      .lte('completed_at', endIso)
-      .order('completed_at', { ascending: false })
-      .limit(LIST_LIMIT),
+  const window = 'where business_id = $1 and completed_at >= $2 and completed_at <= $3';
+  const [totalRow, rows, dailyRows, staffNames] = await Promise.all([
+    one<{ count: number }>(`select count(*)::int as count from visit ${window}`, [id, startIso, endIso]),
+    many(`select * from visit ${window} order by completed_at desc limit ${LIST_LIMIT}`, [id, startIso, endIso]),
     callRpc<DailyRow[]>('admin_daily_revenue', {
       p_business_id: id,
       p_tz: tz,
@@ -358,14 +345,12 @@ export async function listStoreVisits(id: string, from: string | undefined, to: 
     getStaffNames(id),
   ]);
 
-  const rows = visits ?? [];
-
   // Resolve customer names in one query; visits with no CRM record are walk-ins.
   const customerIds = [...new Set(rows.map((v) => v.customer_id).filter(Boolean))];
   const customerNames = new Map<string, string>();
   if (customerIds.length > 0) {
-    const { data: customers } = await supabase.from('customer').select('id, name').in('id', customerIds);
-    for (const c of customers ?? []) customerNames.set(c.id, c.name);
+    const customers = await many('select id, name from customer where id = any($1::uuid[])', [customerIds]);
+    for (const c of customers) customerNames.set(c.id, c.name);
   }
 
   // Summary comes from the SQL aggregate so it covers the full range even when
@@ -390,7 +375,7 @@ export async function listStoreVisits(id: string, from: string | undefined, to: 
       revenue: money(summaryRevenue, biz.currency),
       avgTicket: money(summaryVisits > 0 ? summaryRevenue / summaryVisits : 0, biz.currency),
     },
-    meta: { shown: rows.length, total: total ?? rows.length, limit: LIST_LIMIT },
+    meta: { shown: rows.length, total: totalRow?.count ?? rows.length, limit: LIST_LIMIT },
   };
 }
 
@@ -415,18 +400,21 @@ export async function listStoreAppointments(
   const startIso = businessDayRange(tz, fromDate).startIso;
   const endIso = businessDayRange(tz, toDate).endIso;
 
-  let dataQ = supabase
-    .from('appointment')
-    .select('*')
-    .eq('business_id', id)
-    .gte('scheduled_start_at', startIso)
-    .lte('scheduled_start_at', endIso)
-    .order('scheduled_start_at', { ascending: false })
-    .limit(LIST_LIMIT);
-  if (opts.status) dataQ = dataQ.eq('status', opts.status);
+  const params: unknown[] = [id, startIso, endIso];
+  let statusFilter = '';
+  if (opts.status) {
+    params.push(opts.status);
+    statusFilter = ` and status = $${params.length}`;
+  }
 
-  const [{ data: appointments }, statRows, staffNames] = await Promise.all([
-    dataQ,
+  const [rows, statRows, staffNames] = await Promise.all([
+    many(
+      `select * from appointment
+        where business_id = $1 and scheduled_start_at >= $2 and scheduled_start_at <= $3${statusFilter}
+        order by scheduled_start_at desc
+        limit ${LIST_LIMIT}`,
+      params,
+    ),
     callRpc<any[]>('admin_appointment_stats', { p_business_id: id, p_start: startIso, p_end: endIso }),
     getStaffNames(id),
   ]);
@@ -457,7 +445,6 @@ export async function listStoreAppointments(
   //  - onlineShare: microsite bookings over all booked.
   const arrived = byStatus.completed + byStatus.checkedIn;
 
-  const rows = appointments ?? [];
   return {
     from: fromDate,
     to: toDate,

@@ -8,7 +8,7 @@ Monorepo for the TejoTime owner platform. Each app is fully independent — own 
 |--------|-------|--------|
 | `frontend/` | Next.js 16, React 19 | Active |
 | `app/` | Expo 56, React Native | Active |
-| `backend/` | Express + Supabase + Socket.IO (TypeScript) | Active |
+| `backend/` | Express + PostgreSQL + Socket.IO (TypeScript) | Active |
 
 ## Development
 
@@ -30,12 +30,12 @@ npm install
 npm start
 ```
 
-### Backend (Express + Supabase + Socket.IO)
+### Backend (Express + PostgreSQL + Socket.IO)
 
 ```bash
 cd backend
 npm install
-npm run migrate   # apply schema + functions to Supabase
+npm run migrate   # apply schema + functions to the database
 npm run seed      # load the Sharp Cuts demo tenant
 npm run dev       # http://localhost:8080
 ```
