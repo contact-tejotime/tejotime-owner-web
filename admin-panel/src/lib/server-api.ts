@@ -53,7 +53,6 @@ export const TAGS = {
   customers: "customers",
   visits: "visits",
   appointments: "appointments",
-  inquiries: "inquiries",
   business: (id: string) => `business:${id}`,
 } as const;
 
@@ -98,6 +97,35 @@ async function get<T>(path: string, tags: string[], revalidate: number): Promise
     const msg = e instanceof Error ? e.message : String(e);
     // redirect() throws NEXT_REDIRECT (handled by Next); keep it out of the cached fn.
     if (msg === "UNAUTHORIZED") redirect("/login");
+    console.error(`[server-api] GET ${path}: ${msg}`);
+    return null;
+  }
+}
+
+/**
+ * Like `get`, but bypasses the Next Data Cache entirely. Use for data written by
+ * something other than this app's own mutation routes (e.g. a public-facing API),
+ * where there's no revalidateTag() call to keep a cached copy fresh.
+ */
+async function getFresh<T>(path: string): Promise<T | null> {
+  const token = await getAdminToken();
+  let unauthorized = false;
+  try {
+    const res = await fetch(`${BACKEND}${path}`, {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      cache: "no-store",
+    });
+    if (res.status === 401) {
+      unauthorized = true;
+      throw new Error("UNAUTHORIZED");
+    }
+    if (!res.ok) throw new Error(`status-${res.status}`);
+    return (await res.json()) as T;
+  } catch (e) {
+    // redirect() throws NEXT_REDIRECT (handled by Next); keep it out of the try/catch.
+    if (unauthorized) redirect("/login");
+    const msg = e instanceof Error ? e.message : String(e);
     console.error(`[server-api] GET ${path}: ${msg}`);
     return null;
   }
@@ -245,7 +273,7 @@ export async function listInquiries(from?: string, to?: string): Promise<Inquiri
   if (from) params.set("from", from);
   if (to) params.set("to", to);
   const qs = params.toString();
-  return get<InquiriesResponse>(`/admin/inquiries${qs ? `?${qs}` : ""}`, [TAGS.inquiries], TTL.activity);
+  return getFresh<InquiriesResponse>(`/admin/inquiries${qs ? `?${qs}` : ""}`);
 }
 
 export async function listStoreAppointments(
