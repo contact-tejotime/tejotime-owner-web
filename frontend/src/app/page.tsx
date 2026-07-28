@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { Icon } from "@/components/landing/Icon";
 import { Logo } from "@/components/landing/Logo";
 import { Button, Input } from "@/components/landing/ui";
+import PhoneField from "@/components/ui/PhoneField";
+import { publicApi } from "@/lib/api";
+import { combineToE164, DEFAULT_DIAL_CODE, DEFAULT_ISO2, isValidNational } from "@/lib/phone";
 import {
   bookingBullets,
   bookingDays,
@@ -25,12 +28,48 @@ const MAX = 1200;
 export default function Home() {
   const [showInquiry, setShowInquiry] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [businessName, setBusinessName] = useState("");
+  const [address, setAddress] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState<{ dialCode: string; iso2: string }>({
+    dialCode: DEFAULT_DIAL_CODE,
+    iso2: DEFAULT_ISO2,
+  });
+  const [national, setNational] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
 
   const openInquiry = () => {
     setSubmitted(false);
+    setBusinessName("");
+    setAddress("");
+    setPhoneCountry({ dialCode: DEFAULT_DIAL_CODE, iso2: DEFAULT_ISO2 });
+    setNational("");
+    setFormError("");
     setShowInquiry(true);
   };
   const closeInquiry = () => setShowInquiry(false);
+
+  const submitInquiry = async () => {
+    if (submitting) return;
+    if (!businessName.trim() || !address.trim() || !isValidNational(national, phoneCountry.iso2)) {
+      setFormError("Please fill in all fields with a valid phone number.");
+      return;
+    }
+    setSubmitting(true);
+    setFormError("");
+    try {
+      await publicApi.submitInquiry({
+        businessName: businessName.trim(),
+        address: address.trim(),
+        phone: combineToE164(phoneCountry.dialCode, national),
+      });
+      setSubmitted(true);
+    } catch (e) {
+      setFormError((e as Error)?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // Lock scroll while the modal is open.
   useEffect(() => {
@@ -850,18 +889,54 @@ export default function Home() {
                       ))}
                     </div>
                     <div style={{ marginBottom: 15 }}>
-                      <Input label="Business name" placeholder="e.g. Sharp Cuts" leadingIcon="building" />
+                      <Input
+                        label="Business name"
+                        placeholder="e.g. Sharp Cuts"
+                        leadingIcon="building"
+                        value={businessName}
+                        onChange={(e) => setBusinessName(e.target.value)}
+                      />
                     </div>
                     <div style={{ marginBottom: 15 }}>
-                      <Input label="Address" placeholder="Shop / clinic address" leadingIcon="mapPin" />
+                      <Input
+                        label="Address"
+                        placeholder="Shop / clinic address"
+                        leadingIcon="mapPin"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                      />
                     </div>
                     <div>
-                      <Input label="Phone number" prefix="+91" placeholder="00000 00000" leadingIcon="phone" />
+                      <label style={{ display: "block" }}>
+                        <span
+                          style={{
+                            display: "block",
+                            font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)",
+                            color: "var(--text-body)",
+                            marginBottom: 8,
+                          }}
+                        >
+                          Phone number
+                        </span>
+                        <PhoneField
+                          country={phoneCountry}
+                          national={national}
+                          onCountryChange={setPhoneCountry}
+                          onNationalChange={setNational}
+                          placeholder="00000 00000"
+                          marginBottom={0}
+                        />
+                      </label>
                     </div>
                   </div>
+                  {formError && (
+                    <div style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--error)", marginTop: 14 }}>
+                      {formError}
+                    </div>
+                  )}
                   <div style={{ marginTop: 22 }}>
-                    <Button variant="primary" fullWidth trailingIcon="arrowRight" onClick={() => setSubmitted(true)}>
-                      Submit inquiry
+                    <Button variant="primary" fullWidth trailingIcon="arrowRight" onClick={submitInquiry} disabled={submitting}>
+                      {submitting ? "Submitting…" : "Submit inquiry"}
                     </Button>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginTop: 14 }}>

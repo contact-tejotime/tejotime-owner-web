@@ -21,6 +21,10 @@ export const limiters = {
   ownerWrite: rateLimit({ ...base, windowMs: 60_000, limit: 120, keyGenerator: userKey }),
   publicRead: rateLimit({ ...base, windowMs: 60_000, limit: 60 }),
   publicWrite: rateLimit({ ...base, windowMs: 60 * 60_000, limit: 20 }),
+  // Separate bucket from publicWrite: this is the only fully-anonymous, no-business-context
+  // write in the public API, so an abusive submitter shouldn't also throttle real queue/booking
+  // traffic sharing the same IP/NAT.
+  inquiries: rateLimit({ ...base, windowMs: 60 * 60_000, limit: 8 }),
   otp: rateLimit({ ...base, windowMs: 60 * 60_000, limit: 5 }),
   global: rateLimit({ ...base, windowMs: 60_000, limit: 600 }),
 };

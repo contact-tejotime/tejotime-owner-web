@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useState, type ChangeEvent, type CSSProperties, type ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
 
 type ButtonVariant = "primary" | "secondary" | "outline";
@@ -15,6 +15,7 @@ export function Button({
   leadingIcon,
   trailingIcon,
   onClick,
+  disabled = false,
   style,
 }: {
   children: ReactNode;
@@ -25,6 +26,7 @@ export function Button({
   leadingIcon?: IconName;
   trailingIcon?: IconName;
   onClick?: () => void;
+  disabled?: boolean;
   style?: CSSProperties;
 }) {
   const [hover, setHover] = useState(false);
@@ -68,6 +70,7 @@ export function Button({
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => {
         setHover(false);
@@ -86,7 +89,8 @@ export function Button({
         fontWeight: 600,
         letterSpacing: "-.01em",
         whiteSpace: "nowrap",
-        cursor: "pointer",
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.6 : 1,
         transform: down ? "translateY(.5px)" : "none",
         transition:
           "background .15s ease, border-color .15s ease, color .15s ease, transform .08s ease",
@@ -107,11 +111,21 @@ export function Input({
   placeholder,
   leadingIcon,
   prefix,
+  value,
+  onChange,
+  name,
+  type = "text",
+  required,
 }: {
   label: string;
   placeholder?: string;
   leadingIcon?: IconName;
   prefix?: string;
+  value?: string;
+  onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
+  name?: string;
+  type?: string;
+  required?: boolean;
 }) {
   const [focus, setFocus] = useState(false);
   return (
@@ -156,7 +170,12 @@ export function Input({
           </span>
         )}
         <input
+          name={name}
+          type={type}
+          required={required}
           placeholder={placeholder}
+          value={value}
+          onChange={onChange}
           onFocus={() => setFocus(true)}
           onBlur={() => setFocus(false)}
           style={{

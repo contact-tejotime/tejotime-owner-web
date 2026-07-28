@@ -120,6 +120,11 @@ export interface JoinBody {
 export interface BookBody extends JoinBody {
   slotStart: string;
 }
+export interface InquiryBody {
+  businessName: string;
+  address: string;
+  phone: string;
+}
 
 export const publicApi = {
   getMicrosite: (slug: string) => req<Microsite>(`/public/businesses/${slug}`),
@@ -144,4 +149,6 @@ export const publicApi = {
     req<{ ok: boolean }>(`/public/tickets/${ticketId}`, { method: "DELETE" }),
   trackByPhone: (slug: string, body: { phone: string }) =>
     req<TrackResult>(`/public/businesses/${slug}/track`, { method: "POST", body: JSON.stringify(body) }),
+  submitInquiry: (body: InquiryBody) =>
+    req<{ id: string; submittedAt: string }>(`/public/inquiries`, { method: "POST", body: JSON.stringify(body) }),
 };

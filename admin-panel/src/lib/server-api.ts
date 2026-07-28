@@ -6,6 +6,7 @@ import type {
   AppointmentsResponse,
   Category,
   CustomersResponse,
+  InquiriesResponse,
   PlatformCustomer,
   PlatformOverview,
   StoreAnalytics,
@@ -52,6 +53,7 @@ export const TAGS = {
   customers: "customers",
   visits: "visits",
   appointments: "appointments",
+  inquiries: "inquiries",
   business: (id: string) => `business:${id}`,
 } as const;
 
@@ -236,6 +238,14 @@ export async function listStoreVisits(id: string, from?: string, to?: string): P
     [TAGS.visits, TAGS.business(id)],
     TTL.activity,
   );
+}
+
+export async function listInquiries(from?: string, to?: string): Promise<InquiriesResponse | null> {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString();
+  return get<InquiriesResponse>(`/admin/inquiries${qs ? `?${qs}` : ""}`, [TAGS.inquiries], TTL.activity);
 }
 
 export async function listStoreAppointments(

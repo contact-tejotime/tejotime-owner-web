@@ -83,6 +83,14 @@ export function Sidebar({ stores }: { stores: StoreListItem[] }) {
         </Link>
 
         <Link
+          href="/inquiries"
+          className={`nav-link ${pathname === "/inquiries" ? "active" : ""}`}
+          aria-current={pathname === "/inquiries" ? "page" : undefined}
+        >
+          <Icon name="list" size={NAV_ICON} className="nav-ic" /> {t.nav.inquiries}
+        </Link>
+
+        <Link
           href="/billing"
           className={`nav-link ${pathname === "/billing" ? "active" : ""}`}
           aria-current={pathname === "/billing" ? "page" : undefined}

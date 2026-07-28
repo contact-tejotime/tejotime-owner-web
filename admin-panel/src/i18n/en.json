@@ -39,6 +39,7 @@
     "platform": "Platform",
     "allStores": "All stores",
     "customers": "Customers",
+    "inquiries": "Inquiries",
     "billing": "Billing",
     "reports": "Reports",
     "storesGroup": "Stores ({count})",
@@ -210,6 +211,16 @@
     "emptyPeriod": "No visits in this period",
     "truncated": "Showing the {shown} most recent of {total} visits — narrow the date range to see the rest. Summary covers the full range.",
     "allStatuses": "All statuses"
+  },
+  "inquiries": {
+    "title": "Inquiries",
+    "subtitle": "Requests submitted from the public \"Request access\" form",
+    "loadError": "Could not load inquiries — is the backend running?",
+    "colBusiness": "Business",
+    "colAddress": "Address",
+    "colPhone": "Phone",
+    "colSubmitted": "Submitted",
+    "emptyPeriod": "No inquiries in this period"
   },
   "customers": {
     "title": "Customers",

@@ -484,6 +484,17 @@ export async function trackByPhone(slug: string, input: { phone: string }) {
   return ticket ? { found: true, customerName, ...ticket } : { found: false, customerName };
 }
 
+export async function submitInquiry(input: { businessName: string; address: string; phone: string }) {
+  const phone = normalizePhone(input.phone);
+  if (!phone) throw Errors.validation('Invalid phone number', [{ field: 'phone', message: 'Invalid phone number' }]);
+  const data = await one(
+    `insert into inquiry (business_name, address, phone) values ($1, $2, $3) returning *`,
+    [input.businessName.trim(), input.address.trim(), phone],
+  );
+  if (!data) throw new Error('Failed to create inquiry');
+  return { id: data.id, submittedAt: data.created_at };
+}
+
 export async function leaveTicket(ticketId: string) {
   const entry = await one('select business_id, status from queue_entry where id = $1', [ticketId]);
   if (!entry) throw Errors.notFound('Ticket not found');

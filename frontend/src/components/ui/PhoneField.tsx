@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { flagEmoji, searchCountries } from "@/lib/phone";
 
 export type PhoneCountry = { dialCode: string; iso2: string };
@@ -42,24 +43,63 @@ export default function PhoneField({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [pos, setPos] = useState<
+    { top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null
+  >(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => searchCountries(query), [query]);
 
+  // The dropdown is portaled to <body> (fixed-positioned against the trigger button)
+  // instead of living inside this field's own DOM subtree — otherwise any scrollable
+  // ancestor (e.g. a modal's `overflow: auto` content area) clips or scroll-traps it.
+  function updatePosition() {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const gap = 6;
+    const width = Math.min(340, window.innerWidth - 16);
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    const spaceBelow = window.innerHeight - rect.bottom - gap;
+    const spaceAbove = rect.top - gap;
+    // Flip above the trigger when there isn't enough room below (e.g. the field sits
+    // near the bottom of a modal) but there's more room above.
+    const openUpward = spaceBelow < 200 && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(160, Math.min(360, openUpward ? spaceAbove : spaceBelow));
+    setPos({
+      left,
+      width,
+      maxHeight,
+      top: openUpward ? undefined : rect.bottom + gap,
+      bottom: openUpward ? window.innerHeight - rect.top + gap : undefined,
+    });
+  }
+
   useEffect(() => {
     if (!open) return;
+    updatePosition();
     function onDoc(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t)) return;
+      if (dropdownRef.current?.contains(t)) return;
+      setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
+    // Capture phase so scrolling inside any nested scroll container (e.g. a modal
+    // body) still repositions the portaled dropdown instead of leaving it stranded.
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
     return () => {
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
     };
   }, [open]);
 
@@ -77,6 +117,7 @@ export default function PhoneField({
     <div ref={wrapRef} style={{ position: "relative", marginBottom }}>
       <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
         <button
+          ref={triggerRef}
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-haspopup="listbox"
@@ -109,17 +150,21 @@ export default function PhoneField({
         />
       </div>
 
-      {open && (
+      {open && pos && createPortal(
         <div
+          ref={dropdownRef}
           role="listbox"
           aria-label="Countries"
           style={{
-            position: "absolute",
-            zIndex: 40,
-            top: "100%",
-            left: 0,
-            marginTop: 6,
-            width: "min(340px, 100%)",
+            position: "fixed",
+            zIndex: 1000,
+            top: pos.top,
+            bottom: pos.bottom,
+            left: pos.left,
+            width: pos.width,
+            maxHeight: pos.maxHeight,
+            display: "flex",
+            flexDirection: "column",
             background: "var(--surface-card)",
             border: "1.5px solid var(--border-default)",
             borderRadius: 12,
@@ -144,9 +189,10 @@ export default function PhoneField({
               color: "var(--text-strong)",
               outline: "none",
               background: "var(--surface-card)",
+              flex: "0 0 auto",
             }}
           />
-          <ul style={{ listStyle: "none", margin: 0, padding: 4, maxHeight: 260, overflowY: "auto" }}>
+          <ul style={{ listStyle: "none", margin: 0, padding: 4, flex: "1 1 auto", minHeight: 0, overflowY: "auto" }}>
             {results.length === 0 && (
               <li style={{ padding: 12, color: "var(--text-muted)", fontSize: 13, textAlign: "center" }}>No matches</li>
             )}
@@ -183,7 +229,8 @@ export default function PhoneField({
               );
             })}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

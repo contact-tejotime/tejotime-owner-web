@@ -22,6 +22,14 @@ const bookSchema = joinSchema.extend({ slotStart: z.string().datetime() }).stric
 
 const trackSchema = z.object({ phone: z.string().trim().min(4).max(20) }).strict();
 
+const inquirySchema = z
+  .object({
+    businessName: z.string().trim().min(1).max(120),
+    address: z.string().trim().min(1).max(300),
+    phone: z.string().trim().min(4).max(20),
+  })
+  .strict();
+
 export const publicRouter = Router();
 
 publicRouter.get(
@@ -133,6 +141,18 @@ publicRouter.post(
   validate({ params: slugParam, body: trackSchema }),
   asyncHandler(async (req, res) => {
     res.json(await pub.trackByPhone(req.params.slug, req.body));
+  }),
+);
+
+// Public "Request access" lead capture from the marketing site — no business context yet,
+// so this is the only fully-anonymous write in the public API (see the dedicated `inquiries`
+// rate-limit bucket).
+publicRouter.post(
+  '/inquiries',
+  limiters.inquiries,
+  validate({ body: inquirySchema }),
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await pub.submitInquiry(req.body));
   }),
 );
 

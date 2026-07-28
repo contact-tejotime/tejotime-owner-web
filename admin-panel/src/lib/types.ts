@@ -388,6 +388,22 @@ export interface VisitsResponse {
   meta: { shown: number; total: number; limit: number };
 }
 
+/** GET /admin/inquiries — "Request access" leads from the public marketing site. */
+export interface InquiryRow {
+  id: string;
+  businessName: string;
+  address: string;
+  phone: string;
+  submittedAt: string;
+}
+
+export interface InquiriesResponse {
+  from: string;
+  to: string;
+  data: InquiryRow[];
+  meta: { shown: number; total: number; limit: number };
+}
+
 /** GET /admin/businesses/:id/appointments */
 export type AppointmentStatus =
   | "pending"

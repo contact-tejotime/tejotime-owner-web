@@ -8,6 +8,7 @@ import { MAX_IMAGE_BYTES, signUpload } from '../../integrations/storage';
 import { verifyAdminToken } from '../auth/token.service';
 import * as admin from './admin.service';
 import * as analytics from './admin-analytics.service';
+import * as inquiries from './admin-inquiries.service';
 
 /**
  * Provisioning + management API for the admin panel. Every route except the OTP login pair is
@@ -214,6 +215,17 @@ adminRouter.get(
   limiters.ownerRead,
   asyncHandler(async (_req: Request, res: Response) => {
     res.json(await analytics.getPlatformOverview());
+  }),
+);
+
+// ---- Inquiries (read-only, platform-wide "Request access" leads) ----
+
+adminRouter.get(
+  '/inquiries',
+  limiters.ownerRead,
+  validate({ query: dateRangeQuery }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await inquiries.listInquiries(req.query.from as string | undefined, req.query.to as string | undefined));
   }),
 );
 
