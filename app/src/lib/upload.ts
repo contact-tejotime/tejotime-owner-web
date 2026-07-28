@@ -1,3 +1,4 @@
+import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
 
@@ -29,9 +30,11 @@ export async function pickAndUploadAvatar(): Promise<string | null> {
   const asset = result.assets[0];
   const contentType = ALLOWED_TYPES.has(asset.mimeType ?? '') ? (asset.mimeType as string) : 'image/jpeg';
 
-  // Read the picked file into bytes so we can PUT them straight to storage.
-  const blob = await (await fetch(asset.uri)).blob();
-  const byteSize = asset.fileSize ?? blob.size;
+  // Reference the picked file on disk — reading it into a Blob via fetch().blob() throws
+  // on-device ("Creating blobs from 'ArrayBuffer' ... are not supported"), so upload straight
+  // from the file instead of buffering it in memory first.
+  const file = new File(asset.uri);
+  const byteSize = asset.fileSize ?? file.size;
   if (byteSize > MAX_BYTES) {
     Alert.alert('Photo too large', 'Please choose an image under 5 MB.');
     return null;
@@ -42,12 +45,11 @@ export async function pickAndUploadAvatar(): Promise<string | null> {
 
   // 2) PUT the bytes to object storage (mirrors the admin-panel upload proxy). The
   // signed URL covers content-type, so no extra headers — an unsigned one breaks it.
-  const put = await fetch(uploadUrl, {
-    method: 'PUT',
+  const put = await file.upload(uploadUrl, {
+    httpMethod: 'PUT',
     headers: { 'content-type': contentType },
-    body: blob,
   });
-  if (!put.ok) throw new Error(`Upload failed (${put.status})`);
+  if (put.status < 200 || put.status >= 300) throw new Error(`Upload failed (${put.status})`);
 
   return publicUrl;
 }
