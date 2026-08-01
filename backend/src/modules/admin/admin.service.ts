@@ -28,6 +28,7 @@ export interface StoreFields {
   aboutHeading?: string;
   heroImageUrl?: string;
   aboutImageUrl?: string;
+  logoUrl?: string;
   establishedYear?: number;
   rating?: number;
   reviewCount?: number;
@@ -102,6 +103,7 @@ function businessColumns(input: StoreFields) {
     about_heading: input.aboutHeading ?? null,
     hero_image_url: input.heroImageUrl ?? null,
     about_image_url: input.aboutImageUrl ?? null,
+    logo_url: input.logoUrl ?? null,
     established_year: input.establishedYear ?? null,
     rating: input.rating ?? 0,
     review_count: input.reviewCount ?? 0,
@@ -443,6 +445,7 @@ export async function getBusinessDetail(id: string) {
     aboutHeading: b.about_heading ?? '',
     heroImageUrl: b.hero_image_url ?? '',
     aboutImageUrl: b.about_image_url ?? '',
+    logoUrl: b.logo_url ?? '',
     establishedYear: b.established_year != null ? String(b.established_year) : '',
     // numeric(2,1) arrives as a string ('4.0') — normalize so the edit form shows '4'.
     rating: b.rating != null ? String(Number(b.rating)) : '',

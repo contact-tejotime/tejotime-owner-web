@@ -451,6 +451,7 @@
     "photos": "Photos",
     "bannerPhoto": "Banner photo",
     "aboutPhoto": "About photo",
+    "logoPhoto": "Logo (optional)",
     "galleryPhotos": "Gallery photos",
     "galleryHint": "Upload from your device. Many photos horizontally scroll on the live site.",
     "services": "Services *",

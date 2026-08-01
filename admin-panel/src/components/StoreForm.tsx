@@ -356,6 +356,12 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
             value={form.aboutImageUrl}
             onChange={(url) => set("aboutImageUrl", url)}
           />
+          <ImageUpload
+            label={t.storeForm.logoPhoto}
+            assetType="logo"
+            value={form.logoUrl}
+            onChange={(url) => set("logoUrl", url)}
+          />
         </section>
 
         {/* Gallery ------------------------------------------------------ */}

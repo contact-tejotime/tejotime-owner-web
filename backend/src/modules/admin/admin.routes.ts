@@ -51,6 +51,7 @@ const storeFieldsSchema = z.object({
   aboutHeading: z.string().trim().min(1, 'About heading is required').max(160),
   heroImageUrl: z.string().url().max(500).optional(),
   aboutImageUrl: z.string().url().max(500).optional(),
+  logoUrl: z.string().url().max(500).optional(),
   establishedYear: z.coerce.number().int().min(1900).max(2100).optional(),
   rating: z.coerce.number().min(0).max(5).optional(),
   reviewCount: z.coerce.number().int().min(0).optional(),

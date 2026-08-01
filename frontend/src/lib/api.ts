@@ -59,8 +59,8 @@ export interface Microsite {
   aboutHeading: string | null;
   heroImageUrl: string | null;
   aboutImageUrl: string | null;
+  logoUrl: string | null;
   faqs: { q: string; a: string }[];
-  teamNoun: string | null;
   area: string | null;
   address: string | null;
   rating: number;

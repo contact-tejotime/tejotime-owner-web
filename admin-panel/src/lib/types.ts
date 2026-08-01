@@ -48,6 +48,7 @@ export interface StoreForm {
   aboutHeading: string;
   heroImageUrl: string;
   aboutImageUrl: string;
+  logoUrl: string;
   establishedYear: string;
   rating: string;
   reviewCount: string;
@@ -113,6 +114,7 @@ export const EMPTY_FORM: StoreForm = {
   isActive: true,
   heroImageUrl: "",
   aboutImageUrl: "",
+  logoUrl: "",
   establishedYear: "",
   rating: "",
   reviewCount: "",
@@ -148,6 +150,7 @@ export interface StoreDetail {
   aboutHeading: string;
   heroImageUrl: string;
   aboutImageUrl: string;
+  logoUrl: string;
   establishedYear: string;
   rating: string;
   reviewCount: string;
@@ -185,6 +188,7 @@ export function fromDetail(d: StoreDetail): StoreForm {
     aboutHeading: d.aboutHeading,
     heroImageUrl: d.heroImageUrl,
     aboutImageUrl: d.aboutImageUrl,
+    logoUrl: d.logoUrl,
     establishedYear: d.establishedYear,
     rating: d.rating,
     reviewCount: d.reviewCount,
@@ -226,6 +230,7 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
     aboutHeading: f.aboutHeading.trim() || undefined,
     heroImageUrl: f.heroImageUrl.trim() || undefined,
     aboutImageUrl: f.aboutImageUrl.trim() || undefined,
+    logoUrl: f.logoUrl.trim() || undefined,
     establishedYear: num(f.establishedYear),
     rating: num(f.rating),
     reviewCount: num(f.reviewCount),

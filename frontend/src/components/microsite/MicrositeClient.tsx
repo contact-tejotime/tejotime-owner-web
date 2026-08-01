@@ -163,7 +163,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setPhoneCountry({ dialCode: parts.dialCode, iso2: parts.iso2 });
     setNational(parts.national);
   };
-  const [barber, setBarber] = useState("any");
+  const [member, setMember] = useState("any");
   const [faqOpen, setFaqOpen] = useState<number | null>(0);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
@@ -402,7 +402,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     dur: `${s.durationMinutes} min`,
     price: Math.round(s.price.amount / 100),
   }));
-  const barbers = liveStaff.map((s, i) => {
+  const members = liveStaff.map((s, i) => {
     const waitMin = displayStaffWaitMinutes(s.waitMinutes, staffAsOf, nowTs);
     return {
       id: s.id,
@@ -441,13 +441,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // placeholders). Rendered as a row at the bottom of the About section.
   const trustCells = [
     site.establishedYear != null && site.area ? [`${yearsOpen}+ yrs`, `in ${site.area}`] : null,
-    barbers.length > 0 ? [`${barbers.length} ${site.teamNoun ?? "team members"}`, "expert team"] : null,
+    members.length > 0 ? [`${members.length} members`, "expert team"] : null,
     site.statValue && site.statLabel ? [site.statValue, site.statLabel] : null,
     reviewCount > 0 ? [`★ ${rating}`, `${reviewCount} reviews`] : null,
   ].filter(Boolean) as [string, string][];
 
   // ---- modal control ----
-  const openJoin = (m: "queue" | "book", preselectBarber = "any") => {
+  const openJoin = (m: "queue" | "book", preselectMember = "any") => {
     setMode(m);
     setConfirmLeave(false);
     setFormError("");
@@ -471,7 +471,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setCart(null);
     setName(store.lastName || "");
     seedPhone(lp || "");
-    setBarber(preselectBarber);
+    setMember(preselectMember);
     setTicket(null);
     setBooking(null);
     setJustTurn(false);
@@ -481,7 +481,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   };
   const openQueue = () => openJoin("queue");
   const openBook = () => openJoin("book");
-  const openWith = (barberId: string) => openJoin("queue", barberId);
+  const openWith = (memberId: string) => openJoin("queue", memberId);
 
   // ---- Save contact (vCard) ----
   // Phone: navigate to the inline .vcf so the OS opens the Add-Contact card directly (no file to
@@ -562,7 +562,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setView("flow");
     setStep(1);
     setCart(null);
-    setBarber("any");
+    setMember("any");
     setName(trackedName || storeRef.current.lastName || "");
     seedPhone(storeRef.current.lastPhone || "");
     setFormError("");
@@ -649,7 +649,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           serviceId: cart,
           name: name.trim(),
           phone: p,
-          preferredStaffId: barber,
+          preferredStaffId: member,
         });
         setTicket(t);
         setInitialAhead(t.ahead);
@@ -680,7 +680,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           serviceId: cart,
           name: name.trim(),
           phone: p,
-          preferredStaffId: barber,
+          preferredStaffId: member,
           slotStart: selectedSlot!,
         });
         setBooking({ serviceName: b.serviceName, scheduledStartAt: b.scheduledStartAt });
@@ -740,7 +740,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setCart(null);
     setName("");
     seedPhone("");
-    setBarber("any");
+    setMember("any");
     setBooking(null);
     setJustTurn(false);
     setConfirmLeave(false);
@@ -755,10 +755,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // it as an invitation ("Walk in now") rather than the nonsensical "~0 min wait".
   const displayLiveWait = displayStaffWaitMinutes(liveWait, liveAsOf, nowTs);
   const waitHeadline = displayLiveWait > 0 ? `~${displayLiveWait} min wait` : "Walk in now";
-  // Join-form summary wait, barber-aware: a specific barber shows their own chair's
+  // Join-form summary wait, member-aware: a specific member shows their own chair's
   // clear time; "Any" falls back to the shop-wide soonest value.
-  const selBarber = barbers.find((b) => b.id === barber);
-  const joinWaitMin = barber === "any" ? displayLiveWait : selBarber?.waitMin ?? displayLiveWait;
+  const selMember = members.find((b) => b.id === member);
+  const joinWaitMin = member === "any" ? displayLiveWait : selMember?.waitMin ?? displayLiveWait;
   const joinWaitText = joinWaitMin > 0 ? `~${joinWaitMin} min wait` : "no wait — walk in";
   const modeTitle =
     view === "track"
@@ -788,7 +788,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       [showAbout, "About", "#about"],
       [gallery.length > 0 || isDemo, "Gallery", "#gallery"],
       [services.length > 0, "Services", "#services"],
-      [barbers.length > 0, "Team", "#team"],
+      [members.length > 0, "Team", "#team"],
       [Boolean(site.address || site.area || site.hours.length > 0), "Visit us", "#visit"],
     ] as [boolean, string, string][]
   ).filter(([show]) => show);
@@ -825,8 +825,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       <div style={navStyle}>
         <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 clamp(16px, 4vw, 32px)", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: "linear-gradient(135deg, var(--brand-ink), var(--primary))", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0 }}>
-              <Icon name="scissors" size={20} />
+            <div style={{ width: 38, height: 38, borderRadius: 11, overflow: "hidden", background: "linear-gradient(135deg, var(--brand-ink), var(--primary))", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0 }}>
+              {site.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={site.logoUrl} alt={site.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <Icon name="sparkle" size={20} />
+              )}
             </div>
             <span style={{ font: "var(--fw-extrabold) 21px/1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{site.name}</span>
           </div>
@@ -953,19 +958,19 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       </div>
 
       {/* ===== TEAM · LIVE AVAILABILITY ===== */}
-      {barbers.length > 0 && (
+      {members.length > 0 && (
       <div id="team" style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 64px) clamp(16px, 4vw, 32px)" }}>
         <div style={revealStyle}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
             <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 4vw, 30px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: 0 }}>Our team · live availability</h2>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 7, font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)" }}>
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)", animation: "ttPulse 1.8s ease-in-out infinite" }} />
-              Updated live · pick a barber when you join
+              Updated live · pick a member when you join
             </span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 16, marginTop: 24 }}>
-            {barbers.map((b) => (
-              <div key={b.id} className="salonBarberCard" style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 20, background: "var(--surface-card)", boxShadow: "var(--shadow-xs)" }}>
+            {members.map((b) => (
+              <div key={b.id} className="salonMemberCard" style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 20, background: "var(--surface-card)", boxShadow: "var(--shadow-xs)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 16 }}>
                   {b.photo ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -1005,7 +1010,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           <div style={{ ...revealStyle, display: "flex", gap: "clamp(24px, 4vw, 48px)", alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
             {hasAboutText && (
               <div style={{ flex: 1, minWidth: 300 }}>
-                <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>About the salon</div>
+                <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>About Us</div>
                 {hasHeading && (
                   <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 4vw, 34px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>{site.aboutHeading}</h2>
                 )}
@@ -1091,7 +1096,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             {services.map((sv) => (
               <div key={sv.id} className="salonServiceCard" style={{ display: "flex", alignItems: "center", gap: 13, border: "1px solid var(--border-subtle)", borderRadius: 13, padding: 16, background: "var(--surface-page)" }}>
                 <div style={{ width: 42, height: 42, borderRadius: 11, background: "color-mix(in srgb, var(--primary) 10%, var(--surface-card))", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", flexShrink: 0 }}>
-                  <Icon name="scissors" size={18} />
+                  <Icon name="sparkle" size={18} />
                 </div>
                 <span style={{ flex: 1, font: "var(--fw-semibold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{sv.name}</span>
               </div>
@@ -1310,12 +1315,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Aman" className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: 10, fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 16, background: "var(--surface-card)" }} />
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>Phone number</div>
                       <PhoneField country={phoneCountry} national={national} onCountryChange={setPhoneCountry} onNationalChange={setNational} marginBottom={16} />
-                      <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 9 }}>Preferred barber (optional)</div>
+                      <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 9 }}>Preferred member (optional)</div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
-                        {[{ id: "any", name: "Any" }, ...barbers.map((b) => ({ id: b.id, name: b.name }))].map((c) => {
-                          const on = barber === c.id;
+                        {[{ id: "any", name: "Any" }, ...members.map((b) => ({ id: b.id, name: b.name }))].map((c) => {
+                          const on = member === c.id;
                           return (
-                            <span key={c.id} onClick={() => setBarber(c.id)} style={{ cursor: "pointer", font: "var(--fw-semibold) 13px/1 var(--font-sans)", padding: "8px 15px", borderRadius: 999, transition: "all .15s ease", ...(on ? { background: "var(--primary)", color: "#fff", border: "1.5px solid var(--primary)" } : { background: "var(--surface-card)", color: "var(--text-body)", border: "1.5px solid var(--border-subtle)" }) }}>
+                            <span key={c.id} onClick={() => setMember(c.id)} style={{ cursor: "pointer", font: "var(--fw-semibold) 13px/1 var(--font-sans)", padding: "8px 15px", borderRadius: 999, transition: "all .15s ease", ...(on ? { background: "var(--primary)", color: "#fff", border: "1.5px solid var(--primary)" } : { background: "var(--surface-card)", color: "var(--text-body)", border: "1.5px solid var(--border-subtle)" }) }}>
                               {c.name}
                             </span>
                           );

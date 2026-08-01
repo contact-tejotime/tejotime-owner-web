@@ -74,10 +74,10 @@
   box-shadow: var(--shadow-sm);
 }
 
-.salonBarberCard {
+.salonMemberCard {
   transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
-.salonBarberCard:hover {
+.salonMemberCard:hover {
   transform: translateY(-5px);
   box-shadow: var(--shadow-md);
   border-color: color-mix(in srgb, var(--primary) 30%, var(--border-subtle));

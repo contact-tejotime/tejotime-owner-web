@@ -126,12 +126,11 @@ export async function getMicrositeByPhone(phoneDigits: string) {
 async function buildMicrosite(b: any) {
   // Single round-trip wave: hours/amenities/gallery run alongside the queue context,
   // which already loads active services (reused below instead of a duplicate query).
-  const [hours, amenities, gallery, ctx, categoryRow] = await Promise.all([
+  const [hours, amenities, gallery, ctx] = await Promise.all([
     many('select * from business_hour where business_id = $1 order by day_of_week', [b.id]),
     many('select * from amenity where business_id = $1 order by position', [b.id]),
     many('select * from gallery_image where business_id = $1 order by position', [b.id]),
     loadQueueContext(b.id),
-    one(`select team_noun from master_data where type = 'business_category' and name = $1`, [b.category ?? '']),
   ]);
   const services = ctx.serviceRows;
 
@@ -165,9 +164,9 @@ async function buildMicrosite(b: any) {
     aboutHeading: b.about_heading ?? null,
     heroImageUrl: b.hero_image_url ?? null,
     aboutImageUrl: b.about_image_url ?? null,
+    logoUrl: b.logo_url ?? null,
     faqs: Array.isArray(b.faqs) ? b.faqs : [],
     category: b.category,
-    teamNoun: categoryRow?.team_noun ?? null,
     area: b.area,
     address: b.address,
     rating: Number(b.rating ?? 0),
