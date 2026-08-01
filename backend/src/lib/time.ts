@@ -16,6 +16,13 @@ export function businessDayRange(tz = env.DEFAULT_TIMEZONE, date?: string) {
   return { startIso: start.utc().toISOString(), endIso: end.utc().toISOString() };
 }
 
+/** Start of `from` through end of `to`, in a business timezone, as UTC ISO strings. */
+export function businessRangeWindow(tz = env.DEFAULT_TIMEZONE, from: string, to: string) {
+  const start = dayjs.tz(from, tz).startOf('day');
+  const end = dayjs.tz(to, tz).endOf('day');
+  return { startIso: start.utc().toISOString(), endIso: end.utc().toISOString() };
+}
+
 /** yyyymmdd key in the business timezone — used for daily token sequences. */
 export function businessDayKey(tz = env.DEFAULT_TIMEZONE): string {
   return dayjs().tz(tz).format('YYYYMMDD');

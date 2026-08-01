@@ -3,6 +3,7 @@
     "home": "Home",
     "queue": "Queue",
     "appts": "Appts",
+    "calendar": "Calendar",
     "clients": "Clients",
     "settings": "Settings"
   },
@@ -57,6 +58,11 @@
     "upcomingToday": "Upcoming today",
     "addToQueue": "Add to queue",
     "empty": "No appointments today"
+  },
+  "calendar": {
+    "title": "Calendar",
+    "empty": "No appointments on this day",
+    "loading": "Loading…"
   },
   "customers": {
     "title": "Customers",
@@ -241,6 +247,7 @@
     "waiting": "Waiting",
     "upcoming": "Upcoming",
     "inService": "In service",
+    "checkedIn": "Checked in",
     "completed": "Completed",
     "cancelled": "Cancelled",
     "noShow": "No-show",
@@ -248,6 +255,7 @@
   },
   "days": {
     "long": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+    "short": ["S", "M", "T", "W", "T", "F", "S"],
     "am": "AM",
     "pm": "PM"
   },

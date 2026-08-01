@@ -20,18 +20,29 @@ appointmentsRouter.get(
   '/',
   limiters.ownerRead,
   validate({
-    query: z.object({
-      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-      // Must match the appointment_status enum — an unknown value now reaches
-      // Postgres and errors, where PostgREST used to quietly return no rows.
-      status: z.enum(['pending', 'confirmed', 'checked_in', 'completed', 'cancelled', 'no_show']).optional(),
-    }),
+    query: z
+      .object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        // Must match the appointment_status enum — an unknown value now reaches
+        // Postgres and errors, where PostgREST used to quietly return no rows.
+        status: z.enum(['pending', 'confirmed', 'checked_in', 'completed', 'cancelled', 'no_show']).optional(),
+      })
+      .refine((q) => !!q.from === !!q.to, { message: 'from and to must be provided together' })
+      .refine((q) => !q.from || !q.to || q.to >= q.from, { message: 'to must not be before from' })
+      .refine(
+        (q) => !q.from || !q.to || (new Date(q.to).getTime() - new Date(q.from).getTime()) / 86_400_000 <= 45,
+        { message: 'from/to range must not exceed 45 days' },
+      ),
   }),
   asyncHandler(async (req, res) => {
     const tz = await businessTz(req.principal!.businessId);
     res.json(
       await appts.listAppointments(req.principal!.businessId, {
         date: req.query.date as string | undefined,
+        from: req.query.from as string | undefined,
+        to: req.query.to as string | undefined,
         status: req.query.status as string | undefined,
         tz,
       }),

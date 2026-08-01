@@ -115,6 +115,7 @@ export const api = {
   getServices: () => raw('GET', '/services?active=true'),
   getStaff: () => raw('GET', '/staff?active=true'),
   getAppointments: () => raw('GET', '/appointments'),
+  getAppointmentsRange: (from: string, to: string) => raw('GET', `/appointments?from=${from}&to=${to}`),
   checkIn: (id: string) => raw('POST', `/appointments/${id}/check-in`),
   getCustomers: (search?: string) =>
     raw('GET', `/customers${search ? `?search=${encodeURIComponent(search)}` : ''}`),

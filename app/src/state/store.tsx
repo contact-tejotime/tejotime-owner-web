@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { router } from 'expo-router';
 import type { Socket } from 'socket.io-client';
 
-import { AppointmentEntry, Customer, ServiceVM, Staff } from '@/data/sample';
+import { AppointmentEntry, CalendarAppointmentEntry, Customer, ServiceVM, Staff } from '@/data/sample';
 import { SeatGroupVM, CardVM, flatCards } from '@/lib/queue';
 import { api, ApiError, getAccessToken, initSession, setOnAuthFail } from '@/lib/api';
 import { connectOwner } from '@/lib/socket';
@@ -10,6 +10,7 @@ import {
   COLOR_PALETTE,
   mapAppointment,
   mapBusinessDetail,
+  mapCalendarAppointment,
   mapCustomer,
   mapSeats,
   mapService,
@@ -76,6 +77,8 @@ type State = {
   services: ServiceVM[];
   staff: Staff[];
   appts: AppointmentEntry[];
+  calendarAppts: CalendarAppointmentEntry[];
+  calendarLoading: boolean;
   customers: Customer[];
   customerMeta: { shown: number; total: number; lockedCount: number };
   dashboard: DashboardKpis | null;
@@ -107,6 +110,7 @@ type Store = State & {
   moveWithinSeat: (staffId: string, id: string, toIndex: number) => void;
   commitMove: (staffId: string, id: string) => void;
   checkInAppt: (a: AppointmentEntry) => void;
+  loadCalendarAppointments: (from: string, to: string) => Promise<void>;
   upgrade: () => void;
   saveProfile: (f: { name: string; address: string }) => Promise<boolean>;
   saveHours: (next: DayHoursVM[]) => void;
@@ -163,6 +167,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     services: [],
     staff: [],
     appts: [],
+    calendarAppts: [],
+    calendarLoading: false,
     customers: [],
     customerMeta: { shown: 0, total: 0, lockedCount: 0 },
     dashboard: null,
@@ -171,6 +177,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const socketRef = useRef<Socket | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoursSeq = useRef(0);
+  /** Range currently shown on the calendar screen, so socket events can keep it fresh. */
+  const calendarRangeRef = useRef<{ from: string; to: string } | null>(null);
 
   const patch = useCallback((fn: (p: State) => Partial<State>) => setS((p) => ({ ...p, ...fn(p) })), []);
 
@@ -208,6 +216,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setS((p) => ({ ...p, appts }));
     } catch {
       /* ignore */
+    }
+  }, []);
+  const loadCalendarAppointments = useCallback(async (from: string, to: string) => {
+    calendarRangeRef.current = { from, to };
+    setS((p) => ({ ...p, calendarLoading: true }));
+    try {
+      const r = await api.getAppointmentsRange(from, to);
+      const calendarAppts = r.data.map(mapCalendarAppointment);
+      setS((p) => ({ ...p, calendarAppts, calendarLoading: false }));
+    } catch {
+      setS((p) => ({ ...p, calendarLoading: false }));
     }
   }, []);
   const loadCustomers = useCallback(async (search?: string) => {
@@ -279,22 +298,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const sock = connectOwner(token);
     socketRef.current = sock;
     sock.on('queue:snapshot', (d: any) => setS((p) => ({ ...p, seats: mapSeats(d.seats) })));
+    const refreshVisibleCalendarRange = () => {
+      const range = calendarRangeRef.current;
+      if (range) loadCalendarAppointments(range.from, range.to);
+    };
     sock.on('appointment:created', () => {
       loadAppointments();
       loadDashboard();
+      refreshVisibleCalendarRange();
     });
     sock.on('appointment:checked_in', () => {
       loadAppointments();
       loadDashboard();
       loadQueue();
+      refreshVisibleCalendarRange();
     });
-    sock.on('appointment:updated', () => loadAppointments());
+    sock.on('appointment:updated', () => {
+      loadAppointments();
+      refreshVisibleCalendarRange();
+    });
     sock.on('subscription:updated', (d: any) => {
       setS((p) => ({ ...p, plan: d.plan }));
       loadCustomers();
     });
     sock.on('notification:new', (d: any) => showToast(d?.body ?? t.toast.newNotification, 'info'));
-  }, [loadAppointments, loadDashboard, loadQueue, loadCustomers]);
+  }, [loadAppointments, loadDashboard, loadQueue, loadCustomers, loadCalendarAppointments]);
 
   const teardown = useCallback(() => {
     socketRef.current?.close();
@@ -517,7 +545,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         patch(() => ({ checkInId: a.id }));
         try {
           await api.checkIn(a.id);
-          setS((p) => ({ ...p, checkInId: null, appts: p.appts.filter((x) => x.id !== a.id) }));
+          setS((p) => ({
+            ...p,
+            checkInId: null,
+            appts: p.appts.filter((x) => x.id !== a.id),
+            calendarAppts: p.calendarAppts.filter((x) => x.id !== a.id),
+          }));
           router.push(TAB_ROUTES.queue as any);
           showToast(format(t.toast.addedToQueueName, { name: a.name }), 'success');
           loadQueue();
@@ -628,8 +661,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
       },
+      loadCalendarAppointments,
     };
-  }, [s, patch, refresh, connectSocket, bootstrap, teardown, loadCustomers, loadDashboard, loadQueue, loadServices, loadStaff, loadBusiness]);
+  }, [
+    s,
+    patch,
+    refresh,
+    connectSocket,
+    bootstrap,
+    teardown,
+    loadCustomers,
+    loadDashboard,
+    loadQueue,
+    loadServices,
+    loadStaff,
+    loadBusiness,
+    loadCalendarAppointments,
+  ]);
 
   return <AppStateContext.Provider value={store}>{children}</AppStateContext.Provider>;
 }

@@ -2,7 +2,7 @@
 import { CardVM, SeatGroupVM } from '@/lib/queue';
 import { currencySymbol } from '@/lib/currencies';
 import { mapHours } from '@/lib/hours';
-import { AppointmentEntry, Customer, ServiceColorToken, ServiceVM, Staff } from '@/data/sample';
+import { AppointmentEntry, CalendarAppointmentEntry, Customer, ServiceColorToken, ServiceVM, Staff } from '@/data/sample';
 import { StatusKind } from '@/components/ui/StatusBadge';
 import { t, format } from '@/i18n';
 
@@ -15,6 +15,8 @@ export interface Money {
 function toStatusKind(s: string): StatusKind {
   if (s === 'in_service') return 'in-service';
   if (s === 'no_show') return 'no-show';
+  if (s === 'pending') return 'upcoming';
+  if (s === 'checked_in') return 'checked-in';
   return s as StatusKind;
 }
 
@@ -120,13 +122,29 @@ function fmtTime(iso: string): string {
 }
 
 export function mapAppointment(a: any): AppointmentEntry {
-  const status = a.status === 'pending' ? 'upcoming' : a.status;
   return {
     id: a.id,
     name: a.customerName,
     service: a.serviceName,
     time: fmtTime(a.scheduledStartAt),
-    status: status as StatusKind,
+    status: toStatusKind(a.status),
+  };
+}
+
+/** Local `YYYY-MM-DD` key for grouping appointments onto calendar day cells. */
+export function toDateKey(value: string | Date): string {
+  const d = typeof value === 'string' ? new Date(value) : value;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export function mapCalendarAppointment(a: any): CalendarAppointmentEntry {
+  return {
+    ...mapAppointment(a),
+    dateKey: toDateKey(a.scheduledStartAt),
+    startAt: a.scheduledStartAt,
   };
 }
 

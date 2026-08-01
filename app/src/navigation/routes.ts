@@ -1,9 +1,10 @@
-export type TabId = 'dashboard' | 'queue' | 'appointments' | 'customers' | 'settings';
+export type TabId = 'dashboard' | 'queue' | 'appointments' | 'calendar' | 'customers' | 'settings';
 
 export const TAB_ROUTES: Record<TabId, string> = {
   dashboard: '/(app)/(tabs)/dashboard',
   queue: '/(app)/(tabs)/queue',
   appointments: '/(app)/(tabs)/appointments',
+  calendar: '/(app)/(tabs)/calendar',
   customers: '/(app)/(tabs)/customers',
   settings: '/(app)/(tabs)/settings',
 };
@@ -22,6 +23,7 @@ export const SETTINGS_ROUTES: Record<SettingsPageId, string> = {
 export function tabFromPathname(pathname: string): TabId {
   if (pathname.includes('/queue')) return 'queue';
   if (pathname.includes('/appointments')) return 'appointments';
+  if (pathname.includes('/calendar')) return 'calendar';
   if (pathname.includes('/customers')) return 'customers';
   if (pathname.includes('/settings')) return 'settings';
   return 'dashboard';

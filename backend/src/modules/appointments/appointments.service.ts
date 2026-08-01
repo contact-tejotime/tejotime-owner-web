@@ -2,7 +2,7 @@ import { many, one } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { Errors } from '../../domain/errors';
 import { normalizePhone } from '../../lib/phone';
-import { businessDayRange } from '../../lib/time';
+import { businessDayRange, businessRangeWindow } from '../../lib/time';
 import { soonestSeat } from '../../lib/queue-engine';
 import { emitToOwners } from '../../realtime/emitters';
 import { loadQueueContext } from '../queue/queue.context';
@@ -26,16 +26,20 @@ function apptDTO(a: any) {
   };
 }
 
-export async function listAppointments(businessId: string, opts: { date?: string; status?: string; tz?: string }) {
+export async function listAppointments(
+  businessId: string,
+  opts: { date?: string; from?: string; to?: string; status?: string; tz?: string },
+) {
   const tz = opts.tz;
-  // Either an explicit status filter or the business day window — never both.
+  // An explicit status filter, a from/to range, or the business day window — never more than one.
   const where = ['business_id = $1'];
   const params: unknown[] = [businessId];
   if (opts.status) {
     params.push(opts.status);
     where.push(`status = $${params.length}`);
   } else {
-    const { startIso, endIso } = businessDayRange(tz, opts.date);
+    const { startIso, endIso } =
+      opts.from && opts.to ? businessRangeWindow(tz, opts.from, opts.to) : businessDayRange(tz, opts.date);
     params.push(startIso);
     where.push(`scheduled_start_at >= $${params.length}`);
     params.push(endIso);

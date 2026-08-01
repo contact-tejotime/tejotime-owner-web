@@ -47,6 +47,14 @@ export type AppointmentEntry = {
   status: StatusKind;
 };
 
+/** Appointment view-model for the calendar screen — keeps the raw start
+ *  timestamp plus a local `YYYY-MM-DD` key so appointments can be grouped
+ *  by calendar day. */
+export type CalendarAppointmentEntry = AppointmentEntry & {
+  dateKey: string;
+  startAt: string;
+};
+
 export type Customer = {
   id: string;
   name: string;

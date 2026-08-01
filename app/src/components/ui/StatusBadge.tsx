@@ -14,6 +14,7 @@ export type StatusKind =
   | 'upcoming'
   | 'in-service'
   | 'serving'
+  | 'checked-in'
   | 'completed'
   | 'cancelled'
   | 'no-show'
@@ -26,6 +27,7 @@ const STATUS_MAP: Record<StatusKind, { label: string; tone: Tone }> = {
   upcoming: { label: t.status.upcoming, tone: 'info' },
   'in-service': { label: t.status.inService, tone: 'primary' },
   serving: { label: t.status.inService, tone: 'primary' },
+  'checked-in': { label: t.status.checkedIn, tone: 'primary' },
   completed: { label: t.status.completed, tone: 'success' },
   cancelled: { label: t.status.cancelled, tone: 'neutral' },
   'no-show': { label: t.status.noShow, tone: 'error' },

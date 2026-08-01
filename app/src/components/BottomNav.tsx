@@ -16,6 +16,7 @@ const NAV: { id: TabId; label: string; icon: IconName }[] = [
   { id: 'dashboard', label: t.nav.home, icon: 'layoutDashboard' },
   { id: 'queue', label: t.nav.queue, icon: 'users' },
   { id: 'appointments', label: t.nav.appts, icon: 'calendar' },
+  { id: 'calendar', label: t.nav.calendar, icon: 'grid' },
   { id: 'customers', label: t.nav.clients, icon: 'user' },
   { id: 'settings', label: t.nav.settings, icon: 'settings' },
 ];
