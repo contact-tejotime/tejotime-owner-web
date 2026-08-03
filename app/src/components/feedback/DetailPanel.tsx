@@ -106,6 +106,13 @@ export function DetailPanel() {
                     {format(t.detail.positionLine, { pos: card.pos, seat: seat?.name ?? t.detail.thisSeat })}
                   </TText>
                 </Row>
+                {card.visitorType && (
+                  <Row label={t.detail.visitorType} s={s}>
+                    <TText variant="bodyMd" weight="semibold">
+                      {card.visitorType === 'mr' ? t.queue.mr : t.queue.patient}
+                    </TText>
+                  </Row>
+                )}
               </View>
             </View>
 

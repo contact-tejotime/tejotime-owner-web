@@ -51,6 +51,8 @@ export interface Microsite {
   countryCode: string | null;
   phoneNumber: string | null;
   name: string;
+  /** Business category (e.g. "Salon & Barber", "Hospital", "Restaurant") — drives category-specific UI. */
+  category: string;
   tagline: string | null;
   heroSubtitle: string | null;
   statValue: string | null;
@@ -100,7 +102,7 @@ export interface Ticket {
   isYourTurn?: boolean;
   progressPct?: number;
   staffName?: string | null;
-  serviceName?: string;
+  serviceName?: string | null;
   socket?: { namespace: string; room: string; ticketKey: string; businessId: string };
   /** Set by joinQueue when the phone already held a live ticket today (day-scoped dedup). */
   alreadyInQueue?: boolean;
@@ -112,10 +114,11 @@ export type TrackResult =
   | { found: false; customerName?: string | null };
 
 export interface JoinBody {
-  serviceId: string;
+  serviceId?: string;
   name: string;
   phone: string;
   preferredStaffId?: string;
+  visitorType?: "mr" | "patient";
 }
 export interface BookBody extends JoinBody {
   slotStart: string;
@@ -140,7 +143,7 @@ export const publicApi = {
   joinQueue: (slug: string, body: JoinBody) =>
     req<Ticket>(`/public/businesses/${slug}/queue`, { method: "POST", body: JSON.stringify(body) }),
   bookSlot: (slug: string, body: BookBody) =>
-    req<{ appointmentId: string; serviceName: string; scheduledStartAt: string; status: string; staffName: string | null }>(
+    req<{ appointmentId: string; serviceName: string | null; scheduledStartAt: string; status: string; staffName: string | null }>(
       `/public/businesses/${slug}/appointments`,
       { method: "POST", body: JSON.stringify(body) },
     ),

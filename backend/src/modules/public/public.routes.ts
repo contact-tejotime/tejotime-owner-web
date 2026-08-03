@@ -11,10 +11,11 @@ const ticketParam = z.object({ ticketId: z.string().uuid() });
 
 const joinSchema = z
   .object({
-    serviceId: z.string().uuid(),
+    serviceId: z.string().uuid().optional(),
     name: z.string().trim().min(1).max(80),
     phone: z.string().trim().min(4).max(20),
     preferredStaffId: z.string().optional(),
+    visitorType: z.enum(['mr', 'patient']).optional(),
   })
   .strict();
 

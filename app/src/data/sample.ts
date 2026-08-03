@@ -45,6 +45,8 @@ export type AppointmentEntry = {
   service: string;
   time: string;
   status: StatusKind;
+  staffId?: string | null;
+  visitorType?: 'mr' | 'patient' | null;
 };
 
 /** Appointment view-model for the calendar screen — keeps the raw start

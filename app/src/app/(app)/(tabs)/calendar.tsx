@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppointmentListItem } from '@/components/appointments/AppointmentListItem';
-import { THeader, TScreenScroll, TSectionTitle, TText } from '@/components/common';
+import { THeader, TScreenScroll, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { t } from '@/i18n';
@@ -38,6 +37,11 @@ export default function Calendar() {
   const [visibleMonth, setVisibleMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState(today);
 
+  const selectDay = (cell: Date) => {
+    setSelectedDate(cell);
+    store.openDayAppts(toDateKey(cell));
+  };
+
   const grid = useMemo(() => buildGrid(visibleYear, visibleMonth), [visibleYear, visibleMonth]);
 
   useEffect(() => {
@@ -55,10 +59,6 @@ export default function Calendar() {
 
   const selectedKey = toDateKey(selectedDate);
   const todayKey = toDateKey(today);
-  const dayAppts = useMemo(
-    () => store.calendarAppts.filter((a) => a.dateKey === selectedKey),
-    [store.calendarAppts, selectedKey],
-  );
 
   const goToMonth = (delta: number) => {
     const next = new Date(visibleYear, visibleMonth + delta, 1);
@@ -67,7 +67,6 @@ export default function Calendar() {
   };
 
   const monthLabel = new Date(visibleYear, visibleMonth, 1).toLocaleDateString([], { month: 'long', year: 'numeric' });
-  const selectedLabel = selectedDate.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 
   return (
     <>
@@ -101,7 +100,7 @@ export default function Calendar() {
             const isToday = key === todayKey;
             const hasAppts = bookedDays.has(key);
             return (
-              <Pressable key={key} onPress={() => setSelectedDate(cell)} style={s.cell}>
+              <Pressable key={key} onPress={() => selectDay(cell)} style={s.cell}>
                 <View style={[s.cellInner, isSelected && s.cellSelected, !isSelected && isToday && s.cellToday]}>
                   <TText
                     variant="bodySm"
@@ -115,24 +114,6 @@ export default function Calendar() {
               </Pressable>
             );
           })}
-        </View>
-
-        <TSectionTitle>{selectedLabel}</TSectionTitle>
-        <View style={styles.g2}>
-          {dayAppts.length === 0 ? (
-            <TText variant="bodySm" color="textMuted">
-              {t.calendar.empty}
-            </TText>
-          ) : (
-            dayAppts.map((a) => (
-              <AppointmentListItem
-                key={a.id}
-                appointment={a}
-                checkInLoading={store.checkInId === a.id}
-                onCheckIn={store.checkInAppt}
-              />
-            ))
-          )}
         </View>
       </TScreenScroll>
     </>

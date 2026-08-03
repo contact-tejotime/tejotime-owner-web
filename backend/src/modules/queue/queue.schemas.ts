@@ -13,9 +13,9 @@ export const addWalkInSchema = z
     serviceId: z.string().uuid('Pick a service').nullable().optional(),
     staffId: z.string().default('auto'), // 'auto' | uuid
     position: z.enum(['end', 'next']).default('end'),
+    visitorType: z.enum(['mr', 'patient']).nullable().optional(),
   })
-  .strict()
-  .refine((v) => !!v.serviceId, { message: 'Pick a service', path: ['serviceId'] });
+  .strict();
 
 export const reassignSchema = z.object({ staffId: z.string().uuid() }).strict();
 

@@ -58,6 +58,7 @@ export type CardVM = {
   rightText: string;
   inService: boolean;
   isWaiting: boolean;
+  visitorType?: 'mr' | 'patient' | null;
 };
 
 export type SeatGroupVM = {

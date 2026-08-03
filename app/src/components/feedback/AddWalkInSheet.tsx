@@ -137,6 +137,18 @@ export function AddWalkInSheet() {
               onChangeNational={setNational}
             />
 
+            {store.business?.category === 'Hospital' && (
+              <>
+                <TText variant="bodySm" weight="medium" color="textBody" style={s.sectionLabel}>
+                  {t.walkin.visitorType}
+                </TText>
+                <View style={s.segmentWrap}>
+                  <SegButton label={t.queue.mr} on={store.walkin.visitorType === 'mr'} onPress={() => store.setWalkinVisitorType('mr')} s={s} />
+                  <SegButton label={t.queue.patient} on={store.walkin.visitorType === 'patient'} onPress={() => store.setWalkinVisitorType('patient')} s={s} />
+                </View>
+              </>
+            )}
+
             <TText variant="bodySm" weight="medium" color="textBody" style={s.sectionLabel}>
               {t.walkin.service}
             </TText>
@@ -159,36 +171,40 @@ export function AddWalkInSheet() {
               </TText>
             )}
 
-            <TText variant="bodySm" weight="medium" color="textBody" style={s.sectionLabel}>
-              {t.walkin.assignSeat}
-            </TText>
-            <View style={s.list}>
-              {staffOptions.map((o) => {
-                const sel = store.walkin.staffId === o.id;
-                return (
-                  <Pressable key={o.id} onPress={() => store.setWalkinStaff(o.id)} style={s.seatOptionStyle(sel)}>
-                    <View style={s.seatAvatarBg(o.color)}>
-                      {o.auto ? (
-                        <Icon name="sparkles" size={15} color="#fff" />
-                      ) : (
-                        <TText weight="bold" style={s.seatAvatarText}>
-                          {o.initial}
-                        </TText>
-                      )}
-                    </View>
-                    <View style={s.seatBody}>
-                      <TText variant="bodyMd" weight="semibold">
-                        {o.name}
-                      </TText>
-                      <TText variant="caption" color="textMuted" style={s.seatSub}>
-                        {o.sub}
-                      </TText>
-                    </View>
-                    {sel && <Icon name="check" size={18} color={theme.colors.primary} />}
-                  </Pressable>
-                );
-              })}
-            </View>
+            {store.staff.length > 0 && (
+              <>
+                <TText variant="bodySm" weight="medium" color="textBody" style={s.sectionLabel}>
+                  {t.walkin.assignSeat}
+                </TText>
+                <View style={s.list}>
+                  {staffOptions.map((o) => {
+                    const sel = store.walkin.staffId === o.id;
+                    return (
+                      <Pressable key={o.id} onPress={() => store.setWalkinStaff(o.id)} style={s.seatOptionStyle(sel)}>
+                        <View style={s.seatAvatarBg(o.color)}>
+                          {o.auto ? (
+                            <Icon name="sparkles" size={15} color="#fff" />
+                          ) : (
+                            <TText weight="bold" style={s.seatAvatarText}>
+                              {o.initial}
+                            </TText>
+                          )}
+                        </View>
+                        <View style={s.seatBody}>
+                          <TText variant="bodyMd" weight="semibold">
+                            {o.name}
+                          </TText>
+                          <TText variant="caption" color="textMuted" style={s.seatSub}>
+                            {o.sub}
+                          </TText>
+                        </View>
+                        {sel && <Icon name="check" size={18} color={theme.colors.primary} />}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            )}
 
             <TText variant="bodySm" weight="medium" color="textBody" style={s.sectionLabel}>
               {t.walkin.addAs}

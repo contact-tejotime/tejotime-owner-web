@@ -19,6 +19,8 @@ export interface EngineEntry {
   extra: number;
   /** started_at ISO — set only while/after in_service; null otherwise. Drives elapsed-aware ETA. */
   startedAt?: string | null;
+  /** Hospital-category identification — display only, not used by any wait-time math. */
+  visitorType?: 'mr' | 'patient' | null;
 }
 
 export interface EngineStaff {
@@ -48,6 +50,7 @@ export interface CardVM {
   etaMinutes: number;
   inService: boolean;
   isWaiting: boolean;
+  visitorType: 'mr' | 'patient' | null;
 }
 
 export interface SeatGroupVM {
@@ -114,14 +117,15 @@ export function seatLoad(
     .reduce((m, q) => m + remainingMins(q, services, now), 0);
 }
 
-/** Seat with the lightest load — used for "Any seat" auto-assignment. */
+/** Seat with the lightest load — used for "Any seat" auto-assignment. Returns null when the
+ *  business has no active staff (a valid state for categories where staff is optional). */
 export function soonestSeat(
   queue: EngineEntry[],
   staff: EngineStaff[],
   services: EngineService[],
   now: Date = new Date(),
-): string {
-  let best = staff[0]?.id ?? '';
+): string | null {
+  let best: string | null = staff[0]?.id ?? null;
   let bestLoad = Infinity;
   staff.forEach((st) => {
     const l = seatLoad(queue, st.id, services, now);
@@ -157,53 +161,68 @@ function buildCard(
     etaMinutes: inService ? 0 : etaMinutes,
     inService,
     isWaiting: c.status === 'waiting',
+    visitorType: c.visitorType ?? null,
   };
 }
 
-/** One group per seat, each with running ETA labels on its waiting cards. */
+function buildGroup(
+  seat: EngineStaff,
+  items: EngineEntry[],
+  services: EngineService[],
+  now: Date,
+): SeatGroupVM {
+  const serving = items.filter((q) => q.status === 'in_service');
+  const waits = items.filter((q) => q.status === 'waiting');
+
+  // Only the in-service head decays with wall-clock; queued waiters keep their full estimate.
+  const serviceRemaining = serving.reduce((m, q) => m + remainingMins(q, services, now), 0);
+  let cum = serviceRemaining;
+  let n = 0;
+  const servCards = serving.map((c) => buildCard(c, ++n, 'In service', 0, seat));
+  const waitCards = waits.map((c) => {
+    const lbl = cum <= 0 ? 'Next up' : `~${cum} min`;
+    const card = buildCard(c, ++n, lbl, cum, seat);
+    cum += estMins(c, services);
+    return card;
+  });
+
+  const clearM = items.reduce((m, q) => m + remainingMins(q, services, now), 0);
+  return {
+    id: seat.id,
+    name: seat.name,
+    color: seat.color,
+    initials: seat.name[0] ?? '?',
+    serving: serving.length > 0,
+    servingName: serving.length ? serving[0]!.name : '',
+    subLine: serving.length
+      ? `Serving ${serving[0]!.name.split(' ')[0]} · ~${clearM} min`
+      : 'Available · ready for walk-in',
+    waitBadge: waits.length > 0 ? `${waits.length} waiting` : 'Free',
+    waitingCount: waits.length,
+    clearMinutes: clearM,
+    serviceRemainingMinutes: serviceRemaining,
+    free: waits.length === 0,
+    empty: items.length === 0,
+    cards: [...servCards, ...waitCards],
+  };
+}
+
+/** One group per seat, each with running ETA labels on its waiting cards. Businesses with no
+ *  staff configured (e.g. a Hospital that doesn't track doctors as "staff") get a single flat
+ *  "Waiting" group instead of per-seat lanes — otherwise their queue entries would have nowhere
+ *  to be grouped and would silently vanish from every queue view. */
 export function buildSeatGroups(
   queue: EngineEntry[],
   staff: EngineStaff[],
   services: EngineService[],
   now: Date = new Date(),
 ): SeatGroupVM[] {
-  return staff.map((st) => {
-    const items = queue.filter((q) => q.staffId === st.id && isActiveStatus(q.status));
-    const serving = items.filter((q) => q.status === 'in_service');
-    const waits = items.filter((q) => q.status === 'waiting');
-
-    // Only the in-service head decays with wall-clock; queued waiters keep their full estimate.
-    const serviceRemaining = serving.reduce((m, q) => m + remainingMins(q, services, now), 0);
-    let cum = serviceRemaining;
-    let n = 0;
-    const servCards = serving.map((c) => buildCard(c, ++n, 'In service', 0, st));
-    const waitCards = waits.map((c) => {
-      const lbl = cum <= 0 ? 'Next up' : `~${cum} min`;
-      const card = buildCard(c, ++n, lbl, cum, st);
-      cum += estMins(c, services);
-      return card;
-    });
-
-    const clearM = items.reduce((m, q) => m + remainingMins(q, services, now), 0);
-    return {
-      id: st.id,
-      name: st.name,
-      color: st.color,
-      initials: st.name[0] ?? '?',
-      serving: serving.length > 0,
-      servingName: serving.length ? serving[0]!.name : '',
-      subLine: serving.length
-        ? `Serving ${serving[0]!.name.split(' ')[0]} · ~${clearM} min`
-        : 'Available · ready for walk-in',
-      waitBadge: waits.length > 0 ? `${waits.length} waiting` : 'Free',
-      waitingCount: waits.length,
-      clearMinutes: clearM,
-      serviceRemainingMinutes: serviceRemaining,
-      free: waits.length === 0,
-      empty: items.length === 0,
-      cards: [...servCards, ...waitCards],
-    };
-  });
+  if (staff.length === 0) {
+    const items = queue.filter((q) => isActiveStatus(q.status));
+    if (items.length === 0) return [];
+    return [buildGroup({ id: '__unassigned__', name: 'Waiting', color: 'secondary' }, items, services, now)];
+  }
+  return staff.map((st) => buildGroup(st, queue.filter((q) => q.staffId === st.id && isActiveStatus(q.status)), services, now));
 }
 
 /** Flattened cards across all seats (seat order). */

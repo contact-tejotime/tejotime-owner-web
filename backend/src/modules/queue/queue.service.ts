@@ -1,7 +1,7 @@
 import { exec, one } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
-import { SERVICE_EXTRAS } from '../../config/constants';
+import { SERVICE_EXTRAS, OPTIONAL_SERVICES_STAFF_CATEGORIES, VISITOR_TYPE_CATEGORIES } from '../../config/constants';
 import { Errors } from '../../domain/errors';
 import { normalizePhone } from '../../lib/phone';
 import { initials } from '../../lib/format';
@@ -35,6 +35,7 @@ function cardToDTO(c: CardVM) {
     seatName: c.seatName,
     seatColor: c.seatColor,
     online: c.online,
+    visitorType: c.visitorType,
   };
 }
 
@@ -93,6 +94,7 @@ export async function getEntryDetail(businessId: string, entryId: string) {
       seatColor: card.seatColor,
       position: card.pos,
       etaMinutes: card.etaMinutes,
+      visitorType: card.visitorType,
     };
   }
   const row = await one('select * from queue_entry where business_id = $1 and id = $2', [businessId, entryId]);
@@ -109,6 +111,7 @@ export async function getEntryDetail(businessId: string, entryId: string) {
     seatName: null,
     position: null,
     etaMinutes: 0,
+    visitorType: row.visitor_type ?? null,
   };
 }
 
@@ -266,15 +269,31 @@ export interface AddWalkInInput {
   serviceId?: string | null;
   staffId: string; // 'auto' | staff id
   position: 'end' | 'next';
+  visitorType?: 'mr' | 'patient' | null;
 }
 
 export async function addWalkIn(businessId: string, input: AddWalkInInput) {
   const ctx = await loadQueueContext(businessId);
-  let staffId = input.staffId;
+  const biz = await one('select category from business where id = $1', [businessId]);
+  const category = biz?.category ?? '';
+  if (!OPTIONAL_SERVICES_STAFF_CATEGORIES.has(category) && !input.serviceId) {
+    throw Errors.validation('Add a service', [{ field: 'serviceId', message: 'Pick a service' }]);
+  }
+  if (VISITOR_TYPE_CATEGORIES.has(category) && !input.visitorType) {
+    throw Errors.validation('Visitor type is required', [{ field: 'visitorType', message: 'Pick MR or Patient' }]);
+  }
+
+  let staffId: string | null = input.staffId;
   if (staffId === 'auto') {
     staffId = soonestSeat(ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
   }
-  if (!ctx.staffRows.find((s) => s.id === staffId)) throw Errors.notFound('Seat not found');
+  if (ctx.staffRows.length === 0) {
+    // No staff configured for this business at all (e.g. a Hospital that doesn't track
+    // doctors as "staff") — the seat concept doesn't apply, so skip it entirely.
+    staffId = null;
+  } else if (!ctx.staffRows.find((s) => s.id === staffId)) {
+    throw Errors.notFound('Seat not found');
+  }
   if (input.serviceId && !ctx.serviceRows.find((s) => s.id === input.serviceId)) {
     throw Errors.notFound('Service not found');
   }
@@ -293,6 +312,7 @@ export async function addWalkIn(businessId: string, input: AddWalkInInput) {
     p_preferred_staff_id: null,
     p_appointment_id: null,
     p_customer_id: customerId,
+    p_visitor_type: input.visitorType ?? null,
   });
 
   emitToOwners(businessId, 'queue:entry.created', { entryId: result.id, seatId: staffId, source: 'walk_in' });

@@ -3,6 +3,9 @@
 
 export const DAY_LABELS =["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+/** Categories where services/staff aren't required (mirrors admin.routes.ts backend zod schema). */
+export const OPTIONAL_SERVICES_STAFF_CATEGORIES = new Set(["Hospital", "Restaurant"]);
+
 export interface HourRow {
   dayOfWeek: number;
   opensAt: string; // "HH:MM" ("" when closed)
@@ -64,6 +67,7 @@ export interface StoreForm {
   staff: StaffRow[];
   faqs: FaqRow[];
   reviews: ReviewRow[];
+  ownerPhone: string;
   ownerPassword: string;
 }
 
@@ -129,6 +133,7 @@ export const EMPTY_FORM: StoreForm = {
   staff: [{ name: "", roleLabel: "", avatarUrl: "" }],
   faqs: [],
   reviews: [],
+  ownerPhone: "",
   ownerPassword: "",
 };
 
@@ -204,6 +209,7 @@ export function fromDetail(d: StoreDetail): StoreForm {
     staff: d.staff.length ? d.staff : EMPTY_FORM.staff,
     faqs: d.faqs,
     reviews: d.reviews ?? [],
+    ownerPhone: "",
     ownerPassword: "",
   };
 }
@@ -250,22 +256,29 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
     })),
     amenities: f.amenities.map((a) => a.trim()).filter(Boolean),
     gallery: f.gallery.filter((g) => g.url.trim()).map((g) => ({ url: g.url.trim(), alt: g.alt.trim() || null })),
-    services: f.services.map((s) => ({
-      name: s.name.trim(),
-      durationMinutes: Number(s.durationMinutes),
-      priceRupees: Number(s.priceRupees),
-    })),
-    staff: f.staff.map((s) => ({
-      name: s.name.trim(),
-      roleLabel: s.roleLabel.trim() || null,
-      avatarUrl: s.avatarUrl.trim() || null,
-    })),
+    services: f.services
+      .filter((s) => s.name.trim())
+      .map((s) => ({
+        name: s.name.trim(),
+        durationMinutes: Number(s.durationMinutes),
+        priceRupees: Number(s.priceRupees),
+      })),
+    staff: f.staff
+      .filter((s) => s.name.trim())
+      .map((s) => ({
+        name: s.name.trim(),
+        roleLabel: s.roleLabel.trim() || null,
+        avatarUrl: s.avatarUrl.trim() || null,
+      })),
     faqs: f.faqs.filter((x) => x.q.trim() && x.a.trim()).map((x) => ({ q: x.q.trim(), a: x.a.trim() })),
     reviews: f.reviews
       .filter((r) => r.text.trim() && r.authorName.trim())
       .map((r) => ({ stars: r.stars, text: r.text.trim(), authorName: r.authorName.trim() })),
   };
-  if (includeOwner) body.owner = { password: f.ownerPassword };
+  if (includeOwner) {
+    const ownerPhone = f.ownerPhone.replace(/\D/g, "");
+    body.owner = { password: f.ownerPassword, phone: ownerPhone || undefined };
+  }
   return body;
 }
 

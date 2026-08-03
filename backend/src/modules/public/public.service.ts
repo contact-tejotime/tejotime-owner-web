@@ -1,6 +1,7 @@
 import { many, one } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
+import { VISITOR_TYPE_CATEGORIES } from '../../config/constants';
 import { Errors } from '../../domain/errors';
 import { money } from '../../domain/money';
 import { normalizePhone } from '../../lib/phone';
@@ -297,9 +298,12 @@ function ticketSocket(businessId: string, ticketId: string) {
 
 export async function joinQueue(
   slug: string,
-  input: { serviceId: string; name: string; phone: string; preferredStaffId?: string },
+  input: { serviceId?: string; name: string; phone: string; preferredStaffId?: string; visitorType?: 'mr' | 'patient' },
 ) {
   const b = await resolveBusiness(slug);
+  if (VISITOR_TYPE_CATEGORIES.has(b.category) && !input.visitorType) {
+    throw Errors.validation('Visitor type is required', [{ field: 'visitorType', message: 'Pick MR or Patient' }]);
+  }
 
   // Day-scoped dedup: one active ticket per phone per day. If this phone already holds a
   // live ticket today (possibly from another device/browser), return it flagged instead of
@@ -309,8 +313,13 @@ export async function joinQueue(
 
   const ctx = await loadQueueContext(b.id);
 
-  const svc = await one('select id, name from service where id = $1 and business_id = $2', [input.serviceId, b.id]);
-  if (!svc) throw Errors.notFound('Service not found');
+  // Services are optional for some categories (e.g. Hospital/Restaurant) — a missing serviceId
+  // is a valid "no specific service" join; the wait-time engine already falls back to a default
+  // duration for entries with no service_name (see queue-engine.ts's estMins).
+  const svc = input.serviceId
+    ? await one('select id, name from service where id = $1 and business_id = $2', [input.serviceId, b.id])
+    : null;
+  if (input.serviceId && !svc) throw Errors.notFound('Service not found');
 
   let staffId = input.preferredStaffId && input.preferredStaffId !== 'any' ? input.preferredStaffId : null;
   if (staffId && !ctx.staffRows.find((s) => s.id === staffId)) staffId = null;
@@ -323,13 +332,14 @@ export async function joinQueue(
     p_business_id: b.id,
     p_name: input.name,
     p_phone: phone,
-    p_service_id: svc.id,
+    p_service_id: svc?.id ?? null,
     p_staff_id: staffId,
     p_position: 'end',
     p_source: 'online',
     p_preferred_staff_id: input.preferredStaffId && input.preferredStaffId !== 'any' ? input.preferredStaffId : null,
     p_appointment_id: null,
     p_customer_id: customerId,
+    p_visitor_type: input.visitorType ?? null,
   });
 
   emitToOwners(b.id, 'queue:entry.created', { entryId: result.id, seatId: staffId, source: 'online' });
@@ -347,7 +357,7 @@ export async function joinQueue(
     serviceRemainingMinutes: pos.serviceRemainingMinutes,
     status: pos.status ?? 'waiting',
     staffName,
-    serviceName: svc.name,
+    serviceName: svc?.name ?? null,
     asOf: new Date().toISOString(),
     socket: ticketSocket(b.id, result.id),
   };
@@ -355,37 +365,52 @@ export async function joinQueue(
 
 export async function bookSlot(
   slug: string,
-  input: { serviceId: string; name: string; phone: string; preferredStaffId?: string; slotStart: string },
+  input: {
+    serviceId?: string;
+    name: string;
+    phone: string;
+    preferredStaffId?: string;
+    slotStart: string;
+    visitorType?: 'mr' | 'patient';
+  },
 ) {
   const b = await resolveBusiness(slug);
-  const svc = await one('select id, name, duration_minutes from service where id = $1 and business_id = $2', [
-    input.serviceId,
-    b.id,
-  ]);
-  if (!svc) throw Errors.notFound('Service not found');
+  if (VISITOR_TYPE_CATEGORIES.has(b.category) && !input.visitorType) {
+    throw Errors.validation('Visitor type is required', [{ field: 'visitorType', message: 'Pick MR or Patient' }]);
+  }
+  const svc = input.serviceId
+    ? await one('select id, name, duration_minutes from service where id = $1 and business_id = $2', [
+        input.serviceId,
+        b.id,
+      ])
+    : null;
+  if (input.serviceId && !svc) throw Errors.notFound('Service not found');
 
   const phone = normalizePhone(input.phone);
   const customerId = await findOrCreateCustomer(b.id, input.name, phone);
   const staffId = input.preferredStaffId && input.preferredStaffId !== 'any' ? input.preferredStaffId : null;
   const start = new Date(input.slotStart);
-  const end = new Date(start.getTime() + svc.duration_minutes * 60_000);
+  // No service picked → fall back to the standard slot length (same convention as getSlots above).
+  const durationMinutes = svc?.duration_minutes ?? env.BOOKING_SLOT_MINUTES;
+  const end = new Date(start.getTime() + durationMinutes * 60_000);
 
   const data = await one(
     `insert into appointment
        (business_id, customer_id, customer_name, customer_phone, service_id, service_name,
-        staff_id, scheduled_start_at, scheduled_end_at, status, source)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', 'online')
+        staff_id, scheduled_start_at, scheduled_end_at, status, source, visitor_type)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', 'online', $10)
      returning *`,
     [
       b.id,
       customerId,
       input.name,
       phone,
-      svc.id,
-      svc.name,
+      svc?.id ?? null,
+      svc?.name ?? null,
       staffId,
       start.toISOString(),
       end.toISOString(),
+      input.visitorType ?? null,
     ],
   );
   if (!data) throw new Error('Failed to create appointment');
@@ -396,7 +421,7 @@ export async function bookSlot(
 
   return {
     appointmentId: data.id,
-    serviceName: svc.name,
+    serviceName: svc?.name ?? null,
     scheduledStartAt: data.scheduled_start_at,
     status: 'confirmed',
     staffName: staffId ? (await one('select name from staff where id = $1', [staffId]))?.name : null,

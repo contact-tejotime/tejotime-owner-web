@@ -111,6 +111,11 @@ function staffWaitLabel(waitMinutes: number): string {
 }
 
 type View = "flow" | "already" | "blocked" | "left" | "track";
+/** Screens within the join/book modal's "flow" view, in a fixed order. Which ones actually
+ *  appear for a given business is computed dynamically (see `flowScreens` below) — e.g. the
+ *  "visitor" screen only exists for Hospital-category businesses, "service" only when the
+ *  business has services configured. */
+type FlowScreen = "visitor" | "service" | "details" | "success";
 
 export default function MicrositeClient({ initialSite }: { initialSite: Microsite }) {
   const site = initialSite;
@@ -144,9 +149,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const [joinOpen, setJoinOpen] = useState(false);
   const [mode, setMode] = useState<"queue" | "book">("queue");
   const [view, setView] = useState<View>("flow");
-  const [step, setStep] = useState(1);
+  const [screen, setScreen] = useState<FlowScreen>("details");
   const [tstep, setTstep] = useState(1); // Track-my-turn sub-step: 1 phone → 3 not-found
   const [cart, setCart] = useState<string | null>(null);
+  const [visitorType, setVisitorType] = useState<"mr" | "patient" | null>(null);
   const [name, setName] = useState("");
   // Phone entry is split into a searchable country code + national number. `phone`
   // (E.164, e.g. +919824410712) is derived and remains the single value used for
@@ -171,7 +177,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [booking, setBooking] = useState<{ serviceName: string; scheduledStartAt: string } | null>(null);
+  const [booking, setBooking] = useState<{ serviceName: string | null; scheduledStartAt: string } | null>(null);
   const [justTurn, setJustTurn] = useState(false);
   const [initialAhead, setInitialAhead] = useState(0);
   // Wall-clock tick that drives the live countdown. null until mount (keeps SSR/first paint equal
@@ -402,6 +408,28 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     dur: `${s.durationMinutes} min`,
     price: Math.round(s.price.amount / 100),
   }));
+  // Which screens the join/book modal shows, in order — computed per-business so the
+  // progress bar and navigation stay correct regardless of which optional screens apply.
+  const isHospital = site.category === "Hospital";
+  const flowScreens: FlowScreen[] = [
+    ...(isHospital ? (["visitor"] as const) : []),
+    ...(services.length > 0 ? (["service"] as const) : []),
+    "details",
+    "success",
+  ];
+  const goNext = async (from: FlowScreen) => {
+    const i = flowScreens.indexOf(from);
+    const next = flowScreens[i + 1];
+    if (!next) return;
+    setScreen(next);
+    setFormError("");
+    if (next === "details" && mode === "book") await fetchSlotsForToday(cart);
+  };
+  const goBack = (from: FlowScreen) => {
+    const i = flowScreens.indexOf(from);
+    const prev = flowScreens[i - 1];
+    if (prev) setScreen(prev);
+  };
   const members = liveStaff.map((s, i) => {
     const waitMin = displayStaffWaitMinutes(s.waitMinutes, staffAsOf, nowTs);
     return {
@@ -467,8 +495,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       return;
     }
     setView("flow");
-    setStep(1);
+    // Jump straight to the first screen this business actually needs — visitor-type and/or
+    // service picking are skipped entirely when they don't apply (see flowScreens above).
+    const firstScreen = flowScreens[0];
+    setScreen(firstScreen);
     setCart(null);
+    setVisitorType(null);
     setName(store.lastName || "");
     seedPhone(lp || "");
     setMember(preselectMember);
@@ -478,6 +510,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setSlots([]);
     setSelectedSlot(null);
     setJoinOpen(true);
+    if (firstScreen === "details" && m === "book") fetchSlotsForToday(null);
   };
   const openQueue = () => openJoin("queue");
   const openBook = () => openJoin("book");
@@ -560,8 +593,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const joinAfterTrack = () => {
     setMode("queue");
     setView("flow");
-    setStep(1);
+    setScreen(flowScreens[0]);
     setCart(null);
+    setVisitorType(null);
     setMember("any");
     setName(trackedName || storeRef.current.lastName || "");
     seedPhone(storeRef.current.lastPhone || "");
@@ -586,26 +620,19 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   const toggleFaq = (i: number) => setFaqOpen((cur) => (cur === i ? null : i));
 
-  const toStep2 = async () => {
-    if (!cart) return;
-    setStep(2);
-    setFormError("");
-    if (mode === "book") {
-      setSlotsLoading(true);
-      setSelectedSlot(null);
-      try {
-        const today = new Date().toISOString().slice(0, 10);
-        const r = await publicApi.getSlots(site.slug, { date: today, serviceId: cart });
-        setSlots(r.slots);
-      } catch {
-        setSlots([]);
-      } finally {
-        setSlotsLoading(false);
-      }
+  const fetchSlotsForToday = async (serviceId: string | null) => {
+    setSlotsLoading(true);
+    setSelectedSlot(null);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const r = await publicApi.getSlots(site.slug, { date: today, serviceId: serviceId ?? undefined });
+      setSlots(r.slots);
+    } catch {
+      setSlots([]);
+    } finally {
+      setSlotsLoading(false);
     }
   };
-  const backTo1 = () => setStep(1);
-
   // Returns true (and shows the blocked view) if this phone is locally rate-limited.
   const blockGuard = (p: string) => {
     const store = storeRef.current;
@@ -639,17 +666,18 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
   // Perform the REAL join/book — the single place that talks to the join/book API.
   const performJoinOrBook = async () => {
-    if (!cart) return;
+    if (services.length > 0 && !cart) return;
     const p = phone.trim();
     setSubmitting(true);
     setFormError("");
     try {
       if (mode === "queue") {
         const t = await publicApi.joinQueue(site.slug, {
-          serviceId: cart,
+          serviceId: cart ?? undefined,
           name: name.trim(),
           phone: p,
           preferredStaffId: member,
+          visitorType: visitorType ?? undefined,
         });
         setTicket(t);
         setInitialAhead(t.ahead);
@@ -674,21 +702,22 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         startTicketPoll(t.ticketId);
         // Backend found this phone already holds a live ticket today → show it, don't dupe.
         if (t.alreadyInQueue) setView("already");
-        else setStep(4);
+        else setScreen("success");
       } else {
         const b = await publicApi.bookSlot(site.slug, {
-          serviceId: cart,
+          serviceId: cart ?? undefined,
           name: name.trim(),
           phone: p,
           preferredStaffId: member,
           slotStart: selectedSlot!,
+          visitorType: visitorType ?? undefined,
         });
         setBooking({ serviceName: b.serviceName, scheduledStartAt: b.scheduledStartAt });
         const store = storeRef.current;
         store.lastPhone = p;
         store.lastName = name.trim();
         writeStore(storeKey, store);
-        setStep(4);
+        setScreen("success");
       }
     } catch (e) {
       if (e instanceof ApiError && e.code === "RATE_LIMITED") {
@@ -736,8 +765,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   };
   const joinDifferent = () => {
     setView("flow");
-    setStep(1);
+    setScreen(flowScreens[0]);
     setCart(null);
+    setVisitorType(null);
     setName("");
     seedPhone("");
     setMember("any");
@@ -777,7 +807,16 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const resumeAhead = justTurn ? 0 : ticket?.ahead ?? 0;
   // Live, wall-clock-aware wait for the pill — ticks down between server updates.
   const displayWait = displayWaitMinutes(ticket, nowTs);
-  const resumeLabel = displayWait <= 1 ? "Almost your turn" : `${resumeAhead} ahead · ~${displayWait} min`;
+  // No configured services → no real per-visit duration to base a minute estimate on;
+  // show only the ahead-count, which is a real number regardless of service data.
+  const resumeLabel =
+    services.length === 0
+      ? resumeAhead <= 0
+        ? "Almost your turn"
+        : `${resumeAhead} ahead`
+      : displayWait <= 1
+        ? "Almost your turn"
+        : `${resumeAhead} ahead · ~${displayWait} min`;
   // Owner has started this customer's service (waiting → in_service) — surface it live.
   const inService = ticket?.status === "in_service" || justTurn;
 
@@ -808,7 +847,11 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       : { background: "transparent", borderBottom: "1px solid transparent" }),
   };
 
-  const accent = (n: number) => (step >= n ? "var(--primary)" : "var(--surface-sunken)");
+  // The progress bar always matches this business's actual screen count (1-4, depending on
+  // whether "visitor" and/or "service" apply) — see flowScreens above.
+  const totalSteps = flowScreens.length;
+  const visualStep = flowScreens.indexOf(screen) + 1;
+  const accent = (n: number) => (visualStep >= n ? "var(--primary)" : "var(--surface-sunken)");
 
   const progressPct =
     justTurn || ticket?.status === "completed"
@@ -944,8 +987,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                   <Icon name="hourglass" size={22} />
                 </span>
                 <div>
-                  <div style={{ font: "var(--fw-extrabold) 24px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{waitHeadline}</div>
-                  <div style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{liveCount} people in queue now</div>
+                  {services.length > 0 && (
+                    <div style={{ font: "var(--fw-extrabold) 24px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{waitHeadline}</div>
+                  )}
+                  <div style={{ font: services.length > 0 ? "var(--fw-medium) 12px/1 var(--font-sans)" : "var(--fw-extrabold) 20px/1 var(--font-sans)", color: services.length > 0 ? "var(--text-muted)" : "var(--text-strong)", marginTop: services.length > 0 ? 5 : 0 }}>{liveCount} people in queue now</div>
                 </div>
               </div>
             </div>
@@ -987,14 +1032,16 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                   </span>
                 </div>
                 <div style={{ display: "flex", border: "1px solid var(--border-subtle)", borderRadius: 11, overflow: "hidden", marginBottom: 16 }}>
-                  <div style={{ flex: 1, textAlign: "center", padding: "11px 4px", borderRight: "1px solid var(--border-subtle)" }}>
+                  <div style={{ flex: 1, textAlign: "center", padding: "11px 4px", borderRight: services.length > 0 ? "1px solid var(--border-subtle)" : "none" }}>
                     <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{b.count}</div>
                     <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>in queue</div>
                   </div>
-                  <div style={{ flex: 1.3, textAlign: "center", padding: "11px 4px" }}>
-                    <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: b.busy ? "var(--text-strong)" : "var(--success)" }}>{b.wait}</div>
-                    <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{b.busy ? "wait" : "walk in"}</div>
-                  </div>
+                  {services.length > 0 && (
+                    <div style={{ flex: 1.3, textAlign: "center", padding: "11px 4px" }}>
+                      <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: b.busy ? "var(--text-strong)" : "var(--success)" }}>{b.wait}</div>
+                      <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{b.busy ? "wait" : "walk in"}</div>
+                    </div>
+                  )}
                 </div>
                 <Button variant="outline" fullWidth onClick={() => openWith(b.id)}>Join {b.name}&apos;s line</Button>
               </div>
@@ -1065,12 +1112,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       {(gallery.length > 0 || isDemo) && (
         <div id="gallery" style={{ maxWidth: 1180, margin: "0 auto", padding: "24px clamp(16px, 4vw, 32px) 40px" }}>
           <div style={revealStyle}>
-            <div style={eyebrow}>Gallery</div>
-            {/* Horizontal strip: fixed-width cells that scroll sideways once they overflow the row.
-                Demo store with no photos shows blank placeholder cells so the slot is visible. */}
-            <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 6, scrollSnapType: "x proximity" }}>
+            <div style={{ ...eyebrow, textAlign: "center" }}>Gallery</div>
+            {/* Wrapping, centered cells: fills the row and wraps to new rows as needed, so any
+                photo count (2, 3, 5, ...) looks balanced instead of leaving dead space on the
+                right the way a left-aligned fixed strip would. Cell width shrinks on narrow
+                screens via clamp() instead of relying on horizontal scroll. */}
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 14 }}>
               {(gallery.length > 0 ? gallery : [null, null, null, null]).map((g, i) => (
-                <div key={i} className="salonGalleryCell" style={{ flex: "0 0 auto", width: 240, height: 160, borderRadius: 14, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--surface-card)), color-mix(in srgb, var(--secondary) 10%, var(--surface-card)))", border: "1px solid var(--border-subtle)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", scrollSnapAlign: "start", ...(g ? { backgroundImage: `url(${g})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
+                <div key={i} className="salonGalleryCell" style={{ flex: "0 0 auto", width: "clamp(140px, 28vw, 240px)", aspectRatio: "3 / 2", borderRadius: 14, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--surface-card)), color-mix(in srgb, var(--secondary) 10%, var(--surface-card)))", border: "1px solid var(--border-subtle)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", ...(g ? { backgroundImage: `url(${g})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
                   {!g && (
                     <span style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "rgba(15,23,42,.4)", display: "flex", alignItems: "center", gap: 7 }}>
                       <Icon name="grid" size={15} />
@@ -1265,10 +1314,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               </div>
               {view === "flow" && (
                 <div style={{ display: "flex", gap: 7, marginTop: 14 }}>
-                  <span style={{ height: 4, flex: 1, borderRadius: 999, background: accent(1) }} />
-                  <span style={{ height: 4, flex: 1, borderRadius: 999, background: accent(2) }} />
-                  <span style={{ height: 4, flex: 1, borderRadius: 999, background: accent(3) }} />
-                  <span style={{ height: 4, flex: 1, borderRadius: 999, background: accent(4) }} />
+                  {Array.from({ length: totalSteps }).map((_, i) => (
+                    <span key={i} style={{ height: 4, flex: 1, borderRadius: 999, background: accent(i + 1) }} />
+                  ))}
                 </div>
               )}
             </div>
@@ -1277,8 +1325,41 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               {/* ---------- VIEW: FLOW ---------- */}
               {view === "flow" && (
                 <>
-                  {/* STEP 1: pick service */}
-                  {step === 1 && (
+                  {/* SCREEN: visitor type (Hospital only) */}
+                  {screen === "visitor" && (
+                    <div style={{ animation: "ttStep .32s ease both" }}>
+                      <p style={{ font: "var(--fw-regular) 14px/1.4 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 16px" }}>Who is this for?</p>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                        {([
+                          ["mr", "MR", "Medical representative"],
+                          ["patient", "Patient", "Visiting for care"],
+                        ] as const).map(([value, label, sub]) => {
+                          const on = visitorType === value;
+                          return (
+                            <div key={value} onClick={() => setVisitorType(value)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 13, borderRadius: 12, padding: "13px 15px", transition: "border-color .15s ease, background .15s ease", background: on ? "color-mix(in srgb, var(--primary) 6%, var(--surface-card))" : "var(--surface-card)", border: `1.5px solid ${on ? "var(--primary)" : "var(--border-subtle)"}` }}>
+                              <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${on ? "var(--primary)" : "var(--border-default)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                <span style={{ display: "flex", color: "var(--primary)", transition: "opacity .15s ease", opacity: on ? 1 : 0 }}>
+                                  <Icon name="check" size={13} />
+                                </span>
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ font: "var(--fw-semibold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{label}</div>
+                                <div style={{ font: "var(--fw-regular) 12px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{sub}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{ marginTop: 20 }}>
+                        <Button variant="primary" size="lg" fullWidth disabled={!visitorType} onClick={() => goNext("visitor")}>
+                          {visitorType ? "Continue →" : "Pick one to continue"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SCREEN: pick service */}
+                  {screen === "service" && (
                     <div style={{ animation: "ttStep .32s ease both" }}>
                       <p style={{ font: "var(--fw-regular) 14px/1.4 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 16px" }}>What are you here for today? Prices &amp; durations below.</p>
                       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
@@ -1300,16 +1381,21 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                           );
                         })}
                       </div>
-                      <div style={{ marginTop: 20 }}>
-                        <Button variant="primary" size="lg" fullWidth disabled={!cart} onClick={toStep2}>
-                          {cart ? `Continue · ${sel!.name} →` : "Pick a service to continue"}
-                        </Button>
+                      <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
+                        {flowScreens.indexOf("service") > 0 && (
+                          <Button variant="outline" size="lg" onClick={() => goBack("service")}>Back</Button>
+                        )}
+                        <div style={{ flex: 1 }}>
+                          <Button variant="primary" size="lg" fullWidth disabled={!cart} onClick={() => goNext("service")}>
+                            {cart ? `Continue · ${sel!.name} →` : "Pick a service to continue"}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {/* STEP 2: details */}
-                  {step === 2 && (
+                  {/* SCREEN: details */}
+                  {screen === "details" && (
                     <div style={{ animation: "ttStep .32s ease both" }}>
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>Your name</div>
                       <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Aman" className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: 10, fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 16, background: "var(--surface-card)" }} />
@@ -1351,13 +1437,15 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: "13px 15px", marginBottom: 14 }}>
                         <span style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--text-body)" }}>
-                          {(sel ? sel.name : "") + " · " + (mode === "book" ? (selectedSlot ? "time selected" : "choose a time above") : joinWaitText)}
+                          {(sel ? `${sel.name} · ` : "") + (mode === "book" ? (selectedSlot ? "time selected" : "choose a time above") : joinWaitText)}
                         </span>
                         <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)" }}>{sel ? `${curSym}${sel.price}` : ""}</span>
                       </div>
                       {formError && <div style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--error)", marginBottom: 12 }}>{formError}</div>}
                       <div style={{ display: "flex", gap: 10 }}>
-                        <Button variant="outline" size="lg" onClick={backTo1}>Back</Button>
+                        {flowScreens.indexOf("details") > 0 && (
+                          <Button variant="outline" size="lg" onClick={() => goBack("details")}>Back</Button>
+                        )}
                         <div style={{ flex: 1 }}>
                           <Button variant="primary" size="lg" fullWidth loading={submitting} disabled={cantConfirm || submitting} onClick={confirmJoin}>
                             {mode === "book" ? "Confirm booking →" : "Join the queue →"}
@@ -1367,8 +1455,8 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                     </div>
                   )}
 
-                  {/* STEP 4: ticket / booked */}
-                  {step === 4 && (
+                  {/* SCREEN: ticket / booked */}
+                  {screen === "success" && (
                     <div style={{ textAlign: "center", animation: "ttStep .32s ease both" }}>
                       <div style={{ position: "relative", width: 68, height: 68, margin: "6px auto 16px" }}>
                         <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "2px solid var(--success)", animation: "ttRing 1.2s ease-out infinite" }} />
@@ -1390,7 +1478,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       <p style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 18px" }}>
                         {mode === "book"
                           ? booking
-                            ? `${booking.serviceName} · ${new Date(booking.scheduledStartAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`
+                            ? `${booking.serviceName || "Your visit"} · ${new Date(booking.scheduledStartAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`
                             : "See you at your slot."
                           : ticket?.status === "completed"
                             ? "Your service is complete. See you next time!"
@@ -1412,10 +1500,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                               <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--primary)", fontVariantNumeric: "tabular-nums" }}>{justTurn ? 0 : ticket.ahead}</div>
                               <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>ahead of you</div>
                             </div>
-                            <div>
-                              <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--secondary)", fontVariantNumeric: "tabular-nums" }}>{justTurn ? "Now" : `~${displayWait}m`}</div>
-                              <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>est. wait</div>
-                            </div>
+                            {services.length > 0 && (
+                              <div>
+                                <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--secondary)", fontVariantNumeric: "tabular-nums" }}>{justTurn ? "Now" : `~${displayWait}m`}</div>
+                                <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>est. wait</div>
+                              </div>
+                            )}
                           </div>
                           <div style={{ height: 6, background: "var(--surface-sunken)", borderRadius: 999, marginTop: 16, overflow: "hidden" }}>
                             <div style={{ height: "100%", width: progressPct, background: "var(--success)", borderRadius: 999, transition: "width .6s ease" }} />
@@ -1503,10 +1593,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                         <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "var(--primary)" }}>{justTurn ? 0 : ticket?.ahead ?? 0}</div>
                         <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>ahead of you</div>
                       </div>
-                      <div>
-                        <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "var(--secondary)" }}>{justTurn ? "Now" : `~${displayWait}m`}</div>
-                        <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>est. wait</div>
-                      </div>
+                      {services.length > 0 && (
+                        <div>
+                          <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "var(--secondary)" }}>{justTurn ? "Now" : `~${displayWait}m`}</div>
+                          <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>est. wait</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   {!confirmLeave ? (

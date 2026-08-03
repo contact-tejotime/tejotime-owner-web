@@ -4,6 +4,7 @@ import { asyncHandler } from '../../http/async-handler';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import { Errors } from '../../domain/errors';
+import { OPTIONAL_SERVICES_STAFF_CATEGORIES } from '../../config/constants';
 import { MAX_IMAGE_BYTES, signUpload } from '../../integrations/storage';
 import { verifyAdminToken } from '../auth/token.service';
 import * as admin from './admin.service';
@@ -35,6 +36,19 @@ const timeStr = z
   .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Expected HH:MM')
   .nullable()
   .optional();
+
+function requireServicesStaff(
+  data: { category: string; services: unknown[]; staff: unknown[] },
+  ctx: z.RefinementCtx,
+) {
+  if (OPTIONAL_SERVICES_STAFF_CATEGORIES.has(data.category)) return;
+  if (data.services.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Add at least one service', path: ['services'] });
+  }
+  if (data.staff.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Add at least one staff member', path: ['staff'] });
+  }
+}
 
 /** The store fields shared by create + update (everything except the owner login). */
 const storeFieldsSchema = z.object({
@@ -85,7 +99,6 @@ const storeFieldsSchema = z.object({
         priceRupees: z.coerce.number().min(0).max(1_000_000),
       }),
     )
-    .min(1, 'Add at least one service')
     .max(50),
   staff: z
     .array(
@@ -95,7 +108,6 @@ const storeFieldsSchema = z.object({
         avatarUrl: z.string().url().max(500).nullable().optional(),
       }),
     )
-    .min(1, 'Add at least one staff member')
     .max(50),
   faqs: z
     .array(z.object({ q: z.string().trim().min(1).max(200), a: z.string().trim().min(1).max(1000) }))
@@ -120,9 +132,10 @@ const createSchema = storeFieldsSchema
       phone: z.string().regex(/^\d{7,15}$/).optional(),
     }),
   })
-  .strict();
+  .strict()
+  .superRefine(requireServicesStaff);
 
-const updateSchema = storeFieldsSchema.strict();
+const updateSchema = storeFieldsSchema.strict().superRefine(requireServicesStaff);
 const idParam = z.object({ id: z.string().uuid() });
 const customerVisitsParams = z.object({ id: z.string().uuid(), customerId: z.string().uuid() });
 

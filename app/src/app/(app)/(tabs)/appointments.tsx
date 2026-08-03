@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View } from 'react-native';
 
 import { AppointmentListItem } from '@/components/appointments/AppointmentListItem';
@@ -13,6 +13,12 @@ import { styles } from '@/styles';
 export default function Appointments() {
   const theme = useTheme();
   const store = useAppState();
+
+  const staffById = useMemo(() => {
+    const map: Record<string, string> = {};
+    store.staff.forEach((st) => (map[st.id] = st.name));
+    return map;
+  }, [store.staff]);
 
   return (
     <>
@@ -37,6 +43,7 @@ export default function Appointments() {
               <AppointmentListItem
                 key={a.id}
                 appointment={a}
+                staffName={a.staffId ? staffById[a.staffId] : undefined}
                 checkInLoading={store.checkInId === a.id}
                 onCheckIn={store.checkInAppt}
               />

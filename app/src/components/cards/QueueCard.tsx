@@ -2,12 +2,14 @@ import React, { useMemo } from 'react';
 import { GestureResponderHandlers, Pressable, StyleSheet, TextStyle, View, ViewStyle } from 'react-native';
 
 import { TText } from '@/components/common';
+import { Badge } from '@/components/ui/Badge';
 import { CardVM } from '@/lib/queue';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { useServiceColor } from '@/theme/serviceColor';
 import { useTheme } from '@/theme/ThemeProvider';
+import { t } from '@/i18n';
 
 function QueueCardComponent({
   card,
@@ -40,9 +42,16 @@ function QueueCardComponent({
       </View>
 
       <View style={s.body}>
-        <TText variant="bodyMd" color="textStrong" weight="semibold" numberOfLines={1}>
-          {card.name}
-        </TText>
+        <View style={s.nameRow}>
+          <TText variant="bodyMd" color="textStrong" weight="semibold" numberOfLines={1} style={s.nameText}>
+            {card.name}
+          </TText>
+          {card.visitorType && (
+            <Badge tone={card.visitorType === 'mr' ? 'info' : 'secondary'} size="sm">
+              {card.visitorType === 'mr' ? t.queue.mr : t.queue.patient}
+            </Badge>
+          )}
+        </View>
         <View style={s.subRow}>
           {showSeat && <View style={s.seatDotBg(seatColor)} />}
           <TText variant="bodySm" color="textMuted" numberOfLines={1} style={s.subText}>
@@ -90,6 +99,8 @@ const createQueueCardStyles = ({ colors, radius, shadow }: ThemeStyleProps) => {
       borderRadius: moderateScale(radius.md),
     },
     body: { ...styles.flex, ...styles.minWidth0 },
+    nameRow: { ...styles.flexRow, ...styles.itemsCenter, gap: moderateScale(6) },
+    nameText: { flexShrink: 1 },
     subRow: { ...styles.flexRow, ...styles.itemsCenter, ...styles.g1, ...styles.mt1 },
     seatDot: { width: moderateScale(8), height: moderateScale(8), borderRadius: moderateScale(4) },
     subText: { ...styles.flex },

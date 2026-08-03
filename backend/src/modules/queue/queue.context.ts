@@ -21,6 +21,7 @@ export interface RawEntry {
   notified_two_away_at: string | null;
   notified_turn_at: string | null;
   notified_eta_15_at: string | null;
+  visitor_type: 'mr' | 'patient' | null;
 }
 
 export interface QueueContext {
@@ -65,6 +66,7 @@ export async function loadQueueContext(businessId: string): Promise<QueueContext
     source: e.source,
     extra: e.extra_minutes,
     startedAt: e.started_at,
+    visitorType: e.visitor_type ?? null,
   }));
 
   return { staffRows, serviceRows, entries, engineStaff, engineServices, engineEntries };

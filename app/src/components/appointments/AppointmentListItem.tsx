@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { TButton, TFormattedDate, TText } from '@/components/common';
+import { Badge } from '@/components/ui/Badge';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { t } from '@/i18n';
 import { AppointmentEntry } from '@/data/sample';
@@ -16,27 +17,37 @@ const CHECK_IN_ELIGIBLE = new Set(['upcoming', 'confirmed']);
 
 export function AppointmentListItem({
   appointment,
+  staffName,
   checkInLoading,
   onCheckIn,
 }: {
   appointment: AppointmentEntry;
+  staffName?: string | null;
   checkInLoading: boolean;
   onCheckIn: (a: AppointmentEntry) => void;
 }) {
   const theme = useTheme();
   const s = useMemo(() => createAppointmentListItemStyles(theme), [theme]);
   const checkInEligible = CHECK_IN_ELIGIBLE.has(appointment.status);
+  const serviceLine = staffName ? `${appointment.service} · ${staffName}` : appointment.service;
 
   return (
     <View style={s.row}>
       <TFormattedDate value={appointment.time} variant="bodySm" color="textMuted" weight="semibold" style={s.time} />
       <View style={s.card}>
         <View style={s.body}>
-          <TText variant="bodyMd" color="textStrong" weight="semibold">
-            {appointment.name}
-          </TText>
+          <View style={s.nameRow}>
+            <TText variant="bodyMd" color="textStrong" weight="semibold" style={s.nameText}>
+              {appointment.name}
+            </TText>
+            {appointment.visitorType && (
+              <Badge tone={appointment.visitorType === 'mr' ? 'info' : 'secondary'} size="sm">
+                {appointment.visitorType === 'mr' ? t.queue.mr : t.queue.patient}
+              </Badge>
+            )}
+          </View>
           <TText variant="caption" color="textMuted" style={s.service}>
-            {appointment.service}
+            {serviceLine}
           </TText>
         </View>
         {checkInEligible ? (
@@ -80,5 +91,7 @@ const createAppointmentListItemStyles = ({ colors, radius, shadow }: ThemeStyleP
       ...shadow.xs,
     },
     body: { ...styles.flex, ...styles.minWidth0 },
+    nameRow: { ...styles.flexRow, ...styles.itemsCenter, gap: moderateScale(6) },
+    nameText: { flexShrink: 1 },
     service: { ...styles.mt1 },
   });

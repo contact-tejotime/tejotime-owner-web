@@ -4,6 +4,7 @@ import React from 'react';
 import { View } from 'react-native';
 
 import { AddWalkInSheet } from '@/components/feedback/AddWalkInSheet';
+import { DayAppointmentsSheet } from '@/components/feedback/DayAppointmentsSheet';
 import { DetailPanel } from '@/components/feedback/DetailPanel';
 import { QRSheet } from '@/components/feedback/QRSheet';
 import { useAppState } from '@/state/store';
@@ -26,6 +27,7 @@ export default function AppLayout() {
       <AddWalkInSheet />
       <QRSheet />
       <DetailPanel />
+      <DayAppointmentsSheet />
     </View>
   );
 }

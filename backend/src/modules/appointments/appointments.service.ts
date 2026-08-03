@@ -23,6 +23,7 @@ function apptDTO(a: any) {
     source: a.source,
     queueEntryId: a.queue_entry_id,
     notes: a.notes,
+    visitorType: a.visitor_type ?? null,
   };
 }
 

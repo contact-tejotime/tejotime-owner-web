@@ -50,7 +50,9 @@
     "summary": "{seats} seats · {active} in queue",
     "dragHint": "Drag up or down · release to drop in this seat",
     "seatFree": "Seat free · add a walk-in",
-    "empty": "No one waiting yet — add a walk-in to get started"
+    "empty": "No one waiting yet — add a walk-in to get started",
+    "mr": "MR",
+    "patient": "Patient"
   },
   "appointments": {
     "title": "Appointments",
@@ -170,6 +172,7 @@
     "phoneLabel": "Phone",
     "phonePlaceholder": "98xxx xxxxx",
     "service": "Service",
+    "visitorType": "Visitor type",
     "assignSeat": "Assign to seat",
     "addAs": "Add to queue as",
     "endOfQueue": "End of queue",
@@ -183,6 +186,7 @@
     "service": "Service",
     "source": "Source",
     "position": "Position",
+    "visitorType": "Visitor type",
     "bookedOnline": "Booked online",
     "walkIn": "Walk-in",
     "positionLine": "#{pos} in {seat}'s line",
@@ -284,6 +288,7 @@
     "noNewNotifications": "No new notifications",
     "enterName": "Enter a customer name",
     "pickService": "Pick a service",
+    "pickVisitorType": "Pick MR or Patient",
     "addedAsNext": "Added as next",
     "addedToQueue": "Added to queue",
     "couldNotAdd": "Could not add",

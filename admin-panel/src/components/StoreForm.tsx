@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   DAY_LABELS,
   EMPTY_FORM,
+  OPTIONAL_SERVICES_STAFF_CATEGORIES,
   toPayload,
   type Category,
   type FaqRow,
@@ -123,6 +124,7 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
   }
 
   const previewUrl = useMemo(() => (result ? `${FRONTEND_URL}${result.micrositePath}` : ""), [result]);
+  const servicesStaffOptional = OPTIONAL_SERVICES_STAFF_CATEGORIES.has(form.category);
 
   // Categories may not include the store's current value (e.g. a deactivated category on edit);
   // keep it selectable so a save doesn't silently drop it.
@@ -375,7 +377,8 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
 
         {/* Services ----------------------------------------------------- */}
         <section className="section">
-          <h2>{t.storeForm.services}</h2>
+          <h2>{servicesStaffOptional ? t.storeForm.servicesOptional : t.storeForm.services}</h2>
+          {servicesStaffOptional && <p className="hint">{t.storeForm.servicesStaffOptionalHint}</p>}
           {form.services.map((s, i) => (
             <div className="row service" key={i}>
               <div className="field">
@@ -424,7 +427,8 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
 
         {/* Staff -------------------------------------------------------- */}
         <section className="section">
-          <h2>{t.storeForm.staff}</h2>
+          <h2>{servicesStaffOptional ? t.storeForm.staffOptional : t.storeForm.staff}</h2>
+          {servicesStaffOptional && <p className="hint">{t.storeForm.servicesStaffOptionalHint}</p>}
           {form.staff.map((s, i) => (
             <div className="row staff" key={i}>
               <div className="field">
@@ -521,7 +525,13 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
             <div className="grid">
               <div className="field">
                 <label htmlFor="sf-ownerPhone">{t.storeForm.ownerPhone}</label>
-                <input id="sf-ownerPhone" value={phoneFull} readOnly />
+                <input
+                  id="sf-ownerPhone"
+                  value={form.ownerPhone}
+                  onChange={(e) => set("ownerPhone", e.target.value.replace(/\D/g, ""))}
+                  placeholder={phoneFull}
+                  inputMode="numeric"
+                />
                 <p className="hint">{t.storeForm.ownerPhoneHint}</p>
               </div>
               <div className="field">

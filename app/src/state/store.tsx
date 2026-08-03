@@ -25,11 +25,18 @@ import { t, format } from '@/i18n';
 export type Plan = 'free' | 'premium';
 type Sheet = 'walkin' | null;
 export type WalkInPosition = 'end' | 'next';
+export type VisitorType = 'mr' | 'patient';
+
+// Mirrors backend/src/config/constants.ts — categories where a service isn't forced / where
+// the visitor must be identified as MR or Patient before adding a walk-in.
+const OPTIONAL_SERVICE_CATEGORIES = new Set(['Hospital', 'Restaurant']);
+const VISITOR_TYPE_CATEGORIES = new Set(['Hospital']);
 
 type WalkIn = {
   service: string | null; // service name
   position: WalkInPosition;
   staffId: string; // 'auto' | staff id
+  visitorType: VisitorType | null;
   error: string;
 };
 
@@ -48,6 +55,7 @@ interface BusinessInfo {
   area?: string;
   slug?: string;
   address?: string;
+  category?: string;
   countryCode?: string | null;
   phoneNumber?: string | null;
   hours?: DayHoursVM[];
@@ -69,6 +77,7 @@ type State = {
   sheet: Sheet;
   qr: boolean;
   detailId: string | null;
+  dayApptsDate: string | null;
   dragId: string | null;
   walkin: WalkIn;
   search: string;
@@ -97,10 +106,13 @@ type Store = State & {
   closeQr: () => void;
   setWalkinPosition: (p: WalkInPosition) => void;
   setWalkinStaff: (id: string) => void;
+  setWalkinVisitorType: (v: VisitorType) => void;
   pickService: (name: string) => void;
   addWalkin: (fields: { name: string; phone: string }) => void;
   openDetail: (id: string) => void;
   closeDetail: () => void;
+  openDayAppts: (dateKey: string) => void;
+  closeDayAppts: () => void;
   startService: (id: string) => void;
   checkout: (id: string) => void;
   noShow: (id: string) => void;
@@ -121,7 +133,7 @@ type Store = State & {
   updateStaffMember: (id: string, f: { name: string; roleLabel: string; photoUrl: string | null }) => Promise<boolean>;
 };
 
-const emptyWalkin: WalkIn = { service: null, position: 'end', staffId: 'auto', error: '' };
+const emptyWalkin: WalkIn = { service: null, position: 'end', staffId: 'auto', visitorType: null, error: '' };
 
 const AppStateContext = createContext<Store | null>(null);
 
@@ -159,6 +171,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     sheet: null,
     qr: false,
     detailId: null,
+    dayApptsDate: null,
     dragId: null,
     walkin: { ...emptyWalkin },
     search: '',
@@ -425,11 +438,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       closeQr: () => patch(() => ({ qr: false })),
       setWalkinPosition: (position) => patch((p) => ({ walkin: { ...p.walkin, position } })),
       setWalkinStaff: (staffId) => patch((p) => ({ walkin: { ...p.walkin, staffId } })),
+      setWalkinVisitorType: (visitorType) => patch((p) => ({ walkin: { ...p.walkin, visitorType, error: '' } })),
       pickService: (name) => patch((p) => ({ walkin: { ...p.walkin, service: name, error: '' } })),
       addWalkin: async ({ name, phone }) => {
         const w = s.walkin;
+        const category = s.business?.category ?? '';
+        const serviceOptional = OPTIONAL_SERVICE_CATEGORIES.has(category);
+        const needsVisitorType = VISITOR_TYPE_CATEGORIES.has(category);
         if (!name.trim()) return patch(() => ({ walkin: { ...w, error: t.toast.enterName } }));
-        if (!w.service) return patch(() => ({ walkin: { ...w, error: t.toast.pickService } }));
+        if (!serviceOptional && !w.service) return patch(() => ({ walkin: { ...w, error: t.toast.pickService } }));
+        if (needsVisitorType && !w.visitorType) return patch(() => ({ walkin: { ...w, error: t.toast.pickVisitorType } }));
         const serviceId = s.services.find((sv) => sv.name === w.service)?.id ?? null;
         patch(() => ({ walkinLoading: true }));
         try {
@@ -439,6 +457,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             serviceId,
             staffId: w.staffId,
             position: w.position,
+            visitorType: w.visitorType,
           });
           setS((p) => ({ ...p, seats: mapSeats(res.seats), sheet: null, walkinLoading: false }));
           showToast(w.position === 'next' ? t.toast.addedAsNext : t.toast.addedToQueue, 'success');
@@ -449,6 +468,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       },
       openDetail: (id) => patch(() => ({ detailId: id })),
       closeDetail: () => patch(() => ({ detailId: null })),
+      openDayAppts: (dateKey) => patch(() => ({ dayApptsDate: dateKey })),
+      closeDayAppts: () => patch(() => ({ dayApptsDate: null })),
       startService: async (id) => {
         patch(() => ({ detailBusy: true }));
         try {

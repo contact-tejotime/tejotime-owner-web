@@ -43,6 +43,7 @@ export function mapCard(c: any, seatColor: ServiceColorToken = 'secondary'): Car
     rightText: c.rightText,
     inService: c.status === 'in_service',
     isWaiting: c.status === 'waiting',
+    visitorType: c.visitorType ?? null,
   };
 }
 
@@ -107,6 +108,7 @@ export function mapBusinessDetail(r: any) {
     area: r.area,
     slug: r.slug,
     address: r.address ?? undefined,
+    category: r.category ?? undefined,
     countryCode: r.countryCode ?? null,
     phoneNumber: r.phoneNumber ?? null,
     hours: mapHours(r.hours ?? []),
@@ -128,6 +130,8 @@ export function mapAppointment(a: any): AppointmentEntry {
     service: a.serviceName,
     time: fmtTime(a.scheduledStartAt),
     status: toStatusKind(a.status),
+    staffId: a.staffId ?? null,
+    visitorType: a.visitorType ?? null,
   };
 }
 

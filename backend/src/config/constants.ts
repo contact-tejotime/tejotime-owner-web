@@ -20,3 +20,11 @@ export const SERVICE_EXTRAS = [
 ] as const;
 
 export const API_PREFIX = '/api/v1';
+
+/** Categories where a fixed service menu / staff roster doesn't fit the business — the public
+ *  queue/booking flow (and the owner's manual walk-in flow) allow zero services/staff. */
+export const OPTIONAL_SERVICES_STAFF_CATEGORIES = new Set(['Hospital', 'Restaurant']);
+
+/** Categories where the customer/owner must identify the visitor as MR (Medical Representative)
+ *  or Patient before joining the queue / booking a slot / adding a walk-in. */
+export const VISITOR_TYPE_CATEGORIES = new Set(['Hospital']);

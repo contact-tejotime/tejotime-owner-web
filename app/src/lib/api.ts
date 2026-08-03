@@ -102,8 +102,14 @@ export const api = {
   },
 
   getQueue: () => raw('GET', '/queue?view=grouped'),
-  addWalkin: (b: { name: string; phone?: string | null; serviceId?: string | null; staffId: string; position: 'end' | 'next' }) =>
-    raw('POST', '/queue', b),
+  addWalkin: (b: {
+    name: string;
+    phone?: string | null;
+    serviceId?: string | null;
+    staffId: string;
+    position: 'end' | 'next';
+    visitorType?: 'mr' | 'patient' | null;
+  }) => raw('POST', '/queue', b),
   startService: (id: string) => raw('POST', `/queue/${id}/start`),
   checkout: (id: string) => raw('POST', `/queue/${id}/checkout`),
   noShow: (id: string) => raw('POST', `/queue/${id}/no-show`),
