@@ -13,6 +13,26 @@ import { signAdminToken } from '../auth/token.service';
  * business piecemeal). Reached via the admin-JWT–gated /api/v1/admin/* routes.
  */
 
+/**
+ * Microsite theme config as stored in `business.theme` (jsonb).
+ *
+ * The id unions are mirrored from the frontend theme engine rather than imported: the
+ * backend is Docker-built with `COPY . .` from backend/, so frontend/ is not in its build
+ * context. Keep in sync with frontend/src/theme/engine (and the zod schema in admin.routes).
+ * Every field is optional — the engine fills gaps from the preset's own defaults.
+ */
+export interface ThemeConfigInput {
+  preset?: 'minimal' | 'luxury' | 'modern' | 'bold' | 'medical' | 'warm';
+  mode?: 'light' | 'dark' | 'auto';
+  /** `#RRGGBB` brand seed. Dual-written to the legacy `theme_color` column. */
+  brand?: string;
+  radius?: 'sharp' | 'medium' | 'rounded';
+  shadow?: 'none' | 'soft' | 'premium';
+  density?: 'comfortable' | 'compact';
+  animation?: 'subtle' | 'normal' | 'rich';
+  heroVariant?: string;
+}
+
 /** The store fields shared by create and update (everything except the owner login). */
 export interface StoreFields {
   name: string;
@@ -36,6 +56,10 @@ export interface StoreFields {
   timezone?: string;
   /** ISO 4217 code (e.g. 'INR', 'USD'). Omitted → keeps existing / env default. */
   currency?: string;
+  /** Per-store brand/accent hex (#RRGGBB) for the customer microsite. */
+  themeColor?: string;
+  /** Full microsite theme config. Omitted → whatever is stored is preserved. */
+  theme?: ThemeConfigInput;
   /** Edit only — create always starts active. When false the public microsite 404s. */
   isActive?: boolean;
   countryCode: string;
@@ -113,6 +137,31 @@ function businessColumns(input: StoreFields) {
     faqs: JSON.stringify(input.faqs ?? []),
     reviews: JSON.stringify(input.reviews ?? []),
   };
+}
+
+/**
+ * Theme columns, write-if-present. Unlike the rest of businessColumns these are spread
+ * conditionally (same guarded pattern as currency / is_active): a payload that omits
+ * `themeColor` or `theme` must PRESERVE what is stored, never null it out.
+ *
+ * `theme.brand` and `theme_color` are dual-written in both directions so the legacy
+ * column stays a valid fallback for one release.
+ *
+ * `storedBrand` is the row's current `theme_color` (updates only). Without it a partial save
+ * that carries a theme object but neither `theme.brand` nor `themeColor` would persist a
+ * BRANDLESS theme jsonb — and since the stored theme wins over `theme_color` at render time,
+ * the store's brand would silently fall back to the engine default blue.
+ */
+function themeColumns(input: StoreFields, storedBrand?: string | null): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  // A brand hex inside the theme object wins; otherwise the legacy field, then the stored one.
+  const brand = (input.theme?.brand ?? input.themeColor ?? storedBrand ?? undefined)?.toUpperCase();
+
+  if (brand !== undefined) out.theme_color = brand;
+  if (input.theme !== undefined) {
+    out.theme = JSON.stringify(brand !== undefined ? { ...input.theme, brand } : input.theme);
+  }
+  return out;
 }
 
 /** Insert all child rows (hours, amenities, gallery, services, staff) for a business. */
@@ -226,6 +275,7 @@ export async function createBusiness(input: CreateBusinessInput) {
       token_prefix: 'A',
       is_active: true,
       ...businessColumns(input),
+      ...themeColumns(input),
     };
     const cols = Object.keys(row);
     const { rows } = await client.query(
@@ -253,7 +303,7 @@ export async function createBusiness(input: CreateBusinessInput) {
 }
 
 export async function updateBusiness(id: string, input: UpdateBusinessInput) {
-  const existing = await one('select id, currency from business where id = $1', [id]);
+  const existing = await one('select id, currency, theme_color from business where id = $1', [id]);
   if (!existing) throw Errors.notFound('Store not found');
 
   const countryCode = input.countryCode.replace(/\D/g, '');
@@ -274,6 +324,9 @@ export async function updateBusiness(id: string, input: UpdateBusinessInput) {
     ...(input.isActive !== undefined ? { is_active: input.isActive } : {}),
     ...(input.currency !== undefined ? { currency } : {}),
     ...businessColumns(input),
+    // Omitted theme fields keep their stored value (see themeColumns). The row's current
+    // theme_color is the last-resort brand so a brandless theme object can never orphan it.
+    ...themeColumns(input, existing.theme_color as string | null),
   };
   const cols = Object.keys(row);
 
@@ -452,6 +505,8 @@ export async function getBusinessDetail(id: string) {
     reviewCount: b.review_count != null ? String(b.review_count) : '',
     payments: (b.payments ?? []).join(', '),
     currency: b.currency ?? 'INR',
+    themeColor: b.theme_color ?? '',
+    theme: (b.theme ?? null) as ThemeConfigInput | null,
     countryCode: b.country_code ?? '',
     phoneNumber: b.phone_number ?? '',
     phoneFull: `${b.country_code ?? ''}${b.phone_number ?? ''}`,

@@ -196,6 +196,10 @@ async function buildMicrosite(b: any) {
     live: { waitMinutes, queueCount },
     payments: b.payments ?? [],
     currency: b.currency ?? env.DEFAULT_CURRENCY,
+    themeColor: b.theme_color ?? null,
+    // Full theme config (jsonb). NULL for stores provisioned before 0017 — the frontend
+    // theme engine then falls back to the legacy config, seeded by themeColor.
+    theme: b.theme ?? null,
   };
 }
 

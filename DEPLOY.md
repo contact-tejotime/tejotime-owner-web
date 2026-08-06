@@ -64,7 +64,9 @@ Each domain shows pending until DNS propagates, then flips to verified (green ch
 | `PUBLIC_WEB_URL` | `https://www.tejotime.com` |
 | `CORS_ALLOWED_ORIGINS` | `https://www.tejotime.com,https://admin.tejotime.com` |
 
-**`tejotime-web`:** `NEXT_PUBLIC_API_BASE_URL=https://api.tejotime.com/api/v1`, `NEXT_PUBLIC_SOCKET_URL=https://api.tejotime.com`, `NEXT_PUBLIC_ASSET_PREFIX=https://www.tejotime.com`
+**`tejotime-web`:** `NEXT_PUBLIC_API_BASE_URL=https://api.tejotime.com/api/v1`, `NEXT_PUBLIC_SOCKET_URL=https://api.tejotime.com`, `NEXT_PUBLIC_ASSET_PREFIX=https://www.tejotime.com`, `NEXT_PUBLIC_ADMIN_ORIGIN=https://admin.tejotime.com`
+
+> `NEXT_PUBLIC_ADMIN_ORIGIN` is the origin allowed to drive the microsite's live theme preview (`?preview=1`). The code default is already `https://admin.tejotime.com`, so you only need to set it while the admin is on a different host — e.g. the interim `*.up.railway.app` domain in step 3, or a staging deploy. If it is wrong the admin's Appearance preview silently shows "isn't accepting live theme updates".
 
 **`tejotime-admin`:** `BACKEND_API_BASE_URL=https://api.tejotime.com/api/v1`, `NEXT_PUBLIC_FRONTEND_URL=https://www.tejotime.com`
 
@@ -77,6 +79,19 @@ Migrations are idempotent and safe to re-run. From your machine, against Railway
 ```bash
 cd backend && DATABASE_URL="<public-proxy-url>" npm run migrate
 ```
+
+> ⚠️ **Run migrations BEFORE promoting a new backend image, not after.** Nothing runs them
+> automatically (`backend/Dockerfile` CMD is `node dist/server.js`; `railway.toml` has no
+> pre-deploy hook), and a backend that is ahead of its schema fails *writes*, not just reads.
+> Concretely for the theming release: the admin panel sends `theme` on every save, so without
+> `0016_business_theme_color.sql` + `0017_business_theme.sql` every store create, edit **and the
+> enable/disable toggle** 500s with `column "theme" of relation "business" does not exist`.
+> Verify before promoting:
+> ```bash
+> psql "$DATABASE_URL" -c "select column_name from information_schema.columns \
+>   where table_name='business' and column_name in ('theme','theme_color')"
+> ```
+
 **Never run `npm run seed` against a database with real data** — it deletes and recreates the `sharp-cuts` tenant.
 
 ---

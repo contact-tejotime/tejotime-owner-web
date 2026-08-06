@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import type { ThemeConfig } from "@/theme/engine";
 
 /** Thrown on any non-2xx response; carries the backend error envelope's code. */
 export class ApiError extends Error {
@@ -79,6 +80,14 @@ export interface Microsite {
   payments: string[];
   /** Store-level ISO 4217 code — picks the symbol for every displayed price. */
   currency: string;
+  /** Brand/accent hex (#RRGGBB) for microsite theming; null → default TejoTime blue. */
+  themeColor: string | null;
+  /**
+   * Full theme config (the `business.theme` jsonb). Optional because older backends — and any
+   * cached response — simply omit it; `micrositeThemeConfig()` then falls back to `themeColor`
+   * on the legacy parity config. Never trust the shape: it is normalised before use.
+   */
+  theme?: ThemeConfig | null;
 }
 export interface Availability {
   waitMinutes: number;

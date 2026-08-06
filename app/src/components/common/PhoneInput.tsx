@@ -157,7 +157,7 @@ export function PhoneInput({
 
 const createPhoneInputStyles = (
   theme: ThemeStyleProps & {
-    controlHeight: typeof import('@/theme/tokens').controlHeight;
+    controlHeight: import('@/theme/fromEngine').ControlHeightRN;
     fontFamily: typeof import('@/theme/tokens').fontFamily;
   },
   borderColor: string,

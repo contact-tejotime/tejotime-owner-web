@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { ApiError, publicApi } from "@/lib/api";
 import MicrositeClient from "@/components/microsite/MicrositeClient";
+import ThemeStyle from "@/theme/ThemeStyle";
+import { micrositeThemeConfig } from "@/theme";
 
 // Live data — opt out of full-route caching so the server fetch runs per request
 // (this also makes the underlying fetch `no-store`). Matches the previous /sharp-cuts page.
@@ -30,5 +32,12 @@ export default async function PhonePage({ params }: { params: Promise<{ phone: s
     );
   }
 
-  return <MicrositeClient initialSite={initialSite} />;
+  // Theme tokens are emitted server-side, above the microsite, so the very first paint is
+  // already in the store's brand — no client JS on this path and therefore no flash of blue.
+  return (
+    <>
+      <ThemeStyle config={micrositeThemeConfig(initialSite)} />
+      <MicrositeClient initialSite={initialSite} />
+    </>
+  );
 }

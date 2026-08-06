@@ -72,6 +72,30 @@ const storeFieldsSchema = z.object({
   payments: z.array(z.string().min(1).max(40)).max(10).optional(),
   timezone: z.string().max(64).optional(),
   currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Expected ISO 4217 code').optional(),
+  /** Per-store brand/accent hex for the customer microsite (#RRGGBB). */
+  themeColor: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/, 'Expected #RRGGBB hex color')
+    .optional(),
+  /**
+   * Full microsite theme config (stored as jsonb). Every field is optional so partial
+   * saves are safe — the frontend theme engine fills any gap from the preset's defaults.
+   * The id unions are mirrored here deliberately: the backend must not import from
+   * frontend/, which is outside its Docker build context.
+   */
+  theme: z
+    .object({
+      preset: z.enum(['minimal', 'luxury', 'modern', 'bold', 'medical', 'warm']),
+      mode: z.enum(['light', 'dark', 'auto']),
+      brand: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Expected #RRGGBB hex color'),
+      radius: z.enum(['sharp', 'medium', 'rounded']),
+      shadow: z.enum(['none', 'soft', 'premium']),
+      density: z.enum(['comfortable', 'compact']),
+      animation: z.enum(['subtle', 'normal', 'rich']),
+      heroVariant: z.enum(['split-classic', 'editorial', 'split-modern', 'full-bleed', 'trust', 'cozy']),
+    })
+    .partial()
+    .optional(),
   isActive: z.boolean().optional(),
   countryCode: z.string().regex(/^\d{1,4}$/, 'Digits only'),
   phoneNumber: z.string().regex(/^\d{6,14}$/, 'Digits only'),

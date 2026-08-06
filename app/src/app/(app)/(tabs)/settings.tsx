@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
 import { t, format } from '@/i18n';
 import { appVersion, businessProfile, notificationsSub, subscription } from '@/data/settings';
+import { WEB_BASE_URL } from '@/lib/config';
 import { hoursSummary } from '@/lib/hours';
 import { SETTINGS_ROUTES, SettingsPageId } from '@/navigation/routes';
 import { useAppState } from '@/state/store';
@@ -22,7 +23,12 @@ export default function Settings() {
   const store = useAppState();
   const s = useMemo(() => createSettingsStyles(theme), [theme]);
   const biz = store.business;
-  const bookingUrl = biz?.slug ? `tejotime.com/${biz.slug}` : businessProfile.bookingUrl;
+  // The microsite is keyed by phone, not slug — `tejotime.com/<slug>` has no route and 404s.
+  // QR encodes /{phone}/card (chooser), not the microsite root or a raw .vcf.
+  const phoneFull = `${biz?.countryCode ?? ''}${biz?.phoneNumber ?? ''}`;
+  const cardUrl = phoneFull
+    ? `${WEB_BASE_URL.replace(/^https?:\/\//, '')}/${phoneFull}/card`
+    : businessProfile.bookingUrl;
 
   return (
     <>
@@ -58,7 +64,7 @@ export default function Settings() {
           {t.settings.groupBookings}
         </TText>
         <View style={s.card}>
-          <TSettingsRow icon="qrCode" label={t.settings.bookingQr} sub={bookingUrl} onPress={store.openQr} />
+          <TSettingsRow icon="qrCode" label={t.settings.bookingQr} sub={cardUrl} onPress={store.openQr} />
           <TSettingsRow
             icon="bell"
             label={t.settings.notifications}

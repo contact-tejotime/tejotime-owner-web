@@ -48,60 +48,91 @@
   color: var(--text-strong);
 }
 
+/* ============================================================
+   Hover interactions, driven by the theme engine's animation axis.
+
+   Every duration below is --dur-normal / --dur-fast, and every
+   lift/scale is expressed as a multiple of --lift-y / --scale-hover.
+   The multipliers exist to preserve the differences the design
+   already had: an amenity chip nudged 2px, a member card 5px, the
+   gallery a 1.04 zoom. Under the 'normal' preset (--lift-y: -4px,
+   --scale-hover: 1.01, --dur-normal: 220ms) the arithmetic lands
+   back on today's numbers; 'subtle' collapses the lift to 0 and the
+   scale to 1, 'rich' amplifies both — all without editing this file.
+
+   Fallbacks are supplied in globals.css :root, so these classes
+   still work if they somehow render outside a themed wrapper.
+   ============================================================ */
+
 /* ---- Interactive card hovers ---- */
 .salonAmenity {
-  transition: transform 0.18s ease, border-color 0.18s ease;
+  transition: transform var(--dur-normal) var(--ease-standard),
+    border-color var(--dur-normal) var(--ease-standard);
 }
 .salonAmenity:hover {
-  transform: translateY(-2px);
+  /* was -2px */
+  transform: translateY(calc(var(--lift-y) * 0.5));
   border-color: var(--primary);
 }
 
 .salonGalleryCell {
-  transition: transform 0.25s ease, border-color 0.25s ease;
+  transition: transform var(--dur-normal) var(--ease-standard),
+    border-color var(--dur-normal) var(--ease-standard);
 }
 .salonGalleryCell:hover {
-  transform: scale(1.04);
+  /* was scale(1.04) — a deliberate 4x the standard hover zoom */
+  transform: scale(calc(1 + (var(--scale-hover) - 1) * 4));
   border-color: var(--primary);
 }
 
 .salonServiceCard {
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: transform var(--dur-normal) var(--ease-standard),
+    border-color var(--dur-normal) var(--ease-standard),
+    box-shadow var(--dur-normal) var(--ease-standard);
 }
 .salonServiceCard:hover {
-  transform: translateY(-4px);
+  /* was -4px */
+  transform: translateY(var(--lift-y));
   border-color: var(--primary);
   box-shadow: var(--shadow-sm);
 }
 
 .salonMemberCard {
-  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+  transition: transform var(--dur-normal) var(--ease-standard),
+    box-shadow var(--dur-normal) var(--ease-standard),
+    border-color var(--dur-normal) var(--ease-standard);
 }
 .salonMemberCard:hover {
-  transform: translateY(-5px);
+  /* was -5px */
+  transform: translateY(calc(var(--lift-y) * 1.25));
   box-shadow: var(--shadow-md);
   border-color: color-mix(in srgb, var(--primary) 30%, var(--border-subtle));
 }
 
 .salonReviewCard {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform var(--dur-normal) var(--ease-standard),
+    box-shadow var(--dur-normal) var(--ease-standard);
 }
 .salonReviewCard:hover {
-  transform: translateY(-4px);
+  /* was -4px */
+  transform: translateY(var(--lift-y));
   box-shadow: var(--shadow-md);
 }
 
 .salonCtaBtn {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform var(--dur-normal) var(--ease-standard),
+    box-shadow var(--dur-normal) var(--ease-standard);
 }
 .salonCtaBtn:hover {
-  transform: translateY(-3px) scale(1.02);
+  /* was translateY(-3px) scale(1.02) */
+  transform: translateY(calc(var(--lift-y) * 0.75)) scale(calc(1 + (var(--scale-hover) - 1) * 2));
   box-shadow: var(--shadow-xl);
 }
 
-/* ---- Modal inputs ---- */
+/* ---- Modal inputs (focus feedback rides the fast duration) ---- */
 .salonInput {
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
 }
 .salonInput:focus {
   border-color: var(--primary);
@@ -110,7 +141,8 @@
 
 /* ---- OTP boxes (border colour is state-driven inline; add the focus ring) ---- */
 .salonOtpBox {
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
 }
 .salonOtpBox:focus {
   border-color: var(--primary);
@@ -119,9 +151,217 @@
 
 /* ---- Restored-session resume pill ---- */
 .salonResumePill {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform var(--dur-normal) var(--ease-standard),
+    box-shadow var(--dur-normal) var(--ease-standard);
 }
 .salonResumePill:hover {
-  transform: translateY(-2px);
+  /* was -2px */
+  transform: translateY(calc(var(--lift-y) * 0.5));
   box-shadow: var(--shadow-xl);
+}
+
+/* ============================================================
+   Scroll reveal + section motion.
+   Duration/lift come from the theme engine's animation axis, so Subtle gets a plain
+   fade, Normal a short rise and Rich a longer, further one — with no JS branching.
+   `.ttReveal` starts visible and is only hidden once motion.tsx confirms JS + an
+   IntersectionObserver, so no-JS and crawlers always see content.
+   ============================================================ */
+.ttReveal {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--dur-slow, 320ms) var(--ease-standard),
+    transform var(--dur-slow, 320ms) var(--ease-standard);
+}
+.ttReveal:not(.isIn) {
+  opacity: 0;
+  /* -1 flips the hover lift (which is negative) into a downward start offset. */
+  transform: translateY(calc(var(--lift-y, -4px) * -3));
+}
+
+/* ---- Live availability board ---- */
+.ttLiveCard {
+  transition:
+    transform var(--dur-normal, 220ms) var(--ease-standard),
+    box-shadow var(--dur-normal, 220ms) var(--ease-standard),
+    border-color var(--dur-normal, 220ms) var(--ease-standard);
+}
+.ttLiveCard:hover {
+  transform: translateY(var(--lift-y, -4px));
+  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border-subtle));
+}
+
+/* ---- Service cards ---- */
+.ttServiceCard {
+  transition:
+    transform var(--dur-normal, 220ms) var(--ease-standard),
+    box-shadow var(--dur-normal, 220ms) var(--ease-standard),
+    border-color var(--dur-normal, 220ms) var(--ease-standard);
+}
+.ttServiceCard:hover {
+  transform: translateY(var(--lift-y, -4px));
+  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border-subtle));
+}
+.ttServiceCard:hover .ttServiceGo {
+  opacity: 1;
+  transform: translateX(0);
+}
+.ttServiceGo {
+  opacity: 0;
+  transform: translateX(-6px);
+  transition:
+    opacity var(--dur-normal, 220ms) var(--ease-standard),
+    transform var(--dur-normal, 220ms) var(--ease-standard);
+}
+
+/* ---- Bento gallery ---- */
+.ttBentoCell {
+  overflow: hidden;
+  transition: box-shadow var(--dur-normal, 220ms) var(--ease-standard);
+}
+.ttBentoCell img,
+.ttBentoCell .ttBentoImg {
+  transition: transform var(--dur-slow, 320ms) var(--ease-standard);
+}
+.ttBentoCell:hover {
+  box-shadow: var(--shadow-lg);
+}
+.ttBentoCell:hover .ttBentoImg {
+  transform: scale(calc(1 + (var(--scale-hover, 1.01) - 1) * 4));
+}
+
+/* ---- Sticky mobile action bar ---- */
+.ttMobileBar {
+  animation: ttRise var(--dur-slow, 320ms) var(--ease-standard) both;
+}
+@keyframes ttRise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ttReveal,
+  .ttReveal:not(.isIn) {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .ttLiveCard,
+  .ttServiceCard,
+  .ttBentoCell,
+  .ttBentoCell .ttBentoImg,
+  .ttServiceGo,
+  .ttMobileBar {
+    transition: none;
+    animation: none;
+  }
+  .ttLiveCard:hover,
+  .ttServiceCard:hover,
+  .ttBentoCell:hover .ttBentoImg {
+    transform: none;
+  }
+}
+
+/* ============================================================
+   v3 grids + marquee.
+   Layout switches live here, not in JS `isMobile` branches, so the SERVER render is
+   already right at every width. v3 breakpoints: 860 (mobile bar / nav shed) and 1120.
+   ============================================================ */
+
+@keyframes ttMarq { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes ttPing {
+  0%   { transform: scale(1);   opacity: .6; }
+  70%  { transform: scale(2.6); opacity: 0; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+.ttMarquee { animation: ttMarq 38s linear infinite; }
+.ttPing { animation: ttPing 2.2s ease-out infinite; }
+
+/* ---- Live floor: summary tile + member cards ---- */
+.ttLiveGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+/* ---- Stat cards ---- */
+.ttStatGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+/* ---- Reviews ---- */
+.ttReviewGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+/* ---- Gallery mosaic ---- */
+.ttMosaic {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: clamp(120px, 30vw, 160px);
+  grid-auto-flow: dense;
+  gap: 14px;
+}
+.ttMosaic > * { grid-column: span 1; grid-row: span 1; }
+
+/* ---- Service rows collapse to two lines on narrow screens ---- */
+@media (max-width: 560px) {
+  .ttServiceRow { align-items: flex-start; }
+}
+
+@media (min-width: 641px) {
+  .ttLiveGrid   { grid-template-columns: repeat(auto-fit, minmax(268px, 1fr)); }
+  .ttStatGrid   { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .ttReviewGrid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .ttMosaic     { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); grid-auto-rows: 220px; }
+  /* The 2x2 feature frame only earns its space once there is a row to balance it. */
+  .ttMosaicFeature > *:first-child { grid-column: span 2; grid-row: span 2; }
+}
+
+/* ---- v3's own breakpoints ---- */
+/* Nav links are the first thing to go — they are duplicated in the page anyway. */
+@media (max-width: 1120px) { [data-shed] { display: none !important; } }
+/* Below 860 the sticky action bar takes over from the desktop header CTAs. */
+.ttMobileBar { display: none; }
+@media (max-width: 860px) {
+  .ttMobileBar { display: flex !important; }
+  [data-desk] { display: none !important; }
+  [data-pad] { padding-bottom: 92px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ttMarquee, .ttPing { animation: none; }
+}
+
+/* ============================================================
+   Typography polish, scoped to the themed subtree.
+   The face itself comes from the preset (--font-sans is overridden inside
+   [data-tt-theme] by resolve.ts); this only fixes rendering quality, which is
+   what made the old type look muddy at large sizes.
+   ============================================================ */
+[data-tt-theme] {
+  font-family: var(--font-body, var(--font-sans));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Proportional-width lining figures; harmless on faces that lack them. */
+  font-feature-settings: "cv11", "ss01";
+  font-variant-ligatures: common-ligatures;
+}
+/* Headings take the display face and its tracking, so a preset that pairs a serif
+   display with a sans body actually gets one. */
+[data-tt-theme] h1,
+[data-tt-theme] h2,
+[data-tt-theme] h3 {
+  font-family: var(--font-display, var(--font-sans));
+  letter-spacing: var(--tracking-display, -0.02em);
+  text-wrap: balance;
+}
+/* Long-form copy reads better with a slightly looser measure and no orphans. */
+[data-tt-theme] p {
+  text-wrap: pretty;
 }

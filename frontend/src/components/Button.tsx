@@ -27,7 +27,10 @@ const FONTS: Record<Size, string> = {
   lg: "var(--fs-body-lg)",
 };
 const VARIANTS: Record<Variant, { background: string; color: string; border: string; hoverBg: string; activeBg: string }> = {
-  primary: { background: "var(--primary)", color: "var(--text-on-brand)", border: "1px solid transparent", hoverBg: "var(--primary-hover)", activeBg: "var(--primary-active)" },
+  // --brand-outline is `transparent` unless the store's brand is too pale to read as a control
+  // against the page, in which case the theme engine supplies a darker edge. Falls back to
+  // transparent outside a themed subtree, so this is a no-op on the default blue.
+  primary: { background: "var(--primary)", color: "var(--text-on-brand)", border: "1px solid var(--brand-outline, transparent)", hoverBg: "var(--primary-hover)", activeBg: "var(--primary-active)" },
   secondary: { background: "var(--secondary)", color: "var(--text-on-brand)", border: "1px solid transparent", hoverBg: "var(--secondary-hover)", activeBg: "var(--secondary-hover)" },
   outline: { background: "var(--surface-card)", color: "var(--text-strong)", border: "1px solid var(--border-default)", hoverBg: "var(--surface-hover)", activeBg: "var(--surface-sunken)" },
   ghost: { background: "transparent", color: "var(--text-body)", border: "1px solid transparent", hoverBg: "var(--surface-hover)", activeBg: "var(--surface-sunken)" },

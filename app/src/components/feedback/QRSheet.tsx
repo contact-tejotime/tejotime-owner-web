@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { useResponsive } from '@/hooks/useResponsive';
 import { t, format } from '@/i18n';
-import { API_BASE_URL } from '@/lib/config';
+import { API_BASE_URL, WEB_BASE_URL } from '@/lib/config';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
@@ -25,13 +25,13 @@ type QrSvgRef = { toDataURL: (cb: (base64: string) => void) => void };
 function buildPrintHtml(name: string, qrMarkup: string): string {
   const safe = name.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
   return (
-    `<!doctype html><html><head><meta charset="utf-8"><title>${safe} contact QR</title>` +
+    `<!doctype html><html><head><meta charset="utf-8"><title>${safe} booking QR</title>` +
     `<style>@page{margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;height:100%}` +
     `.wrap{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;` +
     `padding:40px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;color:#111}` +
     `h1{font-size:28px;font-weight:700;margin:0 0 8px}p{font-size:15px;color:#555;margin:0 0 36px}` +
     `svg,img{width:420px;height:420px;max-width:80vw}</style></head>` +
-    `<body><div class="wrap"><h1>${safe}</h1><p>Scan to save this store as a contact.</p>` +
+    `<body><div class="wrap"><h1>${safe}</h1><p>Scan to book an appointment, or save this store as a contact.</p>` +
     `${qrMarkup}</div></body></html>`
   );
 }
@@ -75,12 +75,17 @@ export function QRSheet() {
 
   const slug = store.business?.slug;
   const name = store.business?.name || 'Store';
-  // Live vCard endpoint: scanning saves the store as a contact, always reflecting the
-  // latest details since the backend rebuilds the .vcf from the current business row.
+  const phoneFull = `${store.business?.countryCode ?? ''}${store.business?.phoneNumber ?? ''}`;
+  // Live vCard endpoint: always reflects the latest details, since the backend rebuilds the
+  // .vcf from the current business row. Kept as the fallback target below.
   const vcardUrl = slug ? `${API_BASE_URL}/public/businesses/${slug}/vcard` : null;
+  // What the QR actually encodes. Scanning used to jump straight into Add-Contact, which
+  // assumed every scan is someone saving the number — most are customers wanting to book. The
+  // landing page asks which. Falls back to the raw .vcf for a store with no phone on file.
+  const qrValue = phoneFull ? `${WEB_BASE_URL}/${phoneFull}/card` : vcardUrl;
 
   const onPrint = useCallback(() => {
-    if (!vcardUrl) return;
+    if (!qrValue) return;
     if (Platform.OS === 'web') {
       // react-native-svg renders a real DOM <svg> on web; inline it (crisp vector). Its own
       // toDataURL rasterizes through a canvas and comes back blank on web, so avoid that path.
@@ -95,7 +100,7 @@ export function QRSheet() {
         Print.printAsync({ html }).catch(() => {});
       });
     }
-  }, [vcardUrl, name]);
+  }, [qrValue, name]);
 
   return (
     <Modal transparent visible={store.qr} animationType="slide" onRequestClose={store.closeQr}>
@@ -109,10 +114,10 @@ export function QRSheet() {
           <TText variant="bodySm" color="textMuted" align="center" style={s.subtitle}>
             {t.qr.subtitle}
           </TText>
-          <View ref={qrBoxRef} style={[s.qrBox, vcardUrl && s.qrBoxActive]}>
-            {vcardUrl ? (
+          <View ref={qrBoxRef} style={[s.qrBox, qrValue && s.qrBoxActive]}>
+            {qrValue ? (
               <QRCode
-                value={vcardUrl}
+                value={qrValue}
                 size={moderateScale(176)}
                 backgroundColor="#ffffff"
                 color="#000000"
@@ -125,7 +130,7 @@ export function QRSheet() {
             )}
           </View>
           <View style={s.actions}>
-            <Button variant="primary" fullWidth disabled={!vcardUrl} onPress={onPrint}>
+            <Button variant="primary" fullWidth disabled={!qrValue} onPress={onPrint}>
               {t.qr.print}
             </Button>
           </View>

@@ -78,7 +78,7 @@ export function TInput({
 }
 
 const createTInputStyles = (
-  theme: ThemeStyleProps & { controlHeight: typeof import('@/theme/tokens').controlHeight; fontFamily: typeof fontFamily },
+  theme: ThemeStyleProps & { controlHeight: import('@/theme/fromEngine').ControlHeightRN; fontFamily: typeof fontFamily },
   borderColor: string,
   disabled?: boolean,
 ) =>

@@ -129,8 +129,8 @@
     "nameLabel": "Business name",
     "phoneLabel": "Phone",
     "addressLabel": "Address",
-    "contactQr": "Contact QR",
-    "contactSub": "Scan to save this store as a contact.",
+    "contactQr": "Booking QR",
+    "contactSub": "Scan to book an appointment, or save this store as a contact.",
     "save": "Save changes"
   },
   "services": {
@@ -208,8 +208,8 @@
     }
   },
   "qr": {
-    "contactTitle": "{name} — contact QR",
-    "subtitle": "Scan to save this store as a contact.",
+    "contactTitle": "{name} — booking QR",
+    "subtitle": "Scan to book an appointment, or save this store as a contact.",
     "print": "Print"
   },
   "serviceSheet": {
