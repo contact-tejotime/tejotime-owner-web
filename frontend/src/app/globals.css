@@ -205,6 +205,100 @@ a {
   --radius-sm: 6px;
 }
 
+/* ============================================================
+   Theme-engine token names — GLOBAL FALLBACKS (additive only).
+
+   The microsite gets these from the per-store <style> block the
+   engine emits on [data-tt-theme]. Everything OUTSIDE that
+   wrapper (landing page, error states, /not-found) has no such
+   block, so the same names are aliased here to the values the
+   app already ships. Two consequences, both intentional:
+
+     - a component can be written against the new names and drop
+       into either context unchanged;
+     - nothing above this comment changes, so every existing
+       surface renders exactly as it did before.
+
+   Values mirror resolveTheme({preset:'minimal', mode:'light',
+   brand:'#2563EB', radius:'medium', shadow:'soft',
+   density:'comfortable', animation:'normal'}) — the parity
+   config. Keep the two in step.
+   ============================================================ */
+:root {
+  /* ---- Brand ramp (aliases the blue scale) ---- */
+  --brand-50: var(--blue-50);
+  --brand-100: var(--blue-100);
+  --brand-200: var(--blue-200);
+  --brand-300: var(--blue-300);
+  --brand-400: var(--blue-400);
+  --brand-500: var(--blue-500);
+  --brand-600: var(--blue-600);
+  --brand-700: var(--blue-700);
+  --brand-800: var(--blue-800);
+  --brand-900: var(--blue-900);
+
+  --brand: var(--primary);
+  --brand-hover: var(--primary-hover);
+  --brand-pressed: var(--primary-active);
+  --brand-subtle: var(--primary-soft);
+  --brand-subtle-fg: var(--primary-soft-fg);
+  --brand-border: var(--blue-200);
+  --on-brand: var(--text-on-brand);
+
+  /* ---- Accent (the teal secondary) ---- */
+  --accent: var(--secondary);
+  --accent-hover: var(--secondary-hover);
+  --accent-subtle: var(--secondary-soft);
+  --accent-subtle-fg: var(--secondary-soft-fg);
+  --on-accent: var(--gray-900);
+
+  /* ---- Surfaces ---- */
+  --bg: var(--surface-page);
+  --surface-1: var(--surface-card);
+  --surface-2: var(--surface-sunken);
+  --surface-3: var(--gray-200);
+  --surface-glass: rgba(255, 255, 255, 0.72);
+  --scrim: rgba(15, 23, 42, 0.5);
+
+  /* ---- Hero gradient (matches .tt-hero-grad's blue→teal sweep) ---- */
+  --hero-from: var(--blue-800);
+  --hero-via: var(--blue-600);
+  --hero-to: var(--teal-700);
+  --on-hero: #ffffff;
+
+  /* ---- Text & lines ---- */
+  --text: var(--text-strong);
+  --text-secondary: var(--text-body);
+  --border: var(--border-subtle);
+  --focus-ring: var(--border-focus);
+
+  /* ---- Spacing. --space-2 already exists above at 8px; not repeated. ---- */
+  --space-1: 4px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+
+  --section-y: clamp(56px, 8vw, 96px);
+  --card-pad: 24px;
+  --gap-tight: 8px;
+  --gap: 16px;
+  --gap-loose: 32px;
+
+  /* ---- Typography roles (both resolve to today's single sans stack) ---- */
+  --font-display: var(--font-sans);
+  --font-body: var(--font-sans);
+
+  /* ---- Motion. --dur-fast and --ease-standard already exist above. ---- */
+  --dur-normal: 220ms;
+  --dur-slow: 320ms;
+  --ease-emphasis: cubic-bezier(0.16, 0.84, 0.44, 1);
+  --lift-y: -4px;
+  --scale-hover: 1.01;
+}
+
 /* ---- Scroll reveal ---- */
 .reveal {
   opacity: 0;

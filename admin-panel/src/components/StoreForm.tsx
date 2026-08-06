@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DAY_LABELS,
@@ -17,8 +17,10 @@ import {
 } from "@/lib/types";
 import { CURRENCIES, CURRENCY_BY_CODE, currencySymbol } from "@/lib/currencies";
 import { countryByDial, DEFAULT_ISO2 } from "@/lib/phone";
+import { presetForCategory, type ThemeConfig } from "@/theme/engine";
 import { t, format } from "@/i18n";
 import { Icon } from "@/components/icons";
+import AppearancePanel from "@/components/appearance/AppearancePanel";
 import { GalleryUpload, ImageUpload } from "@/components/ImageUpload";
 import PhoneField from "@/components/ui/PhoneField";
 import Spinner from "@/components/ui/Spinner";
@@ -46,9 +48,35 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
   // The picker tracks the selected country (for flag/validation); the stored value
   // stays split across form.countryCode (dial code) + form.phoneNumber (national).
   const [phoneIso2, setPhoneIso2] = useState(() => countryByDial(form.countryCode)?.iso2 ?? DEFAULT_ISO2);
+  // Appearance as last persisted — the baseline for the panel's unsaved-changes indicator.
+  const [savedTheme, setSavedTheme] = useState<ThemeConfig>(form.theme);
+  // Once the admin picks a preset by hand, changing the category must not overwrite it.
+  const presetTouched = useRef(false);
 
   const set = <K extends keyof StoreFormState>(key: K, value: StoreFormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  /**
+   * Appearance edits land here. `themeColor` is kept byte-identical to `theme.brand` so the
+   * legacy field — still validated below, still sent in the payload, still dual-written by the
+   * backend — can never drift from the config the microsite actually renders.
+   */
+  const setTheme = (next: ThemeConfig) => {
+    if (next.preset !== form.theme.preset) presetTouched.current = true;
+    setForm((f) => ({ ...f, theme: next, themeColor: next.brand }));
+  };
+
+  /**
+   * Category drives the *suggested* preset, for NEW stores only and only until the admin picks
+   * one themselves. An existing store's look never moves because someone re-categorised it.
+   */
+  const setCategory = (value: string) => {
+    setForm((f) =>
+      mode === "create" && !presetTouched.current
+        ? { ...f, category: value, theme: { ...f.theme, preset: presetForCategory(value) } }
+        : { ...f, category: value },
+    );
+  };
 
   const phoneFull = `${form.countryCode.replace(/\D/g, "")}${form.phoneNumber.replace(/\D/g, "")}`;
 
@@ -94,6 +122,14 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
       return;
     }
 
+    if (!/^#[0-9A-Fa-f]{6}$/.test(form.themeColor.trim())) {
+      setError(t.storeForm.fillRequired);
+      setDetails([{ field: t.storeForm.reqThemeColor, message: t.storeForm.invalidThemeColor }]);
+      setSaving(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
     try {
       const url = mode === "create" ? "/api/create-store" : `/api/stores/${storeId}`;
       const method = mode === "create" ? "POST" : "PUT";
@@ -114,6 +150,7 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
         return;
       }
       setResult(json as StoreMutationResult);
+      setSavedTheme(form.theme); // the appearance is now what's live — clear the unsaved flag
       router.refresh(); // update the sidebar list (new/renamed store)
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
@@ -189,7 +226,7 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
             </div>
             <div className="field">
               <label htmlFor="sf-category">{t.storeForm.category}</label>
-              <select id="sf-category" value={form.category} onChange={(e) => set("category", e.target.value)} required>
+              <select id="sf-category" value={form.category} onChange={(e) => setCategory(e.target.value)} required>
                 <option value="">{t.storeForm.selectCategory}</option>
                 {categoryOptions.map((c) => (
                   <option key={c} value={c}>
@@ -279,6 +316,15 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
             </div>
           </div>
         </section>
+
+        {/* Appearance (replaces the old single "Theme color" field) ----- */}
+        <AppearancePanel
+          theme={form.theme}
+          onChange={setTheme}
+          category={form.category}
+          phoneFull={phoneFull}
+          savedTheme={savedTheme}
+        />
 
         {/* Contact / phone ---------------------------------------------- */}
         <section className="section">

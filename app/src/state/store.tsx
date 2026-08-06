@@ -21,6 +21,8 @@ import { DayHoursVM, toApiHours } from '@/lib/hours';
 import { TAB_ROUTES } from '@/navigation/routes';
 import { showToast } from '@/lib/toast';
 import { t, format } from '@/i18n';
+import { useTheme } from '@/theme/ThemeProvider';
+import { LEGACY_THEME_CONFIG, normalizeThemeConfig } from '@/theme/engine';
 
 export type Plan = 'free' | 'premium';
 type Sheet = 'walkin' | null;
@@ -155,6 +157,9 @@ function reorderSeat(seat: SeatGroupVM, id: string, toIndex: number): SeatGroupV
 }
 
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
+  // ThemeProvider sits above this one in _layout.tsx, so the store can push the business's
+  // Appearance config up into it as soon as /business resolves.
+  const { setThemeConfig } = useTheme();
   const [s, setS] = useState<State>({
     authed: false,
     authLoading: true,
@@ -267,10 +272,21 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     try {
       const r = await api.getBusiness();
       setS((p) => ({ ...p, business: mapBusinessDetail(r), plan: r.plan ?? p.plan }));
+      // Adopt the store's Appearance settings so the app matches its own microsite. The
+      // normaliser repairs anything malformed and falls back to the legacy theme_color, so a
+      // store that has never opened Appearance keeps today's exact TejoTime palette.
+      setThemeConfig(
+        r.theme || r.themeColor
+          ? normalizeThemeConfig(r.theme, {
+              ...LEGACY_THEME_CONFIG,
+              ...(r.themeColor ? { brand: r.themeColor } : {}),
+            })
+          : null,
+      );
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [setThemeConfig]);
 
   const loadAll = useCallback(async () => {
     await Promise.all([

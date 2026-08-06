@@ -48,6 +48,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const body = toPayload({ ...fromDetail(detail), isActive }, false);
+  // A status toggle must not touch appearance. toPayload always emits `theme`/`themeColor`,
+  // which would persist an explicit config onto stores that have never been styled (destroying
+  // the `theme IS NULL` discriminator). themeColumns preserves omitted theme fields, so drop them.
+  delete body.theme;
+  delete body.themeColor;
   // fromDetail backfills weekdays the store never listed as open 09:00–18:00 (a
   // form-editing convenience). A status toggle must not invent opening hours, so
   // send back exactly the rows the backend returned.

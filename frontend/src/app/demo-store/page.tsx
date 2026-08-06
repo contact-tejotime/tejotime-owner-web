@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { ApiError, publicApi } from "@/lib/api";
 import MicrositeClient from "@/components/microsite/MicrositeClient";
+import ThemeStyle from "@/theme/ThemeStyle";
+import { micrositeThemeConfig } from "@/theme";
 
 // Live data — opt out of full-route caching so the server fetch runs per request.
 export const dynamic = "force-dynamic";
@@ -23,5 +25,11 @@ export default async function DemoStorePage() {
     );
   }
 
-  return <MicrositeClient initialSite={initialSite} />;
+  // Same server-rendered token block as the [phone] route — see that file for the why.
+  return (
+    <>
+      <ThemeStyle config={micrositeThemeConfig(initialSite)} />
+      <MicrositeClient initialSite={initialSite} />
+    </>
+  );
 }

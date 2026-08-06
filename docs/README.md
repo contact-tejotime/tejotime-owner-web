@@ -37,6 +37,7 @@ There are three client surfaces, all backed by the same API:
 | 15 | [OpenAPI Outline](./15-openapi-outline.md) | Skeleton spec + component schemas |
 | 16 | [Backend Folder Structure](./16-folder-structure.md) | Proposed Node/Express layout |
 | 17 | [Assumptions & Open Questions](./17-assumptions-open-questions.md) | **Every ambiguity, grouped, awaiting product sign-off** |
+| 18 | [Theming Architecture](./18-theming-architecture.md) | Per-store microsite theme engine, token contract, parity invariant |
 
 ## Recommended stack (see [00-overview](./00-overview.md#tech-stack-decision) for rationale)
 

@@ -10,7 +10,7 @@ All configuration is injected via environment (12-factor). Never commit secrets.
 | `NODE_ENV` | `production` | `development`\|`staging`\|`production` |
 | `PORT` | `8080` | API/socket HTTP port |
 | `APP_BASE_URL` | `https://api.tejotime.com` | canonical API URL |
-| `PUBLIC_WEB_URL` | `https://tejotime.com` | for booking links / QR (`tejotime.com/{slug}`) |
+| `PUBLIC_WEB_URL` | `https://tejotime.com` | customer web host; QR encodes `{PUBLIC_WEB_URL}/{phone}/card` (book-or-save chooser), microsite is `{PUBLIC_WEB_URL}/{phone}` |
 | `LOG_LEVEL` | `info` | pino level |
 | `DEFAULT_TIMEZONE` | `Asia/Kolkata` | fallback tenant tz |
 | `DEFAULT_CURRENCY` | `INR` | fallback tenant currency |
@@ -118,6 +118,7 @@ The bucket is private, so there is no CDN/public base URL: stored image URLs poi
 | `NEXT_PUBLIC_SOCKET_URL` | `https://api.tejotime.com` | Socket.IO origin |
 | `NEXT_PUBLIC_SITE_URL` | `https://tejotime.com` | canonical web URL |
 | `NEXT_PUBLIC_CAPTCHA_SITE_KEY` | — | public microsite anti-abuse |
+| `NEXT_PUBLIC_ADMIN_ORIGIN` | `https://admin.tejotime.com` | origin allowed to postMessage theme configs into `?preview=1`. Defaults to the production admin; set it only when the admin runs elsewhere. Must also be declared as a build ARG (it is, in `frontend/Dockerfile`). |
 
 > The current Next.js app has **no** env usage yet (confirmed by grep). These are introduced when the microsite is wired to the API.
 

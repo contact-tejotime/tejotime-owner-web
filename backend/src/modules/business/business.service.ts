@@ -23,6 +23,11 @@ function businessDTO(b: any, hours: any[], amenities: any[], gallery: any[], pla
     timezone: b.timezone,
     currency: b.currency,
     payments: b.payments ?? [],
+    // Appearance, same pair the public microsite DTO carries: `theme` is the full config and
+    // `themeColor` the legacy brand-only column kept as its fallback. The owner app resolves
+    // these through the same engine so the app and the store's microsite match.
+    theme: b.theme ?? null,
+    themeColor: b.theme_color ?? null,
     plan,
     hours: hours.map((h) => ({
       dayOfWeek: h.day_of_week,
@@ -120,9 +125,21 @@ export async function setAmenities(businessId: string, labels: string[]) {
 }
 
 export async function getQr(businessId: string) {
-  const b = await one('select slug from business where id = $1', [businessId]);
+  const b = await one(
+    'select slug, country_code, phone_number from business where id = $1',
+    [businessId],
+  );
   if (!b) throw Errors.notFound('Business not found');
-  const bookingUrl = `${env.PUBLIC_WEB_URL}/${b.slug}`;
-  // QR PNG generation deferred (renders client-side from bookingUrl for now).
-  return { slug: b.slug, bookingUrl, qrPngUrl: null };
+
+  // The microsite is keyed by PHONE, not slug — `/<countryCode><phoneNumber>`. This used to
+  // return `${PUBLIC_WEB_URL}/${slug}`, which 404s: the web app has no `/[slug]` route, so
+  // every QR built from it pointed at a dead page.
+  const phoneFull = `${b.country_code ?? ''}${b.phone_number ?? ''}`;
+  const bookingUrl = phoneFull ? `${env.PUBLIC_WEB_URL}/${phoneFull}` : null;
+  // What a printed QR should encode: a chooser offering "book" or "save contact", rather than
+  // dropping the scanner straight into either one.
+  const cardUrl = phoneFull ? `${bookingUrl}/card` : null;
+
+  // QR PNG generation deferred (renders client-side from these URLs for now).
+  return { slug: b.slug, phoneFull, bookingUrl, cardUrl, qrPngUrl: null };
 }

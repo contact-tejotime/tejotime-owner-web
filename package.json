@@ -8,6 +8,9 @@
     "build:admin": "npm run build --prefix admin-panel",
     "lint:frontend": "npm run lint --prefix frontend",
     "lint:admin": "npm run lint --prefix admin-panel",
-    "lint:app": "npm run lint --prefix app"
+    "lint:app": "npm run lint --prefix app",
+    "test:theme": "cd backend && npx tsx ../frontend/src/theme/engine/__tests__/run.ts",
+    "sync:theme": "node scripts/sync-theme-engine.mjs",
+    "check:theme": "node scripts/sync-theme-engine.mjs --check"
   }
 }

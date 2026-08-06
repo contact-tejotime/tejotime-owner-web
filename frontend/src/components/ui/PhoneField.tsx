@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { flagEmoji, searchCountries } from "@/lib/phone";
+import { useThemePortalContainer } from "@/theme/ThemePortal";
 
 export type PhoneCountry = { dialCode: string; iso2: string };
 
@@ -53,9 +54,15 @@ export default function PhoneField({
 
   const results = useMemo(() => searchCountries(query), [query]);
 
-  // The dropdown is portaled to <body> (fixed-positioned against the trigger button)
-  // instead of living inside this field's own DOM subtree — otherwise any scrollable
-  // ancestor (e.g. a modal's `overflow: auto` content area) clips or scroll-traps it.
+  // Where the dropdown mounts: the microsite's themed root when there is one, `<body>`
+  // otherwise. It must NOT live in this field's own DOM subtree — any scrollable ancestor
+  // (e.g. a modal's `overflow: auto` content area) would clip or scroll-trap it — but it must
+  // also stay inside `[data-tt-theme]`, or the store's colour tokens do not reach it and the
+  // list paints in the globals.css defaults. See @/theme/ThemePortal.
+  const portalContainer = useThemePortalContainer();
+
+  // The dropdown is fixed-positioned against the trigger button, so it is measured against the
+  // viewport regardless of which of those two containers it ends up in.
   function updatePosition() {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -150,7 +157,7 @@ export default function PhoneField({
         />
       </div>
 
-      {open && pos && createPortal(
+      {open && pos && portalContainer && createPortal(
         <div
           ref={dropdownRef}
           role="listbox"
@@ -230,7 +237,7 @@ export default function PhoneField({
             })}
           </ul>
         </div>,
-        document.body,
+        portalContainer,
       )}
     </div>
   );

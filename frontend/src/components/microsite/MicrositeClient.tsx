@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { Socket } from "socket.io-client";
 import { Icon } from "@/components/Icon";
@@ -12,6 +12,11 @@ import { combineToE164, DEFAULT_DIAL_CODE, DEFAULT_ISO2, formatPhone, splitPhone
 import { connectCustomer, type CustomerAuth } from "@/lib/socket";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { API_BASE_URL } from "@/lib/config";
+import { micrositeThemeConfig } from "@/theme";
+import { ThemePortalProvider } from "@/theme/ThemePortal";
+import { useThemePreview } from "@/theme/usePreviewChannel";
+import { domainFor } from "./domains";
+import { GalleryMosaic, LiveBoard, Lightbox, ReviewsBlock, Section, ServiceList, StatCards, Ticker } from "./sections";
 import SaveContactSheet from "./SaveContactSheet";
 import "./salon.css";
 
@@ -123,7 +128,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // number for the rate-limited "call the shop" view (was a hardcoded demo number).
   const storeKey = `${STORE_PREFIX}${site.slug}`;
   const shopPhone = site.phoneNumber ? formatPhone(combineToE164(site.countryCode ?? "", site.phoneNumber)) : null;
-  const [navSolid, setNavSolid] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false); // mobile hamburger dropdown
   const [saveOpen, setSaveOpen] = useState(false); // "Save contact" (vCard) sheet
   // Live vCard endpoint for this store. The backend rebuilds the .vcf from the current
@@ -193,19 +197,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const socketRef = useRef<Socket | null>(null);
   const ticketPoll = useRef<ReturnType<typeof setInterval> | null>(null);
   const availabilityPoll = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Keep latest slug for interval/socket callbacks without writing a ref during render
+  // (react-hooks/refs). Polls started once still read the current value on each tick.
   const siteSlugRef = useRef(site.slug);
-  siteSlugRef.current = site.slug;
+  useEffect(() => {
+    siteSlugRef.current = site.slug;
+  }, [site.slug]);
   const storeRef = useRef<Store>(defaultStore());
 
-  // ---- nav shadow on scroll ----
-  useEffect(() => {
-    const onScroll = () => {
-      const solid = (window.scrollY || document.documentElement.scrollTop) > 30;
-      setNavSolid((prev) => (prev !== solid ? solid : prev));
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   // ---- realtime: availability (+ poll fallback when socket is down) ----
   const stopTicketPoll = () => {
@@ -361,9 +360,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const needsClock = ticketActive || liveWait > 0 || liveStaff.some((s) => s.waitMinutes > 0);
   useEffect(() => {
     if (!needsClock) return;
-    setNowTs(Date.now());
+    // Kick off the first tick asynchronously — sync setState in an effect trips
+    // react-hooks/set-state-in-effect and forces an extra cascading render.
+    const first = setTimeout(() => setNowTs(Date.now()), 0);
     const id = setInterval(() => setNowTs(Date.now()), 15000);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
   }, [needsClock]);
 
   // ---- restore a held ticket (resume pill / "already in line") ----
@@ -832,20 +836,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     ] as [boolean, string, string][]
   ).filter(([show]) => show);
 
-  const navStyle: CSSProperties = {
-    position: "sticky",
-    top: 0,
-    zIndex: 100,
-    transition: "background .25s ease, box-shadow .25s ease, border-color .25s ease",
-    ...(navSolid
-      ? {
-          background: "color-mix(in srgb, var(--surface-card) 88%, transparent)",
-          backdropFilter: "blur(10px)",
-          borderBottom: "1px solid var(--border-subtle)",
-          boxShadow: "var(--shadow-xs)",
-        }
-      : { background: "transparent", borderBottom: "1px solid transparent" }),
-  };
 
   // The progress bar always matches this business's actual screen count (1-4, depending on
   // whether "visitor" and/or "service" apply) — see flowScreens above.
@@ -862,197 +852,77 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
   const cantConfirm = !name.trim() || phone.replace(/\D/g, "").length < 4 || (mode === "book" && !selectedSlot);
 
-  return (
-    <div style={{ position: "relative", overflowX: "hidden" }}>
-      {/* ===== NAV ===== */}
-      <div style={navStyle}>
-        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 clamp(16px, 4vw, 32px)", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, overflow: "hidden", background: "linear-gradient(135deg, var(--brand-ink), var(--primary))", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0 }}>
-              {site.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={site.logoUrl} alt={site.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              ) : (
-                <Icon name="sparkle" size={20} />
-              )}
-            </div>
-            <span style={{ font: "var(--fw-extrabold) 21px/1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{site.name}</span>
-          </div>
-          {/* Desktop: in-page jump links (hidden on mobile) */}
-          {!isMobile && (
-            <div style={{ display: "flex", gap: 26, alignItems: "center" }}>
-              {navLinks.map(([, label, href]) => (
-                <a key={href} href={href} className="salonNavLink" style={{ font: "var(--fw-medium) 14px/1 var(--font-sans)", color: "var(--text-muted)", textDecoration: "none", transition: "color .15s ease" }}>
-                  {label}
-                </a>
-              ))}
-            </div>
-          )}
-          {/* Desktop: action buttons · Mobile: hamburger toggle */}
-          {!isMobile ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Button variant="outline" onClick={onSaveContact} leadingIcon={<Icon name="user" size={16} />}>Save contact</Button>
-              <Button variant="primary" onClick={openTrack}>Track my turn</Button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              <Button variant="primary" size="sm" onClick={openTrack}>Track my turn</Button>
-              <button
-                type="button"
-                aria-label={menuOpen ? "Close menu" : "Open menu"}
-                aria-expanded={menuOpen}
-                onClick={() => setMenuOpen((o) => !o)}
-                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", padding: 6, borderRadius: 8, cursor: "pointer", color: "var(--text-strong)" }}
-              >
-                <Icon name={menuOpen ? "x" : "menu"} size={24} />
-              </button>
-            </div>
-          )}
-        </div>
-        {/* Mobile dropdown — same links + actions as the desktop bar */}
-        {isMobile && menuOpen && (
-          <div style={{ display: "flex", flexDirection: "column", padding: "8px clamp(16px, 4vw, 32px) 18px", background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-md)", animation: "ttFade .18s ease both" }}>
-            {navLinks.map(([, label, href]) => (
-              <a key={href} href={href} onClick={() => setMenuOpen(false)} style={{ font: "var(--fw-medium) 15px/1 var(--font-sans)", color: "var(--text-body)", textDecoration: "none", padding: "14px 6px", borderBottom: "1px solid var(--border-subtle)" }}>
-                {label}
-              </a>
-            ))}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
-              <Button fullWidth onClick={() => { setMenuOpen(false); openQueue(); }}>Join queue</Button>
-              <Button fullWidth variant="outline" onClick={() => { setMenuOpen(false); onSaveContact(); }} leadingIcon={<Icon name="user" size={16} />}>Save contact</Button>
-            </div>
-          </div>
-        )}
-      </div>
+  // Theming root. The colour tokens themselves are server-rendered by <ThemeStyle/> into a
+  // <style> block keyed on [data-tt-theme]; this element only carries the two attributes that
+  // select which of its light/dark blocks applies. useThemePreview is a no-op unless the URL
+  // carries ?preview=1 (admin live preview), in which case it overwrites the tokens in place.
+  // Wording and section order for this store's vertical. A clinic should not be told it has
+  // "stylists", and a restaurant's photos matter more than its staff roster. Unknown
+  // categories fall through to the current salon copy, so nothing regresses.
+  const domain = domainFor(site.category);
+  const queueWord = domain.id === "clinic" ? "waiting list" : domain.id === "food" ? "waitlist" : "queue";
+  const svcEyebrow = domain.id === "food" ? "The menu" : domain.id === "clinic" ? "Treatments" : "The menu";
+  // v3's live sub-line: an empty queue is an invitation, never a "0".
+  const freeMembers = members.filter((m) => !m.busy);
+  const liveSub =
+    members.length === 0
+      ? `${liveCount} in the queue right now`
+      : liveCount === 0 && freeMembers.length > 0
+        ? `All ${members.length} free · nobody ahead of you`
+        : freeMembers.length > 0
+          ? `${freeMembers[0].name} free now · ${liveCount} waiting elsewhere`
+          : `${liveCount} ahead of you · shortest line shown`;
+  // v3's four icon cards. Built from the same guarded data as the old trust row, so a store
+  // without an established year or reviews simply shows fewer cards rather than zeroes.
+  // v3's accent marquee: what the store offers, then where and how well rated.
+  const tickerItems = [
+    ...services.map((sv) => `${sv.name} · ${curSym}${sv.price}`),
+    site.area ?? null,
+    site.establishedYear != null ? `Since ${site.establishedYear}` : null,
+    reviewCount > 0 ? `${rating} ★ ${reviewCount} reviews` : null,
+  ].filter(Boolean) as string[];
+  const statCards = [
+    site.establishedYear != null && site.area
+      ? { icon: "calendar" as const, value: `${yearsOpen} yrs`, label: `serving ${site.area}` }
+      : null,
+    reviewCount > 0
+      ? { icon: "star" as const, value: String(rating), label: `${reviewCount} verified reviews` }
+      : null,
+    { icon: "hourglass" as const, value: waitHeadline, label: liveCount === 0 ? "walk in right now" : "shortest wait now" },
+    members.length > 0
+      ? { icon: "users" as const, value: String(members.length), label: "on the floor" }
+      : null,
+  ].filter(Boolean) as { icon: "calendar" | "star" | "hourglass" | "users"; value: string; label: string }[];
+  const galleryPhotos = gallery.length > 0 ? gallery : [];
+  const [lightbox, setLightbox] = useState<number | null>(null);
+  const stepLightbox = (d: number) =>
+    setLightbox((i) => (i == null ? i : (i + d + galleryPhotos.length) % galleryPhotos.length));
 
-      {/* ===== HERO ===== */}
-      <div style={{ position: "relative", overflow: "hidden", minHeight: "clamp(440px, 68vh, 560px)" }}>
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, color-mix(in srgb, var(--brand-ink) 22%, #cfd6e6), color-mix(in srgb, var(--primary) 18%, #dfe6f2) 60%, color-mix(in srgb, var(--secondary) 16%, #e3efed))" }} />
-        {/* Desktop only: decorative glow + full-bleed photo behind the copy with a left→right scrim.
-            On mobile the copy sits on the clean gradient and the photo becomes a banner below. */}
-        {!isMobile && (
-          <div style={{ position: "absolute", right: "6%", top: "50%", transform: "translateY(-50%)", width: "clamp(180px, 40vw, 380px)", height: "clamp(180px, 40vw, 380px)", borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,.5), transparent 62%)" }} />
-        )}
-        {site.heroImageUrl && (
-          <>
-            <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${site.heroImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }} />
-            {/* White scrim keeps the dark hero copy legible over the photo. Desktop fades
-                left→right (copy sits on the left); mobile fades top→bottom (copy is full-width). */}
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                background: isMobile
-                  ? "linear-gradient(180deg, rgba(255,255,255,.90) 0%, rgba(255,255,255,.70) 55%, rgba(255,255,255,.45) 100%)"
-                  : "linear-gradient(90deg, rgba(255,255,255,.9) 0%, rgba(255,255,255,.6) 46%, rgba(255,255,255,.12) 100%)",
-              }}
-            />
-          </>
-        )}
-        {!isMobile && !site.heroImageUrl && (
-          <div style={{ position: "absolute", right: "9%", bottom: 34, font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "rgba(15,23,42,.4)", display: "flex", alignItems: "center", gap: 7 }}>
-            <Icon name="building" size={15} />
-            Hero photo — salon interior
-          </div>
-        )}
-        <div style={{ position: "relative", maxWidth: 1180, margin: "0 auto", minHeight: "inherit", padding: "40px clamp(16px, 4vw, 32px)", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <div style={{ maxWidth: 560, animation: "ttHero .7s ease both" }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,.85)", border: "1px solid rgba(255,255,255,.7)", borderRadius: 999, padding: "6px 14px", backdropFilter: "blur(6px)" }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: site.openStatus.isOpen ? "var(--success)" : "var(--text-subtle)", display: "inline-block", animation: "ttPulse 1.8s ease-in-out infinite" }} />
-              <span style={{ font: "var(--fw-semibold) 13px/1 var(--font-sans)", color: "var(--text-strong)" }}>{site.openStatus.label}</span>
-            </div>
-            <h1 style={{ font: "var(--fw-extrabold) clamp(30px, 6vw, 52px)/1.03 var(--font-sans)", letterSpacing: "-.03em", color: "var(--brand-ink)", margin: "18px 0 10px" }}>
-              {site.tagline ?? site.name}
-            </h1>
-            {(() => {
-              // Only surface pieces backed by real data — no "★ 0 (0 reviews)" or defaulted
-              // "Established 2014" when the store hasn't set them.
-              const heroMeta = [
-                reviewCount > 0 ? `★ ${rating} (${reviewCount} reviews)` : null,
-                site.establishedYear != null ? `Established ${site.establishedYear}` : null,
-                site.heroSubtitle?.trim() ? site.heroSubtitle : null,
-              ]
-                .filter(Boolean)
-                .join(" · ");
-              if (!heroMeta) return null;
-              return (
-                <p style={{ font: "var(--fw-medium) 17px/1.5 var(--font-sans)", color: "var(--text-body)", margin: "0 0 26px", maxWidth: 460 }}>
-                  {heroMeta}
-                </p>
-              );
-            })()}
-            <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 13, background: "var(--surface-card)", border: "1px solid var(--border-subtle)", borderRadius: 14, padding: "12px 18px", boxShadow: "var(--shadow-md)" }}>
-                <span style={{ display: "flex", color: "var(--secondary)" }}>
-                  <Icon name="hourglass" size={22} />
-                </span>
-                <div>
-                  {services.length > 0 && (
-                    <div style={{ font: "var(--fw-extrabold) 24px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{waitHeadline}</div>
-                  )}
-                  <div style={{ font: services.length > 0 ? "var(--fw-medium) 12px/1 var(--font-sans)" : "var(--fw-extrabold) 20px/1 var(--font-sans)", color: services.length > 0 ? "var(--text-muted)" : "var(--text-strong)", marginTop: services.length > 0 ? 5 : 0 }}>{liveCount} people in queue now</div>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 12, marginTop: 18, flexWrap: "wrap" }}>
-              <Button size="lg" onClick={openQueue}>Join the queue →</Button>
-              <Button size="lg" variant="outline" onClick={openBook}>Book a time slot</Button>
-            </div>
-          </div>
-        </div>
-      </div>
+  // Escape closes the viewer; the arrow keys page through it.
+  useEffect(() => {
+    if (lightbox == null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightbox(null);
+      if (e.key === "ArrowRight") stepLightbox(1);
+      if (e.key === "ArrowLeft") stepLightbox(-1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lightbox, galleryPhotos.length]);
 
-      {/* ===== TEAM · LIVE AVAILABILITY ===== */}
-      {members.length > 0 && (
-      <div id="team" style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 64px) clamp(16px, 4vw, 32px)" }}>
-        <div style={revealStyle}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
-            <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 4vw, 30px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: 0 }}>Our team · live availability</h2>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)" }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)", animation: "ttPulse 1.8s ease-in-out infinite" }} />
-              Updated live · pick a member when you join
-            </span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 16, marginTop: 24 }}>
-            {members.map((b) => (
-              <div key={b.id} className="salonMemberCard" style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 20, background: "var(--surface-card)", boxShadow: "var(--shadow-xs)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 16 }}>
-                  {b.photo ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={b.photo} alt={b.name} style={{ width: 54, height: 54, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-                  ) : (
-                    <div style={{ width: 54, height: 54, borderRadius: "50%", background: b.avBg, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", font: "var(--fw-bold) 19px/1 var(--font-sans)", flexShrink: 0 }}>{b.name[0]}</div>
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ font: "var(--fw-bold) 17px/1 var(--font-sans)", color: "var(--text-strong)" }}>{b.name}</div>
-                    <div style={{ font: "var(--fw-regular) 13px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{b.role}</div>
-                  </div>
-                  <span style={{ flexShrink: 0, whiteSpace: "nowrap", font: "var(--fw-semibold) 11px/1 var(--font-sans)", padding: "5px 11px", borderRadius: 999, ...(b.busy ? { background: "var(--surface-sunken)", color: "var(--text-body)" } : { background: "var(--success-soft)", color: "var(--success-soft-fg)" }) }}>
-                    {b.busy ? "Busy" : "Free now"}
-                  </span>
-                </div>
-                <div style={{ display: "flex", border: "1px solid var(--border-subtle)", borderRadius: 11, overflow: "hidden", marginBottom: 16 }}>
-                  <div style={{ flex: 1, textAlign: "center", padding: "11px 4px", borderRight: services.length > 0 ? "1px solid var(--border-subtle)" : "none" }}>
-                    <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{b.count}</div>
-                    <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>in queue</div>
-                  </div>
-                  {services.length > 0 && (
-                    <div style={{ flex: 1.3, textAlign: "center", padding: "11px 4px" }}>
-                      <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: b.busy ? "var(--text-strong)" : "var(--success)" }}>{b.wait}</div>
-                      <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{b.busy ? "wait" : "walk in"}</div>
-                    </div>
-                  )}
-                </div>
-                <Button variant="outline" fullWidth onClick={() => openWith(b.id)}>Join {b.name}&apos;s line</Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      )}
+  // Tapping a service card opens the join flow with that service already chosen. openJoin
+  // clears the cart, so the selection is applied after it — both run in one batched handler.
+  const openServiceBooking = (serviceId: string) => {
+    openJoin("queue");
+    setCart(serviceId);
+  };
 
-      {/* ===== ABOUT ===== */}
-      {(showAbout || trustCells.length > 0) && (
+  /* Sections whose position varies by domain are built here and placed by the order map in
+     the return. Their internals are unchanged apart from the trust row, which is now a
+     the live floor as v3 stat cards. */
+  const aboutSection = (showAbout || trustCells.length > 0) ? (
+      
         <div id="about" style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 72px) clamp(16px, 4vw, 32px) 40px" }}>
           <div style={{ ...revealStyle, display: "flex", gap: "clamp(24px, 4vw, 48px)", alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
             {hasAboutText && (
@@ -1084,7 +954,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               </div>
             )}
             {(hasAboutImage || isDemo) && (
-              <div style={{ flex: hasAboutText ? "1 1 0" : "0 1 560px", minWidth: 280, height: 260, borderRadius: 18, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--surface-card)), color-mix(in srgb, var(--secondary) 12%, var(--surface-card)))", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", ...(hasAboutImage ? { backgroundImage: `url(${site.aboutImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
+              <div style={{ flex: hasAboutText ? "1 1 0" : "0 1 560px", minWidth: 280, height: 260, borderRadius: "calc(18px * var(--radius-scale, 1))", background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--surface-card)), color-mix(in srgb, var(--secondary) 12%, var(--surface-card)))", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", ...(hasAboutImage ? { backgroundImage: `url(${site.aboutImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
                 {!hasAboutImage && (
                   <span style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "rgba(15,23,42,.4)", display: "flex", alignItems: "center", gap: 7 }}>
                     <Icon name="building" size={15} />
@@ -1094,94 +964,218 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               </div>
             )}
           </div>
-          {/* Trust stats — merged into the bottom of About as a bordered row. */}
-          {trustCells.length > 0 && (
-            <div style={{ ...revealStyle, display: "flex", justifyContent: "space-around", textAlign: "center", gap: 20, flexWrap: "wrap", marginTop: 40, paddingTop: 32, borderTop: "1px solid var(--border-subtle)" }}>
-              {trustCells.map(([big, small]) => (
-                <div key={small}>
-                  <div style={{ font: "var(--fw-extrabold) 26px/1 var(--font-sans)", color: "var(--primary)" }}>{big}</div>
-                  <div style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 6 }}>{small}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
-      {/* ===== GALLERY ===== */}
-      {(gallery.length > 0 || isDemo) && (
-        <div id="gallery" style={{ maxWidth: 1180, margin: "0 auto", padding: "24px clamp(16px, 4vw, 32px) 40px" }}>
-          <div style={revealStyle}>
-            <div style={{ ...eyebrow, textAlign: "center" }}>Gallery</div>
-            {/* Wrapping, centered cells: fills the row and wraps to new rows as needed, so any
-                photo count (2, 3, 5, ...) looks balanced instead of leaving dead space on the
-                right the way a left-aligned fixed strip would. Cell width shrinks on narrow
-                screens via clamp() instead of relying on horizontal scroll. */}
-            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 14 }}>
-              {(gallery.length > 0 ? gallery : [null, null, null, null]).map((g, i) => (
-                <div key={i} className="salonGalleryCell" style={{ flex: "0 0 auto", width: "clamp(140px, 28vw, 240px)", aspectRatio: "3 / 2", borderRadius: 14, background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--surface-card)), color-mix(in srgb, var(--secondary) 10%, var(--surface-card)))", border: "1px solid var(--border-subtle)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", ...(g ? { backgroundImage: `url(${g})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
-                  {!g && (
-                    <span style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "rgba(15,23,42,.4)", display: "flex", alignItems: "center", gap: 7 }}>
-                      <Icon name="grid" size={15} />
-                      Gallery photo
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
-      )}
+  ) : null;
 
-      {/* ===== SERVICES (names only) ===== */}
-      {services.length > 0 && (
-      <div id="services" style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)", borderBottom: "1px solid var(--border-subtle)" }}>
-        <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 64px) clamp(16px, 4vw, 32px)" }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
-            <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 4vw, 30px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: 0 }}>What we offer</h2>
-            <span style={{ font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-muted)" }}>Pricing shown when you join the queue or book</span>
+  const reviewsSection = reviews.length > 0 ? (
+    <Section>
+      <ReviewsBlock reviews={reviews} rating={rating} reviewCount={reviewCount} avatarColors={AVATAR_COLORS} />
+    </Section>
+  ) : null;
+
+  const themeConfig = micrositeThemeConfig(site);
+  const themeRootRef = useRef<HTMLDivElement | null>(null);
+  // Also kept in state: ThemePortalProvider needs the ELEMENT during render (createPortal's
+  // target cannot come from a ref read in render), while useThemePreview needs the ref object.
+  // The callback ref is stable, so this costs exactly one extra render at mount.
+  const [themeRootEl, setThemeRootEl] = useState<HTMLElement | null>(null);
+  const attachThemeRoot = useCallback((node: HTMLDivElement | null) => {
+    themeRootRef.current = node;
+    setThemeRootEl(node);
+  }, []);
+  useThemePreview(themeRootRef);
+
+  return (
+    <ThemePortalProvider container={themeRootEl}>
+    <div
+      ref={attachThemeRoot}
+      data-tt-theme={themeConfig.preset}
+      data-tt-mode={themeConfig.mode}
+      style={{
+        position: "relative",
+        overflowX: "hidden",
+        // The page background has to live HERE, not on <body>: body sits outside
+        // [data-tt-theme], so it resolves --surface-page from the :root fallbacks and would
+        // stay light for a store on mode dark/auto. --surface-page and --text-body are the
+        // same tokens body already uses and resolve to the same values in light mode, so this
+        // is a no-op for every existing microsite.
+        minHeight: "100vh",
+        background: "var(--surface-page)",
+        color: "var(--text-body)",
+      }}
+    >
+      {/* ===== NAV + HERO (TejoTime Microsite v3) =====
+           v3 puts the header inside the hero's gradient rather than on its own white bar, and
+           replaces the full-bleed background photo with a right-hand image column plus a white
+           "Right now" card carrying the live wait and both CTAs. Behaviour is unchanged: the
+           same openQueue / openBook / openTrack / onSaveContact handlers, the same nav links,
+           the same mobile menu. */}
+      <div style={{ position: "relative", overflow: "hidden", background: "radial-gradient(72% 62% at 4% 6%, color-mix(in srgb, var(--primary) 30%, transparent) 0%, transparent 62%), linear-gradient(150deg, color-mix(in srgb, var(--primary) 10%, var(--surface-card)) 0%, var(--surface-page) 54%, var(--surface-card) 100%)" }}>
+
+        {/* --- header --- */}
+        <div style={{ maxWidth: 1320, margin: "0 auto", padding: "clamp(16px, 2.4vw, 26px) clamp(18px, 4vw, 30px)", display: "flex", alignItems: "center", gap: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0, minWidth: 0 }}>
+            {/* An uploaded logo sits on nothing — most are transparent PNGs. Only the fallback
+                mark gets the brand tile. */}
+            <span style={{ width: 40, height: 40, borderRadius: "calc(12px * var(--radius-scale, 1))", overflow: "hidden", flexShrink: 0, background: site.logoUrl ? "transparent" : "var(--primary)", color: "var(--text-on-brand)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {site.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={site.logoUrl} alt={site.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              ) : (
+                <Icon name="sparkle" size={20} />
+              )}
+            </span>
+            <span style={{ font: "var(--fw-extrabold) 18px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{site.name}</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: 14, marginTop: 22 }}>
-            {services.map((sv) => (
-              <div key={sv.id} className="salonServiceCard" style={{ display: "flex", alignItems: "center", gap: 13, border: "1px solid var(--border-subtle)", borderRadius: 13, padding: 16, background: "var(--surface-page)" }}>
-                <div style={{ width: 42, height: 42, borderRadius: 11, background: "color-mix(in srgb, var(--primary) 10%, var(--surface-card))", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", flexShrink: 0 }}>
-                  <Icon name="sparkle" size={18} />
-                </div>
-                <span style={{ flex: 1, font: "var(--fw-semibold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{sv.name}</span>
-              </div>
+
+          <span style={{ flex: 1 }} />
+
+          <div data-shed="1" data-desk="1" style={{ display: "flex", alignItems: "center", gap: 26 }}>
+            {navLinks.map(([, label, href]) => (
+              <a key={href} href={href} className="salonNavLink" style={{ font: "var(--fw-medium) 13.5px/1 var(--font-sans)", letterSpacing: ".01em", color: "var(--text-muted)", whiteSpace: "nowrap" }}>{label}</a>
             ))}
+          </div>
+
+          <span data-desk="1" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Button variant="outline" onClick={onSaveContact} leadingIcon={<Icon name="user" size={16} />}>Save contact</Button>
+            <Button variant="outline" onClick={openTrack}>Track my turn</Button>
+          </span>
+          <Button variant="primary" onClick={openQueue}>{domain.id === "clinic" ? "Take token" : "Join queue"} →</Button>
+
+          <button
+            type="button"
+            className="ttMobileBar"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((o) => !o)}
+            style={{ position: "static", display: "none", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", padding: 6, borderRadius: "calc(8px * var(--radius-scale, 1))", cursor: "pointer", color: "var(--text-strong)", boxShadow: "none", flexShrink: 0 }}
+          >
+            <Icon name={menuOpen ? "x" : "menu"} size={24} />
+          </button>
+        </div>
+
+        {menuOpen && (
+          <div style={{ display: "flex", flexDirection: "column", padding: "8px clamp(18px, 4vw, 30px) 18px", background: "var(--surface-card)", borderBottom: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-md)", animation: "ttFade .18s ease both" }}>
+            {navLinks.map(([, label, href]) => (
+              <a key={href} href={href} onClick={() => setMenuOpen(false)} style={{ font: "var(--fw-medium) 15px/1 var(--font-sans)", color: "var(--text-body)", textDecoration: "none", padding: "14px 6px", borderBottom: "1px solid var(--border-subtle)" }}>{label}</a>
+            ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
+              <Button fullWidth variant="outline" onClick={() => { setMenuOpen(false); openTrack(); }}>Track my turn</Button>
+              <Button fullWidth variant="outline" onClick={() => { setMenuOpen(false); onSaveContact(); }} leadingIcon={<Icon name="user" size={16} />}>Save contact</Button>
+            </div>
+          </div>
+        )}
+
+        {/* --- hero body --- */}
+        <div style={{ maxWidth: 1320, margin: "0 auto", padding: "12px clamp(18px, 4vw, 30px) clamp(44px, 6vw, 72px)", display: "flex", flexWrap: "wrap", gap: "clamp(28px, 4vw, 44px)", alignItems: "center" }}>
+          <div style={{ flex: "1.05 1 300px", minWidth: 300 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 11, borderRadius: 999, padding: "9px 18px 9px 14px", background: "var(--surface-card)", border: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-sm)" }}>
+              <span style={{ position: "relative", width: 8, height: 8, flexShrink: 0 }}>
+                <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: site.openStatus.isOpen ? "var(--success)" : "var(--text-subtle)" }} />
+                <span className="ttPing" style={{ position: "absolute", inset: 0, borderRadius: "50%", background: site.openStatus.isOpen ? "var(--success)" : "var(--text-subtle)" }} />
+              </span>
+              <span style={{ font: "var(--fw-bold) 12.5px/1 var(--font-sans)", letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-strong)" }}>{site.openStatus.label}</span>
+            </div>
+
+            <h1 style={{ font: "var(--fw-extrabold) clamp(36px, 5.9vw, 100px)/0.96 var(--font-display, var(--font-sans))", letterSpacing: "-.045em", color: "var(--text-strong)", margin: "22px 0 0", overflowWrap: "break-word", textWrap: "balance" }}>
+              {site.tagline ?? site.name}
+            </h1>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginTop: 26 }}>
+              {reviewCount > 0 && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 7, font: "var(--fw-bold) 15px/1 var(--font-sans)", color: "var(--text-strong)" }}>
+                  <span style={{ color: "var(--warning)", display: "flex" }}><Icon name="star" size={17} /></span>
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>{rating}</span>
+                  <span style={{ font: "var(--fw-medium) 15px/1 var(--font-sans)", color: "var(--text-subtle)" }}>({reviewCount})</span>
+                </span>
+              )}
+              {site.area && <span style={{ font: "var(--fw-medium) 15px/1 var(--font-sans)", color: "var(--text-muted)" }}>{site.area}</span>}
+              {site.establishedYear != null && <span style={{ font: "var(--fw-medium) 15px/1 var(--font-sans)", color: "var(--text-muted)" }}>Since {site.establishedYear}</span>}
+            </div>
+
+            {/* The "Right now" card — v3's centrepiece and the page's primary action. */}
+            <div style={{ maxWidth: 430, marginTop: 32, borderRadius: "calc(26px * var(--radius-scale, 1))", padding: 26, background: "var(--surface-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 26px 60px rgba(15,23,42,.16)" }}>
+              <div style={{ font: "var(--fw-bold) 10.5px/1 var(--font-sans)", letterSpacing: ".16em", textTransform: "uppercase", color: "var(--primary)" }}>Right now</div>
+              <div style={{ font: "var(--fw-extrabold) clamp(30px, 3.4vw, 38px)/1.02 var(--font-sans)", letterSpacing: "-.035em", color: "var(--text-strong)", marginTop: 14 }}>{waitHeadline}</div>
+              <div style={{ font: "var(--fw-medium) 14.5px/1.45 var(--font-sans)", color: "var(--text-muted)", marginTop: 11 }}>{liveSub}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
+                <Button size="lg" fullWidth onClick={openQueue}>{domain.id === "clinic" ? "Take a token" : "Join the queue"} →</Button>
+                <Button size="lg" variant="outline" fullWidth onClick={openBook}>Book a time slot</Button>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 16, font: "var(--fw-medium) 12.5px/1.4 var(--font-sans)", color: "var(--text-subtle)" }}>
+                <Icon name="check" size={14} />
+                <span>No app, no account — just your number</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ flex: "1 1 300px", minWidth: 300, alignSelf: "stretch", minHeight: "clamp(280px, 46vw, 460px)", position: "relative", borderRadius: "calc(26px * var(--radius-scale, 1))", overflow: "hidden", background: "var(--surface-page)", border: "1px solid var(--border-subtle)", boxShadow: "0 26px 60px rgba(15,23,42,.13)" }}>
+            {site.heroImageUrl ? (
+              <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${site.heroImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+            ) : (
+              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-subtle)" }}>
+                <Icon name="building" size={16} />
+                Hero photo
+              </div>
+            )}
           </div>
         </div>
       </div>
-      )}
 
-      {/* ===== REVIEWS (only when the store has reviews) ===== */}
-      {reviews.length > 0 && (
-        <div style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}>
-          <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 64px) clamp(16px, 4vw, 32px)" }}>
-            <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 4vw, 30px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 24px" }}>What customers say · ★ {rating}</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 16 }}>
-              {reviews.map((r, i) => (
-                <div key={i} className="salonReviewCard" style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 22, background: "var(--surface-page)" }}>
-                  <div style={{ color: "var(--warning)", fontSize: 15, letterSpacing: 2, marginBottom: 12 }}>{"★".repeat(r.stars) + "☆".repeat(Math.max(0, 5 - r.stars))}</div>
-                  <p style={{ font: "var(--fw-regular) 15px/1.6 var(--font-sans)", color: "var(--text-body)", margin: "0 0 18px" }}>{r.text}</p>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: AVATAR_COLORS[i % AVATAR_COLORS.length], color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", font: "var(--fw-bold) 13px/1 var(--font-sans)" }}>{r.authorName[0]}</div>
-                    <span style={{ font: "var(--fw-semibold) 13px/1 var(--font-sans)", color: "var(--text-muted)" }}>{r.authorName}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ===== TICKER ===== */}
+      <Ticker items={tickerItems} />
+
+      {/* ===== SECTIONS — order comes from the store's domain profile ===== */}
+      {domain.order.map((key) => {
+        if (key === "live" && members.length > 0) {
+          return (
+            <Section key={key} id="team" tone="tint">
+              <LiveBoard
+                members={members}
+                heading={domain.liveHeading}
+                queueWord={queueWord}
+                liveHeadline={waitHeadline}
+                liveSub={liveSub}
+                ctaLabel={domain.liveCta}
+                onJoin={openWith}
+              />
+              <StatCards cards={statCards} />
+            </Section>
+          );
+        }
+        if (key === "services" && services.length > 0) {
+          return (
+            <Section key={key} id="services">
+              <ServiceList
+                services={services}
+                eyebrow={svcEyebrow}
+                heading={domain.servicesHeading}
+                note={domain.servicesNote}
+                currencySymbol={curSym}
+                onPick={openServiceBooking}
+              />
+            </Section>
+          );
+        }
+        if (key === "gallery" && galleryPhotos.length > 0) {
+          return (
+            <Section key={key} id="gallery" tone="tint">
+              <GalleryMosaic photos={galleryPhotos} heading={domain.galleryHeading} onOpen={setLightbox} />
+            </Section>
+          );
+        }
+        if (key === "about") return <div key={key}>{aboutSection}</div>;
+        if (key === "reviews") return <div key={key}>{reviewsSection}</div>;
+        return null;
+      })}
 
       {/* ===== FAQ (only when the store has Q&A) ===== */}
       {faqs.length > 0 && (
         <div style={{ maxWidth: 1180, margin: "0 auto", padding: "24px clamp(16px, 4vw, 32px) 56px" }}>
           <div style={revealStyle}>
             <div style={eyebrow}>Good to know</div>
-            <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, overflow: "hidden", background: "var(--surface-card)" }}>
+            <div style={{ border: "1px solid var(--border-subtle)", borderRadius: "calc(16px * var(--radius-scale, 1))", overflow: "hidden", background: "var(--surface-card)" }}>
               {faqs.map((f, i) => {
                 const open = faqOpen === i;
                 return (
@@ -1216,7 +1210,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       {(site.address || site.area || site.hours.length > 0) && (
       <div id="visit" style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}>
         <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: 0, display: "flex", flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 300, padding: "clamp(40px, 7vw, 56px) clamp(16px, 4vw, 32px)" }}>
+          <div style={{ flex: 1, minWidth: 300, padding: "calc(clamp(40px, 7vw, 56px) * var(--density-scale, 1)) clamp(16px, 4vw, 32px)" }}>
             <div style={eyebrow}>Visit us</div>
             {site.address && (
               <div style={{ display: "flex", alignItems: "center", gap: 9, font: "var(--fw-medium) 15px/1.4 var(--font-sans)", color: "var(--text-body)", marginBottom: 22 }}>
@@ -1226,6 +1220,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                 {site.address}
               </div>
             )}
+            {/* Save contact lives here. The v3 design has no slot for it, and Visit is where it
+                belongs: it sits with the address and phone it actually saves. The nav keeps its
+                own copy for anyone who never scrolls this far. */}
+            <div style={{ marginBottom: 26 }}>
+              <Button variant="outline" onClick={onSaveContact} leadingIcon={<Icon name="user" size={16} />}>
+                Save contact
+              </Button>
+            </div>
             {site.hours.length > 0 && (
               <>
                 <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 12 }}>Opening hours</div>
@@ -1257,10 +1259,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       <div style={{ background: "linear-gradient(135deg, var(--brand-ink), var(--primary))", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -60, right: -30, width: 240, height: 240, borderRadius: "50%", background: "rgba(255,255,255,.08)", animation: "ttFloat 8s ease-in-out infinite" }} />
         <div style={{ position: "absolute", bottom: -70, left: "6%", width: 170, height: 170, borderRadius: "50%", background: "rgba(255,255,255,.06)", animation: "ttFloat 10s ease-in-out infinite" }} />
-        <div style={{ position: "relative", maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 7vw, 64px) clamp(16px, 4vw, 32px)", textAlign: "center" }}>
-          <h2 style={{ font: "var(--fw-extrabold) clamp(26px, 5vw, 36px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "#fff", margin: "0 0 10px" }}>Skip the wait — join the live queue</h2>
+        <div style={{ position: "relative", maxWidth: 1180, margin: "0 auto", padding: "calc(var(--section-y, clamp(30px, 4.4vw, 52px)) * var(--density-scale, 1)) clamp(16px, 4vw, 32px)", textAlign: "center" }}>
+          <h2 style={{ font: "var(--fw-extrabold) clamp(28px, 5.2vw, 42px)/1.08 var(--font-display, var(--font-sans))", letterSpacing: "-.025em", color: "var(--on-hero)", margin: "0 0 10px" }}>{domain.ctaHeading}</h2>
           <p style={{ font: "var(--fw-medium) 16px/1.5 var(--font-sans)", color: "rgba(255,255,255,.85)", margin: "0 0 26px" }}>{liveCount} in the queue · {waitHeadline} · we&apos;ll text you when you&apos;re close</p>
-          <div onClick={openQueue} className="salonCtaBtn" style={{ display: "inline-block", cursor: "pointer", background: "#fff", color: "var(--primary)", font: "var(--fw-bold) 17px/1 var(--font-sans)", padding: "16px 32px", borderRadius: 12, boxShadow: "var(--shadow-lg)" }}>
+          {domain.urgentLabel && (
+            <p style={{ font: "var(--fw-semibold) 13px/1.4 var(--font-sans)", color: "rgba(255,255,255,.72)", margin: "-14px 0 22px" }}>{domain.urgentLabel}</p>
+          )}
+          <div onClick={openQueue} className="salonCtaBtn" style={{ display: "inline-block", cursor: "pointer", background: "#fff", color: "var(--primary)", font: "var(--fw-bold) 17px/1 var(--font-sans)", padding: "16px 32px", borderRadius: "calc(12px * var(--radius-scale, 1))", boxShadow: "var(--shadow-lg)" }}>
             Join the queue →
           </div>
         </div>
@@ -1297,13 +1302,60 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         </div>
       )}
 
+      {/* ===== STICKY MOBILE ACTION BAR =====
+           Phones only (CSS-gated, not JS) and hidden while the resume pill is showing, so a
+           customer already in the queue is not offered a second "Join". On desktop the hero
+           CTAs stay in reach; on a phone they scroll away within one swipe. */}
+      {!showResume && !joinOpen && (
+        <div
+          className="ttMobileBar"
+          style={{
+            position: "fixed",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 80,
+            alignItems: "center",
+            gap: 12,
+            padding: "12px 16px calc(12px + env(safe-area-inset-bottom, 0px))",
+            background: "var(--surface-glass, rgba(255,255,255,.96))",
+            backdropFilter: "blur(14px)",
+            borderTop: "1px solid var(--border-subtle)",
+            boxShadow: "0 -6px 24px rgba(15,23,42,.08)",
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ font: "var(--fw-bold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{waitHeadline}</div>
+            <div style={{ font: "var(--fw-medium) 12px/1.3 var(--font-sans)", color: "var(--text-muted)", marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{liveSub}</div>
+          </div>
+          <div style={{ flexShrink: 0 }}>
+            <Button size="lg" onClick={openQueue}>Join queue →</Button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== GALLERY LIGHTBOX ===== */}
+      {lightbox != null && (
+        <Lightbox
+          photos={galleryPhotos}
+          index={lightbox}
+          onClose={() => setLightbox(null)}
+          onStep={stepLightbox}
+        />
+      )}
+
       {/* ===== SAVE CONTACT (vCard) SHEET ===== */}
-      <SaveContactSheet open={saveOpen} onClose={() => setSaveOpen(false)} vcardUrl={vcardUrl} storeName={site.name} />
+      <SaveContactSheet
+        open={saveOpen}
+        onClose={() => setSaveOpen(false)}
+        vcardUrl={vcardUrl}
+        storeName={site.name}
+      />
 
       {/* ===== JOIN / BOOK MODAL ===== */}
       {joinOpen && (
         <div onClick={closeJoin} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(15,23,42,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, animation: "ttFade .22s ease" }}>
-          <div onClick={stop} style={{ width: 460, maxWidth: "100%", background: "var(--surface-card)", borderRadius: 20, boxShadow: "var(--shadow-xl)", overflow: "hidden", maxHeight: "92vh", display: "flex", flexDirection: "column", animation: "ttModalIn .42s cubic-bezier(.34,1.4,.5,1) both" }}>
+          <div onClick={stop} style={{ width: 460, maxWidth: "100%", background: "var(--surface-card)", borderRadius: "calc(20px * var(--radius-scale, 1))", boxShadow: "var(--shadow-xl)", overflow: "hidden", maxHeight: "92vh", display: "flex", flexDirection: "column", animation: "ttModalIn .42s cubic-bezier(.34,1.4,.5,1) both" }}>
             {/* header w/ steps */}
             <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--border-subtle)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1336,7 +1388,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                         ] as const).map(([value, label, sub]) => {
                           const on = visitorType === value;
                           return (
-                            <div key={value} onClick={() => setVisitorType(value)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 13, borderRadius: 12, padding: "13px 15px", transition: "border-color .15s ease, background .15s ease", background: on ? "color-mix(in srgb, var(--primary) 6%, var(--surface-card))" : "var(--surface-card)", border: `1.5px solid ${on ? "var(--primary)" : "var(--border-subtle)"}` }}>
+                            <div key={value} onClick={() => setVisitorType(value)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 13, borderRadius: "calc(12px * var(--radius-scale, 1))", padding: "13px 15px", transition: "border-color .15s ease, background .15s ease", background: on ? "color-mix(in srgb, var(--primary) 6%, var(--surface-card))" : "var(--surface-card)", border: `1.5px solid ${on ? "var(--primary)" : "var(--border-subtle)"}` }}>
                               <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${on ? "var(--primary)" : "var(--border-default)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                                 <span style={{ display: "flex", color: "var(--primary)", transition: "opacity .15s ease", opacity: on ? 1 : 0 }}>
                                   <Icon name="check" size={13} />
@@ -1366,7 +1418,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                         {services.map((sv) => {
                           const on = cart === sv.id;
                           return (
-                            <div key={sv.id} onClick={() => setCart(sv.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 13, borderRadius: 12, padding: "13px 15px", transition: "border-color .15s ease, background .15s ease", background: on ? "color-mix(in srgb, var(--primary) 6%, var(--surface-card))" : "var(--surface-card)", border: `1.5px solid ${on ? "var(--primary)" : "var(--border-subtle)"}` }}>
+                            <div key={sv.id} onClick={() => setCart(sv.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 13, borderRadius: "calc(12px * var(--radius-scale, 1))", padding: "13px 15px", transition: "border-color .15s ease, background .15s ease", background: on ? "color-mix(in srgb, var(--primary) 6%, var(--surface-card))" : "var(--surface-card)", border: `1.5px solid ${on ? "var(--primary)" : "var(--border-subtle)"}` }}>
                               <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${on ? "var(--primary)" : "var(--border-default)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                                 <span style={{ display: "flex", color: "var(--primary)", transition: "opacity .15s ease", opacity: on ? 1 : 0 }}>
                                   <Icon name="check" size={13} />
@@ -1398,7 +1450,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                   {screen === "details" && (
                     <div style={{ animation: "ttStep .32s ease both" }}>
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>Your name</div>
-                      <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Aman" className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: 10, fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 16, background: "var(--surface-card)" }} />
+                      <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Aman" className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: "calc(10px * var(--radius-scale, 1))", fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 16, background: "var(--surface-card)" }} />
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>Phone number</div>
                       <PhoneField country={phoneCountry} national={national} onCountryChange={setPhoneCountry} onNationalChange={setNational} marginBottom={16} />
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 9 }}>Preferred member (optional)</div>
@@ -1425,7 +1477,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                               {slots.map((s) => {
                                 const on = selectedSlot === s.startAt;
                                 return (
-                                  <span key={s.startAt} onClick={() => setSelectedSlot(s.startAt)} style={{ cursor: "pointer", font: "var(--fw-semibold) 13px/1 var(--font-sans)", padding: "8px 13px", borderRadius: 10, transition: "all .15s ease", ...(on ? { background: "var(--primary)", color: "#fff", border: "1.5px solid var(--primary)" } : { background: "var(--surface-card)", color: "var(--text-body)", border: "1.5px solid var(--border-subtle)" }) }}>
+                                  <span key={s.startAt} onClick={() => setSelectedSlot(s.startAt)} style={{ cursor: "pointer", font: "var(--fw-semibold) 13px/1 var(--font-sans)", padding: "8px 13px", borderRadius: "calc(10px * var(--radius-scale, 1))", transition: "all .15s ease", ...(on ? { background: "var(--primary)", color: "#fff", border: "1.5px solid var(--primary)" } : { background: "var(--surface-card)", color: "var(--text-body)", border: "1.5px solid var(--border-subtle)" }) }}>
                                     {s.label}
                                   </span>
                                 );
@@ -1435,7 +1487,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                         </>
                       )}
 
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: "13px 15px", marginBottom: 14 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: "calc(12px * var(--radius-scale, 1))", padding: "13px 15px", marginBottom: 14 }}>
                         <span style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--text-body)" }}>
                           {(sel ? `${sel.name} · ` : "") + (mode === "book" ? (selectedSlot ? "time selected" : "choose a time above") : joinWaitText)}
                         </span>
@@ -1492,7 +1544,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       </p>
 
                       {mode === "queue" && ticket && (
-                        <div style={{ border: "2px solid var(--text-strong)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
+                        <div style={{ border: "2px solid var(--text-strong)", borderRadius: "calc(16px * var(--radius-scale, 1))", padding: 20, marginBottom: 16 }}>
                           <div style={{ font: "var(--fw-bold) 11px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Your token</div>
                           <div style={{ font: "var(--fw-extrabold) 46px/1 var(--font-sans)", color: "var(--text-strong)", margin: "8px 0", letterSpacing: "-.01em" }}>{ticket.token}</div>
                           <div style={{ display: "flex", justifyContent: "space-around", marginTop: 10 }}>
@@ -1538,7 +1590,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                   {/* TRACK STEP 1: phone */}
                   {tstep === 1 && (
                     <div style={{ animation: "ttStep .32s ease both" }}>
-                      <div style={{ width: 52, height: 52, borderRadius: 14, background: "color-mix(in srgb, var(--secondary) 12%, var(--surface-card))", color: "var(--secondary)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                      <div style={{ width: 52, height: 52, borderRadius: "calc(14px * var(--radius-scale, 1))", background: "color-mix(in srgb, var(--secondary) 12%, var(--surface-card))", color: "var(--secondary)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
                         <Icon name="ticket" size={24} />
                       </div>
                       <h3 style={{ font: "var(--fw-extrabold) 20px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>Check your place in line</h3>
@@ -1585,7 +1637,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                   </div>
                   <h3 style={{ font: "var(--fw-extrabold) 21px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>{inService ? "It's your turn!" : "You're already in line"}</h3>
                   <p style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 18px" }}>{inService ? "You're up now — head to the chair, we're ready for you." : "This number already holds a live token. One active token per phone — no need to join twice."}</p>
-                  <div style={{ border: "2px solid var(--text-strong)", borderRadius: 16, padding: 18, marginBottom: 16 }}>
+                  <div style={{ border: "2px solid var(--text-strong)", borderRadius: "calc(16px * var(--radius-scale, 1))", padding: 18, marginBottom: 16 }}>
                     <div style={{ font: "var(--fw-bold) 11px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Your token</div>
                     <div style={{ font: "var(--fw-extrabold) 40px/1 var(--font-sans)", color: "var(--text-strong)", margin: "8px 0" }}>{ticket?.token ?? held?.token ?? ""}</div>
                     <div style={{ display: "flex", justifyContent: "space-around", marginTop: 6 }}>
@@ -1636,7 +1688,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                     This number has joined and cancelled several times. To keep the line fair for everyone, please <span style={{ font: "var(--fw-semibold) 14px/1 var(--font-sans)", color: "var(--text-strong)" }}>call the shop</span> or come in to join.
                   </p>
                   {shopPhone && (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 12, margin: "16px 0" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: "calc(12px * var(--radius-scale, 1))", padding: 12, margin: "16px 0" }}>
                       <span style={{ color: "var(--primary)", display: "flex" }}>
                         <Icon name="phone" size={16} />
                       </span>
@@ -1670,13 +1722,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         </div>
       )}
     </div>
+    </ThemePortalProvider>
   );
 }
 
 // Inline "leave the queue?" confirmation used by the ticket and already-in-line views.
 function LeaveConfirm({ token, onStay, onLeave }: { token: string; onStay: () => void; onLeave: () => void }) {
   return (
-    <div style={{ border: "1.5px solid var(--error)", borderRadius: 14, padding: 16, background: "color-mix(in srgb, var(--error) 5%, var(--surface-card))", textAlign: "left", animation: "ttStep .25s ease both" }}>
+    <div style={{ border: "1.5px solid var(--error)", borderRadius: "calc(14px * var(--radius-scale, 1))", padding: 16, background: "color-mix(in srgb, var(--error) 5%, var(--surface-card))", textAlign: "left", animation: "ttStep .25s ease both" }}>
       <div style={{ font: "var(--fw-bold) 15px/1.3 var(--font-sans)", color: "var(--text-strong)", marginBottom: 6 }}>Leave the queue?</div>
       <div style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-muted)", marginBottom: 14 }}>
         You&apos;ll lose token {token} and the next customer moves up. You can rejoin, but you&apos;ll go to the back of the line.

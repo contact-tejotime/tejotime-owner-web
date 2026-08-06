@@ -8,7 +8,7 @@ import { formatPhone } from "@/lib/phone";
 import { t } from "@/i18n";
 
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com";
-// Public backend base — the QR encodes this so a customer's phone can reach the live .vcf.
+// Public backend base — Download vCard hits the live .vcf here; the QR encodes FRONTEND_URL/{phone}/card.
 const BACKEND_URL = process.env.BACKEND_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
 /** Store hub shell — header + tab nav shared by every /stores/[id]/* page. */
@@ -24,6 +24,9 @@ export default async function StoreHubLayout({
   if (!detail) notFound();
 
   const meta = [detail.category, detail.area, detail.city].filter(Boolean).join(" · ");
+  const phoneFull = detail.phoneFull || `${detail.countryCode ?? ""}${detail.phoneNumber ?? ""}`;
+  const cardUrl = phoneFull ? `${FRONTEND_URL}/${phoneFull}/card` : "";
+  const vcardUrl = detail.slug ? `${BACKEND_URL}/public/businesses/${detail.slug}/vcard` : "";
 
   return (
     <div className="wrap">
@@ -33,9 +36,10 @@ export default async function StoreHubLayout({
           {detail.isActive ? t.storeHub.active : t.storeHub.inactive}
         </span>
         <span className="head-actions">
-          {detail.slug && (
+          {(cardUrl || vcardUrl) && (
             <StoreVCardQR
-              vcardUrl={`${BACKEND_URL}/public/businesses/${detail.slug}/vcard`}
+              cardUrl={cardUrl}
+              vcardUrl={vcardUrl}
               storeName={detail.name || t.common.unnamed}
             />
           )}

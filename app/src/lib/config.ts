@@ -11,3 +11,11 @@ export const API_BASE_URL =
 
 export const SOCKET_URL =
   process.env.EXPO_PUBLIC_SOCKET_URL ?? 'http://localhost:8080';
+
+/**
+ * Public customer web app — where a store's microsite and its QR landing page live.
+ * Used to build the QR the owner shows customers; the backend derives the same URLs in
+ * `getQr`, so keep this pointed at the same host as the API's `PUBLIC_WEB_URL`.
+ */
+export const WEB_BASE_URL =
+  process.env.EXPO_PUBLIC_WEB_URL ?? 'https://www.tejotime.com';

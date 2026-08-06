@@ -12,6 +12,9 @@ import { Icon } from "@/components/Icon";
  * The QR encodes the live `.vcf` URL with `?open=1`, which the backend serves `inline` — so the
  * scanning phone opens the OS Add-Contact card directly rather than downloading a file. The .vcf is
  * rebuilt from the current business row on every request, so a saved contact never goes stale.
+ *
+ * Deliberately does NOT point at `/{phone}/card`: the visitor already chose "Save contact" on the
+ * microsite, so re-asking Book vs Save would fight that intent. Owner/printed QRs use `/card`.
  */
 export default function SaveContactSheet({
   open,
@@ -74,7 +77,8 @@ export default function SaveContactSheet({
             <QRCodeSVG value={vcardUrl} size={188} level="M" marginSize={0} />
           </div>
           <span style={{ font: "var(--fw-regular) 14px/1.5 var(--font-sans)", color: "var(--text-muted)", textAlign: "center", maxWidth: 280 }}>
-            Point your phone&apos;s camera at this code to save {storeName}&apos;s number, address &amp; website to your contacts.
+            Point your phone&apos;s camera at this code to save {storeName}&apos;s number, address
+            &amp; website to your contacts.
           </span>
         </div>
       </div>

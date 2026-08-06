@@ -1,6 +1,8 @@
 /** Payload shapes shared between the store form and the API route handlers.
  *  These mirror the backend zod schema in backend/src/modules/admin/admin.routes.ts. */
 
+import { LEGACY_THEME_CONFIG, normalizeThemeConfig, type ThemeConfig } from "@/theme/engine";
+
 export const DAY_LABELS =["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 /** Categories where services/staff aren't required (mirrors admin.routes.ts backend zod schema). */
@@ -57,6 +59,18 @@ export interface StoreForm {
   reviewCount: string;
   payments: string; // comma-separated in the form; split before send
   currency: string; // ISO 4217 code; symbol/name come from lib/currencies.ts
+  /** Brand/accent hex for the customer microsite (#RRGGBB). Always mirrors `theme.brand`. */
+  themeColor: string;
+  /**
+   * Full microsite appearance config (stored as the `business.theme` jsonb).
+   *
+   * `brand` is the same hex as `themeColor` — the two are dual-written on the backend, and
+   * the Appearance panel keeps them in step so the legacy field never goes stale. The four
+   * modifier axes stay OPTIONAL on purpose: absent means "whatever this preset ships with",
+   * which is how switching preset picks up that preset's radius/shadow/density/animation
+   * instead of dragging the previous one's along.
+   */
+  theme: ThemeConfig;
   isActive: boolean; // toggled in edit only; inactive stores' microsites 404
   countryCode: string;
   phoneNumber: string;
@@ -124,6 +138,14 @@ export const EMPTY_FORM: StoreForm = {
   reviewCount: "",
   payments: "UPI, Card, Cash",
   currency: "INR",
+  themeColor: "#2563EB",
+  /**
+   * A brand-new store starts on the pixel-parity config, so "create a store and change
+   * nothing" produces exactly the microsite this admin panel produced before the Appearance
+   * panel existed. The Appearance panel may re-seed `preset` from the chosen category — a
+   * suggestion for NEW stores only, never applied to a store that already exists.
+   */
+  theme: { ...LEGACY_THEME_CONFIG },
   countryCode: "91",
   phoneNumber: "",
   hours: blankHours(),
@@ -161,6 +183,13 @@ export interface StoreDetail {
   reviewCount: string;
   payments: string;
   currency: string;
+  themeColor: string;
+  /**
+   * The stored `business.theme` jsonb, straight from Postgres — `null` for every store that
+   * has never saved an appearance, and possibly from an older schema version. Never read it
+   * directly; run it through `normalizeThemeConfig`, which repairs anything.
+   */
+  theme?: ThemeConfig | null;
   countryCode: string;
   phoneNumber: string;
   phoneFull: string;
@@ -179,6 +208,14 @@ export function fromDetail(d: StoreDetail): StoreForm {
   const hours = DAY_LABELS.map(
     (_, dayOfWeek) => byDay.get(dayOfWeek) ?? { dayOfWeek, opensAt: "09:00", closesAt: "18:00", isClosed: false },
   );
+  /**
+   * Appearance: the stored `theme` jsonb wins, and the legacy `theme_color` column seeds the
+   * brand for every store that predates it (i.e. all of them today). Passing the legacy hex as
+   * the normaliser's *base* is what makes that work — `theme.brand` overrides it when present,
+   * and a store with neither lands back on the frozen parity config.
+   */
+  const legacyBrand = /^#[0-9A-Fa-f]{6}$/.test(d.themeColor) ? d.themeColor.toUpperCase() : "#2563EB";
+  const theme = normalizeThemeConfig(d.theme, { ...LEGACY_THEME_CONFIG, brand: legacyBrand });
   return {
     name: d.name,
     category: d.category,
@@ -199,6 +236,9 @@ export function fromDetail(d: StoreDetail): StoreForm {
     reviewCount: d.reviewCount,
     payments: d.payments,
     currency: d.currency || "INR",
+    // Kept in lockstep with theme.brand — the panel edits one colour, not two.
+    themeColor: theme.brand,
+    theme,
     isActive: d.isActive,
     countryCode: d.countryCode,
     phoneNumber: d.phoneNumber,
@@ -245,6 +285,21 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
       .map((p) => p.trim())
       .filter(Boolean),
     currency: f.currency || undefined,
+    themeColor: /^#[0-9A-Fa-f]{6}$/.test(f.themeColor.trim())
+      ? f.themeColor.trim().toUpperCase()
+      : undefined,
+    /**
+     * Both are sent. The backend dual-writes them (`theme.brand` wins and is copied into the
+     * legacy `theme_color` column), so anything still reading the old column — including the
+     * microsite's pre-engine code path — keeps working untouched.
+     *
+     * Normalised on the way out so a hand-edited or stale field can never reach Postgres, and
+     * so the optional modifier axes stay ABSENT when they were never overridden.
+     */
+    theme: normalizeThemeConfig({
+      ...f.theme,
+      brand: /^#[0-9A-Fa-f]{6}$/.test(f.themeColor.trim()) ? f.themeColor.trim() : f.theme.brand,
+    }),
     isActive: f.isActive,
     countryCode: f.countryCode.replace(/\D/g, ""),
     phoneNumber: f.phoneNumber.replace(/\D/g, ""),
