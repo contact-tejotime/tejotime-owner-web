@@ -197,8 +197,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const socketRef = useRef<Socket | null>(null);
   const ticketPoll = useRef<ReturnType<typeof setInterval> | null>(null);
   const availabilityPoll = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Keep latest slug for interval/socket callbacks without writing a ref during render
+  // (react-hooks/refs). Polls started once still read the current value on each tick.
   const siteSlugRef = useRef(site.slug);
-  siteSlugRef.current = site.slug;
+  useEffect(() => {
+    siteSlugRef.current = site.slug;
+  }, [site.slug]);
   const storeRef = useRef<Store>(defaultStore());
 
 
@@ -356,9 +360,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const needsClock = ticketActive || liveWait > 0 || liveStaff.some((s) => s.waitMinutes > 0);
   useEffect(() => {
     if (!needsClock) return;
-    setNowTs(Date.now());
+    // Kick off the first tick asynchronously — sync setState in an effect trips
+    // react-hooks/set-state-in-effect and forces an extra cascading render.
+    const first = setTimeout(() => setNowTs(Date.now()), 0);
     const id = setInterval(() => setNowTs(Date.now()), 15000);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
   }, [needsClock]);
 
   // ---- restore a held ticket (resume pill / "already in line") ----
