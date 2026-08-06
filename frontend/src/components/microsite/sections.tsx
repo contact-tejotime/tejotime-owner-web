@@ -255,8 +255,8 @@ export function LiveBoard({
             <div
               style={{
                 position: "relative",
-                font: "var(--fw-medium) 15px/1.5 var(--font-sans)",
-                color: "rgba(255,255,255,.74)",
+                font: "var(--fw-semibold) 15px/1.5 var(--font-sans)",
+                color: "rgba(255,255,255,.88)",
                 marginTop: 14,
               }}
             >

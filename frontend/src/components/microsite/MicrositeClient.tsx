@@ -1103,7 +1103,22 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             <div style={{ maxWidth: 430, marginTop: 32, borderRadius: "calc(26px * var(--radius-scale, 1))", padding: 26, background: "var(--surface-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 26px 60px rgba(15,23,42,.16)" }}>
               <div style={{ font: "var(--fw-bold) 10.5px/1 var(--font-sans)", letterSpacing: ".16em", textTransform: "uppercase", color: "var(--primary)" }}>Right now</div>
               <div style={{ font: "var(--fw-extrabold) clamp(30px, 3.4vw, 38px)/1.02 var(--font-sans)", letterSpacing: "-.035em", color: "var(--text-strong)", marginTop: 14 }}>{waitHeadline}</div>
-              <div style={{ font: "var(--fw-medium) 14.5px/1.45 var(--font-sans)", color: "var(--text-muted)", marginTop: 11 }}>{liveSub}</div>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 11, font: "var(--fw-semibold) clamp(15px, 3.8vw, 17px)/1.4 var(--font-sans)", color: "var(--text-body)" }}>
+                {liveCount === 0 && freeMembers.length > 0 && (
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 999,
+                      background: "var(--success)",
+                      flexShrink: 0,
+                      marginTop: "0.45em",
+                    }}
+                  />
+                )}
+                <span>{liveSub}</span>
+              </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
                 <Button size="lg" fullWidth onClick={openQueue}>{domain.id === "clinic" ? "Take a token" : "Join the queue"} →</Button>
                 <Button size="lg" variant="outline" fullWidth onClick={openBook}>Book a time slot</Button>
@@ -1331,7 +1346,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         >
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ font: "var(--fw-bold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{waitHeadline}</div>
-            <div style={{ font: "var(--fw-medium) 12px/1.3 var(--font-sans)", color: "var(--text-muted)", marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{liveSub}</div>
+            <div style={{ font: "var(--fw-semibold) 14px/1.35 var(--font-sans)", color: "var(--text-body)", marginTop: 4 }}>{liveSub}</div>
           </div>
           <div style={{ flexShrink: 0 }}>
             <Button size="lg" onClick={openQueue}>Join queue →</Button>
