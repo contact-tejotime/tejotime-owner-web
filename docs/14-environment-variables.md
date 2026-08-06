@@ -10,7 +10,7 @@ All configuration is injected via environment (12-factor). Never commit secrets.
 | `NODE_ENV` | `production` | `development`\|`staging`\|`production` |
 | `PORT` | `8080` | API/socket HTTP port |
 | `APP_BASE_URL` | `https://api.tejotime.com` | canonical API URL |
-| `PUBLIC_WEB_URL` | `https://tejotime.com` | customer web host; QR encodes `{PUBLIC_WEB_URL}/{phone}/card` (book-or-save chooser), microsite is `{PUBLIC_WEB_URL}/{phone}` |
+| `PUBLIC_WEB_URL` | `https://www.tejotime.com` | customer web host; must match owner `EXPO_PUBLIC_WEB_URL` and admin `NEXT_PUBLIC_FRONTEND_URL`. QR encodes `{PUBLIC_WEB_URL}/{phone}/card` (book-or-save chooser); microsite is `{PUBLIC_WEB_URL}/{phone}` |
 | `LOG_LEVEL` | `info` | pino level |
 | `DEFAULT_TIMEZONE` | `Asia/Kolkata` | fallback tenant tz |
 | `DEFAULT_CURRENCY` | `INR` | fallback tenant currency |
@@ -116,11 +116,16 @@ The bucket is private, so there is no CDN/public base URL: stored image URLs poi
 |---|---|---|
 | `NEXT_PUBLIC_API_BASE_URL` | `https://api.tejotime.com/api/v1` | REST base |
 | `NEXT_PUBLIC_SOCKET_URL` | `https://api.tejotime.com` | Socket.IO origin |
-| `NEXT_PUBLIC_SITE_URL` | `https://tejotime.com` | canonical web URL |
+| `NEXT_PUBLIC_SITE_URL` | `https://www.tejotime.com` | canonical web URL |
 | `NEXT_PUBLIC_CAPTCHA_SITE_KEY` | — | public microsite anti-abuse |
 | `NEXT_PUBLIC_ADMIN_ORIGIN` | `https://admin.tejotime.com` | origin allowed to postMessage theme configs into `?preview=1`. Defaults to the production admin; set it only when the admin runs elsewhere. Must also be declared as a build ARG (it is, in `frontend/Dockerfile`). |
 
-> The current Next.js app has **no** env usage yet (confirmed by grep). These are introduced when the microsite is wired to the API.
+## 2b. Admin — Next.js (`admin-panel/`)
+
+| Var | Example | Notes |
+|---|---|---|
+| `BACKEND_API_BASE_URL` | `https://api.tejotime.com/api/v1` | server-side API |
+| `NEXT_PUBLIC_FRONTEND_URL` | `https://www.tejotime.com` | customer host for store links and booking QR (`{url}/{phone}/card`). Keep identical to API `PUBLIC_WEB_URL` |
 
 ## 3. Mobile — Expo (`app/`)
 
@@ -128,12 +133,14 @@ The bucket is private, so there is no CDN/public base URL: stored image URLs poi
 |---|---|---|
 | `EXPO_PUBLIC_API_BASE_URL` | `https://api.tejotime.com/api/v1` | REST base |
 | `EXPO_PUBLIC_SOCKET_URL` | `https://api.tejotime.com` | Socket.IO |
+| `EXPO_PUBLIC_WEB_URL` | `https://www.tejotime.com` | customer host; owner Booking QR encodes `{EXPO_PUBLIC_WEB_URL}/{phone}/card`. Keep identical to API `PUBLIC_WEB_URL` |
 | `EXPO_PUBLIC_ENV` | `production` | |
 
-Set via `app.json` → `extra` / EAS build profiles. The app currently ships no network config (all local state).
+Set via `app.json` → `extra` / EAS build profiles.
 
 ## 4. Handling rules
 
 - **Required-on-boot:** `DATABASE_URL`, `REDIS_URL`, JWT secrets, `PUBLIC_WEB_URL`, storage creds, SMS creds (in prod). Validate & exit non-zero if absent.
+- **QR host alignment:** `PUBLIC_WEB_URL` (API), `EXPO_PUBLIC_WEB_URL` (owner app), and `NEXT_PUBLIC_FRONTEND_URL` (admin) must be the same customer origin (`https://www.tejotime.com` in prod). Mismatched hosts produce QRs that open the wrong site or 404.
 - **Secrets** (`*_SECRET`, `*_KEY`, `*_TOKEN`, `*_PEPPER`, `DATABASE_URL`) come from the secret manager, not `.env` files in prod.
 - Keep a committed `backend/.env.example` documenting every var with safe placeholders.
