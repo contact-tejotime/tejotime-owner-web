@@ -104,12 +104,19 @@ curl https://api.tejotime.com/api/v1/public/businesses/sharp-cuts   # microsite 
 curl -I https://api.tejotime.com/media/<known-key>   # 302 → a signed bucket URL
 ```
 - Open `https://www.tejotime.com/<store-phone>` → the microsite loads **with images**.
+- Open `https://www.tejotime.com/<store-phone>/card` → chooser with **Book an appointment** and **Save contact**.
+  - Book → microsite; Save → OS Add-Contact / `.vcf`.
+- Owner app Settings → Booking QR encodes `https://www.tejotime.com/<store-phone>/card` (not the raw `.vcf`).
 - In DevTools → Network → WS, confirm a `wss://api.tejotime.com/socket.io/` connection upgrades (**101**) → realtime is live.
 - Join the queue on the site → a ticket is issued; the live wait/team cards update over the socket.
 - API logs should show `Socket.IO initialized` and `Scheduler started` on boot.
 - Log into `admin.tejotime.com`, confirm (DevTools → Network) it calls `api.tejotime.com`, not a stale URL.
 
+### Booking QR reprint
+After this release, **reprint physical stickers** from the owner app (or admin store hub). Older codes that pointed at the raw `.vcf` URL skip the chooser and open Add-Contact directly. New prints encode `/{phone}/card`.
+
 ## Notes
 - **No secrets in git** — values live only in the Railway dashboard (and each service's local `.env`/`.env.railway`, which are gitignored).
 - **Private networking**: the backend reaches Postgres and the bucket over Railway's internal network. Only the three app services need public domains.
 - **Images**: the bucket is private. `GET /media/*` redirects to a short-lived signed URL, so bytes are served by the bucket (free egress) rather than proxied through the API. See [docs/10-file-storage.md](./docs/10-file-storage.md).
+- **QR host vars:** keep `PUBLIC_WEB_URL`, `EXPO_PUBLIC_WEB_URL`, and `NEXT_PUBLIC_FRONTEND_URL` on the same origin (`https://www.tejotime.com`). See [docs/14-environment-variables.md](./docs/14-environment-variables.md).

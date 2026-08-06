@@ -15,7 +15,7 @@ const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(8080),
   APP_BASE_URL: z.string().url().default('http://localhost:8080'),
-  PUBLIC_WEB_URL: z.string().url().default('https://tejotime.com'),
+  PUBLIC_WEB_URL: z.string().url().default('https://www.tejotime.com'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   DEFAULT_TIMEZONE: z.string().default('Asia/Kolkata'),
   DEFAULT_CURRENCY: z.string().length(3).default('INR'),
