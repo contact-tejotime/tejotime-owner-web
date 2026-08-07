@@ -29,6 +29,7 @@ export type {
   AccentStrategy,
   AnimationId,
   AnimationScale,
+  BrandInkId,
   ColorRamp,
   ContrastCheck,
   ContrastReport,
@@ -63,6 +64,7 @@ export type {
 
 export {
   ANIMATION_IDS,
+  BRAND_INK_IDS,
   DENSITY_IDS,
   EXTRA_TOKEN_NAMES,
   HERO_VARIANT_IDS,

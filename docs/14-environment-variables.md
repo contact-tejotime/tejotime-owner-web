@@ -125,7 +125,7 @@ The bucket is private, so there is no CDN/public base URL: stored image URLs poi
 | Var | Example | Notes |
 |---|---|---|
 | `BACKEND_API_BASE_URL` | `https://api.tejotime.com/api/v1` | server-side API |
-| `NEXT_PUBLIC_FRONTEND_URL` | `https://www.tejotime.com` | customer host for store links and booking QR (`{url}/{phone}/card`). Keep identical to API `PUBLIC_WEB_URL` |
+| `NEXT_PUBLIC_FRONTEND_URL` | `https://www.tejotime.com` | customer host for store links, booking QR, and Appearance live preview. Keep identical to API `PUBLIC_WEB_URL` in prod. Unset in local `next dev` → Appearance preview defaults to `http://localhost:3000` so postMessage can reach a local frontend (prod rejects `localhost:3001`) |
 
 ## 3. Mobile — Expo (`app/`)
 

@@ -14,6 +14,7 @@
 
 import type {
   AnimationId,
+  BrandInkId,
   DensityId,
   HeroVariantId,
   ModeId,
@@ -24,6 +25,7 @@ import type {
 } from './types';
 import {
   ANIMATION_IDS,
+  BRAND_INK_IDS,
   DENSITY_IDS,
   HERO_VARIANT_IDS,
   MODE_IDS,
@@ -299,6 +301,8 @@ function assignOptional(target: ThemeConfig, source: Record<string, unknown> | T
   if (hero) target.heroVariant = hero;
   const accent = normalizeHex(raw.accent);
   if (accent) target.accent = accent;
+  const brandInk = pickOptional<BrandInkId>(raw.brandInk, BRAND_INK_IDS);
+  if (brandInk) target.brandInk = brandInk;
 }
 
 function pickOptional<T extends string>(value: unknown, allowed: readonly T[]): T | undefined {

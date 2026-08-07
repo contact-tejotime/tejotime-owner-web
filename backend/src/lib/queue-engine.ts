@@ -222,7 +222,21 @@ export function buildSeatGroups(
     if (items.length === 0) return [];
     return [buildGroup({ id: '__unassigned__', name: 'Waiting', color: 'secondary' }, items, services, now)];
   }
-  return staff.map((st) => buildGroup(st, queue.filter((q) => q.staffId === st.id && isActiveStatus(q.status)), services, now));
+  const groups = staff.map((st) =>
+    buildGroup(
+      st,
+      queue.filter((q) => q.staffId === st.id && isActiveStatus(q.status)),
+      services,
+      now,
+    ),
+  );
+  // Seatless active tickets (staff deleted → ON DELETE SET NULL, or legacy rows) would
+  // otherwise inflate shop-wide queueCount while vanishing from every per-staff lane.
+  const unassigned = queue.filter((q) => !q.staffId && isActiveStatus(q.status));
+  if (unassigned.length > 0) {
+    groups.push(buildGroup({ id: '__unassigned__', name: 'Any', color: 'secondary' }, unassigned, services, now));
+  }
+  return groups;
 }
 
 /** Flattened cards across all seats (seat order). */
