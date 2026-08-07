@@ -515,6 +515,14 @@
     "aaPass": "All contrast checks pass",
     "aaFail": "{count} contrast check needs attention",
     "aaFailPlural": "{count} contrast checks need attention",
+    "aaManualFail": "Your button label choice is below 4.5:1 on this brand ({ratio}:1). It will still apply — consider a darker brand or Auto.",
+    "brandInkTitle": "Button label color",
+    "brandInkHint": "Text on primary buttons. Auto picks white or dark for contrast; White/Dark force a choice.",
+    "brandInks": {
+      "auto": { "label": "Auto", "desc": "Best contrast for this brand." },
+      "white": { "label": "White", "desc": "Always white labels." },
+      "dark": { "label": "Dark", "desc": "Always dark labels." }
+    },
     "swatches": {
       "blue": "TejoTime blue",
       "teal": "Teal",
@@ -588,7 +596,7 @@
     "previewTitle": "Live preview",
     "previewHint": "This is the real customer website, themed live. Save the form to publish it.",
     "previewLoading": "Loading the live site…",
-    "previewNotResponding": "The site loaded but isn't accepting live theme updates. Save and open it to see the result.",
+    "previewNotResponding": "The site loaded but isn't accepting live theme updates. Locally, run the frontend on port 3000 (or set NEXT_PUBLIC_FRONTEND_URL). Save and open the live site to confirm.",
     "previewUnavailable": "The live preview could not load.",
     "previewDemo": "No phone number yet — showing the demo store. Add a phone number to preview this store.",
     "previewOpen": "Open",
