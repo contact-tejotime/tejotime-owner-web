@@ -331,6 +331,33 @@
   .ttMobileBar { display: flex !important; }
   [data-desk] { display: none !important; }
   [data-pad] { padding-bottom: 92px !important; }
+  /* Logo left · name center · menu right across the full width. */
+  .ttHeader {
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .ttHeaderSpacer { display: none !important; }
+  .ttLogo { flex-shrink: 0; }
+  .ttName {
+    flex: 1;
+    text-align: center;
+    min-width: 0;
+  }
+  .ttMenuBtn { flex-shrink: 0; margin-left: 0; }
+}
+
+/* Dark mode: lift the "Right now" wait card off the page with a brand-tinted surface. */
+[data-tt-mode="dark"] .ttWaitCard {
+  background: var(--brand-subtle);
+  border-color: var(--brand-border);
+  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.45), 0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  [data-tt-mode="auto"] .ttWaitCard {
+    background: var(--brand-subtle);
+    border-color: var(--brand-border);
+    box-shadow: 0 26px 60px rgba(0, 0, 0, 0.45), 0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -162,7 +162,7 @@ function LiveStatusLine({
         <span style={{ font: "var(--fw-bold) 1em/1.35 var(--font-sans)", color: freePhrase }}>
           All <LiveStatusNum onDark={onDark}>{membersLength}</LiveStatusNum> free
         </span>
-        <span style={{ color: muted }}> · nobody ahead of you</span>
+        <span style={{ color: muted }}> · no wait</span>
       </span>
     );
   }
@@ -238,7 +238,12 @@ function QueueWaitSummary({
             flexShrink: 0,
           }}
         />
-        Nobody waiting
+        <span>
+          <span style={{ fontVariantNumeric: "tabular-nums" }}>0</span>
+          <span style={{ font: "var(--fw-bold) 0.55em/1.1 var(--font-sans)", letterSpacing: "-.02em", marginLeft: "0.28em" }}>
+            min wait
+          </span>
+        </span>
       </span>
     ) : (
       <>
@@ -1243,22 +1248,20 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       <div style={{ position: "relative", overflow: "hidden", background: "radial-gradient(72% 62% at 4% 6%, color-mix(in srgb, var(--primary) 30%, transparent) 0%, transparent 62%), linear-gradient(150deg, color-mix(in srgb, var(--primary) 10%, var(--surface-card)) 0%, var(--surface-page) 54%, var(--surface-card) 100%)" }}>
 
         {/* --- header --- */}
-        <div style={{ maxWidth: 1320, margin: "0 auto", padding: "clamp(16px, 2.4vw, 26px) clamp(18px, 4vw, 30px)", display: "flex", alignItems: "center", gap: 18 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0, minWidth: 0 }}>
-            {/* An uploaded logo sits on nothing — most are transparent PNGs. Only the fallback
-                mark gets the brand tile. */}
-            <span style={{ width: 40, height: 40, borderRadius: "calc(12px * var(--radius-scale, 1))", overflow: "hidden", flexShrink: 0, background: site.logoUrl ? "transparent" : "var(--primary)", color: "var(--text-on-brand)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {site.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={site.logoUrl} alt={site.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-              ) : (
-                <Icon name="sparkle" size={20} />
-              )}
-            </span>
-            <span style={{ font: "var(--fw-extrabold) 18px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{site.name}</span>
-          </div>
+        <div className="ttHeader" style={{ maxWidth: 1320, margin: "0 auto", padding: "clamp(16px, 2.4vw, 26px) clamp(18px, 4vw, 30px)", display: "flex", alignItems: "center", gap: 18 }}>
+          {/* An uploaded logo sits on nothing — most are transparent PNGs. Only the fallback
+              mark gets the brand tile. */}
+          <span className="ttLogo" style={{ width: 40, height: 40, borderRadius: "calc(12px * var(--radius-scale, 1))", overflow: "hidden", flexShrink: 0, background: site.logoUrl ? "transparent" : "var(--primary)", color: "var(--text-on-brand)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {site.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={site.logoUrl} alt={site.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            ) : (
+              <Icon name="sparkle" size={20} />
+            )}
+          </span>
+          <span className="ttName" style={{ font: "var(--fw-extrabold) 18px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{site.name}</span>
 
-          <span style={{ flex: 1 }} />
+          <span className="ttHeaderSpacer" style={{ flex: 1 }} />
 
           <div data-shed="1" data-desk="1" style={{ display: "flex", alignItems: "center", gap: 26 }}>
             {navLinks.map(([, label, href]) => (
@@ -1270,11 +1273,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             <Button variant="outline" onClick={onSaveContact} leadingIcon={<Icon name="user" size={16} />}>Save contact</Button>
             <Button variant="outline" onClick={openTrack}>Track my turn</Button>
           </span>
-          <Button variant="primary" onClick={openQueue}>{domain.id === "clinic" ? "Take token" : "Join queue"} →</Button>
+          <span data-desk="1">
+            <Button variant="primary" onClick={openQueue}>{domain.id === "clinic" ? "Take token" : "Join queue"} →</Button>
+          </span>
 
           <button
             type="button"
-            className="ttMobileBar"
+            className="ttMobileBar ttMenuBtn"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((o) => !o)}
@@ -1324,7 +1329,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             </div>
 
             {/* The "Right now" card — v3's centrepiece and the page's primary action. */}
-            <div style={{ maxWidth: 430, marginTop: 32, borderRadius: "calc(26px * var(--radius-scale, 1))", padding: 26, background: "var(--surface-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 26px 60px rgba(15,23,42,.16)" }}>
+            <div className="ttWaitCard" style={{ maxWidth: 430, marginTop: 32, borderRadius: "calc(26px * var(--radius-scale, 1))", padding: 26, background: "var(--surface-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 26px 60px rgba(15,23,42,.16)" }}>
               <div style={{ font: "var(--fw-bold) 10.5px/1 var(--font-sans)", letterSpacing: ".16em", textTransform: "uppercase", color: "var(--primary)" }}>Right now</div>
               <div style={{ marginTop: 14 }}>
                 <QueueWaitSummary liveCount={liveCount} members={members} waitHeadline={waitHeadline} />
