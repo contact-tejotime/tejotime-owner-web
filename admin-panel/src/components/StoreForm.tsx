@@ -24,8 +24,9 @@ import AppearancePanel from "@/components/appearance/AppearancePanel";
 import { GalleryUpload, ImageUpload } from "@/components/ImageUpload";
 import PhoneField from "@/components/ui/PhoneField";
 import Spinner from "@/components/ui/Spinner";
+import { frontendUrl } from "@/lib/frontend-url";
 
-const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com";
+const FRONTEND_URL = frontendUrl();
 
 type ErrorDetail = { field?: string; message: string };
 
@@ -160,7 +161,10 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
     }
   }
 
-  const previewUrl = useMemo(() => (result ? `${FRONTEND_URL}${result.micrositePath}` : ""), [result]);
+  const previewUrl = useMemo(
+    () => (result && FRONTEND_URL ? `${FRONTEND_URL}${result.micrositePath}` : ""),
+    [result],
+  );
   const servicesStaffOptional = OPTIONAL_SERVICES_STAFF_CATEGORIES.has(form.category);
 
   // Categories may not include the store's current value (e.g. a deactivated category on edit);
@@ -341,7 +345,11 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
             }}
           />
           <p className="hint">
-            {t.storeForm.liveUrl} <code>{FRONTEND_URL}/{phoneFull || "…"}</code>
+            {t.storeForm.liveUrl}{" "}
+            <code>
+              {FRONTEND_URL ? `${FRONTEND_URL}/` : ""}
+              {phoneFull || "…"}
+            </code>
           </p>
         </section>
 

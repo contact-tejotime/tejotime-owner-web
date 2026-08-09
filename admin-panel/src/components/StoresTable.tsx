@@ -10,8 +10,9 @@ import { ExternalLinkIcon, Icon } from "@/components/icons";
 import ConfirmDialog from "./ConfirmDialog";
 import StoreStatusToggle from "./StoreStatusToggle";
 import Spinner from "./ui/Spinner";
+import { frontendUrl } from "@/lib/frontend-url";
 
-const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com";
+const FRONTEND_URL = frontendUrl();
 
 /** Distinct non-empty values of one field, alphabetical — options for a filter select. */
 function distinct(stores: StoreListItemWithMetrics[], pick: (s: StoreListItemWithMetrics) => string | null) {
@@ -243,15 +244,17 @@ export default function StoresTable({ stores }: { stores: StoreListItemWithMetri
                   />
                 </td>
                 <td onClick={(e) => e.stopPropagation()}>
-                  <a
-                    href={`${FRONTEND_URL}/${s.phoneFull}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={t.stores.openMicrosite}
-                    className="visit-link"
-                  >
-                    <ExternalLinkIcon />
-                  </a>
+                  {FRONTEND_URL && s.phoneFull ? (
+                    <a
+                      href={`${FRONTEND_URL}/${s.phoneFull}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={t.stores.openMicrosite}
+                      className="visit-link"
+                    >
+                      <ExternalLinkIcon />
+                    </a>
+                  ) : null}
                 </td>
               </tr>
             ))}
