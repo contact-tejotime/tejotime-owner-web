@@ -52,13 +52,7 @@ export default function LoginPage() {
     <div className="login-shell">
       <div className="login-card">
         <div className="brand login-brand">
-          <span className="brand-mark">
-            <img src="/logo.png" alt={t.common.brandAlt} />
-          </span>
-          <span className="brand-name">
-            {t.nav.brandName}
-            <span className="brand-sub">{t.nav.brandBadge}</span>
-          </span>
+          <img className="brand-logo" src="/logo.png" alt={t.common.brandAlt} />
         </div>
 
         <form onSubmit={signIn}>
