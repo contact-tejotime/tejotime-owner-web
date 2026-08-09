@@ -57,6 +57,11 @@ export interface StoreFields {
   rating?: number;
   reviewCount?: number;
   payments?: string[];
+  /** Social profile URLs shown on the public microsite. Empty string clears one. */
+  instagramUrl?: string;
+  facebookUrl?: string;
+  twitterUrl?: string;
+  linkedinUrl?: string;
   timezone?: string;
   /** ISO 4217 code (e.g. 'INR', 'USD'). Omitted → keeps existing / env default. */
   currency?: string;
@@ -136,6 +141,12 @@ function businessColumns(input: StoreFields) {
     rating: input.rating ?? 0,
     review_count: input.reviewCount ?? 0,
     payments: input.payments && input.payments.length ? input.payments : ['UPI', 'Card', 'Cash'],
+    // Social links. `?? null` (not `|| null`) is wrong here on purpose — the schema converts a
+    // cleared field to '' and we want that stored as NULL, so an empty string maps to null too.
+    instagram_url: input.instagramUrl || null,
+    facebook_url: input.facebookUrl || null,
+    twitter_url: input.twitterUrl || null,
+    linkedin_url: input.linkedinUrl || null,
     // faqs/reviews are jsonb — serialize explicitly, otherwise pg would send a
     // JS array as a Postgres array literal and the insert would fail.
     faqs: JSON.stringify(input.faqs ?? []),
@@ -593,6 +604,12 @@ export async function getBusinessDetail(id: string) {
     rating: b.rating != null ? String(Number(b.rating)) : '',
     reviewCount: b.review_count != null ? String(b.review_count) : '',
     payments: (b.payments ?? []).join(', '),
+    // '' not null — the edit form binds these straight to text inputs, and a null would make
+    // React flip the field from controlled to uncontrolled.
+    instagramUrl: b.instagram_url ?? '',
+    facebookUrl: b.facebook_url ?? '',
+    twitterUrl: b.twitter_url ?? '',
+    linkedinUrl: b.linkedin_url ?? '',
     currency: b.currency ?? 'INR',
     themeColor: b.theme_color ?? '',
     theme: (b.theme ?? null) as ThemeConfigInput | null,

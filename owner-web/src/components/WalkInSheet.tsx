@@ -6,7 +6,7 @@ import { formatMoney } from "@/lib/format";
 import type { ServiceRow, StaffRow } from "@/lib/server-api";
 
 type WalkInSheetProps = {
-  open: boolean;
+
   onClose: () => void;
   staff: StaffRow[];
   services: ServiceRow[];
@@ -17,24 +17,20 @@ type WalkInSheetProps = {
  * Add a walk-in. Posts to `/api/queue`, which forwards to the backend's `queue_add` RPC —
  * the same call the Expo app makes, so token allocation and seat assignment stay identical.
  */
-export function WalkInSheet({ open, onClose, staff, services, onAdded }: WalkInSheetProps) {
-  const [serviceId, setServiceId] = useState("");
+/**
+ * Mounted only while open (the parent renders it conditionally), so every field starts fresh
+ * on each open without a reset effect — clearing state inside an effect paints the previous
+ * customer's details for one frame before wiping them, which is what
+ * react-hooks/set-state-in-effect is warning about.
+ */
+export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetProps) {
+  // Pre-selects the first service, matching the app's walk-in sheet.
+  const [serviceId, setServiceId] = useState(() => services[0]?.id ?? "");
   const [seatId, setSeatId] = useState("any");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-
-  // Reset form + pre-select the first service each time the sheet opens (matches the app).
-  useEffect(() => {
-    if (!open) return;
-    setName("");
-    setPhone("");
-    setError("");
-    setBusy(false);
-    setSeatId("any");
-    setServiceId(services[0]?.id ?? "");
-  }, [open, services]);
 
   async function submit() {
     setError("");
@@ -70,7 +66,7 @@ export function WalkInSheet({ open, onClose, staff, services, onAdded }: WalkInS
   }
 
   useEffect(() => {
-    if (!open) return;
+
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
@@ -81,9 +77,9 @@ export function WalkInSheet({ open, onClose, staff, services, onAdded }: WalkInS
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [onClose]);
 
-  if (!open) return null;
+
 
   return (
     <div className="sheet-root" role="dialog" aria-modal="true" aria-label="Add walk-in">

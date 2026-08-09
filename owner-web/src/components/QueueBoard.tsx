@@ -102,8 +102,24 @@ export function QueueBoard({
   const dragSourceSeat = useRef<string | null>(null);
   const committing = useRef(false);
 
-  useEffect(() => {
+  /**
+   * Re-sync the optimistic seat list when the server sends a new one.
+   *
+   * Adjusted DURING RENDER rather than in an effect. React documents this exact pattern for
+   * "a prop changed, reset some state": it re-runs the component immediately without
+   * committing the stale render, so the board never paints one frame of old seats. An effect
+   * would paint first and correct afterwards, which is both a visible flicker and what
+   * react-hooks/set-state-in-effect exists to catch.
+   */
+  const [syncedSeats, setSyncedSeats] = useState(initialSeats);
+  if (syncedSeats !== initialSeats) {
+    setSyncedSeats(initialSeats);
     setSeatsState(initialSeats);
+  }
+  // The ref is cleared in an effect, not above: a ref must not be touched during render, and
+  // unlike the seat list it has nothing to do with what gets painted — it only needs to be
+  // false again by the time the next drag starts.
+  useEffect(() => {
     committing.current = false;
   }, [initialSeats]);
 
@@ -429,8 +445,9 @@ export function QueueBoard({
         />
       ) : null}
 
+      {/* Mounted only while open — see WalkInSheet for why. */}
+      {walkInOpen ? (
       <WalkInSheet
-        open={walkInOpen}
         onClose={() => onWalkInOpenChange(false)}
         staff={staff}
         services={services}
@@ -439,6 +456,7 @@ export function QueueBoard({
           refresh();
         }}
       />
+      ) : null}
     </>
   );
 }

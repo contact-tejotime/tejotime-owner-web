@@ -197,6 +197,14 @@ async function buildMicrosite(b: any) {
     })),
     live: { waitMinutes, queueCount },
     payments: b.payments ?? [],
+    // Only the ones actually filled in — the microsite renders whatever this contains, so an
+    // entry with a null url would become an icon linking nowhere.
+    socials: [
+      { key: 'instagram', url: b.instagram_url },
+      { key: 'facebook', url: b.facebook_url },
+      { key: 'twitter', url: b.twitter_url },
+      { key: 'linkedin', url: b.linkedin_url },
+    ].filter((s): s is { key: string; url: string } => !!s.url),
     currency: b.currency ?? env.DEFAULT_CURRENCY,
     themeColor: b.theme_color ?? null,
     // Full theme config (jsonb). NULL for stores provisioned before 0017 — the frontend

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -26,17 +26,29 @@ export function HomeQueueSection({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [walkInOpen, setWalkInOpen] = useState(false);
+  const [manuallyOpen, setManuallyOpen] = useState(false);
 
-  // Deep link / bookmark: /dashboard?walkin=1 opens the sheet once, then clears the query.
-  useEffect(() => {
-    if (searchParams.get("walkin") !== "1") return;
-    setWalkInOpen(true);
-    const next = new URLSearchParams(searchParams.toString());
-    next.delete("walkin");
-    const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [searchParams, pathname, router]);
+  /**
+   * Deep link / bookmark: /dashboard?walkin=1 opens the sheet.
+   *
+   * DERIVED from the URL rather than copied into state by an effect. The effect version set
+   * state and navigated on the same pass, so the sheet opened a frame late and — because
+   * clearing the query re-ran the effect — could re-open itself after the user dismissed it.
+   * Reading the URL directly means there is only ever one source of truth for "is it open".
+   */
+  const deepLinked = searchParams.get("walkin") === "1";
+  const walkInOpen = manuallyOpen || deepLinked;
+
+  /** Closing has to drop the query too, or the deep link would immediately re-open the sheet. */
+  const setWalkInOpen = (next: boolean) => {
+    setManuallyOpen(next);
+    if (!next && deepLinked) {
+      const qs = new URLSearchParams(searchParams.toString());
+      qs.delete("walkin");
+      const rest = qs.toString();
+      router.replace(rest ? `${pathname}?${rest}` : pathname, { scroll: false });
+    }
+  };
 
   return (
     <>
