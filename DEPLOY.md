@@ -12,8 +12,8 @@ Everything lives in **one Railway project** with two environments (`production` 
 
 | Git branch | Railway environment | Release trigger |
 |---|---|---|
-| `preprod` | `preprod` | PR **merged** into `preprod` |
-| `main` | `production` | PR **merged** into `main` |
+| `preprod` | `preprod` | Push / merge to `preprod` (Railway auto-deploy) |
+| `main` | `production` | Push / merge to `main` (Railway auto-deploy) |
 
 Railway runs long-lived processes, so **Socket.IO realtime and the cron jobs work exactly as they do locally** — no serverless degradation, and no free-tier idle spin-down.
 
@@ -23,33 +23,18 @@ All three app services build from their own `Dockerfile`, config-as-code'd via `
 
 ---
 
-## CI/CD (merge-only releases)
+## CI/CD (Railway GitHub auto-deploy)
 
-Deploys are driven by GitHub Actions, **not** by push and **not** by Railway's GitHub auto-deploy:
+Deploys are driven by **Railway** watching the connected GitHub branch — not by GitHub Actions deploy workflows.
 
-- [`.github/workflows/deploy-preprod.yml`](.github/workflows/deploy-preprod.yml) — runs only when a PR targeting `preprod` is **merged** (`pull_request` closed + `merged == true`).
-- [`.github/workflows/deploy-production.yml`](.github/workflows/deploy-production.yml) — same for `main` → production.
-- Direct pushes / force-pushes to those branches do **not** release. Prefer branch protection (require PR, block direct pushes) on `preprod` and `main`.
-- Only services whose paths changed in the PR are deployed (`backend/`, `frontend/`, `admin-panel/`).
-- After deploy, Actions smoke-checks the env's public URLs.
+- Each service in the **preprod** environment: Source → branch `preprod`, **Auto-deploy** on.
+- Each service in the **production** environment: Source → branch `main`, **Auto-deploy** on.
+- Root directories: `backend`, `frontend`, `admin-panel`.
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) still runs lint/build on pull requests only (no deploy).
+- Prefer branch protection on `preprod` and `main` so releases only land via merged PRs.
+- Migrations are still manual (see §5).
 
-### Disable Railway auto-deploy
-
-In the Railway dashboard, for each app service in **both** environments: turn off **Deploy on push** / disconnect automatic GitHub branch watching. Otherwise Railway would still release on every push and bypass the merge-only rule. Builds are triggered by `railway up --ci` from Actions instead.
-
-### GitHub secrets
-
-Create GitHub Environments named `preprod` and `production`, and add these repository (or environment) secrets:
-
-| Secret | Purpose |
-|---|---|
-| `RAILWAY_TOKEN` | Railway project token with deploy rights |
-| `RAILWAY_PROJECT_ID` | Shared Railway project id |
-| `RAILWAY_SERVICE_BACKEND` | API service name or id |
-| `RAILWAY_SERVICE_FRONTEND` | Web service name or id |
-| `RAILWAY_SERVICE_ADMIN` | Admin service name or id |
-
-Workflows hardcode the Railway environment name (`preprod` / `production`). Migrations are still manual (see §5) — Actions does not run them.
+No `RAILWAY_*` GitHub Actions secrets are required.
 
 ### Preprod URL wiring (mirror of production §4)
 
@@ -79,12 +64,12 @@ Store enable/disable writes `business.is_active` in Postgres. If preprod and pro
 2. A [Railway](https://railway.com) account.
 3. A Railway project with **production** and **preprod** environments, each containing a **Postgres** plugin and a **Bucket**.
 4. A domain with DNS you control (this project: `tejotime.com` on GoDaddy) for the custom domains below.
-5. GitHub Actions secrets listed above; Railway auto-deploy disabled.
+5. GitHub connected in Railway; each service's branch and auto-deploy set as in **CI/CD** above.
 
 ## Steps
 
 ### 1. Create the three app services
-For each of `backend`, `frontend`, `admin-panel` in **each** Railway environment: create the service, set **Settings → Root Directory** to the folder name. Railway finds that folder's `Dockerfile` via its `railway.toml`. Deploys are triggered by GitHub Actions (`railway up`), not by Railway watching the GitHub branch — see **CI/CD** above.
+For each of `backend`, `frontend`, `admin-panel` in **each** Railway environment: create the service, connect the GitHub repo, set **Settings → Root Directory** to the folder name, set the branch (`preprod` or `main`), and turn **Auto-deploy** on. Railway finds that folder's `Dockerfile` via its `railway.toml`.
 
 ### 2. Fill each service's environment variables
 See `backend/.env.example` and each service's `.env.railway` crib sheet for the full list. The ones that come from other Railway services are best set as **variable references** so they stay in sync:
