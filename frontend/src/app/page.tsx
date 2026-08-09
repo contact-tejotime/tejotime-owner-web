@@ -254,7 +254,7 @@ export default function Home() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 42 }}>
-            <Logo height={38} />
+            <Logo height={48} />
             <div
               className="tt-nav-links"
               style={{ display: "flex", gap: 28, alignItems: "center" }}
@@ -803,7 +803,7 @@ export default function Home() {
         <div className="tt-footer-grid" style={{ maxWidth: MAX, margin: "0 auto", padding: "48px 28px 28px", display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr 1fr", gap: 40 }}>
           <div>
             <div style={{ marginBottom: 14 }}>
-              <Logo height={38} />
+              <Logo height={48} />
             </div>
             <p style={{ font: "var(--fw-regular) var(--fs-body-md)/1.5 var(--font-sans)", color: "var(--text-muted)", margin: 0, maxWidth: 260 }}>
               Enterprise technology. Small business pricing. Your business, your brand,

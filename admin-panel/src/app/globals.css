@@ -133,37 +133,17 @@ a {
 .brand {
   display: flex;
   align-items: center;
-  gap: 9px;
   padding: 4px 8px 18px;
 }
-.brand-mark {
-  display: inline-flex;
-  flex-shrink: 0;
-}
-.brand-mark img {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
+.brand-logo {
+  display: block;
+  width: 100%;
+  max-width: 220px;
+  height: auto;
   object-fit: contain;
 }
-.brand-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font: 800 17px/1 var(--font-sans);
-  letter-spacing: -0.02em;
-  color: var(--brand-ink);
-}
-.brand-sub {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--brand-accent);
-  padding: 2px 6px;
-  line-height: 1.5;
-  border-radius: var(--radius-pill);
-  background: rgba(245, 130, 31, 0.12);
+.login-brand .brand-logo {
+  max-width: 260px;
 }
 .nav-link {
   display: flex;
