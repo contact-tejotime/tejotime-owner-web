@@ -133,17 +133,19 @@ a {
 .brand {
   display: flex;
   align-items: center;
-  padding: 4px 8px 18px;
+  padding: 6px 8px 16px;
 }
 .brand-logo {
   display: block;
-  width: 100%;
-  max-width: 220px;
-  height: auto;
+  height: 48px;
+  width: auto;
+  max-width: 200px;
   object-fit: contain;
+  object-position: left center;
 }
 .login-brand .brand-logo {
-  max-width: 260px;
+  height: 64px;
+  max-width: 280px;
 }
 .nav-link {
   display: flex;
