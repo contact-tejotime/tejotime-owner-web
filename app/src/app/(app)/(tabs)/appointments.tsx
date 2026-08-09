@@ -1,18 +1,21 @@
 import React, { useMemo } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AppointmentListItem } from '@/components/appointments/AppointmentListItem';
-import { THeader, TScreenScroll, TSectionTitle, TText } from '@/components/common';
+import { THeader, TScopeNotice, TScreenScroll, TSectionTitle, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
 import { t } from '@/i18n';
 import { IconButton } from '@/components/ui/IconButton';
 import { useAppState } from '@/state/store';
 import { useTheme } from '@/theme/ThemeProvider';
 import { styles } from '@/styles';
+import { moderateScale } from '@/styles/scale';
+import type { ThemeStyleProps } from '@/styles/types';
 
 export default function Appointments() {
   const theme = useTheme();
   const store = useAppState();
+  const emptyStyles = useMemo(() => createEmptyStyles(theme), [theme]);
 
   const staffById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -32,12 +35,18 @@ export default function Appointments() {
         }
       />
       <TScreenScroll refreshing={store.refreshing} onRefresh={store.refresh}>
+        <TScopeNotice />
         <TSectionTitle>{t.appointments.upcomingToday}</TSectionTitle>
         <View style={styles.g2}>
           {store.appts.length === 0 ? (
-            <TText variant="bodySm" color="textMuted">
-              {t.appointments.empty}
-            </TText>
+            <View style={emptyStyles.box}>
+              <TText variant="bodyMd" color="textStrong" weight="bold" align="center">
+                {t.appointments.empty}
+              </TText>
+              <TText variant="bodySm" color="textMuted" align="center" style={styles.mt2}>
+                Bookings for today show up here. Check Calendar for the rest of the week.
+              </TText>
+            </View>
           ) : (
             store.appts.map((a) => (
               <AppointmentListItem
@@ -54,3 +63,17 @@ export default function Appointments() {
     </>
   );
 }
+
+const createEmptyStyles = ({ colors, radius }: ThemeStyleProps) =>
+  StyleSheet.create({
+    box: {
+      marginTop: moderateScale(12),
+      paddingVertical: moderateScale(28),
+      paddingHorizontal: moderateScale(20),
+      borderWidth: moderateScale(1),
+      borderStyle: 'dashed',
+      borderColor: colors.borderDefault,
+      borderRadius: moderateScale(radius.lg),
+      backgroundColor: colors.surfaceCard,
+    },
+  });

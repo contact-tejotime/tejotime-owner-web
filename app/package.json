@@ -48,10 +48,11 @@
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
+    "android": "npm run reverse || true; expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "reverse": "adb reverse tcp:8080 tcp:8080 && adb reverse tcp:3000 tcp:3000"
   },
   "private": true
 }

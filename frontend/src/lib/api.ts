@@ -78,6 +78,11 @@ export interface Microsite {
   reviews: { stars: number; text: string; authorName: string }[];
   live: { waitMinutes: number; queueCount: number };
   payments: string[];
+  /**
+   * Social profiles the store filled in, already filtered to the non-empty ones by the API.
+   * Optional because a cached response from before this shipped simply omits it.
+   */
+  socials?: { key: "instagram" | "facebook" | "twitter" | "linkedin"; url: string }[];
   /** Store-level ISO 4217 code — picks the symbol for every displayed price. */
   currency: string;
   /** Brand/accent hex (#RRGGBB) for microsite theming; null → default TejoTime blue. */

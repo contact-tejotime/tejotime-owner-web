@@ -13,6 +13,7 @@ import { authRouter } from './modules/auth/auth.routes';
 import { businessRouter } from './modules/business/business.routes';
 import { servicesRouter } from './modules/services/services.routes';
 import { staffRouter } from './modules/staff/staff.routes';
+import { usersRouter } from './modules/users/users.routes';
 import { queueRouter } from './modules/queue/queue.routes';
 import { appointmentsRouter } from './modules/appointments/appointments.routes';
 import { customersRouter } from './modules/customers/customers.routes';
@@ -48,6 +49,7 @@ export function createApp() {
   app.use(`${API_PREFIX}/business`, businessRouter);
   app.use(`${API_PREFIX}/services`, servicesRouter);
   app.use(`${API_PREFIX}/staff`, staffRouter);
+  app.use(`${API_PREFIX}/users`, usersRouter);
   app.use(`${API_PREFIX}/queue`, queueRouter);
   app.use(`${API_PREFIX}/appointments`, appointmentsRouter);
   app.use(`${API_PREFIX}/customers`, customersRouter);

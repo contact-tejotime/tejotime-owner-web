@@ -1,33 +1,40 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth";
-import { Icon } from "@/components/Icon";
-import {
-  canAccessPath,
-  NAV_ITEMS,
-  ROLE_LABELS,
-  type UserRole,
-} from "@/lib/roles";
+import { useState } from "react";
 
-/** Desktop sidebar only — hidden on mobile/tablet (bottom nav used instead). */
-export function Sidebar() {
+import { Icon } from "@/components/Icon";
+import { NavLink } from "@/components/NavLink";
+import { Spinner } from "@/components/Skeleton";
+import { navItemsFor, ROLE_LABELS, type ModuleAccess } from "@/lib/roles";
+import type { Me } from "@/lib/server-api";
+
+/**
+ * Desktop sidebar only — hidden on mobile/tablet (bottom nav used instead).
+ *
+ * The demo role <select> that used to live here is gone. It let anyone reassign their own role
+ * from the browser, which was fine for a mock and would be an open door in a real deployment.
+ * The role now arrives from the server and is not the user's to change.
+ */
+export function Sidebar({ me, access }: { me: Me; access: ModuleAccess }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { session, logout, setRole } = useAuth();
-  if (!session) return null;
-
-  const role = session.user.role;
+  const [signingOut, setSigningOut] = useState(false);
+  const role = me.user.role;
 
   function isActive(href: string) {
     if (href === "/settings") return pathname.startsWith("/settings");
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
-  function onLogout() {
-    logout();
-    router.replace("/login");
+  async function onLogout() {
+    setSigningOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      router.replace("/login");
+      router.refresh();
+    }
   }
 
   return (
@@ -38,14 +45,14 @@ export function Sidebar() {
       </div>
 
       <div className="biz-chip">
-        <span className="nm">{session.business.name}</span>
-        <span className="sub">{session.user.name}</span>
+        <span className="nm">{me.business.name}</span>
+        <span className="sub">{me.user.name ?? "—"}</span>
         <span className="role-badge">{ROLE_LABELS[role]}</span>
       </div>
 
       <nav aria-label="Primary" className="sidebar-nav">
-        {NAV_ITEMS.map((item) => (
-          <Link
+        {navItemsFor(access).map((item) => (
+          <NavLink
             key={item.href}
             href={item.href}
             className={`nav-link ${isActive(item.href) ? "active" : ""}`}
@@ -54,29 +61,20 @@ export function Sidebar() {
               <Icon name={item.icon} size={18} />
             </span>
             {item.label}
-          </Link>
+          </NavLink>
         ))}
       </nav>
 
       <div className="role-switcher">
-        <label htmlFor="demo-role">Demo role</label>
-        <select
-          id="demo-role"
-          value={role}
-          onChange={(e) => {
-            const next = e.target.value as UserRole;
-            setRole(next);
-            if (!canAccessPath(next, pathname)) {
-              router.replace("/dashboard");
-            }
-          }}
-        >
-          <option value="owner">Owner</option>
-          <option value="manager">Manager</option>
-          <option value="staff">Staff</option>
-        </select>
-        <button type="button" className="logout-btn" onClick={onLogout}>
-          Log out
+        <button type="button" className="logout-btn" onClick={onLogout} disabled={signingOut}>
+          {signingOut ? (
+            <>
+              <Spinner size={14} />
+              Signing out…
+            </>
+          ) : (
+            "Log out"
+          )}
         </button>
       </div>
     </aside>

@@ -23,6 +23,10 @@ const logo = require("@/assets/images/logo-full.png");
 export default function Login() {
   const { colors } = useTheme();
   const { signInLoading, signIn } = useAppState();
+  // The Owner/Staff switch. A guard rail, not a second credential — the password still decides
+  // everything. Its job is to turn a confusing "invalid credentials" into "that's an owner
+  // login, pick Owner", which is the mistake people make once a shop has both kinds.
+  const [accountType, setAccountType] = useState<"owner" | "staff">("owner");
   const [dialCode, setDialCode] = useState(DEFAULT_DIAL_CODE);
   const [iso2, setIso2] = useState(DEFAULT_ISO2);
   const [national, setNational] = useState("");
@@ -62,15 +66,51 @@ export default function Login() {
         <View style={loginStyles.form}>
           <View style={loginStyles.titleBlock}>
             <TText variant="h4" color="textStrong" weight="semibold">
-              {t.auth.welcomeBack}
+              {accountType === "owner" ? t.auth.ownerTitle : t.auth.staffTitle}
             </TText>
             <TText
               variant="bodyMd"
               color="textMuted"
+              align="center"
               style={loginStyles.welcomeSubtitle}
             >
-              {t.auth.subtitle}
+              {accountType === "owner"
+                ? t.auth.ownerSubtitle
+                : t.auth.staffSubtitle}
             </TText>
+          </View>
+
+          <View
+            style={[
+              loginStyles.segmented,
+              { backgroundColor: colors.surfaceHover },
+            ]}
+            accessibilityRole="tablist"
+          >
+            {(["owner", "staff"] as const).map((type) => {
+              const active = accountType === type;
+              return (
+                <Pressable
+                  key={type}
+                  onPress={() => setAccountType(type)}
+                  disabled={signInLoading}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                  style={[
+                    loginStyles.segmentedBtn,
+                    active && { backgroundColor: colors.surfaceCard },
+                  ]}
+                >
+                  <TText
+                    variant="bodyMd"
+                    weight={active ? "semibold" : "medium"}
+                    color={active ? "textStrong" : "textMuted"}
+                  >
+                    {type === "owner" ? t.auth.owner : t.auth.staff}
+                  </TText>
+                </Pressable>
+              );
+            })}
           </View>
           <PhoneInput
             label={t.auth.phoneLabel}
@@ -116,11 +156,17 @@ export default function Login() {
             fullWidth
             loading={signInLoading}
             onPress={() =>
-              signIn(combineToDigits(dialCode, national), password)
+              signIn(combineToDigits(dialCode, national), password, accountType)
             }
           >
             {t.auth.signIn}
           </TButton>
+
+          {accountType === "staff" ? (
+            <TText variant="caption" color="textSubtle" align="center">
+              {t.auth.staffFoot}
+            </TText>
+          ) : null}
         </View>
       </View>
       <TText
@@ -167,6 +213,19 @@ const loginStyles = StyleSheet.create({
   },
   titleBlock: {
     ...styles.itemsCenter,
+  },
+  segmented: {
+    ...styles.flexRow,
+    borderRadius: moderateScale(10),
+    padding: moderateScale(4),
+    gap: moderateScale(4),
+  },
+  segmentedBtn: {
+    ...styles.flex,
+    ...styles.itemsCenter,
+    ...styles.justifyCenter,
+    height: moderateScale(36),
+    borderRadius: moderateScale(7),
   },
   welcomeSubtitle: {
     ...styles.mt1,

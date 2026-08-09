@@ -1,4 +1,5 @@
-import { exec, one } from '../../db/pool';
+import { exec, many, one } from '../../db/pool';
+import { money } from '../../domain/money';
 import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
 import { SERVICE_EXTRAS, OPTIONAL_SERVICES_STAFF_CATEGORIES, VISITOR_TYPE_CATEGORIES } from '../../config/constants';
@@ -76,12 +77,58 @@ export async function getQueueView(businessId: string, opts: QueueViewOpts = {})
   return { seats: filtered.map(seatToDTO), summary };
 }
 
+/**
+ * What this entry would be charged if it were checked out right now.
+ *
+ * The same sum `queue_checkout` computes — booked service plus recorded add-ons — surfaced so
+ * the checkout screen can PRE-FILL its amount box instead of making someone recall the price
+ * list. They adjust it when the customer had extras that were never entered as add-ons, which
+ * is the whole reason the override exists.
+ */
+async function billingFor(businessId: string, entryId: string) {
+  const row = await one<{ service_paise: string; extras_paise: string; currency: string }>(
+    `select coalesce(sv.price_paise, 0)                                    as service_paise,
+            coalesce((select sum(x.price_paise)
+                        from queue_entry_extra x
+                       where x.queue_entry_id = q.id), 0)                  as extras_paise,
+            b.currency
+       from queue_entry q
+       join business b on b.id = q.business_id
+       left join service sv on sv.id = q.service_id
+      where q.id = $1 and q.business_id = $2`,
+    [entryId, businessId],
+  );
+  const service = Number(row?.service_paise ?? 0);
+  const extras = Number(row?.extras_paise ?? 0);
+  const currency = row?.currency;
+  return {
+    serviceAmount: money(service, currency),
+    extrasAmount: money(extras, currency),
+    suggestedAmount: money(service + extras, currency),
+  };
+}
+
+/** The add-ons already recorded against an entry, so the checkout sheet can itemise them. */
+async function extrasFor(entryId: string) {
+  const rows = await many<{ id: string; label: string; minutes: number; price_paise: number }>(
+    'select id, label, minutes, price_paise from queue_entry_extra where queue_entry_id = $1 order by created_at',
+    [entryId],
+  );
+  return rows.map((r) => ({ id: r.id, label: r.label, minutes: r.minutes, pricePaise: r.price_paise }));
+}
+
 export async function getEntryDetail(businessId: string, entryId: string) {
   const ctx = await loadQueueContext(businessId);
   const groups = buildSeatGroups(ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
   const card = flatCards(groups).find((c) => c.id === entryId);
+  const [billing, extras] = await Promise.all([
+    billingFor(businessId, entryId),
+    extrasFor(entryId),
+  ]);
   if (card) {
     return {
+      ...billing,
+      extras,
       id: card.id,
       name: card.name,
       initials: card.initials,
@@ -100,6 +147,8 @@ export async function getEntryDetail(businessId: string, entryId: string) {
   const row = await one('select * from queue_entry where business_id = $1 and id = $2', [businessId, entryId]);
   if (!row) throw Errors.notFound('Queue entry not found');
   return {
+    ...billing,
+    extras,
     id: row.id,
     name: row.customer_name,
     initials: initials(row.customer_name),
@@ -338,8 +387,16 @@ export async function startService(businessId: string, entryId: string) {
   return mutateAndReturn(businessId, 'queue:entry.started', { entryId, seatId: r.staff_id });
 }
 
-export async function checkout(businessId: string, entryId: string) {
-  const r = await callRpc('queue_checkout', { p_business_id: businessId, p_entry_id: entryId });
+/**
+ * Complete a service. `amountPaise` overrides the derived total for the visit that gets
+ * written; omit it and the service + add-ons sum is used, exactly as before.
+ */
+export async function checkout(businessId: string, entryId: string, amountPaise?: number | null) {
+  const r = await callRpc('queue_checkout', {
+    p_business_id: businessId,
+    p_entry_id: entryId,
+    p_amount_paise: amountPaise ?? null,
+  });
   emitToOwners(businessId, 'queue:entry.completed', {
     entryId,
     seatId: r.staff_id,

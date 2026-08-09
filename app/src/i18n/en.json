@@ -1,11 +1,16 @@
 {
   "nav": {
     "home": "Home",
+    "stats": "Stats",
     "queue": "Queue",
     "appts": "Appts",
     "calendar": "Calendar",
     "clients": "Clients",
     "settings": "Settings"
+  },
+  "stats": {
+    "title": "Stats",
+    "subtitle": "Today at a glance"
   },
   "common": {
     "dash": "—",
@@ -26,7 +31,15 @@
     "hidePassword": "Hide password",
     "showPassword": "Show password",
     "signIn": "Sign in",
-    "terms": "By continuing you agree to our Terms & Privacy Policy"
+    "terms": "By continuing you agree to our Terms & Privacy Policy",
+    "accountTypeLabel": "Account type",
+    "owner": "Owner",
+    "staff": "Staff",
+    "ownerTitle": "Owner sign in",
+    "ownerSubtitle": "For the business owner and co-owners. Full access to the shop.",
+    "staffTitle": "Staff sign in",
+    "staffSubtitle": "For team members. You will see your own chair and whatever the owner has shared.",
+    "staffFoot": "Staff logins are created by your business owner. If you do not have one, ask them to add you under Settings → Team logins."
   },
   "dashboard": {
     "kpiAppts": "Today's appts",
@@ -49,6 +62,8 @@
     "dropToReorder": "Drop to reorder this seat",
     "summary": "{seats} seats · {active} in queue",
     "dragHint": "Drag up or down · release to drop in this seat",
+    "dragHintCross": "Drag to reorder · drop on another seat to move",
+    "dropHere": "Drop here to move",
     "seatFree": "Seat free · add a walk-in",
     "empty": "No one waiting yet — add a walk-in to get started",
     "mr": "MR",
@@ -99,7 +114,12 @@
     "darkMode": "Dark mode",
     "darkModeSub": "Easier on the eyes at night",
     "signOut": "Sign out",
-    "footer": "TejoTime {version} · Signed in as {username}"
+    "footer": "TejoTime {version} · Signed in as {username}",
+    "groupTeam": "Team",
+    "teamLogins": "Team logins",
+    "teamLoginsSub": "Co-owners, staff and what each can see",
+    "yourAccount": "Your account",
+    "yourAccountSub": "Your name and password"
   },
   "hours": {
     "title": "Working hours",
@@ -205,7 +225,13 @@
       "beardTrim": "Beard trim",
       "hairWash": "Hair wash",
       "hairColor": "Hair color"
-    }
+    },
+    "amountTitle": "Amount to charge",
+    "amountHint": "Pre-filled from the booked service and any add-ons. Change it if they had something extra.",
+    "amountSuggested": "Suggested",
+    "amountBack": "Back",
+    "amountInvalid": "Enter the amount to charge.",
+    "extendMins": "+{mins}m"
   },
   "qr": {
     "contactTitle": "{name} — booking QR",
@@ -258,8 +284,24 @@
     "confirmed": "Confirmed"
   },
   "days": {
-    "long": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-    "short": ["S", "M", "T", "W", "T", "F", "S"],
+    "long": [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday"
+    ],
+    "short": [
+      "S",
+      "M",
+      "T",
+      "W",
+      "T",
+      "F",
+      "S"
+    ],
     "am": "AM",
     "pm": "PM"
   },
@@ -320,5 +362,84 @@
     "couldNotAddStaff": "Could not add staff",
     "staffUpdated": "Staff updated",
     "couldNotUpdateStaff": "Could not update staff"
+  },
+  "team": {
+    "title": "Team logins",
+    "subtitle": "Who can sign in, and what each of them sees",
+    "ownerAccount": "Owner account",
+    "you": "You",
+    "turnedOff": "Turned off",
+    "noChair": "No chair",
+    "noChairWarn": "Pick a chair — without one they see an empty queue and calendar.",
+    "chair": "Chair",
+    "chairRequiredLabel": "Chair (required)",
+    "chairRequired": "Pick a chair. You cannot add more staff logins than you have chairs.",
+    "noFreeChairs": "All chairs are linked. Add another chair under Settings → Staff before creating a new staff login.",
+    "notLinked": "Not linked",
+    "addStaff": "Add staff login",
+    "addCoOwner": "Add co-owner",
+    "addTitle": "Add a login",
+    "coOwner": "Co-owner",
+    "coOwnerBlurb": "Same access as you. Can add and manage staff. Cannot change your owner account.",
+    "staff": "Staff",
+    "staffBlurb": "Sees only what you allow, and only their own chair's queue and appointments.",
+    "name": "Name",
+    "phone": "Mobile number",
+    "phoneHint": "This is what they sign in with. Include the country code.",
+    "tempPassword": "Temporary password",
+    "tempPasswordHint": "At least 8 characters. They can change it once signed in.",
+    "chairHint": "Required. Each staff login needs its own chair — you cannot add more staff than you have chairs.",
+    "whatTheySee": "What they can see",
+    "coOwnerNote": "A co-owner gets everything you have, including adding and removing staff. They cannot change your owner account.",
+    "create": "Create login",
+    "cancel": "Cancel",
+    "permissions": "Permissions",
+    "savePermissions": "Save permissions",
+    "resetPassword": "Reset password",
+    "turnOff": "Turn off",
+    "turnOn": "Turn on",
+    "fullAccessSuper": "Full access. Created by TejoTime when this store was set up — change it from the admin panel.",
+    "fullAccessCo": "Full access to everything, the same as you.",
+    "canSee": "Can see: {list}.",
+    "canSeeNothing": "No access to anything yet.",
+    "createdToast": "Login created. Share the password with them.",
+    "permissionsSavedToast": "Permissions saved. They apply on their next sign-in, or within 15 minutes.",
+    "chairLinkedToast": "Chair linked.",
+    "chairUnlinkedToast": "Chair unlinked. They will not see any queue or appointments.",
+    "passwordResetToast": "Password reset. Share the new one with them.",
+    "turnOffConfirm": "Turn off {name}? They will be signed out everywhere and cannot sign back in.",
+    "empty": "No other logins yet.",
+    "accessNone": "Hidden",
+    "accessView": "View only",
+    "accessManage": "Full access",
+    "moduleDashboard": "Dashboard",
+    "moduleQueue": "Queue",
+    "moduleAppointments": "Appointments",
+    "moduleCalendar": "Calendar",
+    "moduleCustomers": "Customers",
+    "moduleServices": "Services",
+    "moduleStaff": "Staff & seats",
+    "moduleHours": "Opening hours",
+    "moduleNotifications": "Notifications",
+    "moduleBilling": "Subscription & billing",
+    "moduleProfile": "Business profile",
+    "moduleTeam": "Team logins"
+  },
+  "password": {
+    "title": "Change password",
+    "subtitle": "Keep your account yours",
+    "current": "Current password",
+    "new": "New password",
+    "confirm": "Confirm new password",
+    "hint": "At least 8 characters.",
+    "submit": "Change password",
+    "mismatch": "The two new passwords do not match.",
+    "tooShort": "Use at least 8 characters.",
+    "changed": "Password changed."
+  },
+  "scope": {
+    "ownChairOnly": "Showing your chair only.",
+    "noChairTitle": "Your login isn't linked to a chair yet.",
+    "noChairBody": "Until the business owner links it, this screen will stay empty. Ask them to open Settings → Team logins and pick your chair."
   }
 }

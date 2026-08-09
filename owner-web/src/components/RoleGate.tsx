@@ -1,51 +1,48 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { useAuth } from "@/lib/auth";
-import { canAccessPath } from "@/lib/roles";
+import { usePathname } from "next/navigation";
 
-export function RoleGate({ children }: { children: React.ReactNode }) {
-  const { session, ready } = useAuth();
+import {
+  ROLE_LABELS,
+  canAccessPath,
+  landingPath,
+  type ModuleAccess,
+  type UserRole,
+} from "@/lib/roles";
+
+/**
+ * Hides pages the signed-in account has no business opening.
+ *
+ * Driven by the permission map from `/auth/me` — the same map the API guards enforce — so what
+ * this hides and what the server refuses are the same list by construction.
+ *
+ * This is presentation only. It stops a nav item being clicked into; it does not stop the
+ * underlying API call. The backend is the boundary (middleware/require-permission.ts).
+ */
+export function RoleGate({
+  access,
+  role,
+  children,
+}: {
+  access: ModuleAccess;
+  role: UserRole;
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
-  const router = useRouter();
 
-  useEffect(() => {
-    if (!ready) return;
-    if (!session) {
-      router.replace("/login");
-      return;
-    }
-    if (!canAccessPath(session.user.role, pathname)) {
-      // stay on page — NoAccessUI renders below
-    }
-  }, [ready, session, pathname, router]);
+  if (canAccessPath(access, pathname)) return <>{children}</>;
 
-  if (!ready) {
-    return (
-      <div className="wrap">
-        <p className="empty">Loading…</p>
-      </div>
-    );
-  }
-
-  if (!session) return null;
-
-  if (!canAccessPath(session.user.role, pathname)) {
-    return (
-      <div className="no-access">
-        <h1>No access</h1>
-        <p>
-          Your role (<strong>{session.user.role}</strong>) cannot open this page.
-          Ask an owner or switch the demo role in the sidebar.
-        </p>
-        <Link href="/dashboard" className="btn">
-          Back to dashboard
-        </Link>
-      </div>
-    );
-  }
-
-  return <>{children}</>;
+  return (
+    <div className="no-access">
+      <h1>No access</h1>
+      <p>
+        Your account ({ROLE_LABELS[role]}) has not been given access to this page. Ask the
+        business owner if you need it.
+      </p>
+      <Link href={landingPath(access)} className="btn">
+        Go back
+      </Link>
+    </div>
+  );
 }

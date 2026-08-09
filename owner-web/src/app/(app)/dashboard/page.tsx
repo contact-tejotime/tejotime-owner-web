@@ -1,9 +1,12 @@
-"use client";
-
 import Link from "next/link";
-import { useAuth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
+
+import { HomeQueueSection } from "@/components/HomeQueueSection";
 import { Icon } from "@/components/Icon";
-import { MOCK_QUEUE, MOCK_STATS } from "@/lib/mock-data";
+import { ScopeNotice } from "@/components/ScopeNotice";
+import { can, NO_ACCESS } from "@/lib/roles";
+import { getMe, getQueue, getServices, getStaff } from "@/lib/server-api";
 
 function initials(name: string) {
   return name
@@ -14,81 +17,66 @@ function initials(name: string) {
     .join("");
 }
 
-export default function DashboardPage() {
-  const { session } = useAuth();
-  const bizName = session?.business.name ?? "Sharp Cut";
-  const queuePreview = MOCK_QUEUE.slice(0, 3);
+/**
+ * Home. Quick actions + the full live queue board.
+ *
+ * The queue read is uncached — customers join from the microsite, and nothing there
+ * revalidates this app's cache.
+ */
+export default async function DashboardPage() {
+  const me = await getMe();
+  if (!me) redirect("/login");
+
+  const access = me.user.permissions ?? NO_ACCESS;
+  const showQueue = can(access, "queue");
+
+  const [queue, staff, services] = showQueue
+    ? await Promise.all([getQueue(), getStaff(), getServices()])
+    : [null, null, null];
 
   return (
     <div className="page-app">
       <header className="home-header">
         <div className="home-header-left">
           <div className="home-avatar" aria-hidden>
-            {initials(bizName)}
+            {initials(me.business.name)}
           </div>
           <div>
-            <div className="home-title">{bizName}</div>
-            <div className="home-sub">Andheri West · Open till 9 PM</div>
+            <div className="home-title">{me.business.name}</div>
+            <div className="home-sub">
+              {queue
+                ? `${queue.summary.waitingCount} waiting · ${queue.summary.seatCount} seats`
+                : "—"}
+            </div>
           </div>
         </div>
-        <button type="button" className="icon-btn" aria-label="Notifications">
+        <Link href="/settings/notifications" className="icon-btn" aria-label="Notifications">
           <Icon name="bell" size={20} />
-        </button>
+        </Link>
       </header>
 
-      <h2 className="home-section-title">Quick actions</h2>
-      <div className="home-actions">
-        <Link href="/queue" className="btn home-action-primary">
-          <Icon name="plus" size={18} color="#fff" />
-          Add walk-in
-        </Link>
-        <button type="button" className="btn secondary home-action-secondary">
-          <Icon name="qrCode" size={18} />
-          Contact QR
-        </button>
-      </div>
+      <ScopeNotice me={me} context="your dashboard" />
 
-      <div className="home-section-row">
-        <h2 className="home-section-title">Active queue</h2>
-        <Link href="/queue" className="home-link">
-          View all
-        </Link>
-      </div>
-      {queuePreview.length === 0 ? (
-        <p className="home-empty">No one in the queue right now</p>
-      ) : (
-        <div className="home-queue-list">
-          {queuePreview.map((q) => (
-            <div key={q.id} className="home-queue-card">
-              <div className="title">{q.customer}</div>
-              <div className="meta">
-                {q.service} · {q.staff} ·{" "}
-                {q.status === "in_service" ? "In service" : `~${q.waitMins} min`}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <h2 className="home-section-title">Today&apos;s summary</h2>
-      <div className="home-kpi-grid">
-        <div className="stat-card">
-          <div className="label">Today&apos;s appts</div>
-          <div className="value">{MOCK_STATS.appointmentsToday}</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">Active</div>
-          <div className="value">{MOCK_STATS.inService + MOCK_STATS.waiting}</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">Check in</div>
-          <div className="value">{MOCK_STATS.checkIn}</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">Today&apos;s revenue</div>
-          <div className="value">{MOCK_STATS.revenue}</div>
-        </div>
-      </div>
+      {showQueue ? (
+        <Suspense fallback={null}>
+          <HomeQueueSection
+            seats={queue?.seats ?? []}
+            staff={(staff?.data ?? []).filter((s) => s.isActive)}
+            services={(services?.data ?? []).filter((s) => s.isActive)}
+            showQr={can(access, "profile")}
+          />
+        </Suspense>
+      ) : can(access, "profile") ? (
+        <>
+          <h2 className="home-section-title">Quick actions</h2>
+          <div className="home-actions">
+            <Link href="/settings" className="btn secondary home-action-secondary">
+              <Icon name="qrCode" size={18} />
+              Contact QR
+            </Link>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

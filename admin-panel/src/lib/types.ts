@@ -57,6 +57,11 @@ export interface StoreForm {
   establishedYear: string;
   rating: string;
   reviewCount: string;
+  /** Social profile URLs — rendered as icon links on the public microsite. */
+  instagramUrl: string;
+  facebookUrl: string;
+  twitterUrl: string;
+  linkedinUrl: string;
   payments: string; // comma-separated in the form; split before send
   currency: string; // ISO 4217 code; symbol/name come from lib/currencies.ts
   /** Brand/accent hex for the customer microsite (#RRGGBB). Always mirrors `theme.brand`. */
@@ -136,6 +141,10 @@ export const EMPTY_FORM: StoreForm = {
   establishedYear: "",
   rating: "",
   reviewCount: "",
+  instagramUrl: "",
+  facebookUrl: "",
+  twitterUrl: "",
+  linkedinUrl: "",
   payments: "UPI, Card, Cash",
   currency: "INR",
   themeColor: "#2563EB",
@@ -181,6 +190,11 @@ export interface StoreDetail {
   establishedYear: string;
   rating: string;
   reviewCount: string;
+  /** Social profile URLs — rendered as icon links on the public microsite. */
+  instagramUrl: string;
+  facebookUrl: string;
+  twitterUrl: string;
+  linkedinUrl: string;
   payments: string;
   currency: string;
   themeColor: string;
@@ -234,6 +248,10 @@ export function fromDetail(d: StoreDetail): StoreForm {
     establishedYear: d.establishedYear,
     rating: d.rating,
     reviewCount: d.reviewCount,
+    instagramUrl: d.instagramUrl ?? "",
+    facebookUrl: d.facebookUrl ?? "",
+    twitterUrl: d.twitterUrl ?? "",
+    linkedinUrl: d.linkedinUrl ?? "",
     payments: d.payments,
     currency: d.currency || "INR",
     // Kept in lockstep with theme.brand — the panel edits one colour, not two.
@@ -280,6 +298,12 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
     establishedYear: num(f.establishedYear),
     rating: num(f.rating),
     reviewCount: num(f.reviewCount),
+    // Sent even when empty — `undefined` would leave the stored link untouched, so an admin
+    // deleting a URL would watch it reappear on the next load.
+    instagramUrl: f.instagramUrl.trim(),
+    facebookUrl: f.facebookUrl.trim(),
+    twitterUrl: f.twitterUrl.trim(),
+    linkedinUrl: f.linkedinUrl.trim(),
     payments: f.payments
       .split(",")
       .map((p) => p.trim())

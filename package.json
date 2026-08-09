@@ -1,16 +1,21 @@
 {
   "private": true,
   "scripts": {
+    "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:admin": "npm run dev --prefix admin-panel",
+    "dev:owner": "npm run dev --prefix owner-web",
     "dev:app": "npm run start --prefix app",
     "build:frontend": "npm run build --prefix frontend",
     "build:admin": "npm run build --prefix admin-panel",
+    "build:owner": "npm run build --prefix owner-web",
     "lint:frontend": "npm run lint --prefix frontend",
     "lint:admin": "npm run lint --prefix admin-panel",
+    "lint:owner": "npm run lint --prefix owner-web",
     "lint:app": "npm run lint --prefix app",
     "test:theme": "cd backend && npx tsx ../frontend/src/theme/engine/__tests__/run.ts",
     "sync:theme": "node scripts/sync-theme-engine.mjs",
-    "check:theme": "node scripts/sync-theme-engine.mjs --check"
+    "check:theme": "node scripts/sync-theme-engine.mjs --check",
+    "android:reverse": "adb reverse tcp:8080 tcp:8080 && adb reverse tcp:3000 tcp:3000 && adb reverse tcp:3002 tcp:3002 && adb reverse --list"
   }
 }

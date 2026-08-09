@@ -6,7 +6,7 @@ import { COLOR_TOKENS } from '../../config/constants';
 import { Errors } from '../../domain/errors';
 import { asyncHandler } from '../../http/async-handler';
 import { authenticate } from '../../middleware/authenticate';
-import { authorize } from '../../middleware/authorize';
+import { requireAnyPermission, requirePermission } from '../../middleware/require-permission';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 
@@ -40,6 +40,11 @@ servicesRouter.use(authenticate);
 servicesRouter.get(
   '/',
   limiters.ownerRead,
+  requireAnyPermission([
+    ['services', 'view'],
+    ['queue', 'view'],
+    ['appointments', 'view'],
+  ]),
   validate({ query: z.object({ active: z.enum(['true', 'false']).optional() }) }),
   asyncHandler(async (req, res) => {
     const where = ['business_id = $1'];
@@ -55,7 +60,7 @@ servicesRouter.get(
 servicesRouter.post(
   '/',
   limiters.ownerWrite,
-  authorize('owner', 'manager'),
+  requirePermission('services', 'manage'),
   validate({ body: upsertSchema }),
   asyncHandler(async (req, res) => {
     const b = req.body;
@@ -87,7 +92,7 @@ servicesRouter.post(
 servicesRouter.patch(
   '/:id',
   limiters.ownerWrite,
-  authorize('owner', 'manager'),
+  requirePermission('services', 'manage'),
   validate({ params: z.object({ id: z.string().uuid() }), body: patchSchema }),
   asyncHandler(async (req, res) => {
     const b = req.body;
@@ -115,7 +120,7 @@ servicesRouter.patch(
 servicesRouter.delete(
   '/:id',
   limiters.ownerWrite,
-  authorize('owner', 'manager'),
+  requirePermission('services', 'manage'),
   validate({ params: z.object({ id: z.string().uuid() }) }),
   asyncHandler(async (req, res) => {
     const data = await one(

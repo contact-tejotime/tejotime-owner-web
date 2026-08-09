@@ -5,6 +5,7 @@ import { asyncHandler } from '../../http/async-handler';
 import { authenticate } from '../../middleware/authenticate';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
+import { requirePermission } from '../../middleware/require-permission';
 
 export const notificationsRouter = Router();
 notificationsRouter.use(authenticate);
@@ -12,6 +13,7 @@ notificationsRouter.use(authenticate);
 notificationsRouter.get(
   '/',
   limiters.ownerRead,
+  requirePermission('notifications'),
   validate({ query: z.object({ unread: z.enum(['true', 'false']).optional() }) }),
   asyncHandler(async (req, res) => {
     const businessId = req.principal!.businessId;
@@ -44,6 +46,7 @@ notificationsRouter.get(
 notificationsRouter.post(
   '/read',
   limiters.ownerWrite,
+  requirePermission('notifications'),
   validate({ body: z.object({ ids: z.array(z.string().uuid()).optional() }).strict() }),
   asyncHandler(async (req, res) => {
     const businessId = req.principal!.businessId;

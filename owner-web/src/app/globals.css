@@ -649,7 +649,10 @@ textarea:focus {
 .page-app {
   max-width: 720px;
   margin: 0 auto;
-  padding: 12px 16px 28px;
+  /* Top padding gives headers room to breathe on every module; bottom stays modest because
+     `.main` already reserves clearance for the fixed bottom nav on mobile. */
+  padding: 20px 16px 16px;
+  padding-top: max(20px, env(safe-area-inset-top, 0px));
 }
 .home-screen {
   max-width: 720px;
@@ -758,6 +761,14 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-top: 8px;
+}
+.page-app > .home-section-title,
+.page-app > .home-section-row {
+  margin-top: 8px;
+}
+.page-app > .home-section-title:first-of-type,
+.page-app > .home-section-row:first-of-type {
   margin-top: 4px;
 }
 .home-section-row .home-section-title {
@@ -791,13 +802,24 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 22px;
+  margin: 0 0 22px;
+  padding: 0;
+  list-style: none;
 }
 .home-queue-card {
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
-  padding: 12px 14px;
+  padding: 12px;
   background: var(--surface-card);
+}
+/* Stats / preview lists: stack name + meta (board tickets keep the horizontal flex below). */
+.home-queue-list:not(.seat-queue-list) > .home-queue-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-decoration: none;
+  color: inherit;
 }
 .home-queue-card .title {
   font-weight: 700;
@@ -812,6 +834,7 @@ textarea:focus {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+  margin-top: 4px;
 }
 .home-kpi-grid .stat-card {
   border-radius: 16px;
@@ -820,36 +843,83 @@ textarea:focus {
   font-size: 26px;
 }
 
-/* Queue seats */
+/* Queue seats — mobile-first board */
 .chip-row {
   display: flex;
+  align-items: center;
   gap: 8px;
   overflow-x: auto;
-  padding-bottom: 4px;
-  margin-bottom: 14px;
+  padding: 2px 2px 6px;
+  margin: 0 0 14px;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.chip-row::-webkit-scrollbar {
+  display: none;
 }
 .filter-chip {
   flex-shrink: 0;
+  height: 36px;
   min-height: 36px;
-  padding: 8px 14px;
+  padding: 0 14px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle);
   background: #fff;
   color: var(--text-body);
   font-weight: 600;
   font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.filter-chip-label {
+  max-width: 9ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.filter-chip-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  opacity: 0.7;
 }
 .filter-chip.active {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
 }
+.filter-chip.active .filter-chip-count {
+  opacity: 0.95;
+}
+.filter-chip-cta {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  gap: 5px;
+  margin-left: 2px;
+}
+.filter-chip-cta:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  color: #fff;
+}
+
 .seat-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  padding-bottom: 8px;
 }
+.seat-card .home-queue-list {
+  margin-bottom: 0;
+}
+.seat-queue-list {
+  margin-top: 12px;
+  padding: 0;
+  list-style: none;
+}
+
 .seat-card {
   display: flex;
   align-items: center;
@@ -862,36 +932,80 @@ textarea:focus {
   background: #fff;
   touch-action: manipulation;
 }
+.seat-card-board {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 14px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+.seat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
 .seat-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
   color: #fff;
   font-weight: 800;
+  font-size: 15px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  background: var(--primary);
 }
+.seat-avatar-primary { background: var(--blue-600, var(--primary)); }
+.seat-avatar-secondary { background: var(--gray-600, #475569); }
+.seat-avatar-amber500 { background: var(--amber-700, #b45309); }
+.seat-avatar-green500 { background: var(--green-700, #15803d); }
 .seat-body {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 .seat-body .nm {
   font-weight: 700;
+  font-size: 15px;
   color: var(--text-strong);
+  line-height: 1.25;
 }
 .seat-body .meta {
   font-size: 12px;
   color: var(--text-muted);
-  margin-top: 2px;
+  line-height: 1.35;
 }
 .seat-status {
-  font-size: 13px;
+  flex-shrink: 0;
+  font-size: 11.5px;
   font-weight: 700;
-  color: var(--green-600);
+  padding: 5px 10px;
+  border-radius: 999px;
+  line-height: 1.2;
+}
+.seat-status.free {
+  color: var(--green-700);
+  background: var(--green-50, #ecfdf5);
+}
+.seat-status.busy {
+  color: var(--amber-800, #92400e);
+  background: var(--amber-50, #fffbeb);
+}
+.seat-empty {
+  margin: 12px 0 0;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--border-subtle);
+  background: var(--surface-page);
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
 }
 .seat-chevron {
   color: var(--text-subtle);
@@ -1173,7 +1287,7 @@ textarea:focus {
 }
 .appt-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 14px;
   background: #fff;
@@ -1185,6 +1299,7 @@ textarea:focus {
   color: var(--text-strong);
   min-width: 72px;
   font-size: 13px;
+  padding-top: 2px;
 }
 .appt-body {
   flex: 1;
@@ -1197,25 +1312,33 @@ textarea:focus {
 .appt-body .meta {
   font-size: 12px;
   color: var(--text-muted);
+  margin-top: 2px;
+}
+.appt-card > .chip {
+  flex-shrink: 0;
+  margin-top: 2px;
+  text-transform: capitalize;
 }
 
-/* Walk-in bottom sheet */
+/* Walk-in bottom sheet — above bottom nav (50) and Next.js overlays */
 .sheet-root {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 10000;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
 }
-.sheet-backdrop {
+.sheet-root-backdrop {
   position: absolute;
   inset: 0;
+  z-index: 0;
   border: 0;
   background: rgba(15, 23, 42, 0.45);
 }
 .sheet-panel {
   position: relative;
+  z-index: 1;
   max-height: min(92dvh, 900px);
   overflow-y: auto;
   background: #fff;
@@ -1282,6 +1405,9 @@ textarea:focus {
   width: 4px;
   align-self: stretch;
   border-radius: 999px;
+  background: var(--border-subtle);
+}
+.service-pick.selected .service-pick-accent {
   background: var(--accent, var(--primary));
 }
 .service-pick-body,
@@ -1406,6 +1532,54 @@ textarea:focus {
   .queue-lane {
     min-height: 0;
   }
+
+  /* Queue board — denser on tablet/phone; leave room above the fixed bottom nav */
+  .page-app {
+    padding: 18px 14px 32px;
+    padding-top: max(18px, env(safe-area-inset-top, 0px));
+  }
+  .main {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+  .chip-row {
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .filter-chip,
+  .filter-chip-cta {
+    height: 34px;
+    min-height: 34px;
+    padding: 0 12px;
+    font-size: 12.5px;
+  }
+  .seat-list {
+    gap: 12px;
+  }
+  .seat-card-board {
+    padding: 12px;
+    border-radius: 14px;
+  }
+  .seat-header {
+    gap: 8px;
+  }
+  .seat-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+  .seat-queue-list {
+    margin-top: 10px;
+  }
+  .home-queue-list {
+    gap: 8px;
+  }
+  .home-queue-card {
+    gap: 10px;
+    padding: 11px 12px;
+    border-radius: 12px;
+  }
+
   .settings-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1421,9 +1595,10 @@ textarea:focus {
 @media (max-width: 640px) {
   .login-shell {
     padding: 16px;
-    align-items: flex-start;
-    padding-top: max(24px, env(safe-area-inset-top));
-    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    align-items: center;
+    justify-content: center;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
   .login-card {
     padding: 22px 18px 24px;
@@ -1442,6 +1617,25 @@ textarea:focus {
   }
   .home-actions {
     gap: 8px;
+  }
+
+  .page-app {
+    padding: 16px 12px 36px;
+    padding-top: max(16px, env(safe-area-inset-top, 0px));
+  }
+
+  .seat-body .nm {
+    font-size: 14px;
+  }
+  .seat-status {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+  .card-main .title {
+    font-size: 13.5px;
+  }
+  .card-main .meta {
+    font-size: 11.5px;
   }
 
   .wrap {
@@ -1513,6 +1707,25 @@ textarea:focus {
   .btn {
     min-height: 44px;
   }
+  /* Queue chips/actions stay compact — global 44px is for forms. */
+  .filter-chip,
+  .filter-chip-cta {
+    height: 34px;
+    min-height: 34px;
+  }
+  .card-actions .btn-sm,
+  .card-action-btn {
+    min-height: 34px !important;
+    height: 34px !important;
+  }
+  .card-actions .btn-icon,
+  .card-action-x,
+  .btn.btn-icon {
+    min-height: 34px !important;
+    height: 34px !important;
+    width: 34px !important;
+    min-width: 34px !important;
+  }
   .logout-btn {
     min-height: 44px;
   }
@@ -1532,6 +1745,12 @@ textarea:focus {
   .queue-board {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .seat-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    align-items: start;
+  }
   .settings-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1545,4 +1764,956 @@ textarea:focus {
     max-width: 920px;
     padding: 28px 24px 80px;
   }
+}
+
+/* ---------------------------------------------------------------- team & permissions */
+
+/* Owner/Staff switch on the sign-in screen. */
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 18px;
+  background: var(--gray-100);
+  border-radius: 10px;
+}
+.segmented-btn {
+  min-height: 36px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 14px;
+}
+.segmented-btn.active {
+  background: var(--surface-card);
+  color: var(--text-strong);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
+}
+
+.login-foot {
+  margin-top: 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.alert.ok {
+  background: var(--green-50);
+  border: 1px solid #bbf7d0;
+  color: var(--green-700);
+}
+
+.btn.small {
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+
+.field-hint {
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.pill-badge.muted {
+  background: var(--gray-100);
+  color: var(--text-muted);
+}
+
+.team-list {
+  display: grid;
+  gap: 12px;
+}
+
+.team-card {
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-card);
+}
+.team-card.inactive {
+  opacity: 0.6;
+}
+.team-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.team-card .nm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+.team-card .meta {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.team-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.team-card-summary {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-body);
+}
+
+.team-add-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.team-add {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-card);
+}
+.team-add > h2 {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.role-choice {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+@media (min-width: 640px) {
+  .role-choice {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.role-choice-btn {
+  display: block;
+  padding: 12px;
+  text-align: left;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--surface-card);
+}
+.role-choice-btn.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.role-choice-btn .nm {
+  display: block;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+.role-choice-btn .sub {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.perm-editor {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+.perm-editor-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.perm-grid {
+  display: grid;
+  gap: 8px;
+}
+.perm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.perm-row:last-child {
+  border-bottom: 0;
+}
+.perm-row-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-body);
+}
+.perm-row-options {
+  display: flex;
+  gap: 4px;
+}
+.perm-chip {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--surface-card);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.perm-chip.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+/* ---------------------------------------------------------------- scope notices */
+
+/* "You are seeing your own chair only" — and the louder version when no chair is linked. */
+.scope-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 4px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.scope-notice.warn {
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  margin: 14px 0 4px;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  background: var(--amber-50);
+  color: var(--amber-700);
+  font-size: 13px;
+}
+.scope-notice.warn strong {
+  display: block;
+  color: var(--amber-700);
+}
+.scope-notice.warn p {
+  margin-top: 3px;
+  line-height: 1.5;
+}
+
+.week-empty {
+  margin-top: 28px;
+  padding: 28px 20px;
+  text-align: center;
+  border: 1px dashed var(--border-default);
+  border-radius: 12px;
+  background: var(--surface-card);
+}
+.week-empty .nm {
+  font-weight: 700;
+  color: var(--text-strong);
+}
+.week-empty .sub {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.pill-badge.warn {
+  background: var(--amber-50);
+  color: var(--amber-700);
+}
+
+/* Chair picker on a staff card — the way an owner rescues a stranded login. */
+.seat-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+.seat-link label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-body);
+}
+.seat-link select {
+  min-height: 34px;
+  padding: 4px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-card);
+  color: var(--text-strong);
+}
+.seat-link.warn select {
+  border-color: #fcd34d;
+  background: var(--amber-50);
+}
+.seat-link-warn {
+  font-size: 12px;
+  color: var(--amber-700);
+}
+
+/* ---------------------------------------------------------------- loading */
+
+/*
+ * Every screen here is a Server Component that awaits the API, so before these existed a
+ * navigation showed the previous page frozen with no indication anything was happening.
+ */
+@keyframes tt-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+@keyframes tt-spin {
+  to { transform: rotate(360deg); }
+}
+
+.skeleton {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    var(--gray-100) 0%,
+    var(--gray-200) 50%,
+    var(--gray-100) 100%
+  );
+  background-size: 200% 100%;
+  animation: tt-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Respect a stated preference for less motion — a static block still reads as "loading". */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--gray-100);
+  }
+  .spinner {
+    animation-duration: 2s;
+  }
+}
+
+.skeleton-header {
+  display: grid;
+  gap: 8px;
+  padding: 4px 0 10px;
+}
+.skeleton-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0 10px;
+}
+.skeleton-cards {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+.skeleton-rows {
+  display: grid;
+  gap: 14px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-card);
+}
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.skeleton-row-text {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+}
+.skeleton-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+@media (min-width: 900px) {
+  .skeleton-kpis {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+.skeleton-day {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+}
+.skeleton-mt-sm { margin-top: 6px; }
+.skeleton-mt-lg { margin-top: 20px; }
+
+.spinner {
+  display: inline-block;
+  flex-shrink: 0;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0.75;
+  animation: tt-spin 0.6s linear infinite;
+}
+
+/* The nav's own pending dot, shown from the click rather than from the navigation. */
+.nav-spinner {
+  margin-left: auto;
+}
+/* The base rule lives inside a mobile media query and sets no positioning context, so the
+   containing block is established here rather than assumed. */
+.bottom-nav-item {
+  position: relative;
+}
+.bottom-nav-item .nav-spinner {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  margin-left: 6px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------- queue detail sheet */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  background: rgb(15 23 42 / 0.45);
+}
+@media (min-width: 640px) {
+  .sheet-backdrop {
+    align-items: center;
+    padding: 24px;
+  }
+}
+
+@keyframes tt-sheet-in {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.sheet {
+  animation: tt-sheet-in 160ms ease-out;
+  box-shadow: 0 -8px 32px rgb(15 23 42 / 0.18);
+  width: 100%;
+  max-width: 460px;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface-card);
+  border-radius: 16px 16px 0 0;
+}
+@media (min-width: 640px) {
+  .sheet {
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgb(15 23 42 / 0.22);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    animation: none;
+  }
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.sheet-head h2 {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+.sheet-title {
+  min-width: 0;
+}
+/* Seat · service · status, straight from the card — so the sheet says what it is about the
+   instant it opens, without waiting on a fetch. */
+.sheet-sub-text {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.amount-breakdown-loading {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+.sheet-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.sheet-actions .btn {
+  flex: 1;
+  min-width: 140px;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.detail-grid > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+}
+.detail-grid dt {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.detail-grid dd {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-strong);
+  text-align: right;
+}
+
+.addon-block {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+/* No top rule/gap after the sheet header — the divider was leaving a dead band
+   between the customer name and "Amount to charge". */
+.checkout-block {
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: 0;
+}
+.addon-block h3,
+.checkout-block h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+.checkout-block .field-hint {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+.addon-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+/* Add-on / seat chip: a plus GLYPH rather than a typed "+", so it reads as an action and
+   lines up with the same chip in the mobile app. */
+.addon-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  color: var(--text-body);
+  white-space: nowrap;
+}
+.addon-chip-icon {
+  padding: 7px 10px;
+  gap: 6px;
+}
+.addon-chip:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-active);
+}
+.addon-chip:disabled {
+  opacity: 0.55;
+}
+.addon-mins {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The primary action on the sheet. Deliberately taller than a normal button — it is the one
+   that writes money to the ledger and closes the customer out. */
+.btn-xl {
+  min-height: 48px;
+  font-size: 15px;
+  margin-top: 14px;
+}
+.btn-xl + .btn.block {
+  margin-top: 8px;
+}
+
+/* The amount box. Deliberately the largest thing on the checkout step — it is the number
+   that lands in the revenue ledger, and it should be read before it is confirmed. */
+.amount-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--surface-page);
+}
+.amount-prefix {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.amount-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--text-strong);
+  outline: none;
+}
+/* Spinners fight with a large numeric display and are useless on a price. */
+.amount-input::-webkit-outer-spin-button,
+.amount-input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.amount-input {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.amount-breakdown {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  list-style: none;
+}
+.amount-breakdown li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.amount-breakdown li.total {
+  padding-top: 7px;
+  border-top: 1px solid var(--border-subtle);
+  font-weight: 700;
+  color: var(--text-body);
+}
+
+/*
+ * Whole-card hit target for opening the detail sheet.
+ *
+ * The stacking order is the whole trick, and it has to be exactly this way round:
+ *   text        — the default layer
+ *   .card-open  — ABOVE the text, so tapping the name or the service line opens the sheet
+ *   .card-actions — above the overlay, so Start / Check out / No-show still receive their clicks
+ *
+ * The first version put the overlay underneath everything to protect the buttons, which meant
+ * the text covered it and the card was effectively unclickable.
+ */
+/*
+ * Ticket row: name/meta on the left, actions tight on the right.
+ * Keep a single horizontal row on all breakpoints — stacking left a dead band under short names.
+ */
+.home-queue-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  transition: border-color var(--dur-fast) ease, background var(--dur-fast) ease;
+}
+.card-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.card-main .title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text-strong);
+}
+.card-main .meta {
+  white-space: normal;
+  line-height: 1.35;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.home-queue-card:hover {
+  border-color: var(--border-default);
+  background: var(--surface-hover);
+}
+.card-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: inherit;
+}
+.card-actions {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  align-items: center;
+}
+.card-actions .btn-sm,
+.card-action-btn {
+  min-height: 34px !important;
+  height: 34px;
+  padding: 0 12px !important;
+  font-size: 12.5px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.card-actions .btn-icon,
+.card-action-x {
+  width: 34px !important;
+  min-width: 34px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 !important;
+}
+.card-open:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Kanban drag — grip starts the drag; actions stay above the open overlay. */
+.card-drag-grip {
+  position: relative;
+  z-index: 3;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 34px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: grab;
+  touch-action: none;
+}
+.card-drag-grip:active {
+  cursor: grabbing;
+  color: var(--text-body);
+  background: var(--surface-sunken);
+}
+.home-queue-card.is-dragging-card {
+  opacity: 0.55;
+  border-style: dashed;
+}
+.queue-drop-slot {
+  height: 4px;
+  margin: 0;
+  border-radius: 4px;
+  transition: height 80ms ease, background 80ms ease;
+}
+.queue-drop-slot.active {
+  height: 10px;
+  margin: 2px 0;
+  background: var(--primary-soft, #dbeafe);
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+}
+.queue-drop-slot-end {
+  min-height: 8px;
+  flex: 1;
+}
+.seat-card-board.seat-drop-active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-soft, #dbeafe);
+}
+.seat-list.is-dragging {
+  user-select: none;
+}
+.queue-drag-hint {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--primary-soft, #dbeafe);
+  color: var(--primary);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.seat-empty-drop {
+  pointer-events: none;
+}
+
+
+/* ---------------------------------------------------------------- toasts */
+
+@keyframes tt-toast-in {
+  from { transform: translateY(10px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.toast-stack {
+  position: fixed;
+  left: 50%;
+  bottom: 84px;
+  transform: translateX(-50%);
+  z-index: 10001;
+  display: grid;
+  gap: 8px;
+  width: min(420px, calc(100vw - 32px));
+}
+@media (min-width: 900px) {
+  /* Clear of the bottom nav, which only exists on small screens. */
+  .toast-stack {
+    bottom: 24px;
+  }
+}
+.toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 13.5px;
+  color: #fff;
+  background: var(--gray-900);
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.22);
+  animation: tt-toast-in 160ms ease-out;
+}
+.toast.success { background: var(--green-700); }
+.toast.error   { background: var(--red-700); }
+.toast.info    { background: var(--gray-900); }
+.toast-close {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.75;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}
+
+/* --------------------------------------------------- in-service card + icon buttons */
+
+/*
+ * The customer actually in the chair. Tinted rather than badged so the board answers "who is
+ * being served" at a glance, and matching the app's QueueCard, which has always done this.
+ */
+.home-queue-card.serving {
+  border-color: rgb(37 99 235 / 0.32);
+  background: var(--primary-soft);
+}
+.home-queue-card.serving:hover {
+  border-color: rgb(37 99 235 / 0.45);
+  background: var(--primary-soft);
+}
+.home-queue-card.serving .title {
+  color: var(--primary-active);
+}
+
+/* Square icon-only button — the No-show action on a queue card. */
+.btn.btn-icon {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+  flex: 0 0 auto;
+}
+.btn.btn-icon:hover:not(:disabled) {
+  border-color: var(--red-600);
+  background: var(--red-50);
+  color: var(--red-700);
+}
+
+/*
+ * Action colour is fixed by MEANING, not by prominence, so the same decision always looks the
+ * same wherever it appears — on a card, in the sheet, on either product.
+ *   green = Start   — begins the service, entirely reversible
+ *   red   = Checkout — closes the visit and writes money to the ledger
+ */
+.btn.success {
+  background: var(--green-600);
+  border-color: var(--green-600);
+  color: #fff;
+}
+.btn.success:hover:not(:disabled) {
+  background: var(--green-700);
+}
+.btn.danger {
+  background: var(--red-600);
+  border-color: var(--red-600);
+  color: #fff;
+}
+.btn.danger:hover:not(:disabled) {
+  background: var(--red-700);
+}
+/* The no-show × stays neutral: red is now spoken for by checkout, and two reds on one card
+   would say the two actions are equivalent. */
+.btn.btn-icon:hover:not(:disabled) {
+  border-color: var(--border-default);
+  background: var(--surface-hover);
+  color: var(--text-body);
+}
+
+.confirm-sheet {
+  max-width: 420px;
+}
+.confirm-body {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-body);
 }

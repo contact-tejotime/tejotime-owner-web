@@ -7,7 +7,7 @@ import { moderateScale, rSize, scaleFont } from '@/styles/scale';
 import { SemanticColors, controlHeight, fontSize, radius } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 
-export type TButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+export type TButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success';
 type Size = 'sm' | 'md' | 'lg';
 
 export function TButton({
@@ -80,6 +80,13 @@ function variantColors(variant: string, c: SemanticColors, pressed: boolean) {
       return { bg: pressed ? c.surfaceSunken : c.surfaceCard, fg: c.textStrong, border: c.borderDefault };
     case 'ghost':
       return { bg: pressed ? c.surfaceHover : 'transparent', fg: c.textBody, border: 'transparent' };
+    /*
+     * Action colour is fixed by MEANING, not prominence, and matches owner-web exactly:
+     *   success = Start    — begins the service, entirely reversible
+     *   danger  = Checkout — closes the visit and writes money to the ledger
+     */
+    case 'success':
+      return { bg: pressed ? c.successSoftFg : c.success, fg: '#fff', border: 'transparent' };
     case 'danger':
       return { bg: pressed ? c.errorSoftFg : c.error, fg: '#fff', border: 'transparent' };
     case 'primary':

@@ -22,14 +22,37 @@ export const ICONS: Record<string, string> = {
   building: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M9 6h.01M15 6h.01M9 10h.01M15 10h.01M9 14h.01M15 14h.01"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   scissors: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/>',
+  /** Safety razor — add-on: Shave. A T-shaped razor reads at 14px where a cut-throat blade
+      collapses into an unrecognisable diagonal smudge. */
+  razor:
+    '<path d="M4.5 4h15v2.5a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2V4Z"/><path d="M7.5 6.2h9"/><path d="M12 8.5V20"/><path d="M9.5 20h5"/>',
+  /**
+   * Hair clipper — add-on: Beard trim.
+   *
+   * A clipper, not a beard. Every drawn-beard and moustache attempt collapsed at the 15px the
+   * chips actually render at: the moustache lobes closed into an infinity sign, and a jawline
+   * read as a cup. A tool has a silhouette — wide body, three legs — that stays distinct from
+   * the razor's T beside it even when the detail is gone.
+   */
+  clipper:
+    '<rect x="4.5" y="5" width="15" height="8" rx="2"/><path d="M7.5 13v4M12 13v4M16.5 13v4"/>',
+  /** Water drop — add-on: Hair wash. */
+  droplet:
+    '<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7Z"/>',
+  /** Brush — add-on: Hair color. */
+  paintbrush:
+    '<path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02Z"/>',
   creditCard: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
   star: '<path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/>',
   chevronRight: '<path d="m9 18 6-6-6-6"/>',
   chevronLeft: '<path d="m15 18-6-6 6-6"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
   sparkles:
     '<path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><path d="m5.6 5.6 2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+  gripVertical:
+    '<circle cx="9" cy="5" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="9" cy="19" r="1.2"/><circle cx="15" cy="5" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="15" cy="19" r="1.2"/>',
 };
 
 export type IconName = keyof typeof ICONS;

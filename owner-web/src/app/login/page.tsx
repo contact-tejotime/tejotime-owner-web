@@ -1,33 +1,66 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth";
 
+type AccountType = "owner" | "staff";
+
+const COPY: Record<AccountType, { title: string; sub: string }> = {
+  owner: {
+    title: "Owner sign in",
+    sub: "For the business owner and co-owners. Full access to the shop.",
+  },
+  staff: {
+    title: "Staff sign in",
+    sub: "For team members. You will see your own chair and whatever the owner has shared.",
+  },
+};
+
+/**
+ * Sign-in for both kinds of account.
+ *
+ * The Owner/Staff switch is a guard rail, not a second credential — the password still decides
+ * everything, and the backend re-checks the choice against the account's real role only AFTER
+ * the password verifies. Its whole job is to turn a confusing "invalid credentials" into
+ * "that's an owner login, pick Owner", which is the mistake people actually make once a shop
+ * has both kinds.
+ */
 export default function LoginPage() {
-  const { login, session, ready } = useAuth();
   const router = useRouter();
+  const [accountType, setAccountType] = useState<AccountType>("owner");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (ready && session) router.replace("/dashboard");
-  }, [ready, session, router]);
-
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
     setBusy(true);
-    const result = login(phone, password);
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      // The route handler exchanges these for two httpOnly cookies; no token ever reaches
+      // browser JS. The backend matches on digits only, so punctuation is stripped there.
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone, password, accountType }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json?.error?.message ?? "Could not sign in. Check your number and password.");
+        return;
+      }
+      // Where to land depends on what this account can open — a staff member with no
+      // dashboard access would otherwise be bounced straight into a "No access" page.
+      router.replace(typeof json?.landingPath === "string" ? json.landingPath : "/dashboard");
+      // The (app) layout reads the session on the server, so the cache has to be dropped.
+      router.refresh();
+    } catch {
+      setError("Could not reach the server. Check your connection and try again.");
+    } finally {
+      setBusy(false);
     }
-    router.replace("/dashboard");
   }
 
   return (
@@ -39,8 +72,25 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={onSubmit}>
-          <h1 className="login-title">Sign in</h1>
-          <p className="login-sub">Business login — same account as the TejoTime owner app.</p>
+          <div className="segmented" role="group" aria-label="Account type">
+            {(["owner", "staff"] as AccountType[]).map((type) => (
+              <button
+                key={type}
+                type="button"
+                className={`segmented-btn ${accountType === type ? "active" : ""}`}
+                aria-pressed={accountType === type}
+                onClick={() => {
+                  setAccountType(type);
+                  setError("");
+                }}
+              >
+                {type === "owner" ? "Owner" : "Staff"}
+              </button>
+            ))}
+          </div>
+
+          <h1 className="login-title">{COPY[accountType].title}</h1>
+          <p className="login-sub">{COPY[accountType].sub}</p>
 
           {error ? (
             <div className="alert err" role="alert">
@@ -54,7 +104,7 @@ export default function LoginPage() {
               id="phone"
               type="tel"
               autoComplete="tel"
-              placeholder="e.g. 9876543210"
+              placeholder="e.g. 919876543210"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               autoFocus
@@ -85,7 +135,13 @@ export default function LoginPage() {
           <button type="submit" className="btn block" disabled={busy}>
             {busy ? "Signing in…" : "Sign in"}
           </button>
-          <p className="hint">UI demo: any phone (10+ digits) and password (4+ chars) works.</p>
+
+          {accountType === "staff" ? (
+            <p className="login-foot">
+              Staff logins are created by your business owner. If you do not have one, ask them
+              to add you under Settings → Team logins.
+            </p>
+          ) : null}
         </form>
       </div>
     </div>
