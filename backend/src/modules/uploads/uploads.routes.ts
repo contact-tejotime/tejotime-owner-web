@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Errors } from '../../domain/errors';
 import { asyncHandler } from '../../http/async-handler';
 import { authenticate } from '../../middleware/authenticate';
-import { authorize } from '../../middleware/authorize';
+import { requireAnyPermission } from '../../middleware/require-permission';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import { MAX_IMAGE_BYTES, signUpload } from '../../integrations/storage';
@@ -16,7 +16,12 @@ uploadsRouter.use(authenticate);
 uploadsRouter.post(
   '/sign',
   limiters.ownerWrite,
-  authorize('owner', 'manager'),
+  // An avatar belongs to the staff screen and everything else to the business profile, so the
+  // permission this needs depends on what is being uploaded rather than on the route.
+  requireAnyPermission([
+    ['profile', 'manage'],
+    ['staff', 'manage'],
+  ]),
   validate({
     body: z
       .object({

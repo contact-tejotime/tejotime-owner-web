@@ -1,96 +1,90 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useMemo, useState } from "react";
 import { AppPageHeader } from "@/components/AppPageHeader";
-import { Icon } from "@/components/Icon";
+import { ScopeNotice } from "@/components/ScopeNotice";
+import { formatTime } from "@/lib/format";
+import { getAppointments, getMe } from "@/lib/server-api";
 
-const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
-function buildGrid(year: number, month: number): Date[] {
-  const first = new Date(year, month, 1);
-  const start = new Date(year, month, 1 - first.getDay());
-  return Array.from({ length: 42 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+/** Local YYYY-MM-DD — not toISOString(), which shifts the date across UTC midnight. */
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function key(d: Date) {
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-}
+/**
+ * Seven-day agenda from `GET /appointments?from&to` — the same range call the mobile app's
+ * calendar makes. The backend caps a range at 45 days; a week is well inside that.
+ */
+export default async function CalendarPage() {
+  const start = new Date();
+  const end = new Date();
+  end.setDate(end.getDate() + 6);
 
-export default function CalendarPage() {
-  const today = useMemo(() => new Date(), []);
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
-  const [selected, setSelected] = useState(today);
+  const [me, res] = await Promise.all([
+    getMe(),
+    getAppointments(`?from=${ymd(start)}&to=${ymd(end)}`),
+  ]);
+  if (!me) redirect("/login");
+  const appointments = res?.data ?? [];
 
-  const grid = useMemo(() => buildGrid(year, month), [year, month]);
-  const booked = useMemo(() => new Set([key(new Date(year, month, 1)), key(new Date(year, month, 2)), key(new Date(year, month, 3))]), [year, month]);
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const key = ymd(d);
+    return {
+      key,
+      label: d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }),
+      isToday: i === 0,
+      items: appointments
+        .filter((a) => a.scheduledStartAt.slice(0, 10) === key)
+        .sort((a, b) => a.scheduledStartAt.localeCompare(b.scheduledStartAt)),
+    };
+  });
 
-  function prevMonth() {
-    if (month === 0) {
-      setMonth(11);
-      setYear((y) => y - 1);
-    } else setMonth((m) => m - 1);
-  }
-  function nextMonth() {
-    if (month === 11) {
-      setMonth(0);
-      setYear((y) => y + 1);
-    } else setMonth((m) => m + 1);
-  }
+  const total = appointments.length;
 
   return (
     <div className="page-app">
-      <AppPageHeader title="Calendar" />
+      <AppPageHeader
+        title="Calendar"
+        subtitle={total === 1 ? "1 booking this week" : `${total} bookings this week`}
+      />
 
-      <div className="cal-month-nav">
-        <button type="button" className="icon-btn" aria-label="Previous month" onClick={prevMonth}>
-          <Icon name="chevronLeft" size={20} />
-        </button>
-        <div className="cal-month-label">
-          {MONTHS[month]} {year}
+      <ScopeNotice me={me} context="your calendar" />
+
+      {/* A whole week of empty days used to render as seven identical "Nothing booked" lines,
+          which reads as a broken page rather than a quiet week. One clear statement instead. */}
+      {total === 0 ? (
+        <div className="week-empty">
+          <p className="nm">Nothing booked in the next 7 days</p>
+          <p className="sub">
+            Bookings made online or added here will appear on the day they are scheduled.
+          </p>
         </div>
-        <button type="button" className="icon-btn" aria-label="Next month" onClick={nextMonth}>
-          <Icon name="chevronRight" size={20} />
-        </button>
-      </div>
-
-      <div className="cal-app-grid">
-        {WEEKDAYS.map((d, i) => (
-          <div key={`${d}-${i}`} className="cal-app-head">
-            {d}
-          </div>
-        ))}
-        {grid.map((cell) => {
-          const inMonth = cell.getMonth() === month;
-          const isSelected = key(cell) === key(selected);
-          const hasDot = booked.has(key(cell));
-          return (
-            <button
-              key={key(cell)}
-              type="button"
-              className={`cal-app-day ${inMonth ? "" : "muted"} ${isSelected ? "selected" : ""}`}
-              onClick={() => setSelected(cell)}
-            >
-              <span>{cell.getDate()}</span>
-              {hasDot && !isSelected ? <span className="cal-dot" /> : null}
-            </button>
-          );
-        })}
-      </div>
+      ) : (
+        days.map((day) => (
+          <section key={day.key} style={{ marginTop: 18 }}>
+            <h2 className="home-section-title">
+              {day.isToday ? `Today · ${day.label}` : day.label}
+            </h2>
+            {day.items.length === 0 ? (
+              <p className="home-empty">Nothing booked</p>
+            ) : (
+              <div className="appt-list">
+                {day.items.map((a) => (
+                  <article key={a.id} className="appt-card">
+                    <div className="appt-time">{formatTime(a.scheduledStartAt)}</div>
+                    <div className="appt-body">
+                      <div className="nm">{a.customerName}</div>
+                      <div className="meta">{a.serviceName ?? "No service selected"}</div>
+                    </div>
+                    <span className={`chip ${a.status}`}>{a.status.replace("_", " ")}</span>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        ))
+      )}
     </div>
   );
 }

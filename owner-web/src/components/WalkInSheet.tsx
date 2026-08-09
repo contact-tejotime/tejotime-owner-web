@@ -2,16 +2,72 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
-import { MOCK_SEATS, MOCK_SERVICES } from "@/lib/mock-data";
+import { formatMoney } from "@/lib/format";
+import type { ServiceRow, StaffRow } from "@/lib/server-api";
 
 type WalkInSheetProps = {
   open: boolean;
   onClose: () => void;
+  staff: StaffRow[];
+  services: ServiceRow[];
+  onAdded: () => void;
 };
 
-export function WalkInSheet({ open, onClose }: WalkInSheetProps) {
-  const [serviceId, setServiceId] = useState(MOCK_SERVICES[0]?.id ?? "");
+/**
+ * Add a walk-in. Posts to `/api/queue`, which forwards to the backend's `queue_add` RPC —
+ * the same call the Expo app makes, so token allocation and seat assignment stay identical.
+ */
+export function WalkInSheet({ open, onClose, staff, services, onAdded }: WalkInSheetProps) {
+  const [serviceId, setServiceId] = useState("");
   const [seatId, setSeatId] = useState("any");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  // Reset form + pre-select the first service each time the sheet opens (matches the app).
+  useEffect(() => {
+    if (!open) return;
+    setName("");
+    setPhone("");
+    setError("");
+    setBusy(false);
+    setSeatId("any");
+    setServiceId(services[0]?.id ?? "");
+  }, [open, services]);
+
+  async function submit() {
+    setError("");
+    if (!name.trim()) return setError("Enter the customer's name.");
+    if (services.length > 0 && !serviceId) return setError("Pick a service.");
+    setBusy(true);
+    try {
+      const res = await fetch("/api/queue", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        // Field names come from the backend's addWalkInSchema, which is .strict() — anything
+        // else is rejected outright. `staffId: "auto"` is the sentinel for "soonest free seat",
+        // matching what the mobile app sends.
+        body: JSON.stringify({
+          name: name.trim(),
+          phone: phone.replace(/\D/g, "") || undefined,
+          serviceId: serviceId || undefined,
+          staffId: seatId === "any" ? "auto" : seatId,
+          position: "end",
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json?.error?.message ?? "Could not add to the queue.");
+        return;
+      }
+      onAdded();
+    } catch {
+      setError("Could not reach the server.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -31,14 +87,19 @@ export function WalkInSheet({ open, onClose }: WalkInSheetProps) {
 
   return (
     <div className="sheet-root" role="dialog" aria-modal="true" aria-label="Add walk-in">
-      <button type="button" className="sheet-backdrop" aria-label="Close" onClick={onClose} />
+      <button type="button" className="sheet-root-backdrop" aria-label="Close" onClick={onClose} />
       <div className="sheet-panel">
         <div className="sheet-grabber" aria-hidden />
         <h2 className="sheet-title">Add walk-in</h2>
 
         <div className="field">
           <label htmlFor="walkin-name">Customer name</label>
-          <input id="walkin-name" placeholder="Full name" />
+          <input
+            id="walkin-name"
+            placeholder="Full name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
 
         <div className="field">
@@ -47,28 +108,33 @@ export function WalkInSheet({ open, onClose }: WalkInSheetProps) {
             <button type="button" className="phone-cc-btn" tabIndex={-1}>
               +91
             </button>
-            <input id="walkin-phone" placeholder="98xxx xxxxx" />
+            <input
+              id="walkin-phone"
+              placeholder="98xxx xxxxx"
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
           </div>
         </div>
 
         <p className="field-label">Service</p>
         <div className="service-pick-list">
-          {MOCK_SERVICES.map((s) => (
+          {services.map((s) => (
             <button
               key={s.id}
               type="button"
               className={`service-pick ${serviceId === s.id ? "selected" : ""}`}
-              style={{ ["--accent" as string]: s.accent }}
               onClick={() => setServiceId(s.id)}
             >
               <span className="service-pick-accent" />
               <span className="service-pick-body">
                 <span className="nm">{s.name}</span>
                 <span className="meta">
-                  <Icon name="clock" size={12} /> {s.mins} min
+                  <Icon name="clock" size={12} /> {s.durationMinutes} min
                 </span>
               </span>
-              <span className="service-pick-price">{s.price}</span>
+              <span className="service-pick-price">{formatMoney(s.price)}</span>
             </button>
           ))}
         </div>
@@ -85,31 +151,35 @@ export function WalkInSheet({ open, onClose }: WalkInSheetProps) {
             </span>
             <span className="seat-pick-body">
               <span className="nm">Any seat</span>
-              <span className="meta">Soonest free · {MOCK_SEATS[0]?.name}</span>
+              <span className="meta">Soonest free</span>
             </span>
             {seatId === "any" ? <Icon name="check" size={18} className="seat-pick-check" /> : null}
           </button>
-          {MOCK_SEATS.map((seat) => (
+          {staff.map((seat) => (
             <button
               key={seat.id}
               type="button"
               className={`seat-pick ${seatId === seat.id ? "selected" : ""}`}
               onClick={() => setSeatId(seat.id)}
             >
-              <span className="seat-pick-avatar" style={{ background: seat.color }}>
-                {seat.name[0]}
-              </span>
+              <span className="seat-pick-avatar">{seat.name[0]}</span>
               <span className="seat-pick-body">
                 <span className="nm">{seat.name}</span>
-                <span className="meta">{seat.status === "free" ? "Free now" : "Busy"}</span>
+                <span className="meta">{seat.roleLabel ?? "Team member"}</span>
               </span>
               {seatId === seat.id ? <Icon name="check" size={18} className="seat-pick-check" /> : null}
             </button>
           ))}
         </div>
 
-        <button type="button" className="btn sheet-submit" onClick={onClose}>
-          Add to queue
+        {error ? (
+          <div className="alert err" role="alert">
+            {error}
+          </div>
+        ) : null}
+
+        <button type="button" className="btn sheet-submit" onClick={submit} disabled={busy}>
+          {busy ? "Adding…" : "Add to queue"}
         </button>
       </div>
     </div>

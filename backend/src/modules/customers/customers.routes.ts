@@ -8,7 +8,7 @@ import { normalizePhone } from '../../lib/phone';
 import { lastVisitLabel } from '../../lib/time';
 import { asyncHandler } from '../../http/async-handler';
 import { authenticate } from '../../middleware/authenticate';
-import { authorize } from '../../middleware/authorize';
+import { requirePermission } from '../../middleware/require-permission';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import { getLivePlan } from '../subscription/subscription.service';
@@ -39,6 +39,7 @@ customersRouter.use(authenticate);
 customersRouter.get(
   '/',
   limiters.ownerRead,
+  requirePermission('customers'),
   validate({
     query: z.object({
       search: z.string().max(80).optional(),
@@ -91,6 +92,7 @@ customersRouter.get(
 customersRouter.get(
   '/:id',
   limiters.ownerRead,
+  requirePermission('customers'),
   validate({ params: z.object({ id: z.string().uuid() }) }),
   asyncHandler(async (req, res) => {
     const data = await one('select * from customer where id = $1 and business_id = $2', [
@@ -105,7 +107,7 @@ customersRouter.get(
 customersRouter.post(
   '/',
   limiters.ownerWrite,
-  authorize('owner', 'manager'),
+  requirePermission('customers', 'manage'),
   validate({
     body: z
       .object({
@@ -140,7 +142,7 @@ customersRouter.post(
 customersRouter.patch(
   '/:id',
   limiters.ownerWrite,
-  authorize('owner', 'manager'),
+  requirePermission('customers', 'manage'),
   validate({
     params: z.object({ id: z.string().uuid() }),
     body: z
@@ -174,6 +176,7 @@ customersRouter.patch(
 customersRouter.get(
   '/:id/visits',
   limiters.ownerRead,
+  requirePermission('customers'),
   validate({ params: z.object({ id: z.string().uuid() }) }),
   asyncHandler(async (req, res) => {
     const [data, currency] = await Promise.all([

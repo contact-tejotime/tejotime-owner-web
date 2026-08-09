@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../http/async-handler';
 import { authenticate } from '../../middleware/authenticate';
-import { authorize } from '../../middleware/authorize';
+import { requirePermission } from '../../middleware/require-permission';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import * as business from './business.service';
@@ -41,14 +41,14 @@ const amenitiesSchema = z.object({ amenities: z.array(z.string().min(1).max(60))
 export const businessRouter = Router();
 businessRouter.use(authenticate);
 
-businessRouter.get('/', limiters.ownerRead, asyncHandler(async (req, res) => {
+businessRouter.get('/', limiters.ownerRead, requirePermission('profile'), asyncHandler(async (req, res) => {
   res.json(await business.getBusiness(req.principal!.businessId));
 }));
 
 businessRouter.patch(
   '/',
   limiters.ownerWrite,
-  authorize('owner', 'manager'),
+  requirePermission('profile', 'manage'),
   validate({ body: patchSchema }),
   asyncHandler(async (req, res) => {
     res.json(await business.updateBusiness(req.principal!.businessId, req.body));
@@ -58,7 +58,7 @@ businessRouter.patch(
 businessRouter.put(
   '/hours',
   limiters.ownerWrite,
-  authorize('owner', 'manager'),
+  requirePermission('hours', 'manage'),
   validate({ body: hoursSchema }),
   asyncHandler(async (req, res) => {
     res.json(await business.setHours(req.principal!.businessId, req.body.hours));
@@ -68,13 +68,13 @@ businessRouter.put(
 businessRouter.put(
   '/amenities',
   limiters.ownerWrite,
-  authorize('owner', 'manager'),
+  requirePermission('profile', 'manage'),
   validate({ body: amenitiesSchema }),
   asyncHandler(async (req, res) => {
     res.json(await business.setAmenities(req.principal!.businessId, req.body.amenities));
   }),
 );
 
-businessRouter.get('/qr', limiters.ownerRead, asyncHandler(async (req, res) => {
+businessRouter.get('/qr', limiters.ownerRead, requirePermission('profile'), asyncHandler(async (req, res) => {
   res.json(await business.getQr(req.principal!.businessId));
 }));

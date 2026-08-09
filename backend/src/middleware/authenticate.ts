@@ -22,6 +22,11 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
       businessId: claims.bid,
       role: claims.role,
       plan: claims.plan,
+      // Absent in tokens minted before 0019. Both defaults are the restrictive ones, so an
+      // in-flight token from the previous deploy degrades to "no seat, not the super owner"
+      // rather than to extra access. They correct themselves at the next 15-minute refresh.
+      staffId: claims.sid ?? null,
+      isSuperOwner: claims.sup === true,
     };
     next();
   } catch (err: any) {

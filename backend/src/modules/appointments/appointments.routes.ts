@@ -4,6 +4,7 @@ import { one } from '../../db/pool';
 import { Errors } from '../../domain/errors';
 import { asyncHandler } from '../../http/async-handler';
 import { authenticate } from '../../middleware/authenticate';
+import { requireOwnRow, requirePermission, scopeStaffId } from '../../middleware/require-permission';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import * as appts from './appointments.service';
@@ -19,6 +20,7 @@ appointmentsRouter.use(authenticate);
 appointmentsRouter.get(
   '/',
   limiters.ownerRead,
+  requirePermission('appointments'),
   validate({
     query: z
       .object({
@@ -44,6 +46,7 @@ appointmentsRouter.get(
         from: req.query.from as string | undefined,
         to: req.query.to as string | undefined,
         status: req.query.status as string | undefined,
+        staffId: scopeStaffId(req.principal!),
         tz,
       }),
     );
@@ -53,6 +56,7 @@ appointmentsRouter.get(
 appointmentsRouter.post(
   '/',
   limiters.ownerWrite,
+  requirePermission('appointments', 'manage'),
   validate({
     body: z
       .object({
@@ -73,7 +77,9 @@ appointmentsRouter.post(
 appointmentsRouter.get(
   '/:id',
   limiters.ownerRead,
+  requirePermission('appointments'),
   validate({ params: z.object({ id: z.string().uuid() }) }),
+  requireOwnRow('appointment'),
   asyncHandler(async (req, res) => {
     const data = await one('select * from appointment where id = $1 and business_id = $2', [
       req.params.id,
@@ -96,7 +102,9 @@ appointmentsRouter.get(
 appointmentsRouter.post(
   '/:id/check-in',
   limiters.ownerWrite,
+  requirePermission('appointments', 'manage'),
   validate({ params: z.object({ id: z.string().uuid() }) }),
+  requireOwnRow('appointment'),
   asyncHandler(async (req, res) => {
     res.status(201).json(await appts.checkIn(req.principal!.businessId, req.params.id));
   }),
@@ -105,7 +113,9 @@ appointmentsRouter.post(
 appointmentsRouter.post(
   '/:id/cancel',
   limiters.ownerWrite,
+  requirePermission('appointments', 'manage'),
   validate({ params: z.object({ id: z.string().uuid() }) }),
+  requireOwnRow('appointment'),
   asyncHandler(async (req, res) => {
     res.json(await appts.setStatus(req.principal!.businessId, req.params.id, 'cancelled'));
   }),
@@ -114,7 +124,9 @@ appointmentsRouter.post(
 appointmentsRouter.post(
   '/:id/no-show',
   limiters.ownerWrite,
+  requirePermission('appointments', 'manage'),
   validate({ params: z.object({ id: z.string().uuid() }) }),
+  requireOwnRow('appointment'),
   asyncHandler(async (req, res) => {
     res.json(await appts.setStatus(req.principal!.businessId, req.params.id, 'no_show'));
   }),

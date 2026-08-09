@@ -1,14 +1,16 @@
-import React, { useMemo } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
-import { Icon } from '@/components/ui/Icon';
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useResponsive } from '@/hooks/useResponsive';
 import { t, format } from '@/i18n';
+import { api } from '@/lib/api';
 import { flatCards } from '@/lib/queue';
+import { showToast } from '@/lib/toast';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
@@ -16,26 +18,26 @@ import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
 import { useTheme } from '@/theme/ThemeProvider';
 
-const EXTRAS = [
-  { label: t.detail.extras.shave, mins: 10 },
-  { label: t.detail.extras.beardTrim, mins: 15 },
-  { label: t.detail.extras.hairWash, mins: 10 },
-  { label: t.detail.extras.hairColor, mins: 30 },
+/**
+ * Each add-on carries its own icon rather than a shared "+" — the same four shapes the portal
+ * uses, so a barber moving between the two products recognises them without re-reading.
+ */
+const EXTRAS: { label: string; mins: number; icon: IconName }[] = [
+  { label: t.detail.extras.shave, mins: 10, icon: 'razor' },
+  { label: t.detail.extras.beardTrim, mins: 15, icon: 'clipper' },
+  { label: t.detail.extras.hairWash, mins: 10, icon: 'droplet' },
+  { label: t.detail.extras.hairColor, mins: 30, icon: 'paintbrush' },
 ];
 
-function Row({ label, children, s }: { label: string; children: React.ReactNode; s: ReturnType<typeof createDetailPanelStyles> }) {
-  return (
-    <View style={s.row}>
-      <TText variant="bodySm" color="textMuted">
-        {label}
-      </TText>
-      {children}
-    </View>
-  );
+/** What this entry would be charged right now, as the API computes it. */
+interface Billing {
+  suggestedAmount: { amount: number; currency: string };
+  extras: { id: string; label: string; minutes: number; pricePaise: number }[];
 }
 
 export function DetailPanel() {
   const theme = useTheme();
+  // Still needed for the seat chips in the 'move to another seat' row.
   const resolveColor = useServiceColor();
   const store = useAppState();
   const { centerStyle } = useResponsive(640);
@@ -50,18 +52,100 @@ export function DetailPanel() {
     };
   }, [store.detailId, store.seats, store.staff]);
   const open = !!card;
-  const seatColor = seat ? resolveColor(seat.color) : theme.colors.textSubtle;
   const seatBusy = !!seatGroup?.serving;
   const busy = store.detailBusy;
+  /** Spin only the button that was pressed; disable the rest without spinning them. */
+  const running = (action: typeof store.detailAction) => busy && store.detailAction === action;
+
+  /**
+   * The amount step.
+   *
+   * `visit.amount_paise` feeds customer lifetime spend and every revenue KPI, and it used to be
+   * written from the BOOKED service alone — so someone who came for a beard trim and also had a
+   * haircut was banked at the beard-trim price. Completing now passes through this step, which
+   * pre-fills the derived total and lets it be corrected before it reaches the ledger.
+   */
+  const [billing, setBilling] = useState<Billing | null>(null);
+  const [amount, setAmount] = useState('');
+
+  // Reload whenever the open card changes, and again whenever `rightText` moves — the engine
+  // rewrites that line ("~30 min") as the service is extended, so it is the observable signal
+  // that an add-on landed and the suggested total is now stale.
+  // The panel stays mounted (it is a Modal), so state is reset by the close handler below
+  // rather than here — a synchronous reset inside an effect cascades an extra render.
+  // Depend on the two primitives that matter, not on `card` — the object identity changes with
+  // every queue snapshot the socket delivers, which would refetch the billing several times a
+  // minute for a panel that is usually not even open.
+  const cardId = card?.id;
+  const cardRightText = card?.rightText;
+
+  useEffect(() => {
+    if (!cardId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const b = await api.getQueueEntry(cardId);
+        if (!alive) return;
+        setBilling(b);
+        setAmount(String(Math.round((b.suggestedAmount?.amount ?? 0) / 100)));
+      } catch {
+        if (alive) setBilling(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [cardId, cardRightText]);
+
+  /** Closing drops the loaded billing so the next customer never sees the previous one's. */
+  const close = () => {
+    setBilling(null);
+    store.closeDetail();
+  };
+
+  /**
+   * Record an add-on and move the amount by exactly its price.
+   *
+   * The delta comes from the server's recomputed suggestion rather than re-syncing the whole
+   * field to it — otherwise adding a shave would silently discard an amount already typed by
+   * hand, which is the one thing this screen exists to let you do.
+   */
+  const addExtra = async (label: string, mins: number) => {
+    const before = billing?.suggestedAmount?.amount ?? 0;
+    store.extendService(card!.id, label, mins);
+    try {
+      const next = await api.getQueueEntry(card!.id);
+      setBilling(next);
+      const delta = ((next.suggestedAmount?.amount ?? 0) - before) / 100;
+      const current = Number(amount);
+      setAmount(
+        Number.isFinite(current)
+          ? String(current + delta)
+          : String(Math.round((next.suggestedAmount?.amount ?? 0) / 100)),
+      );
+    } catch {
+      /* the extend itself already reported any failure */
+    }
+  };
+
+  const onConfirm = () => {
+    const rupees = Number(amount);
+    if (!Number.isFinite(rupees) || rupees < 0) {
+      showToast(t.detail.amountInvalid, 'error');
+      return;
+    }
+    // Rupees in the box, paise on the wire. Math.round keeps 249.99 from arriving as 24998.99…
+    store.checkout(card!.id, Math.round(rupees * 100));
+  };
 
   return (
-    <Modal transparent visible={open} animationType="fade" onRequestClose={store.closeDetail}>
+    <Modal transparent visible={open} animationType="fade" onRequestClose={close}>
       {card && (
         <View style={s.page}>
           <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
             <View style={[styles.flex, centerStyle]}>
             <View style={s.topBar}>
-              <Pressable onPress={store.closeDetail} style={s.backBtn}>
+              <Pressable onPress={close} style={s.backBtn}>
                 <Icon name="chevronLeft" size={22} color={theme.colors.textBody} />
               </Pressable>
               <TText variant="h5" weight="bold">
@@ -82,38 +166,13 @@ export function DetailPanel() {
                 <StatusBadge status={card.status} />
               </View>
 
-              <View style={s.rows}>
-                <Row label={t.detail.seat} s={s}>
-                  <View style={s.seatRow}>
-                    <View style={s.seatDotBg(seatColor)} />
-                    <TText variant="bodyMd" weight="semibold">
-                      {seat?.name ?? t.common.dash}
-                    </TText>
-                  </View>
-                </Row>
-                <Row label={t.detail.service} s={s}>
-                  <TText variant="bodyMd" weight="semibold">
-                    {card.service}
-                  </TText>
-                </Row>
-                <Row label={t.detail.source} s={s}>
-                  <TText variant="bodyMd" weight="semibold">
-                    {card.online ? t.detail.bookedOnline : t.detail.walkIn}
-                  </TText>
-                </Row>
-                <Row label={t.detail.position} s={s}>
-                  <TText variant="bodyMd" weight="semibold">
-                    {format(t.detail.positionLine, { pos: card.pos, seat: seat?.name ?? t.detail.thisSeat })}
-                  </TText>
-                </Row>
-                {card.visitorType && (
-                  <Row label={t.detail.visitorType} s={s}>
-                    <TText variant="bodyMd" weight="semibold">
-                      {card.visitorType === 'mr' ? t.queue.mr : t.queue.patient}
-                    </TText>
-                  </Row>
-                )}
-              </View>
+              {/* The seat / service / source / position grid is gone. It restated what the
+                  queue card behind this panel already showed, and pushed the thing you opened
+                  the panel for — the price and the actions — below the fold on a small phone.
+                  What is still worth knowing sits on one line under the name. */}
+              <TText variant="bodySm" color="textMuted" align="center" style={styles.mt1}>
+                {[seat?.name, card.service, card.srcLabel].filter(Boolean).join(' · ')}
+              </TText>
             </View>
 
             <View style={s.footer}>
@@ -147,40 +206,109 @@ export function DetailPanel() {
                     </TText>
                   )}
                   <Button
-                    variant="primary"
+                    variant="success"
                     size="lg"
                     fullWidth
-                    loading={busy}
-                    disabled={seatBusy}
+                    loading={running('start')}
+                    disabled={seatBusy || busy}
                     onPress={() => store.startService(card.id)}>
                     {t.detail.startService}
                   </Button>
-                  <Button variant="outline" fullWidth disabled={busy} onPress={() => store.noShow(card.id)}>
+                  <Button
+                    variant="outline"
+                    fullWidth
+                    loading={running('noShow')}
+                    disabled={busy}
+                    leadingIcon={<Icon name="x" size={16} color={theme.colors.textBody} />}
+                    onPress={() => store.noShow(card.id)}>
                     {t.detail.markNoShow}
                   </Button>
                 </>
               )}
               {card.status === 'in-service' && (
                 <>
+                  {/* ONE sheet: amount, add-ons and the complete button together. They are a
+                      single decision — you are looking at the person in the chair working out
+                      what to charge — and splitting them across steps meant committing to the
+                      extras before their effect on the price was visible. */}
                   <TText variant="bodySm" weight="semibold" color="textBody">
-                    {t.detail.changedMind}
+                    {t.detail.amountTitle}
                   </TText>
-                  <View style={s.extraWrap}>
+                  <TText variant="caption" color="textMuted">
+                    {t.detail.amountHint}
+                  </TText>
+                  <View style={s.amountRow}>
+                    <TText variant="h4" color="textMuted" weight="bold">
+                      ₹
+                    </TText>
+                    <TextInput
+                      style={s.amountInput}
+                      value={amount}
+                      onChangeText={setAmount}
+                      keyboardType="numeric"
+                      selectTextOnFocus
+                      accessibilityLabel={t.detail.amountTitle}
+                    />
+                  </View>
+
+                  <View style={s.chipWrap}>
                     {EXTRAS.map((e) => (
                       <Pressable
                         key={e.label}
                         disabled={busy}
-                        onPress={() => store.extendService(card.id, e.label, e.mins)}
-                        style={s.extraChip}>
-                        <Icon name="plus" size={15} color={theme.colors.textBody} />
+                        onPress={() => addExtra(e.label, e.mins)}
+                        style={s.chip}>
+                        <Icon name={e.icon} size={16} color={theme.colors.textBody} />
                         <TText variant="bodySm" weight="semibold" color="textBody">
-                          {format(t.detail.extendChip, { label: e.label, mins: e.mins })}
+                          {e.label}
+                        </TText>
+                        <TText variant="caption" color="textMuted">
+                          {format(t.detail.extendMins, { mins: e.mins })}
                         </TText>
                       </Pressable>
                     ))}
                   </View>
-                  <Button variant="primary" size="lg" fullWidth loading={busy} onPress={() => store.checkout(card.id)}>
+
+                  {billing ? (
+                    <View style={s.breakdown}>
+                      {billing.extras.map((x) => (
+                        <View key={x.id} style={s.breakdownRow}>
+                          <TText variant="caption" color="textMuted">
+                            {format(t.detail.extendChip, { label: x.label, mins: x.minutes })}
+                          </TText>
+                          <TText variant="caption" color="textMuted">
+                            ₹{Math.round(x.pricePaise / 100)}
+                          </TText>
+                        </View>
+                      ))}
+                      <View style={s.breakdownRow}>
+                        <TText variant="caption" color="textBody" weight="semibold">
+                          {t.detail.amountSuggested}
+                        </TText>
+                        <TText variant="caption" color="textBody" weight="semibold">
+                          ₹{Math.round((billing.suggestedAmount?.amount ?? 0) / 100)}
+                        </TText>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  <Button
+                    variant="danger"
+                    size="lg"
+                    fullWidth
+                    loading={running('checkout')}
+                    disabled={busy}
+                    onPress={onConfirm}>
                     {t.detail.completeNext}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    fullWidth
+                    loading={running('noShow')}
+                    disabled={busy}
+                    leadingIcon={<Icon name="x" size={16} color={theme.colors.textBody} />}
+                    onPress={() => store.noShow(card.id)}>
+                    {t.detail.markNoShow}
                   </Button>
                 </>
               )}
@@ -196,6 +324,26 @@ export function DetailPanel() {
 const createDetailPanelStyles = ({ colors, radius }: ThemeStyleProps) => {
   const base = StyleSheet.create({
     page: { ...styles.flex, backgroundColor: colors.surfacePage },
+    amountRow: {
+      ...styles.flexRow,
+      ...styles.itemsCenter,
+      gap: moderateScale(6),
+      paddingHorizontal: moderateScale(14),
+      paddingVertical: moderateScale(8),
+      borderWidth: moderateScale(1),
+      borderColor: colors.borderDefault,
+      borderRadius: moderateScale(radius.lg),
+      backgroundColor: colors.surfaceCard,
+    },
+    amountInput: {
+      ...styles.flex,
+      fontSize: moderateScale(28),
+      fontWeight: '800',
+      color: colors.textStrong,
+      paddingVertical: moderateScale(4),
+    },
+    breakdown: { gap: moderateScale(6) },
+    breakdownRow: { ...styles.flexRow, ...styles.justifyBetween },
     safe: { ...styles.flex },
     topBar: {
       ...styles.flexRow,

@@ -206,36 +206,108 @@ async function insertChildren(client: PoolClient, bid: string, input: StoreField
     await client.query(`insert into gallery_image (business_id, url, alt, position) values ${values}`, params);
   }
 
-  // Money stored as integer minor units (major × 100), matching domain/money.ts.
-  // Service rows carry the business currency so owner-app DTOs stay consistent.
-  if (input.services.length) {
-    const params: unknown[] = [];
-    const values = bulkValues(
-      input.services.map((s, position) => [
-        bid,
-        s.name,
-        s.durationMinutes,
-        Math.round(s.priceRupees * 100),
-        currency,
-        position,
-      ]),
-      params,
-    );
-    await client.query(
-      `insert into service (business_id, name, duration_minutes, price_paise, currency, position) values ${values}`,
-      params,
-    );
+  // Services and staff are reconciled, never wiped — see syncServices/syncStaff. On a fresh
+  // business there is nothing to match, so both simply insert.
+  await syncServices(client, bid, input.services, currency);
+  await syncStaff(client, bid, input.staff);
+}
+
+/**
+ * Reconcile `service` and `staff` rows instead of delete-and-reinsert.
+ *
+ * WHY: `appointment`, `queue_entry` and `visit` all reference these two tables with
+ * `on delete set null`. Wiping and reinserting them — which is what updateBusiness used to do
+ * for every save — silently NULLed the service/staff link on live queue entries, on every
+ * appointment, and across the whole `visit` revenue ledger, on each admin store edit.
+ *
+ * The admin panel sends no ids (see storeFieldsSchema), so identity is `lower(name)` within the
+ * business. A name matched once is consumed, so two identically-named rows in one payload still
+ * produce two rows, as before. Anything that disappears from the payload is DEACTIVATED, never
+ * deleted: `is_active = false` is already how the owner API soft-deletes both tables, and it
+ * keeps every foreign key intact.
+ */
+async function syncServices(
+  client: PoolClient,
+  bid: string,
+  rows: StoreFields['services'],
+  currency: string,
+) {
+  const existing = await client.query<{ id: string; name: string }>(
+    'select id, name from service where business_id = $1',
+    [bid],
+  );
+  const byName = new Map(existing.rows.map((r) => [r.name.trim().toLowerCase(), r.id]));
+  const keep = new Set<string>();
+
+  for (const [position, s] of rows.entries()) {
+    const key = s.name.trim().toLowerCase();
+    const id = byName.get(key);
+    const pricePaise = Math.round(s.priceRupees * 100);
+    if (id) {
+      byName.delete(key); // consumed — a repeat of this name inserts a new row
+      keep.add(id);
+      await client.query(
+        `update service
+            set name = $1, duration_minutes = $2, price_paise = $3, currency = $4,
+                position = $5, is_active = true, updated_at = now()
+          where id = $6`,
+        [s.name, s.durationMinutes, pricePaise, currency, position, id],
+      );
+    } else {
+      const ins = await client.query<{ id: string }>(
+        `insert into service (business_id, name, duration_minutes, price_paise, currency, position)
+         values ($1, $2, $3, $4, $5, $6) returning id`,
+        [bid, s.name, s.durationMinutes, pricePaise, currency, position],
+      );
+      keep.add(ins.rows[0]!.id);
+    }
   }
 
-  if (input.staff.length) {
-    const params: unknown[] = [];
-    const values = bulkValues(
-      input.staff.map((s, position) => [bid, s.name, s.roleLabel ?? null, s.avatarUrl ?? null, position]),
-      params,
-    );
+  const drop = existing.rows.filter((r) => !keep.has(r.id)).map((r) => r.id);
+  if (drop.length) {
     await client.query(
-      `insert into staff (business_id, name, role_label, avatar_url, position) values ${values}`,
-      params,
+      'update service set is_active = false, updated_at = now() where id = any($1::uuid[])',
+      [drop],
+    );
+  }
+}
+
+async function syncStaff(client: PoolClient, bid: string, rows: StoreFields['staff']) {
+  const existing = await client.query<{ id: string; name: string }>(
+    'select id, name from staff where business_id = $1',
+    [bid],
+  );
+  const byName = new Map(existing.rows.map((r) => [r.name.trim().toLowerCase(), r.id]));
+  const keep = new Set<string>();
+
+  for (const [position, s] of rows.entries()) {
+    const key = s.name.trim().toLowerCase();
+    const id = byName.get(key);
+    if (id) {
+      byName.delete(key);
+      keep.add(id);
+      await client.query(
+        `update staff
+            set name = $1, role_label = $2, avatar_url = $3, position = $4,
+                is_active = true, updated_at = now()
+          where id = $5`,
+        [s.name, s.roleLabel ?? null, s.avatarUrl ?? null, position, id],
+      );
+    } else {
+      const ins = await client.query<{ id: string }>(
+        `insert into staff (business_id, name, role_label, avatar_url, position)
+         values ($1, $2, $3, $4, $5) returning id`,
+        [bid, s.name, s.roleLabel ?? null, s.avatarUrl ?? null, position],
+      );
+      keep.add(ins.rows[0]!.id);
+    }
+  }
+
+  const drop = existing.rows.filter((r) => !keep.has(r.id)).map((r) => r.id);
+  if (drop.length) {
+    await client.query(
+      'update staff set is_active = false, updated_at = now() where id = any($1::uuid[])',
+      [drop],
     );
   }
 }
@@ -294,8 +366,10 @@ export async function createBusiness(input: CreateBusinessInput) {
     await client.query(`insert into subscription (business_id, plan, status) values ($1, 'free', 'trialing')`, [id]);
 
     await client.query(
-      `insert into app_user (business_id, handle, phone, name, role, password_hash)
-       values ($1, $2, $3, $4, 'owner', $5)`,
+      // is_super_owner: the one account per business the portal itself can never create,
+      // edit or remove. Everything else on the team screen hangs off this row existing.
+      `insert into app_user (business_id, handle, phone, name, role, password_hash, is_super_owner)
+       values ($1, $2, $3, $4, 'owner', $5, true)`,
       [id, handle, ownerPhone, `${input.name} Owner`, passwordHash],
     );
 
@@ -343,8 +417,11 @@ export async function updateBusiness(id: string, input: UpdateBusinessInput) {
       [...cols.map((c) => (row as Record<string, unknown>)[c]), id],
     );
 
-    // Replace all children (delete-then-insert, mirroring the owner setHours/setAmenities pattern).
-    for (const table of ['business_hour', 'amenity', 'gallery_image', 'service', 'staff']) {
+    // Only the three tables nothing references are safe to delete-then-insert. `service` and
+    // `staff` are reconciled by insertChildren -> syncServices/syncStaff, because appointment,
+    // queue_entry and visit hold `on delete set null` FKs into them: wiping those rows silently
+    // erased staff/service attribution on live entries and across the revenue ledger.
+    for (const table of ['business_hour', 'amenity', 'gallery_image']) {
       await client.query(`delete from ${table} where business_id = $1`, [id]);
     }
     await insertChildren(client, id, input, currency);
@@ -409,10 +486,18 @@ export async function requestAdminOtp(rawMobile: string) {
  * backend call — replacing the old x-admin-key shared secret.
  */
 export async function verifyAdminOtp(rawMobile: string, otp: string) {
+  // This path accepts a hardcoded constant and mints a full 12h admin JWT — an admin token can
+  // create businesses and owner logins, so it is a complete authentication bypass for anyone
+  // who knows a mobile in `admins`. It stays only as a stub for the real OTP work, and is
+  // refused unless OTP_ENABLED is explicitly turned on (it defaults to false, including in
+  // production). The panel signs in with /auth/login + password; nothing calls this today.
+  if (!env.OTP_ENABLED) {
+    throw Errors.forbidden('OTP sign-in is disabled. Use your password to sign in.');
+  }
   const mobile = rawMobile.replace(/\D/g, '');
   if (!(await isKnownAdmin(mobile))) throw Errors.unauthenticated('Not a registered admin');
-  // TODO(real-otp): when OTP_ENABLED, verify `otp` against otp_verification
-  // (check expiry/attempts, mark consumed) instead of the demo constant.
+  // TODO(real-otp): verify `otp` against otp_verification (check expiry/attempts, mark
+  // consumed) instead of the demo constant before this is ever enabled anywhere real.
   if (otp !== DEMO_ADMIN_OTP) throw Errors.invalidCredentials('Incorrect OTP');
   return { ok: true, mobile, token: signAdminToken(mobile) };
 }

@@ -29,12 +29,17 @@ function apptDTO(a: any) {
 
 export async function listAppointments(
   businessId: string,
-  opts: { date?: string; from?: string; to?: string; status?: string; tz?: string },
+  opts: { date?: string; from?: string; to?: string; status?: string; staffId?: string | null; tz?: string },
 ) {
   const tz = opts.tz;
   // An explicit status filter, a from/to range, or the business day window — never more than one.
   const where = ['business_id = $1'];
   const params: unknown[] = [businessId];
+  // Own-chair scoping for staff logins. Set by the route from the token, never from the query.
+  if (opts.staffId) {
+    params.push(opts.staffId);
+    where.push(`staff_id = $${params.length}`);
+  }
   if (opts.status) {
     params.push(opts.status);
     where.push(`status = $${params.length}`);
