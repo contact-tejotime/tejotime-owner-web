@@ -26,7 +26,7 @@ const splashStyles = StyleSheet.create({
   },
   logo: {
     width: moderateScale(280),
-    height: moderateScale(186),
+    height: moderateScale(81),
   },
   loader: {
     position: 'absolute',

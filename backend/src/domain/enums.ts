@@ -3,8 +3,17 @@
 export const PLAN_TYPES = ['free', 'premium'] as const;
 export type PlanType = (typeof PLAN_TYPES)[number];
 
-export const USER_ROLES = ['owner', 'manager', 'staff'] as const;
+/**
+ * `owner` is the super owner (one per business, created by the admin panel at provisioning);
+ * `co_owner` has the same powers but cannot touch the super owner; `manager` is legacy and is
+ * no longer assigned to new logins. Mirrors the `user_role` enum after migration 0018.
+ */
+export const USER_ROLES = ['owner', 'co_owner', 'manager', 'staff'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+/** The roles the portal itself can create. The super owner is not one of them. */
+export const CREATABLE_ROLES = ['co_owner', 'staff'] as const;
+export type CreatableRole = (typeof CREATABLE_ROLES)[number];
 
 export const QUEUE_STATUSES = [
   'waiting',

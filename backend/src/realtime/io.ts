@@ -2,6 +2,8 @@ import { Server as HttpServer } from 'node:http';
 import { Server, Namespace } from 'socket.io';
 import { corsOrigins } from '../config/env';
 import { logger } from '../config/logger';
+import { UserRole } from '../domain/enums';
+import { isOwnerRole } from '../domain/permissions';
 import { verifyAccessToken } from '../modules/auth/token.service';
 import { verifyTicketKey } from '../modules/auth/token.service';
 
@@ -23,6 +25,8 @@ export function initRealtime(httpServer: HttpServer): Server {
       if (claims.typ !== 'access') return nextFn(new Error('unauthorized'));
       (socket.data as any).businessId = claims.bid;
       (socket.data as any).userId = claims.sub;
+      (socket.data as any).role = claims.role;
+      (socket.data as any).staffId = claims.sid ?? null;
       nextFn();
     } catch {
       nextFn(new Error('unauthorized'));
@@ -30,7 +34,21 @@ export function initRealtime(httpServer: HttpServer): Server {
   });
   ownerNs.on('connection', (socket) => {
     const bid = (socket.data as any).businessId as string;
-    socket.join(`business:${bid}`);
+    const role = (socket.data as any).role as string;
+    const staffId = (socket.data as any).staffId as string | null;
+
+    // `business:{id}` carries the WHOLE shop's queue snapshot — every chair, every customer
+    // name. A staff login must not be in it, or the socket would hand back exactly what the
+    // REST guards spent this much effort narrowing.
+    //
+    // Staff sockets join their own seat room instead. Nothing broadcasts there yet, so they
+    // fall back to polling until seat-scoped emits land; that is a missing feature, and
+    // joining the business room would have been a leak.
+    if (isOwnerRole(role as UserRole) || role === 'manager') {
+      socket.join(`business:${bid}`);
+    } else if (staffId) {
+      socket.join(`business:${bid}:seat:${staffId}`);
+    }
     socket.emit('connected', { serverTime: new Date().toISOString() });
   });
 

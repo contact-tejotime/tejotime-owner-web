@@ -5,7 +5,7 @@ import { COLOR_TOKENS } from '../../config/constants';
 import { Errors } from '../../domain/errors';
 import { asyncHandler } from '../../http/async-handler';
 import { authenticate } from '../../middleware/authenticate';
-import { authorize } from '../../middleware/authorize';
+import { requireAnyPermission, requirePermission } from '../../middleware/require-permission';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 
@@ -42,6 +42,11 @@ staffRouter.use(authenticate);
 staffRouter.get(
   '/',
   limiters.ownerRead,
+  requireAnyPermission([
+    ['staff', 'view'],
+    ['queue', 'view'],
+    ['appointments', 'view'],
+  ]),
   validate({ query: z.object({ active: z.enum(['true', 'false']).optional() }) }),
   asyncHandler(async (req, res) => {
     const where = ['business_id = $1'];
@@ -57,7 +62,7 @@ staffRouter.get(
 staffRouter.post(
   '/',
   limiters.ownerWrite,
-  authorize('owner', 'manager'),
+  requirePermission('staff', 'manage'),
   validate({ body: upsertSchema }),
   asyncHandler(async (req, res) => {
     const b = req.body;
@@ -82,7 +87,7 @@ staffRouter.post(
 staffRouter.patch(
   '/:id',
   limiters.ownerWrite,
-  authorize('owner', 'manager'),
+  requirePermission('staff', 'manage'),
   validate({ params: z.object({ id: z.string().uuid() }), body: patchSchema }),
   asyncHandler(async (req, res) => {
     const b = req.body;
@@ -111,7 +116,7 @@ staffRouter.patch(
 staffRouter.delete(
   '/:id',
   limiters.ownerWrite,
-  authorize('owner', 'manager'),
+  requirePermission('staff', 'manage'),
   validate({ params: z.object({ id: z.string().uuid() }) }),
   asyncHandler(async (req, res) => {
     // Guard: a seat with active queue entries cannot be deactivated.

@@ -1,18 +1,20 @@
 /**
- * TejoTime brand lockup (transparent PNG).
+ * TejoTime brand lockup (transparent PNG, trimmed).
  * Brand mark colors: navy ink #102A6B + orange #F5821F.
  */
+const LOGO_W = 538;
+const LOGO_H = 156;
+
 export function Logo({
-  height = 40,
+  height = 48,
   showTagline = true,
 }: {
   height?: number;
   /** Kept for call-site compatibility; the PNG already includes the tagline. */
   showTagline?: boolean;
 }) {
-  // Source is 612×408 with tagline; without tagline, crop to the wordmark band.
-  const aspect = showTagline ? 612 / 408 : 612 / 320;
-  const width = Math.round(height * aspect);
+  void showTagline;
+  const width = Math.round(height * (LOGO_W / LOGO_H));
 
   return (
     // eslint-disable-next-line @next/next/no-img-element -- static brand asset from /public
@@ -25,8 +27,7 @@ export function Logo({
         display: "block",
         width,
         height,
-        objectFit: showTagline ? "contain" : "cover",
-        objectPosition: "left top",
+        objectFit: "contain",
         userSelect: "none",
       }}
       draggable={false}

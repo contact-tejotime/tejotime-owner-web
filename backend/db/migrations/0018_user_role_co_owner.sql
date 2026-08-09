@@ -1,0 +1,17 @@
+-- 0018: the co-owner role.
+--
+-- Alone in its own file on purpose. Postgres lets a transaction ADD a new enum label, but
+-- forbids USING that label until the transaction commits — and 0019 needs to reference
+-- 'co_owner'. The migration runner wraps each file in its own transaction, so splitting the
+-- two is what makes 0019 legal.
+--
+-- Role meanings after this migration:
+--   owner     — the super owner (app_user.is_super_owner). Created by the admin panel when the
+--               store is provisioned. Exactly one per business, never created from the portal.
+--   co_owner  — created by the super owner. Same powers, except it cannot edit, demote or
+--               remove the super owner.
+--   staff     — created by an owner. Sees only the modules it has been granted, and only its
+--               own chair's data.
+--   manager   — legacy, from before this model. No new logins get it; existing rows keep it
+--               and fall back to a sensible default matrix.
+alter type user_role add value if not exists 'co_owner';

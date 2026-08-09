@@ -17,6 +17,20 @@ export const addWalkInSchema = z
   })
   .strict();
 
+/**
+ * Checkout body. Everything optional so a bare `POST /queue/:id/checkout` — what the mobile app
+ * and every earlier client send — still validates and falls through to the derived total.
+ *
+ * Paise, not rupees: money crosses this boundary as an integer minor unit everywhere else in
+ * the API, and a float here would round somebody's bill.
+ */
+export const checkoutSchema = z
+  .object({
+    amountPaise: z.coerce.number().int().min(0).max(100_000_000).optional().nullable(),
+  })
+  .strict()
+  .optional();
+
 export const reassignSchema = z.object({ staffId: z.string().uuid() }).strict();
 
 const extraLabels = SERVICE_EXTRAS.map((e) => e.label);

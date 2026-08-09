@@ -18,6 +18,7 @@ import { domainFor } from "./domains";
 import { GalleryMosaic, LiveBoard, Lightbox, ReviewsBlock, Section, ServiceList, StatCards, Ticker } from "./sections";
 import SaveContactSheet from "./SaveContactSheet";
 import "./salon.css";
+import { SocialLinks } from "./SocialLinks";
 
 const AVATAR_COLORS = ["var(--primary)", "var(--secondary)", "var(--amber-500)"];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -221,8 +222,8 @@ function QueueWaitSummary({
   const headline =
     members.length === 0 ? (
       <>
-        <span style={{ fontVariantNumeric: "tabular-nums" }}>{liveCount}</span>
-        <span style={{ font: "var(--fw-bold) 0.55em/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-muted)", marginLeft: "0.28em" }}>
+        <span className="ttWaitCountNum" style={{ fontVariantNumeric: "tabular-nums" }}>{liveCount}</span>
+        <span className="ttWaitCountLabel" style={{ font: "var(--fw-bold) 0.55em/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-muted)", marginLeft: "0.28em" }}>
           in queue
         </span>
       </>
@@ -239,16 +240,16 @@ function QueueWaitSummary({
           }}
         />
         <span>
-          <span style={{ fontVariantNumeric: "tabular-nums" }}>0</span>
-          <span style={{ font: "var(--fw-bold) 0.55em/1.1 var(--font-sans)", letterSpacing: "-.02em", marginLeft: "0.28em" }}>
+          <span className="ttWaitCountNum" style={{ fontVariantNumeric: "tabular-nums" }}>0</span>
+          <span className="ttWaitCountLabel" style={{ font: "var(--fw-bold) 0.55em/1.1 var(--font-sans)", letterSpacing: "-.02em", marginLeft: "0.28em" }}>
             min wait
           </span>
         </span>
       </span>
     ) : (
       <>
-        <span style={{ fontVariantNumeric: "tabular-nums" }}>{liveCount}</span>
-        <span style={{ font: "var(--fw-bold) 0.55em/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-muted)", marginLeft: "0.28em" }}>
+        <span className="ttWaitCountNum" style={{ fontVariantNumeric: "tabular-nums" }}>{liveCount}</span>
+        <span className="ttWaitCountLabel" style={{ font: "var(--fw-bold) 0.55em/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-muted)", marginLeft: "0.28em" }}>
           waiting
         </span>
       </>
@@ -284,8 +285,9 @@ function QueueWaitSummary({
   );
 
   return (
-    <div>
+    <div className={`ttWaitSummary${isClear ? " ttWaitClear" : ""}`}>
       <div
+        className="ttWaitCount"
         style={{
           font: "var(--fw-extrabold) clamp(30px, 3.4vw, 38px)/1.02 var(--font-sans)",
           letterSpacing: "-.035em",
@@ -295,6 +297,7 @@ function QueueWaitSummary({
         {headline}
       </div>
       <div
+        className="ttWaitEstimate"
         style={{
           marginTop: 10,
           font: "var(--fw-semibold) clamp(16px, 4vw, 18px)/1.35 var(--font-sans)",
@@ -1030,7 +1033,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           ? "Hold on"
           : mode === "book"
             ? "Book a time slot"
-            : "Join the queue";
+            : "Check in";
   const showResume = !!held && !joinOpen && !!ticket && isActive(ticket.status);
   const resumeToken = ticket?.token ?? held?.token ?? "";
   const resumeAhead = justTurn ? 0 : ticket?.ahead ?? 0;
@@ -1274,7 +1277,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             <Button variant="outline" onClick={openTrack}>Track my turn</Button>
           </span>
           <span data-desk="1">
-            <Button variant="primary" onClick={openQueue}>{domain.id === "clinic" ? "Take token" : "Join queue"} →</Button>
+            <Button variant="primary" onClick={openQueue}>{domain.id === "clinic" ? "Take token" : "Check in"} →</Button>
           </span>
 
           <button
@@ -1335,7 +1338,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                 <QueueWaitSummary liveCount={liveCount} members={members} waitHeadline={waitHeadline} />
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
-                <Button size="lg" fullWidth onClick={openQueue}>{domain.id === "clinic" ? "Take a token" : "Join the queue"} →</Button>
+                <Button size="lg" fullWidth onClick={openQueue}>{domain.id === "clinic" ? "Take a token" : "Check in"} →</Button>
                 <Button size="lg" variant="outline" fullWidth onClick={openBook}>Book a time slot</Button>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 16, font: "var(--fw-medium) 12.5px/1.4 var(--font-sans)", color: "var(--text-subtle)" }}>
@@ -1501,7 +1504,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             <p style={{ font: "var(--fw-semibold) 13px/1.4 var(--font-sans)", color: "rgba(255,255,255,.72)", margin: "-14px 0 22px" }}>{domain.urgentLabel}</p>
           )}
           <div onClick={openQueue} className="salonCtaBtn" style={{ display: "inline-block", cursor: "pointer", background: "#fff", color: "var(--primary)", font: "var(--fw-bold) 17px/1 var(--font-sans)", padding: "16px 32px", borderRadius: "calc(12px * var(--radius-scale, 1))", boxShadow: "var(--shadow-lg)" }}>
-            Join the queue →
+            Check in →
           </div>
         </div>
       </div>
@@ -1516,6 +1519,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               <span style={{ color: "var(--brand-accent)" }}>Time</span>
             </span>
           </span>
+          {/* The store's own profiles sit between the TejoTime credit and the legal links —
+              the footer is where people look for "where else can I find this shop". */}
+          <SocialLinks socials={site.socials} />
           <span style={{ font: "var(--fw-regular) 12px/1 var(--font-sans)", color: "var(--text-subtle)" }}>Terms · Privacy</span>
         </div>
       </div>
@@ -1560,11 +1566,11 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           }}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ font: "var(--fw-bold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{waitHeadline}</div>
-            <div style={{ font: "var(--fw-semibold) 15px/1.35 var(--font-sans)", color: "var(--text-body)", marginTop: 4 }}>{liveStatus}</div>
+            <div className="ttMobileBarWait" style={{ font: "var(--fw-extrabold) 16px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{waitHeadline}</div>
+            <div className="ttMobileBarCount" style={{ font: "var(--fw-semibold) 15px/1.35 var(--font-sans)", color: "var(--text-body)", marginTop: 4 }}>{liveStatus}</div>
           </div>
           <div style={{ flexShrink: 0 }}>
-            <Button size="lg" onClick={openQueue}>Join queue →</Button>
+            <Button size="lg" onClick={openQueue}>Check in →</Button>
           </div>
         </div>
       )}
@@ -1735,7 +1741,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                         )}
                         <div style={{ flex: 1 }}>
                           <Button variant="primary" size="lg" fullWidth loading={submitting} disabled={cantConfirm || submitting} onClick={confirmJoin}>
-                            {mode === "book" ? "Confirm booking →" : "Join the queue →"}
+                            {mode === "book" ? "Confirm booking →" : "Check in →"}
                           </Button>
                         </div>
                       </div>
@@ -1856,7 +1862,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                           <Button variant="outline" fullWidth onClick={closeJoin}>Close</Button>
                         </div>
                         <div style={{ flex: 1 }}>
-                          <Button variant="primary" fullWidth onClick={joinAfterTrack}>Join the queue</Button>
+                          <Button variant="primary" fullWidth onClick={joinAfterTrack}>Check in</Button>
                         </div>
                       </div>
                     </div>

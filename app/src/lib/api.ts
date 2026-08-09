@@ -85,8 +85,18 @@ async function raw<T = any>(method: string, path: string, body?: unknown, retry 
 }
 
 export const api = {
-  login: async (phone: string, password: string) => {
-    const j = await raw('POST', '/auth/login', { phone, password });
+  /**
+  * `accountType` is the Owner/Staff switch on the sign-in screen. A guard rail, not a second
+  * credential: the password still decides everything, and the backend only checks the choice
+  * against the account's real role AFTER the password verifies. Optional, so a build without
+  * the switch keeps working.
+  */
+  login: async (phone: string, password: string, accountType?: 'owner' | 'staff') => {
+    const j = await raw('POST', '/auth/login', {
+      phone,
+      password,
+      ...(accountType ? { accountType } : {}),
+    });
     await persist(j.accessToken, j.refreshToken);
     return j;
   },
@@ -111,7 +121,21 @@ export const api = {
     visitorType?: 'mr' | 'patient' | null;
   }) => raw('POST', '/queue', b),
   startService: (id: string) => raw('POST', `/queue/${id}/start`),
-  checkout: (id: string) => raw('POST', `/queue/${id}/checkout`),
+  /**
+   * Complete a service. `amountPaise` overrides the derived total written to `visit`, for the
+   * customer who booked one thing and had three. Omit it and the booked service plus recorded
+   * add-ons is used, exactly as before.
+   */
+  checkout: (id: string, amountPaise?: number | null) =>
+    raw('POST', `/queue/${id}/checkout`, amountPaise == null ? {} : { amountPaise }),
+  /** One entry's detail, including the price breakdown the checkout sheet pre-fills from. */
+  getQueueEntry: (id: string) =>
+    raw<{
+      serviceAmount: { amount: number; currency: string };
+      extrasAmount: { amount: number; currency: string };
+      suggestedAmount: { amount: number; currency: string };
+      extras: { id: string; label: string; minutes: number; pricePaise: number }[];
+    }>('GET', `/queue/${id}`),
   noShow: (id: string) => raw('POST', `/queue/${id}/no-show`),
   reassign: (id: string, staffId: string) => raw('POST', `/queue/${id}/reassign`, { staffId }),
   extend: (id: string, label: string, minutes: number) => raw('POST', `/queue/${id}/extend`, { label, minutes }),
@@ -147,4 +171,34 @@ export const api = {
     raw<{ uploadUrl: string; publicUrl: string; fileKey: string }>('POST', '/uploads/sign', b),
 
   upgrade: () => raw('POST', '/subscription/upgrade'),
+
+  // ---------- team logins (owner roles only; the backend refuses everyone else) ----------
+  getTeam: () => raw<{ data: any[] }>('GET', '/users'),
+  getPermissionCatalogue: () =>
+    raw<{
+      modules: { key: string; label: string }[];
+      accessLevels: string[];
+      defaults: { staff: Record<string, string>; co_owner: Record<string, string> };
+    }>('GET', '/users/modules'),
+  createUser: (b: {
+    name: string;
+    phone: string;
+    password: string;
+    role: 'co_owner' | 'staff';
+    staffId?: string | null;
+    permissions?: Record<string, string>;
+  }) => raw('POST', '/users', b),
+  updateUser: (
+    id: string,
+    b: { name?: string; phone?: string; role?: 'co_owner' | 'staff'; staffId?: string | null; isActive?: boolean },
+  ) => raw('PATCH', `/users/${id}`, b),
+  setUserPermissions: (id: string, permissions: Record<string, string>) =>
+    raw('PUT', `/users/${id}/permissions`, { permissions }),
+  resetUserPassword: (id: string, password: string) => raw('POST', `/users/${id}/password`, { password }),
+  deactivateUser: (id: string) => raw('DELETE', `/users/${id}`),
+
+  /** Change your own password. Required for every login except the super owner's, which is
+   *  the only one not created by somebody else who therefore knows its initial password. */
+  changePassword: (currentPassword: string, newPassword: string) =>
+    raw('POST', '/auth/password', { currentPassword, newPassword }),
 };

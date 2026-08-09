@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { THeader, TScreenScroll, TText } from '@/components/common';
+import { THeader, TScopeNotice, TScreenScroll, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { t } from '@/i18n';
@@ -72,6 +72,7 @@ export default function Calendar() {
     <>
       <THeader title={t.calendar.title} />
       <TScreenScroll refreshing={store.refreshing} onRefresh={store.refresh}>
+        <TScopeNotice />
         <View style={s.monthNav}>
           <IconButton variant="ghost" accessibilityLabel="Previous month" onPress={() => goToMonth(-1)}>
             <Icon name="chevronLeft" size={20} color={theme.colors.textBody} />

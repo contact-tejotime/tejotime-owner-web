@@ -6,31 +6,49 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TText } from '@/components/common';
 import { Icon, IconName } from '@/components/ui/Icon';
 import { t } from '@/i18n';
+import { can, type ModuleAccess, type PermissionModule } from '@/lib/permissions';
+import { useAppState } from '@/state/store';
 import { TAB_ROUTES, TabId, tabFromPathname } from '@/navigation/routes';
 import { styles } from '@/styles';
 import { moderateScale, scaleFont } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { useTheme } from '@/theme/ThemeProvider';
 
-const NAV: { id: TabId; label: string; icon: IconName }[] = [
-  { id: 'dashboard', label: t.nav.home, icon: 'layoutDashboard' },
-  { id: 'queue', label: t.nav.queue, icon: 'users' },
-  { id: 'appointments', label: t.nav.appts, icon: 'calendar' },
-  { id: 'calendar', label: t.nav.calendar, icon: 'grid' },
-  { id: 'customers', label: t.nav.clients, icon: 'user' },
-  { id: 'settings', label: t.nav.settings, icon: 'settings' },
+/** `module: null` means always shown — Settings is where you change your own password. */
+const NAV: { id: TabId; label: string; icon: IconName; module: PermissionModule | null }[] = [
+  { id: 'dashboard', label: t.nav.home, icon: 'layoutDashboard', module: 'dashboard' },
+  { id: 'stats', label: t.nav.stats, icon: 'star', module: 'dashboard' },
+  { id: 'appointments', label: t.nav.appts, icon: 'calendar', module: 'appointments' },
+  { id: 'calendar', label: t.nav.calendar, icon: 'grid', module: 'calendar' },
+  { id: 'customers', label: t.nav.clients, icon: 'user', module: 'customers' },
+  { id: 'settings', label: t.nav.settings, icon: 'settings', module: null },
 ];
+
+function navVisible(id: TabId, module: PermissionModule | null, access: ModuleAccess | null): boolean {
+  if (module === null) return true;
+  if (id === 'dashboard') return can(access, 'dashboard') || can(access, 'queue');
+  if (id === 'stats') return can(access, 'dashboard');
+  return can(access, module);
+}
 
 export function BottomNav() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const tab = tabFromPathname(pathname);
+  const { session } = useAppState();
   const s = useMemo(() => createBottomNavStyles(theme, insets.bottom), [theme, insets.bottom]);
+
+  // Driven by the permission map from /auth/me — the same map the API guards enforce, so a tab
+  // that is hidden here is also a request the server would refuse. Presentation only.
+  const items = useMemo(
+    () => NAV.filter((n) => navVisible(n.id, n.module, session?.permissions ?? null)),
+    [session],
+  );
 
   return (
     <View style={s.bar}>
-      {NAV.map((n) => {
+      {items.map((n) => {
         const active = tab === n.id;
         return (
           <Pressable key={n.id} onPress={() => router.push(TAB_ROUTES[n.id] as any)} style={s.item}>

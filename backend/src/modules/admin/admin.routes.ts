@@ -70,6 +70,15 @@ const storeFieldsSchema = z.object({
   rating: z.coerce.number().min(0).max(5).optional(),
   reviewCount: z.coerce.number().int().min(0).optional(),
   payments: z.array(z.string().min(1).max(40)).max(10).optional(),
+  /**
+   * Social profile URLs. `.url()` rejects a bare handle like "@tejotime" — these render as
+   * links on a customer-facing page, so a value that cannot be clicked is worse than none.
+   * `''` is allowed so the admin can clear a field; the service maps it to NULL.
+   */
+  instagramUrl: z.union([z.string().url().max(300), z.literal('')]).optional(),
+  facebookUrl: z.union([z.string().url().max(300), z.literal('')]).optional(),
+  twitterUrl: z.union([z.string().url().max(300), z.literal('')]).optional(),
+  linkedinUrl: z.union([z.string().url().max(300), z.literal('')]).optional(),
   timezone: z.string().max(64).optional(),
   currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Expected ISO 4217 code').optional(),
   /** Per-store brand/accent hex for the customer microsite (#RRGGBB). */

@@ -148,7 +148,10 @@ export async function listLookups(type: string): Promise<Category[]> {
 }
 
 export async function getBusinessDetail(id: string): Promise<StoreDetail | null> {
-  return get<StoreDetail>(`/admin/businesses/${id}`, [TAGS.businesses, TAGS.business(id)], TTL.businesses);
+  // Always fresh — a cached detail for a deleted/reset store renders an editable ghost
+  // form that then 404s on save ("Store not found"). List/metrics can stay cached; the
+  // edit form and store hub header must match the live DB.
+  return getFresh<StoreDetail>(`/admin/businesses/${id}`);
 }
 
 // ---- Analytics reads (all degrade to null/empty like the helpers above) ----

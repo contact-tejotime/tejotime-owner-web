@@ -8,6 +8,10 @@ export interface AccessClaims {
   bid: string; // business id
   role: UserRole;
   plan: PlanType;
+  /** Linked staff seat, for own-data-only scoping. Null for owners. Absent in pre-0019 tokens. */
+  sid?: string | null;
+  /** Super owner flag. Absent in pre-0019 tokens — treated as false, which only ever narrows. */
+  sup?: boolean;
   typ: 'access';
 }
 
@@ -28,8 +32,23 @@ export interface AdminClaims {
   typ: 'admin';
 }
 
-export function signAccessToken(p: { userId: string; businessId: string; role: UserRole; plan: PlanType }): string {
-  const claims: AccessClaims = { sub: p.userId, bid: p.businessId, role: p.role, plan: p.plan, typ: 'access' };
+export function signAccessToken(p: {
+  userId: string;
+  businessId: string;
+  role: UserRole;
+  plan: PlanType;
+  staffId?: string | null;
+  isSuperOwner?: boolean;
+}): string {
+  const claims: AccessClaims = {
+    sub: p.userId,
+    bid: p.businessId,
+    role: p.role,
+    plan: p.plan,
+    sid: p.staffId ?? null,
+    sup: p.isSuperOwner ?? false,
+    typ: 'access',
+  };
   return jwt.sign(claims, env.JWT_ACCESS_SECRET, { expiresIn: env.JWT_ACCESS_TTL });
 }
 

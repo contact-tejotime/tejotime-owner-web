@@ -21,6 +21,7 @@ import { DayHoursVM, toApiHours } from '@/lib/hours';
 import { TAB_ROUTES } from '@/navigation/routes';
 import { showToast } from '@/lib/toast';
 import { t, format } from '@/i18n';
+import { can, toSessionUser, type ModuleAccess, type SessionUser } from '@/lib/permissions';
 import { useTheme } from '@/theme/ThemeProvider';
 import { LEGACY_THEME_CONFIG, normalizeThemeConfig } from '@/theme/engine';
 
@@ -73,6 +74,14 @@ type State = {
   walkinLoading: boolean;
   upgradeLoading: boolean;
   detailBusy: boolean; // a start/checkout/no-show action on the open detail card
+  /**
+   * WHICH action is running, not just that one is.
+   *
+   * `detailBusy` alone put a spinner on every button in the panel at once: pressing Start also
+   * span No-show, because both were asking "is the panel busy?". Two spinners for one tap reads
+   * as two things happening.
+   */
+  detailAction: 'start' | 'checkout' | 'noShow' | 'reassign' | 'extend' | null;
   checkInId: string | null; // appointment id currently being checked in
   queueStaff: string; // 'all' | staff id
   plan: Plan;
@@ -84,6 +93,14 @@ type State = {
   walkin: WalkIn;
   search: string;
   business: BusinessInfo | null;
+  /**
+   * Who is signed in, and what they are allowed to see.
+   *
+   * `permissions` is the RESOLVED map from /auth/me — role defaults with this business's
+   * overrides applied — not something computed here. The API guards enforce the same map, so
+   * a tab hidden below is also a request the server refuses.
+   */
+  session: SessionUser | null;
   seats: SeatGroupVM[];
   services: ServiceVM[];
   staff: Staff[];
@@ -96,7 +113,7 @@ type State = {
 };
 
 type Store = State & {
-  signIn: (phone: string, password: string) => void;
+  signIn: (phone: string, password: string, accountType?: 'owner' | 'staff') => void;
   signOut: () => void;
   refresh: () => Promise<void>;
   setQueueStaff: (id: string) => void;
@@ -116,13 +133,15 @@ type Store = State & {
   openDayAppts: (dateKey: string) => void;
   closeDayAppts: () => void;
   startService: (id: string) => void;
-  checkout: (id: string) => void;
+  checkout: (id: string, amountPaise?: number | null) => void;
   noShow: (id: string) => void;
   reassign: (id: string, staffId: string) => void;
   extendService: (id: string, label: string, mins: number) => void;
   setDragId: (id: string | null) => void;
   moveWithinSeat: (staffId: string, id: string, toIndex: number) => void;
+  moveCardToSeat: (fromStaffId: string, toStaffId: string, id: string, toIndex: number) => void;
   commitMove: (staffId: string, id: string) => void;
+  commitCrossSeatMove: (id: string, toStaffId: string, toIndex: number) => void;
   checkInAppt: (a: AppointmentEntry) => void;
   loadCalendarAppointments: (from: string, to: string) => Promise<void>;
   upgrade: () => void;
@@ -153,7 +172,67 @@ function reorderSeat(seat: SeatGroupVM, id: string, toIndex: number): SeatGroupV
   const newWaiting = order
     .map((x, i) => (byId[x] ? { ...byId[x], pos: serving.length + i + 1 } : null))
     .filter(Boolean) as CardVM[];
-  return { ...seat, cards: [...newServing, ...newWaiting] };
+  return { ...seat, cards: [...newServing, ...newWaiting], waitN: newWaiting.length, empty: newServing.length + newWaiting.length === 0 };
+}
+
+/** Optimistic move of a waiting card from one seat column to another. */
+function moveCardAcrossSeats(
+  seats: SeatGroupVM[],
+  fromStaffId: string,
+  toStaffId: string,
+  id: string,
+  toIndex: number,
+): SeatGroupVM[] {
+  if (fromStaffId === toStaffId) {
+    return seats.map((g) => (g.id === fromStaffId ? reorderSeat(g, id, toIndex) : g));
+  }
+  let moving: CardVM | null = null;
+  const without = seats.map((g) => {
+    if (g.id !== fromStaffId) return g;
+    const card = g.cards.find((c) => c.id === id);
+    if (!card || !card.isWaiting) return g;
+    moving = card;
+    const cards = g.cards.filter((c) => c.id !== id);
+    const waiting = cards.filter((c) => c.isWaiting);
+    const serving = cards.filter((c) => !c.isWaiting);
+    return {
+      ...g,
+      cards,
+      waitN: waiting.length,
+      empty: cards.length === 0,
+      free: serving.length === 0,
+      serving: serving.length > 0,
+    };
+  });
+  if (!moving) return seats;
+  const target = without.find((g) => g.id === toStaffId);
+  if (!target) return seats;
+  return without.map((g) => {
+    if (g.id !== toStaffId) return g;
+    const serving = g.cards.filter((c) => !c.isWaiting);
+    const waiting = g.cards.filter((c) => c.isWaiting);
+    const clamped = Math.max(0, Math.min(waiting.length, toIndex));
+    const nextWaiting = [...waiting];
+    nextWaiting.splice(clamped, 0, {
+      ...moving!,
+      staffId: g.id,
+      seatName: g.name,
+      seatColor: g.color,
+      pos: serving.length + clamped + 1,
+    });
+    const cards = [
+      ...serving.map((c, i) => ({ ...c, pos: i + 1 })),
+      ...nextWaiting.map((c, i) => ({ ...c, pos: serving.length + i + 1 })),
+    ];
+    return {
+      ...g,
+      cards,
+      waitN: nextWaiting.length,
+      empty: cards.length === 0,
+      free: serving.length === 0,
+      serving: serving.length > 0,
+    };
+  });
 }
 
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
@@ -170,6 +249,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     walkinLoading: false,
     upgradeLoading: false,
     detailBusy: false,
+    detailAction: null,
     checkInId: null,
     queueStaff: 'all',
     plan: 'free',
@@ -181,6 +261,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     walkin: { ...emptyWalkin },
     search: '',
     business: null,
+    session: null,
     seats: [],
     services: [],
     staff: [],
@@ -197,6 +278,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const hoursSeq = useRef(0);
   /** Range currently shown on the calendar screen, so socket events can keep it fresh. */
   const calendarRangeRef = useRef<{ from: string; to: string } | null>(null);
+  /**
+   * The signed-in user's permissions, mirrored into a ref.
+   *
+   * `bootstrap()` runs immediately after `setS`, before React has committed the new state, so
+   * reading `s.session` there would see the previous value. A ref is written synchronously and
+   * is therefore the only thing loadAll can trust about who just signed in.
+   */
+  const accessRef = useRef<ModuleAccess | null>(null);
 
   const patch = useCallback((fn: (p: State) => Partial<State>) => setS((p) => ({ ...p, ...fn(p) })), []);
 
@@ -288,15 +377,27 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [setThemeConfig]);
 
+  /**
+   * Only fetch what this account is allowed to see.
+   *
+   * Each loader already swallows its own errors, so an ungated version would still "work" — it
+   * would just fire a handful of 403s on every sign-in and every pull-to-refresh for any staff
+   * login. Skipping them keeps the log honest and the refresh fast.
+   *
+   * Services and staff are fetched whenever the queue is visible: they are reference data the
+   * queue screen cannot render without, which is why the API gates them the same way.
+   */
   const loadAll = useCallback(async () => {
+    const access = accessRef.current;
+    const queueish = can(access, 'queue') || can(access, 'appointments');
     await Promise.all([
-      loadQueue(),
-      loadServices(),
-      loadStaff(),
-      loadAppointments(),
-      loadCustomers(),
-      loadDashboard(),
-      loadBusiness(),
+      can(access, 'queue') ? loadQueue() : Promise.resolve(),
+      queueish || can(access, 'services') ? loadServices() : Promise.resolve(),
+      queueish || can(access, 'staff') ? loadStaff() : Promise.resolve(),
+      can(access, 'appointments') ? loadAppointments() : Promise.resolve(),
+      can(access, 'customers') ? loadCustomers() : Promise.resolve(),
+      can(access, 'dashboard') ? loadDashboard() : Promise.resolve(),
+      can(access, 'profile') ? loadBusiness() : Promise.resolve(),
     ]);
   }, [loadQueue, loadServices, loadStaff, loadAppointments, loadCustomers, loadDashboard, loadBusiness]);
 
@@ -363,7 +464,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     let alive = true;
     setOnAuthFail(() => {
       teardown();
-      setS((p) => ({ ...p, authed: false, authLoading: false }));
+      accessRef.current = null;
+      setS((p) => ({ ...p, authed: false, authLoading: false, session: null }));
       showToast(t.toast.sessionExpired, 'error');
     });
     (async () => {
@@ -378,7 +480,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             authLoading: false,
             business: me.business ? { id: me.business.id, name: me.business.name, slug: me.business.slug } : null,
             plan: me.business?.plan ?? 'free',
+            session: toSessionUser(me.user),
           }));
+          accessRef.current = toSessionUser(me.user)?.permissions ?? null;
           connectSocket();
           bootstrap();
           return;
@@ -399,14 +503,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const store = useMemo<Store>(() => {
     return {
       ...s,
-      signIn: async (phone, password) => {
+      signIn: async (phone, password, accountType) => {
         if (!phone.trim() || !password.trim()) {
           showToast(t.toast.enterPhonePassword, 'error');
           return;
         }
         patch(() => ({ signInLoading: true }));
         try {
-          const res: any = await api.login(phone.trim(), password);
+          const res: any = await api.login(phone.trim(), password, accountType);
           const message =
             res?.message ??
             (res?.user?.name ? format(t.toast.welcomeBackName, { name: res.user.name }) : t.toast.signedIn);
@@ -416,7 +520,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             signInLoading: false,
             business: res.business ? { id: res.business.id, name: res.business.name, slug: res.business.slug } : null,
             plan: res.business?.plan ?? 'free',
+            session: toSessionUser(res.user),
           }));
+          accessRef.current = toSessionUser(res.user)?.permissions ?? null;
           showToast(message, 'success');
           connectSocket();
           bootstrap();
@@ -437,7 +543,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           type = 'info';
         }
         teardown();
-        setS((p) => ({ ...p, authed: false, signOutLoading: false }));
+        // Clear the identity too. Leaving a stale session behind meant the next person to sign
+        // in on this device saw the previous user's nav for a frame.
+        accessRef.current = null;
+        setS((p) => ({ ...p, authed: false, signOutLoading: false, session: null }));
         showToast(message, type);
       },
       refresh,
@@ -448,7 +557,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         searchTimer.current = setTimeout(() => loadCustomers(v || undefined), 300);
       },
       openAlerts: () => showToast(t.toast.noNewNotifications, 'info'),
-      openWalkin: () => patch(() => ({ sheet: 'walkin', walkin: { ...emptyWalkin } })),
+      openWalkin: () => {
+        const firstService = s.services[0]?.name ?? null;
+        patch(() => ({
+          sheet: 'walkin',
+          walkin: { ...emptyWalkin, service: firstService },
+        }));
+      },
       closeWalkin: () => patch(() => ({ sheet: null })),
       openQr: () => patch(() => ({ qr: true })),
       closeQr: () => patch(() => ({ qr: false })),
@@ -487,13 +602,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       openDayAppts: (dateKey) => patch(() => ({ dayApptsDate: dateKey })),
       closeDayAppts: () => patch(() => ({ dayApptsDate: null })),
       startService: async (id) => {
-        patch(() => ({ detailBusy: true }));
+        patch(() => ({ detailBusy: true, detailAction: 'start' }));
         try {
           const res: any = await api.startService(id);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null, detailBusy: false }));
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null, detailBusy: false, detailAction: null }));
           showToast(t.toast.serviceStarted, 'success');
         } catch (e) {
-          patch(() => ({ detailBusy: false }));
+          patch(() => ({ detailBusy: false, detailAction: null }));
           const err = e as ApiError;
           if (err.code === 'SEAT_BUSY') {
             const card = flatCards(s.seats).find((c) => c.id === id);
@@ -511,52 +626,52 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }
         }
       },
-      checkout: async (id) => {
-        patch(() => ({ detailBusy: true }));
+      checkout: async (id, amountPaise) => {
+        patch(() => ({ detailBusy: true, detailAction: 'checkout' }));
         try {
-          const res: any = await api.checkout(id);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null, detailBusy: false }));
+          const res: any = await api.checkout(id, amountPaise);
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null, detailBusy: false, detailAction: null }));
           showToast(
             res.promoted ? format(t.toast.nowInService, { name: String(res.promoted.name).split(' ')[0] }) : t.toast.checkedOut,
             'success',
           );
           loadDashboard();
         } catch (e) {
-          patch(() => ({ detailBusy: false }));
+          patch(() => ({ detailBusy: false, detailAction: null }));
           showToast((e as ApiError)?.message ?? t.toast.couldNotCheckOut, 'error');
         }
       },
       noShow: async (id) => {
-        patch(() => ({ detailBusy: true }));
+        patch(() => ({ detailBusy: true, detailAction: 'noShow' }));
         try {
           const res: any = await api.noShow(id);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null, detailBusy: false }));
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null, detailBusy: false, detailAction: null }));
           showToast(t.toast.markedNoShow, 'success');
         } catch (e) {
-          patch(() => ({ detailBusy: false }));
+          patch(() => ({ detailBusy: false, detailAction: null }));
           showToast((e as ApiError)?.message ?? t.toast.error, 'error');
         }
       },
       reassign: async (id, staffId) => {
-        patch(() => ({ detailBusy: true }));
+        patch(() => ({ detailBusy: true, detailAction: 'reassign' }));
         try {
           const res: any = await api.reassign(id, staffId);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailBusy: false }));
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailBusy: false, detailAction: null }));
           const nm = s.staff.find((st) => st.id === staffId)?.name ?? '';
           showToast(nm ? format(t.toast.movedTo, { name: nm }) : t.toast.moved, 'success');
         } catch (e) {
-          patch(() => ({ detailBusy: false }));
+          patch(() => ({ detailBusy: false, detailAction: null }));
           showToast((e as ApiError)?.message ?? t.toast.error, 'error');
         }
       },
       extendService: async (id, label, mins) => {
-        patch(() => ({ detailBusy: true }));
+        patch(() => ({ detailBusy: true, detailAction: 'extend' }));
         try {
           const res: any = await api.extend(id, label, mins);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailBusy: false }));
+          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailBusy: false, detailAction: null }));
           showToast(format(t.toast.extendAdded, { mins, label }), 'success');
         } catch (e) {
-          patch(() => ({ detailBusy: false }));
+          patch(() => ({ detailBusy: false, detailAction: null }));
           showToast((e as ApiError)?.message ?? t.toast.error, 'error');
         }
       },
@@ -565,6 +680,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         setS((p) => ({
           ...p,
           seats: p.seats.map((g) => (g.id === staffId ? reorderSeat(g, id, toIndex) : g)),
+        })),
+      moveCardToSeat: (fromStaffId, toStaffId, id, toIndex) =>
+        setS((p) => ({
+          ...p,
+          seats: moveCardAcrossSeats(p.seats, fromStaffId, toStaffId, id, toIndex),
         })),
       commitMove: async (staffId, id) => {
         const seat = s.seats.find((g) => g.id === staffId);
@@ -578,6 +698,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           loadQueue();
         }
       },
+      commitCrossSeatMove: async (id, toStaffId, toIndex) => {
+        try {
+          await api.reassign(id, toStaffId);
+          const res: any = await api.move(id, toIndex);
+          setS((p) => ({ ...p, seats: mapSeats(res.seats) }));
+          const nm = s.staff.find((st) => st.id === toStaffId)?.name ?? '';
+          showToast(nm ? format(t.toast.movedTo, { name: nm }) : t.toast.moved, 'success');
+        } catch {
+          loadQueue();
+          showToast(t.toast.error, 'error');
+        }
+      },
       checkInAppt: async (a) => {
         patch(() => ({ checkInId: a.id }));
         try {
@@ -588,7 +720,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             appts: p.appts.filter((x) => x.id !== a.id),
             calendarAppts: p.calendarAppts.filter((x) => x.id !== a.id),
           }));
-          router.push(TAB_ROUTES.queue as any);
+          router.push(TAB_ROUTES.dashboard as any);
           showToast(format(t.toast.addedToQueueName, { name: a.name }), 'success');
           loadQueue();
           loadDashboard();

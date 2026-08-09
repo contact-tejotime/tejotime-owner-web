@@ -39,6 +39,20 @@ interface Props {
   embedded?: boolean;
 }
 
+/**
+ * The four social links, as one list rather than four near-identical blocks of JSX.
+ *
+ * A full URL is required (the backend's `.url()` rejects a bare "@handle") because these become
+ * clickable icons on a customer-facing page — a value that cannot be opened is worse than an
+ * absent one. The placeholders show the expected shape.
+ */
+const SOCIAL_FIELDS = [
+  { key: "instagramUrl", placeholder: "https://instagram.com/yourshop" },
+  { key: "facebookUrl", placeholder: "https://facebook.com/yourshop" },
+  { key: "twitterUrl", placeholder: "https://x.com/yourshop" },
+  { key: "linkedinUrl", placeholder: "https://linkedin.com/company/yourshop" },
+] as const;
+
 export default function StoreForm({ mode, categories, initial, storeId, embedded = false }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<StoreFormState>(initial ?? EMPTY_FORM);
@@ -318,6 +332,27 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
               <label htmlFor="sf-payments">{t.storeForm.payments}</label>
               <input id="sf-payments" value={form.payments} onChange={(e) => set("payments", e.target.value)} />
             </div>
+          </div>
+        </section>
+
+        {/* Social links ------------------------------------------------- */}
+        <section className="card">
+          <h2>{t.storeForm.socialTitle}</h2>
+          <p className="hint">{t.storeForm.socialHint}</p>
+          <div className="grid2">
+            {SOCIAL_FIELDS.map((f) => (
+              <div className="field" key={f.key}>
+                <label htmlFor={`sf-${f.key}`}>{t.storeForm[f.key]}</label>
+                <input
+                  id={`sf-${f.key}`}
+                  type="url"
+                  inputMode="url"
+                  placeholder={f.placeholder}
+                  value={form[f.key]}
+                  onChange={(e) => set(f.key, e.target.value)}
+                />
+              </div>
+            ))}
           </div>
         </section>
 

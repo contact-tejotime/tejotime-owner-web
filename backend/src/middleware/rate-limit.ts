@@ -15,8 +15,25 @@ const base = { standardHeaders: true, legacyHeaders: false, handler: json429 };
 /** Per-authenticated-user key, falling back to IP. */
 const userKey = (req: Request) => req.principal?.userId ?? req.ip ?? 'anon';
 
+/**
+ * Per-(IP, account) key for login attempts.
+ *
+ * The default IP key is fine while a business has exactly one login, but a shop where several
+ * people sign in from the same Wi-Fi shares one bucket — and with a 900s access token they
+ * re-authenticate often enough to lock each other out. Keying on the account too means brute
+ * force against one number is still throttled at 10/5min, while a colleague on the same network
+ * is unaffected. `loginIpLimiter` below keeps a looser ceiling on the IP as a whole so this is
+ * not a way to bypass throttling by rotating the phone number.
+ */
+const loginKey = (req: Request) => {
+  const phone = String((req.body as { phone?: unknown } | undefined)?.phone ?? '').replace(/\D/g, '');
+  return `${req.ip ?? 'anon'}:${phone || 'nophone'}`;
+};
+
 export const limiters = {
-  login: rateLimit({ ...base, windowMs: 5 * 60_000, limit: 10 }),
+  login: rateLimit({ ...base, windowMs: 5 * 60_000, limit: 10, keyGenerator: loginKey }),
+  /** Layered in front of `login`: bounds total attempts from one network. */
+  loginIp: rateLimit({ ...base, windowMs: 5 * 60_000, limit: 60 }),
   ownerRead: rateLimit({ ...base, windowMs: 60_000, limit: 300, keyGenerator: userKey }),
   ownerWrite: rateLimit({ ...base, windowMs: 60_000, limit: 120, keyGenerator: userKey }),
   publicRead: rateLimit({ ...base, windowMs: 60_000, limit: 60 }),
