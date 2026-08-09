@@ -33,13 +33,7 @@ export function Sidebar({ stores }: { stores: StoreListItem[] }) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <span className="brand-mark">
-          <img src="/logo.png" alt={t.common.brandAlt} />
-        </span>
-        <span className="brand-name">
-          {t.nav.brandName}
-          <span className="brand-sub">{t.nav.brandBadge}</span>
-        </span>
+        <img className="brand-logo" src="/logo.png" alt={t.common.brandAlt} />
       </div>
 
       {/* display:contents keeps these links as direct flex children of .sidebar
