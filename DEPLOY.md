@@ -59,6 +59,19 @@ Workflows hardcode the Railway environment name (`preprod` / `production`). Migr
 
 **Admin (preprod):** `BACKEND_API_BASE_URL=https://api-preprod.tejotime.com/api/v1`, `NEXT_PUBLIC_FRONTEND_URL=https://preprod.tejotime.com`
 
+### Isolate preprod data (required)
+
+Store enable/disable writes `business.is_active` in Postgres. If preprod and production share one database (or preprod admin calls the production API), toggling a store on preprod changes production too.
+
+1. Each Railway environment must have its **own** Postgres plugin. Compare production vs preprod backend `DATABASE_URL` hosts — they must differ.
+2. Preprod admin `BACKEND_API_BASE_URL` must be `https://api-preprod.tejotime.com/api/v1` (never `api.tejotime.com`).
+3. Use the committed crib sheets as the checklist for Railway vars:
+   - `backend/.env.{local,preprod,prod}.example`
+   - `frontend/.env.{local,preprod,prod}.example`
+   - `admin-panel/.env.{local,preprod,prod}.example`
+   - `app/.env.{local,preprod,prod}.example`
+4. After splitting DBs, re-enable any production store that was accidentally disabled while the DB was shared.
+
 ---
 
 ## Prerequisites
