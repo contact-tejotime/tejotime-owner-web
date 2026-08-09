@@ -4,10 +4,11 @@ import StoreStatusToggle from "@/components/StoreStatusToggle";
 import StoreTabs from "@/components/store-hub/StoreTabs";
 import StoreVCardQR from "@/components/store-hub/StoreVCardQR";
 import { getBusinessDetail } from "@/lib/server-api";
+import { frontendUrl } from "@/lib/frontend-url";
 import { formatPhone } from "@/lib/phone";
 import { t } from "@/i18n";
 
-const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com";
+const FRONTEND_URL = frontendUrl();
 // Public backend base — Download vCard hits the live .vcf here; the QR encodes FRONTEND_URL/{phone}/card.
 const BACKEND_URL = process.env.BACKEND_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -25,7 +26,7 @@ export default async function StoreHubLayout({
 
   const meta = [detail.category, detail.area, detail.city].filter(Boolean).join(" · ");
   const phoneFull = detail.phoneFull || `${detail.countryCode ?? ""}${detail.phoneNumber ?? ""}`;
-  const cardUrl = phoneFull ? `${FRONTEND_URL}/${phoneFull}/card` : "";
+  const cardUrl = FRONTEND_URL && phoneFull ? `${FRONTEND_URL}/${phoneFull}/card` : "";
   const vcardUrl = detail.slug ? `${BACKEND_URL}/public/businesses/${detail.slug}/vcard` : "";
 
   return (
@@ -57,7 +58,7 @@ export default async function StoreHubLayout({
         {meta}
         {meta && detail.phoneFull ? " · " : ""}
         {detail.phoneFull ? formatPhone(detail.phoneFull) : ""}
-        {detail.phoneFull && (
+        {FRONTEND_URL && detail.phoneFull && (
           <>
             {" · "}
             <a href={`${FRONTEND_URL}/${detail.phoneFull}`} target="_blank" rel="noreferrer">

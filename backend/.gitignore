@@ -3,10 +3,11 @@ dist/
 coverage/
 *.tsbuildinfo
 
-# env files (never commit real secrets)
+# env files (never commit real secrets; examples are allowed)
 .env
 .env.*
 !.env.example
+!.env.*.example
 
 # logs
 *.log

@@ -91,7 +91,9 @@ export async function getVCard(slug: string): Promise<string> {
   const tel = `${b.country_code ?? ''}${b.phone_number ?? ''}`.replace(/\D/g, '');
   // ADR structured value: PO;ext;street;locality;region;postal;country
   const adr = `;;${vcardEscape(b.address ?? '')};${vcardEscape(b.area ?? '')};;;`;
-  const url = b.phone_full ? `https://www.tejotime.com/${b.phone_full}` : '';
+  const url = b.phone_full
+    ? `${env.PUBLIC_WEB_URL.replace(/\/+$/, '')}/${b.phone_full}`
+    : '';
 
   const lines = [
     'BEGIN:VCARD',

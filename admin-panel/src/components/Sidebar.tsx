@@ -4,11 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { StoreListItem } from "@/lib/types";
+import { frontendUrl } from "@/lib/frontend-url";
 import { t, format } from "@/i18n";
 import { Icon } from "@/components/icons";
 import Spinner from "@/components/ui/Spinner";
 
-const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com";
+const FRONTEND_URL = frontendUrl();
 
 const NAV_ICON = 18;
 
@@ -60,9 +61,11 @@ export function Sidebar({ stores }: { stores: StoreListItem[] }) {
           <Icon name="plus" size={NAV_ICON} className="nav-ic" /> {t.nav.createStore}
         </Link>
 
-        <a href={`${FRONTEND_URL}/demo-store`} target="_blank" rel="noreferrer" className="nav-link">
-          <Icon name="externalLink" size={NAV_ICON} className="nav-ic" /> {t.nav.viewDemoStore}
-        </a>
+        {FRONTEND_URL ? (
+          <a href={`${FRONTEND_URL}/demo-store`} target="_blank" rel="noreferrer" className="nav-link">
+            <Icon name="externalLink" size={NAV_ICON} className="nav-ic" /> {t.nav.viewDemoStore}
+          </a>
+        ) : null}
 
         <div className="side-label">{t.nav.platform}</div>
 

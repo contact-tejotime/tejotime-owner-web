@@ -1,14 +1,19 @@
 # Deploying TejoTime on Railway
 
-Everything lives in **one Railway project** so the services share Railway's private network:
+Everything lives in **one Railway project** with two environments (`production` and `preprod`) so each env's services share that env's private network (Postgres via `*.railway.internal`).
 
-| Service | Folder | What it is | Domain |
-|---|---|---|---|
-| `tejotime-api` | `backend/` | Express + Socket.IO + node-cron | `api.tejotime.com` |
-| `tejotime-web` | `frontend/` | Next.js 16 customer microsite (SSR) | `www.tejotime.com` |
-| `tejotime-admin` | `admin-panel/` | Next.js admin panel | `admin.tejotime.com` |
-| Postgres | — | Railway managed Postgres plugin | — |
-| Bucket | — | Railway Buckets (S3-compatible object storage) | — |
+| Service | Folder | What it is | Production | Preprod |
+|---|---|---|---|---|
+| `tejotime-api` | `backend/` | Express + Socket.IO + node-cron | `api.tejotime.com` | `api-preprod.tejotime.com` |
+| `tejotime-web` | `frontend/` | Next.js 16 customer microsite (SSR) | `www.tejotime.com` | `preprod.tejotime.com` |
+| `tejotime-admin` | `admin-panel/` | Next.js admin panel | `admin.tejotime.com` | `admin-preprod.tejotime.com` |
+| Postgres | — | Railway managed Postgres plugin | private | private |
+| Bucket | — | Railway Buckets (S3-compatible object storage) | per env | per env |
+
+| Git branch | Railway environment | Release trigger |
+|---|---|---|
+| `preprod` | `preprod` | PR **merged** into `preprod` |
+| `main` | `production` | PR **merged** into `main` |
 
 Railway runs long-lived processes, so **Socket.IO realtime and the cron jobs work exactly as they do locally** — no serverless degradation, and no free-tier idle spin-down.
 
@@ -18,16 +23,68 @@ All three app services build from their own `Dockerfile`, config-as-code'd via `
 
 ---
 
+## CI/CD (merge-only releases)
+
+Deploys are driven by GitHub Actions, **not** by push and **not** by Railway's GitHub auto-deploy:
+
+- [`.github/workflows/deploy-preprod.yml`](.github/workflows/deploy-preprod.yml) — runs only when a PR targeting `preprod` is **merged** (`pull_request` closed + `merged == true`).
+- [`.github/workflows/deploy-production.yml`](.github/workflows/deploy-production.yml) — same for `main` → production.
+- Direct pushes / force-pushes to those branches do **not** release. Prefer branch protection (require PR, block direct pushes) on `preprod` and `main`.
+- Only services whose paths changed in the PR are deployed (`backend/`, `frontend/`, `admin-panel/`).
+- After deploy, Actions smoke-checks the env's public URLs.
+
+### Disable Railway auto-deploy
+
+In the Railway dashboard, for each app service in **both** environments: turn off **Deploy on push** / disconnect automatic GitHub branch watching. Otherwise Railway would still release on every push and bypass the merge-only rule. Builds are triggered by `railway up --ci` from Actions instead.
+
+### GitHub secrets
+
+Create GitHub Environments named `preprod` and `production`, and add these repository (or environment) secrets:
+
+| Secret | Purpose |
+|---|---|
+| `RAILWAY_TOKEN` | Railway project token with deploy rights |
+| `RAILWAY_PROJECT_ID` | Shared Railway project id |
+| `RAILWAY_SERVICE_BACKEND` | API service name or id |
+| `RAILWAY_SERVICE_FRONTEND` | Web service name or id |
+| `RAILWAY_SERVICE_ADMIN` | Admin service name or id |
+
+Workflows hardcode the Railway environment name (`preprod` / `production`). Migrations are still manual (see §5) — Actions does not run them.
+
+### Preprod URL wiring (mirror of production §4)
+
+**API (preprod):** `APP_BASE_URL=https://api-preprod.tejotime.com`, `PUBLIC_WEB_URL=https://preprod.tejotime.com`, `CORS_ALLOWED_ORIGINS=https://preprod.tejotime.com,https://admin-preprod.tejotime.com`
+
+**Web (preprod):** `NEXT_PUBLIC_API_BASE_URL=https://api-preprod.tejotime.com/api/v1`, `NEXT_PUBLIC_SOCKET_URL=https://api-preprod.tejotime.com`, `NEXT_PUBLIC_ASSET_PREFIX=https://preprod.tejotime.com`, `NEXT_PUBLIC_ADMIN_ORIGIN=https://admin-preprod.tejotime.com`
+
+**Admin (preprod):** `BACKEND_API_BASE_URL=https://api-preprod.tejotime.com/api/v1`, `NEXT_PUBLIC_FRONTEND_URL=https://preprod.tejotime.com`
+
+### Isolate preprod data (required)
+
+Store enable/disable writes `business.is_active` in Postgres. If preprod and production share one database (or preprod admin calls the production API), toggling a store on preprod changes production too.
+
+1. Each Railway environment must have its **own** Postgres plugin. Compare production vs preprod backend `DATABASE_URL` hosts — they must differ.
+2. Preprod admin `BACKEND_API_BASE_URL` must be `https://api-preprod.tejotime.com/api/v1` (never `api.tejotime.com`).
+3. Use the committed crib sheets as the checklist for Railway vars:
+   - `backend/.env.{local,preprod,prod}.example`
+   - `frontend/.env.{local,preprod,prod}.example`
+   - `admin-panel/.env.{local,preprod,prod}.example`
+   - `app/.env.{local,preprod,prod}.example`
+4. After splitting DBs, re-enable any production store that was accidentally disabled while the DB was shared.
+
+---
+
 ## Prerequisites
 1. This repo pushed to GitHub.
 2. A [Railway](https://railway.com) account.
-3. A Railway project containing a **Postgres** plugin and a **Bucket**.
+3. A Railway project with **production** and **preprod** environments, each containing a **Postgres** plugin and a **Bucket**.
 4. A domain with DNS you control (this project: `tejotime.com` on GoDaddy) for the custom domains below.
+5. GitHub Actions secrets listed above; Railway auto-deploy disabled.
 
 ## Steps
 
 ### 1. Create the three app services
-For each of `backend`, `frontend`, `admin-panel`: **New → GitHub Repo** → select this repo → in **Settings → Root Directory** enter the folder name. Railway finds that folder's `Dockerfile` via its `railway.toml`.
+For each of `backend`, `frontend`, `admin-panel` in **each** Railway environment: create the service, set **Settings → Root Directory** to the folder name. Railway finds that folder's `Dockerfile` via its `railway.toml`. Deploys are triggered by GitHub Actions (`railway up`), not by Railway watching the GitHub branch — see **CI/CD** above.
 
 ### 2. Fill each service's environment variables
 See `backend/.env.example` and each service's `.env.railway` crib sheet for the full list. The ones that come from other Railway services are best set as **variable references** so they stay in sync:
@@ -48,11 +105,21 @@ Leave the cross-URL vars (`APP_BASE_URL`, `PUBLIC_WEB_URL`, `CORS_ALLOWED_ORIGIN
 ### 3. Domains: generate first, add custom domains once each service is live
 **Settings → Networking → Generate Domain** on each of the three app services first — confirms the service actually boots before DNS is in the picture. Then, still in Networking, **+ Custom Domain**:
 
+**Production:**
+
 | Service | Custom domain | GoDaddy record |
 |---|---|---|
 | `tejotime-api` | `api.tejotime.com` | CNAME `api` → target Railway shows |
 | `tejotime-web` | `www.tejotime.com` | CNAME `www` → target Railway shows |
 | `tejotime-admin` | `admin.tejotime.com` | CNAME `admin` → target Railway shows |
+
+**Preprod:**
+
+| Service | Custom domain | GoDaddy record |
+|---|---|---|
+| `tejotime-api` | `api-preprod.tejotime.com` | CNAME `api-preprod` → target Railway shows |
+| `tejotime-web` | `preprod.tejotime.com` | CNAME `preprod` → target Railway shows |
+| `tejotime-admin` | `admin-preprod.tejotime.com` | CNAME `admin-preprod` → target Railway shows |
 
 Each domain shows pending until DNS propagates, then flips to verified (green check) and Railway issues TLS automatically. **Don't paste the custom-domain value into `APP_BASE_URL`/etc. until it's verified** — otherwise the app boots pointing at a domain that doesn't resolve yet; use the `*.up.railway.app` domain as an interim value if you need to deploy sooner.
 
@@ -98,19 +165,24 @@ cd backend && DATABASE_URL="<public-proxy-url>" npm run migrate
 
 ## Verify the deployment
 ```bash
+# Production
 curl https://api.tejotime.com/healthz     # {"status":"ok",...}
 curl https://api.tejotime.com/readyz      # {"status":"ok","db":true}
 curl https://api.tejotime.com/api/v1/public/businesses/sharp-cuts   # microsite JSON
 curl -I https://api.tejotime.com/media/<known-key>   # 302 → a signed bucket URL
+
+# Preprod
+curl https://api-preprod.tejotime.com/healthz
+curl https://api-preprod.tejotime.com/readyz
 ```
-- Open `https://www.tejotime.com/<store-phone>` → the microsite loads **with images**.
+- Open `https://www.tejotime.com/<store-phone>` (or `https://preprod.tejotime.com/<store-phone>`) → the microsite loads **with images**.
 - Open `https://www.tejotime.com/<store-phone>/card` → chooser with **Book an appointment** and **Save contact**.
   - Book → microsite; Save → OS Add-Contact / `.vcf`.
 - Owner app Settings → Booking QR encodes `https://www.tejotime.com/<store-phone>/card` (not the raw `.vcf`).
 - In DevTools → Network → WS, confirm a `wss://api.tejotime.com/socket.io/` connection upgrades (**101**) → realtime is live.
 - Join the queue on the site → a ticket is issued; the live wait/team cards update over the socket.
 - API logs should show `Socket.IO initialized` and `Scheduler started` on boot.
-- Log into `admin.tejotime.com`, confirm (DevTools → Network) it calls `api.tejotime.com`, not a stale URL.
+- Log into `admin.tejotime.com` (or `admin-preprod.tejotime.com`), confirm (DevTools → Network) it calls the matching API host, not a stale URL.
 
 ### Booking QR reprint
 After this release, **reprint physical stickers** from the owner app (or admin store hub). Older codes that pointed at the raw `.vcf` URL skip the chooser and open Add-Contact directly. New prints encode `/{phone}/card`.

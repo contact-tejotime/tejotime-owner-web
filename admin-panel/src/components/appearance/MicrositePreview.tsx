@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ThemeConfig } from "@/theme/engine";
+import { frontendUrl } from "@/lib/frontend-url";
 import { t } from "@/i18n";
 import { Icon } from "@/components/icons";
 
@@ -24,21 +25,14 @@ import { Icon } from "@/components/icons";
 
 /**
  * Live preview must hit a frontend build that speaks the same preview protocol (and theme
- * engine) as this admin. In local `next dev`, defaulting to production silently fails the
- * postMessage handshake — prod only accepts `admin.tejotime.com`, not `localhost:3001`.
- * Set `NEXT_PUBLIC_FRONTEND_URL` explicitly when you want a different host.
+ * engine) as this admin. Set `NEXT_PUBLIC_FRONTEND_URL` per env; local `next dev` falls back
+ * to localhost:3000. Production builds with no env do not iframe a hardcoded host.
  */
-function resolveFrontendUrl(): string {
-  const fromEnv = process.env.NEXT_PUBLIC_FRONTEND_URL?.trim();
-  if (fromEnv) return fromEnv.replace(/\/+$/, "");
-  if (process.env.NODE_ENV !== "production") return "http://localhost:3000";
-  return "https://www.tejotime.com";
-}
+const FRONTEND_URL = frontendUrl();
 
-const FRONTEND_URL = resolveFrontendUrl();
-
-/** Pinned postMessage target. Empty string only if the env var is malformed — then we do not post. */
+/** Pinned postMessage target. Empty string only if the env var is missing/malformed — then we do not post. */
 const FRONTEND_ORIGIN = (() => {
+  if (!FRONTEND_URL) return "";
   try {
     return new URL(FRONTEND_URL).origin;
   } catch {
@@ -82,7 +76,7 @@ export default function MicrositePreview({ config, phoneFull }: Props) {
   // store so the preview is never a blank error page.
   const isRealStore = /^\d{7,15}$/.test(phoneFull);
   const src = useMemo(
-    () => `${FRONTEND_URL}/${isRealStore ? phoneFull : "demo-store"}?preview=1`,
+    () => (FRONTEND_URL ? `${FRONTEND_URL}/${isRealStore ? phoneFull : "demo-store"}?preview=1` : ""),
     [isRealStore, phoneFull],
   );
 
@@ -157,11 +151,13 @@ export default function MicrositePreview({ config, phoneFull }: Props) {
       <div className="ap-preview-head">
         <span className="ap-group-legend">{t.appearance.previewTitle}</span>
         <div className="ap-preview-actions">
-          <a className="ap-mini-btn" href={src} target="_blank" rel="noreferrer">
-            <Icon name="externalLink" size={13} />
-            {t.appearance.previewOpen}
-          </a>
-          <button type="button" className="ap-mini-btn" onClick={reload}>
+          {src ? (
+            <a className="ap-mini-btn" href={src} target="_blank" rel="noreferrer">
+              <Icon name="externalLink" size={13} />
+              {t.appearance.previewOpen}
+            </a>
+          ) : null}
+          <button type="button" className="ap-mini-btn" onClick={reload} disabled={!FRONTEND_URL}>
             {t.appearance.previewReload}
           </button>
         </div>
@@ -195,14 +191,16 @@ export default function MicrositePreview({ config, phoneFull }: Props) {
       {!isRealStore && <p className="ap-note">{t.appearance.previewDemo}</p>}
 
       <div className="ap-preview-shell" ref={shellRef} style={{ height: shellH }}>
-        {failed ? (
+        {!FRONTEND_URL || failed ? (
           <div className="ap-preview-fallback">
             <Icon name="alertTriangle" size={20} />
             <p>{t.appearance.previewUnavailable}</p>
-            <code>{src}</code>
-            <button type="button" className="ap-mini-btn" onClick={reload}>
-              {t.appearance.previewReload}
-            </button>
+            {src ? <code>{src}</code> : null}
+            {FRONTEND_URL ? (
+              <button type="button" className="ap-mini-btn" onClick={reload}>
+                {t.appearance.previewReload}
+              </button>
+            ) : null}
           </div>
         ) : (
           <iframe
