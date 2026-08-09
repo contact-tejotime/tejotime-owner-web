@@ -154,12 +154,12 @@ const loginStyles = StyleSheet.create({
   },
   logo: {
     width: moderateScale(280),
-    height: moderateScale(186),
+    height: moderateScale(81),
     alignSelf: "center",
   },
   logoKeyboard: {
     width: moderateScale(200),
-    height: moderateScale(133),
+    height: moderateScale(58),
   },
   form: {
     ...styles.g4,
