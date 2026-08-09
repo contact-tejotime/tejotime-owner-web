@@ -93,6 +93,8 @@ const storeFieldsSchema = z.object({
       density: z.enum(['comfortable', 'compact']),
       animation: z.enum(['subtle', 'normal', 'rich']),
       heroVariant: z.enum(['split-classic', 'editorial', 'split-modern', 'full-bleed', 'trust', 'cozy']),
+      accent: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Expected #RRGGBB hex color'),
+      brandInk: z.enum(['auto', 'white', 'dark']),
     })
     .partial()
     .optional(),

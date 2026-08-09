@@ -14,7 +14,7 @@
  *    (it is behind a dynamic `import()`, so it lands in its own chunk).
  *
  * 2. TOKENS ONLY, NEVER DATA. The message payload is fed straight to `normalizeThemeConfig`,
- *    which whitelists the seven known keys and drops everything else. Nothing from the
+ *    which whitelists known theme keys and drops everything else. Nothing from the
  *    message can reach the page as content, markup or a URL.
  *
  * 3. NO REACT STATE FOR COLOURS. Applying a preview writes CSS custom properties directly

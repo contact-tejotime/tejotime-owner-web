@@ -22,7 +22,20 @@ import { Icon } from "@/components/icons";
  * wildcard would broadcast it to whatever ends up in that frame after a redirect.
  */
 
-const FRONTEND_URL = (process.env.NEXT_PUBLIC_FRONTEND_URL ?? "https://www.tejotime.com").replace(/\/+$/, "");
+/**
+ * Live preview must hit a frontend build that speaks the same preview protocol (and theme
+ * engine) as this admin. In local `next dev`, defaulting to production silently fails the
+ * postMessage handshake — prod only accepts `admin.tejotime.com`, not `localhost:3001`.
+ * Set `NEXT_PUBLIC_FRONTEND_URL` explicitly when you want a different host.
+ */
+function resolveFrontendUrl(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_FRONTEND_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/+$/, "");
+  if (process.env.NODE_ENV !== "production") return "http://localhost:3000";
+  return "https://www.tejotime.com";
+}
+
+const FRONTEND_URL = resolveFrontendUrl();
 
 /** Pinned postMessage target. Empty string only if the env var is malformed — then we do not post. */
 const FRONTEND_ORIGIN = (() => {

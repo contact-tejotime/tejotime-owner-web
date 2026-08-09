@@ -36,6 +36,10 @@ export type DensityId = (typeof DENSITY_IDS)[number];
 export const ANIMATION_IDS = ['subtle', 'normal', 'rich'] as const;
 export type AnimationId = (typeof ANIMATION_IDS)[number];
 
+/** Label ink on primary/brand fills: auto = WCAG pick; white/dark = owner override. */
+export const BRAND_INK_IDS = ['auto', 'white', 'dark'] as const;
+export type BrandInkId = (typeof BRAND_INK_IDS)[number];
+
 export const HERO_VARIANT_IDS = [
   'split-classic',
   'editorial',
@@ -262,6 +266,11 @@ export interface ThemeConfig {
   heroVariant?: HeroVariantId;
   /** Optional `#rrggbb` override of the preset's accent strategy. */
   accent?: string;
+  /**
+   * Primary button / on-brand label ink. Absent or `auto` → engine picks white or dark for
+   * WCAG AA. `white` / `dark` force the label colour (contrast report still flags failures).
+   */
+  brandInk?: BrandInkId;
 }
 
 /**
@@ -274,6 +283,7 @@ export interface EffectiveThemeConfig extends ThemeConfig {
   density: DensityId;
   animation: AnimationId;
   heroVariant: HeroVariantId;
+  brandInk: BrandInkId;
 }
 
 /**

@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import type { Socket } from "socket.io-client";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/Button";
@@ -109,6 +108,227 @@ function displayStaffWaitMinutes(waitMinutes: number, asOf: string | null, nowTs
   if (Number.isNaN(anchor)) return waitMinutes;
   const elapsed = Math.max(0, Math.floor((nowTs - anchor) / 60000));
   return Math.max(0, waitMinutes - elapsed);
+}
+
+/** Emphasized count inside the live status line (free chairs / people ahead). */
+function LiveStatusNum({ children, onDark }: { children: ReactNode; onDark?: boolean }) {
+  return (
+    <span
+      style={{
+        font: "var(--fw-extrabold) 1.15em/1 var(--font-sans)",
+        color: onDark ? "#fff" : "var(--text-strong)",
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "-.02em",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+/**
+ * Structured live status — same four cases as the old plain `liveSub` string, with the
+ * free-count / ahead-count pulled forward so "All 4 free" and waiting numbers attract the eye.
+ * Used by the mobile bottom bar and LiveBoard dark tile (compact one-liners).
+ */
+function LiveStatusLine({
+  membersLength,
+  liveCount,
+  freeName,
+  freeCount,
+  onDark,
+}: {
+  membersLength: number;
+  liveCount: number;
+  freeName: string | null;
+  freeCount: number;
+  onDark?: boolean;
+}) {
+  const muted = onDark ? "rgba(255,255,255,.7)" : "var(--text-muted)";
+  const body = onDark ? "rgba(255,255,255,.92)" : "var(--text-body)";
+  const freePhrase = onDark ? "rgba(255,255,255,.95)" : "var(--success)";
+
+  if (membersLength === 0) {
+    return (
+      <span style={{ color: body }}>
+        <LiveStatusNum onDark={onDark}>{liveCount}</LiveStatusNum>
+        <span style={{ color: muted }}> in the queue right now</span>
+      </span>
+    );
+  }
+  if (liveCount === 0 && freeCount > 0) {
+    return (
+      <span style={{ color: body }}>
+        <span style={{ font: "var(--fw-bold) 1em/1.35 var(--font-sans)", color: freePhrase }}>
+          All <LiveStatusNum onDark={onDark}>{membersLength}</LiveStatusNum> free
+        </span>
+        <span style={{ color: muted }}> · no wait</span>
+      </span>
+    );
+  }
+  if (freeName) {
+    return (
+      <span style={{ color: body }}>
+        <span style={{ font: "var(--fw-semibold) 1em/1.35 var(--font-sans)", color: body }}>{freeName} free</span>
+        <span style={{ color: muted }}> · </span>
+        <LiveStatusNum onDark={onDark}>{liveCount}</LiveStatusNum>
+        <span style={{ color: muted }}> waiting</span>
+      </span>
+    );
+  }
+  return (
+    <span style={{ color: body }}>
+      <LiveStatusNum onDark={onDark}>{liveCount}</LiveStatusNum>
+      <span style={{ color: muted }}> ahead of you · shortest line shown</span>
+    </span>
+  );
+}
+
+type QueueStaffMember = {
+  id: string;
+  name: string;
+  busy: boolean;
+  count: number;
+  wait: string;
+};
+
+const QUEUE_STAFF_PREVIEW = 6;
+
+/**
+ * Hero-card wait summary: shop-wide total as the big headline (swapped above the old
+ * "Walk in now" line), then wait subline + staff-wise breakdown.
+ *
+ * Tickets with no seat (`staff_id` null — e.g. deleted staff ON DELETE SET NULL) still count
+ * in `liveCount` but not on any staff row; those are surfaced as an "Any" line so the
+ * breakdown always adds up to the headline total.
+ */
+function QueueWaitSummary({
+  liveCount,
+  members,
+  waitHeadline,
+}: {
+  liveCount: number;
+  members: QueueStaffMember[];
+  waitHeadline: string;
+}) {
+  const freeCount = members.filter((m) => !m.busy).length;
+  const assignedWaiting = members.reduce((n, m) => n + m.count, 0);
+  const unassignedWaiting = Math.max(0, liveCount - assignedWaiting);
+  const shown = members.slice(0, QUEUE_STAFF_PREVIEW);
+  const overflow = members.length - shown.length;
+  const isClear = liveCount === 0 && (members.length === 0 || freeCount > 0);
+
+  const headline =
+    members.length === 0 ? (
+      <>
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>{liveCount}</span>
+        <span style={{ font: "var(--fw-bold) 0.55em/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-muted)", marginLeft: "0.28em" }}>
+          in queue
+        </span>
+      </>
+    ) : isClear ? (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+        <span
+          aria-hidden
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: 999,
+            background: "var(--success)",
+            flexShrink: 0,
+          }}
+        />
+        <span>
+          <span style={{ fontVariantNumeric: "tabular-nums" }}>0</span>
+          <span style={{ font: "var(--fw-bold) 0.55em/1.1 var(--font-sans)", letterSpacing: "-.02em", marginLeft: "0.28em" }}>
+            min wait
+          </span>
+        </span>
+      </span>
+    ) : (
+      <>
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>{liveCount}</span>
+        <span style={{ font: "var(--fw-bold) 0.55em/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-muted)", marginLeft: "0.28em" }}>
+          waiting
+        </span>
+      </>
+    );
+
+  const row = (key: string, name: string, status: string, free: boolean) => (
+    <li
+      key={key}
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        justifyContent: "space-between",
+        gap: 12,
+        font: "var(--fw-medium) 14px/1.35 var(--font-sans)",
+      }}
+    >
+      <span style={{ color: "var(--text-body)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {name}
+      </span>
+      <span
+        style={{
+          flexShrink: 0,
+          fontVariantNumeric: "tabular-nums",
+          color: free ? "var(--success)" : "var(--text-muted)",
+          font: free
+            ? "var(--fw-semibold) 13.5px/1.35 var(--font-sans)"
+            : "var(--fw-medium) 13.5px/1.35 var(--font-sans)",
+        }}
+      >
+        {status}
+      </span>
+    </li>
+  );
+
+  return (
+    <div>
+      <div
+        style={{
+          font: "var(--fw-extrabold) clamp(30px, 3.4vw, 38px)/1.02 var(--font-sans)",
+          letterSpacing: "-.035em",
+          color: isClear ? "var(--success)" : "var(--text-strong)",
+        }}
+      >
+        {headline}
+      </div>
+      <div
+        style={{
+          marginTop: 10,
+          font: "var(--fw-semibold) clamp(16px, 4vw, 18px)/1.35 var(--font-sans)",
+          color: "var(--text-body)",
+        }}
+      >
+        {waitHeadline}
+      </div>
+      {members.length > 0 && (
+        <ul
+          style={{
+            listStyle: "none",
+            margin: "14px 0 0",
+            padding: "12px 0 0",
+            borderTop: "1px solid var(--border-subtle)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          {shown.map((m) => {
+            const isFree = !m.busy && m.count === 0;
+            return row(m.id, m.name, isFree ? "Free" : m.count > 0 ? `${m.count} waiting` : m.wait, isFree);
+          })}
+          {unassignedWaiting > 0 && row("__any__", "Any", `${unassignedWaiting} waiting`, false)}
+          {overflow > 0 && (
+            <li style={{ font: "var(--fw-medium) 13px/1.35 var(--font-sans)", color: "var(--text-subtle)" }}>
+              +{overflow} more
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function staffWaitLabel(waitMinutes: number): string {
@@ -869,14 +1089,23 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const svcEyebrow = domain.id === "food" ? "The menu" : domain.id === "clinic" ? "Treatments" : "The menu";
   // v3's live sub-line: an empty queue is an invitation, never a "0".
   const freeMembers = members.filter((m) => !m.busy);
-  const liveSub =
-    members.length === 0
-      ? `${liveCount} in the queue right now`
-      : liveCount === 0 && freeMembers.length > 0
-        ? `All ${members.length} free · nobody ahead of you`
-        : freeMembers.length > 0
-          ? `${freeMembers[0].name} free now · ${liveCount} waiting elsewhere`
-          : `${liveCount} ahead of you · shortest line shown`;
+  const liveStatus = (
+    <LiveStatusLine
+      membersLength={members.length}
+      liveCount={liveCount}
+      freeCount={freeMembers.length}
+      freeName={freeMembers[0]?.name ?? null}
+    />
+  );
+  const liveStatusDark = (
+    <LiveStatusLine
+      membersLength={members.length}
+      liveCount={liveCount}
+      freeCount={freeMembers.length}
+      freeName={freeMembers[0]?.name ?? null}
+      onDark
+    />
+  );
   // v3's four icon cards. Built from the same guarded data as the old trust row, so a store
   // without an established year or reviews simply shows fewer cards rather than zeroes.
   // v3's accent marquee: what the store offers, then where and how well rated.
@@ -1019,22 +1248,20 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       <div style={{ position: "relative", overflow: "hidden", background: "radial-gradient(72% 62% at 4% 6%, color-mix(in srgb, var(--primary) 30%, transparent) 0%, transparent 62%), linear-gradient(150deg, color-mix(in srgb, var(--primary) 10%, var(--surface-card)) 0%, var(--surface-page) 54%, var(--surface-card) 100%)" }}>
 
         {/* --- header --- */}
-        <div style={{ maxWidth: 1320, margin: "0 auto", padding: "clamp(16px, 2.4vw, 26px) clamp(18px, 4vw, 30px)", display: "flex", alignItems: "center", gap: 18 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0, minWidth: 0 }}>
-            {/* An uploaded logo sits on nothing — most are transparent PNGs. Only the fallback
-                mark gets the brand tile. */}
-            <span style={{ width: 40, height: 40, borderRadius: "calc(12px * var(--radius-scale, 1))", overflow: "hidden", flexShrink: 0, background: site.logoUrl ? "transparent" : "var(--primary)", color: "var(--text-on-brand)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {site.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={site.logoUrl} alt={site.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-              ) : (
-                <Icon name="sparkle" size={20} />
-              )}
-            </span>
-            <span style={{ font: "var(--fw-extrabold) 18px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{site.name}</span>
-          </div>
+        <div className="ttHeader" style={{ maxWidth: 1320, margin: "0 auto", padding: "clamp(16px, 2.4vw, 26px) clamp(18px, 4vw, 30px)", display: "flex", alignItems: "center", gap: 18 }}>
+          {/* An uploaded logo sits on nothing — most are transparent PNGs. Only the fallback
+              mark gets the brand tile. */}
+          <span className="ttLogo" style={{ width: 40, height: 40, borderRadius: "calc(12px * var(--radius-scale, 1))", overflow: "hidden", flexShrink: 0, background: site.logoUrl ? "transparent" : "var(--primary)", color: "var(--text-on-brand)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {site.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={site.logoUrl} alt={site.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            ) : (
+              <Icon name="sparkle" size={20} />
+            )}
+          </span>
+          <span className="ttName" style={{ font: "var(--fw-extrabold) 18px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{site.name}</span>
 
-          <span style={{ flex: 1 }} />
+          <span className="ttHeaderSpacer" style={{ flex: 1 }} />
 
           <div data-shed="1" data-desk="1" style={{ display: "flex", alignItems: "center", gap: 26 }}>
             {navLinks.map(([, label, href]) => (
@@ -1046,11 +1273,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             <Button variant="outline" onClick={onSaveContact} leadingIcon={<Icon name="user" size={16} />}>Save contact</Button>
             <Button variant="outline" onClick={openTrack}>Track my turn</Button>
           </span>
-          <Button variant="primary" onClick={openQueue}>{domain.id === "clinic" ? "Take token" : "Join queue"} →</Button>
+          <span data-desk="1">
+            <Button variant="primary" onClick={openQueue}>{domain.id === "clinic" ? "Take token" : "Join queue"} →</Button>
+          </span>
 
           <button
             type="button"
-            className="ttMobileBar"
+            className="ttMobileBar ttMenuBtn"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((o) => !o)}
@@ -1100,24 +1329,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             </div>
 
             {/* The "Right now" card — v3's centrepiece and the page's primary action. */}
-            <div style={{ maxWidth: 430, marginTop: 32, borderRadius: "calc(26px * var(--radius-scale, 1))", padding: 26, background: "var(--surface-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 26px 60px rgba(15,23,42,.16)" }}>
+            <div className="ttWaitCard" style={{ maxWidth: 430, marginTop: 32, borderRadius: "calc(26px * var(--radius-scale, 1))", padding: 26, background: "var(--surface-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 26px 60px rgba(15,23,42,.16)" }}>
               <div style={{ font: "var(--fw-bold) 10.5px/1 var(--font-sans)", letterSpacing: ".16em", textTransform: "uppercase", color: "var(--primary)" }}>Right now</div>
-              <div style={{ font: "var(--fw-extrabold) clamp(30px, 3.4vw, 38px)/1.02 var(--font-sans)", letterSpacing: "-.035em", color: "var(--text-strong)", marginTop: 14 }}>{waitHeadline}</div>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 11, font: "var(--fw-semibold) clamp(15px, 3.8vw, 17px)/1.4 var(--font-sans)", color: "var(--text-body)" }}>
-                {liveCount === 0 && freeMembers.length > 0 && (
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 999,
-                      background: "var(--success)",
-                      flexShrink: 0,
-                      marginTop: "0.45em",
-                    }}
-                  />
-                )}
-                <span>{liveSub}</span>
+              <div style={{ marginTop: 14 }}>
+                <QueueWaitSummary liveCount={liveCount} members={members} waitHeadline={waitHeadline} />
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
                 <Button size="lg" fullWidth onClick={openQueue}>{domain.id === "clinic" ? "Take a token" : "Join the queue"} →</Button>
@@ -1156,7 +1371,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                 heading={domain.liveHeading}
                 queueWord={queueWord}
                 liveHeadline={waitHeadline}
-                liveSub={liveSub}
+                liveSub={liveStatusDark}
                 ctaLabel={domain.liveCta}
                 onJoin={openWith}
               />
@@ -1346,7 +1561,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         >
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ font: "var(--fw-bold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{waitHeadline}</div>
-            <div style={{ font: "var(--fw-semibold) 14px/1.35 var(--font-sans)", color: "var(--text-body)", marginTop: 4 }}>{liveSub}</div>
+            <div style={{ font: "var(--fw-semibold) 15px/1.35 var(--font-sans)", color: "var(--text-body)", marginTop: 4 }}>{liveStatus}</div>
           </div>
           <div style={{ flexShrink: 0 }}>
             <Button size="lg" onClick={openQueue}>Join queue →</Button>

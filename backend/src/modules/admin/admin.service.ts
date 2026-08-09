@@ -31,6 +31,10 @@ export interface ThemeConfigInput {
   density?: 'comfortable' | 'compact';
   animation?: 'subtle' | 'normal' | 'rich';
   heroVariant?: string;
+  /** Optional `#RRGGBB` override of the preset accent strategy. */
+  accent?: string;
+  /** Primary / on-brand label ink. Absent or `auto` → engine picks for WCAG AA. */
+  brandInk?: 'auto' | 'white' | 'dark';
 }
 
 /** The store fields shared by create and update (everything except the owner login). */

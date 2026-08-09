@@ -557,6 +557,22 @@ function testNormalize(): void {
   eq(normalizeThemeConfig({ heroVariant: 'editorial' }).heroVariant, 'editorial', 'good hero variant kept');
   eq(normalizeThemeConfig({ accent: '#0f0' }).accent, '#00FF00', 'accent short hex expanded');
   eq(normalizeThemeConfig({ preset: 'bold' }, { ...LEGACY_THEME_CONFIG, mode: 'dark' }).mode, 'dark', 'base fills gaps');
+  eq(normalizeThemeConfig({ brandInk: 'white' }).brandInk, 'white', 'brandInk white kept');
+  eq(normalizeThemeConfig({ brandInk: 'nope' }).brandInk, undefined, 'bad brandInk dropped');
+  eq(resolveTheme(normalizeThemeConfig({})).config.brandInk, 'auto', 'effective brandInk defaults to auto');
+
+  // Pale brand: auto ink is dark (engine working); manual white forces label colour.
+  const pale = '#A881F8';
+  const paleAuto = resolveTheme(normalizeThemeConfig({ brand: pale }));
+  const paleAutoInk = (paleAuto.light['--on-brand'] ?? '').toLowerCase();
+  ok(paleAutoInk !== '#ffffff', `pale brand auto ink is not white (got ${paleAutoInk})`);
+  const paleWhite = resolveTheme(normalizeThemeConfig({ brand: pale, brandInk: 'white' }));
+  eq(paleWhite.light['--on-brand']?.toLowerCase(), '#ffffff', 'brandInk white forces --on-brand');
+  eq(paleWhite.light['--text-on-brand']?.toLowerCase(), '#ffffff', 'brandInk white forces --text-on-brand');
+  const paleOnBrandFail = paleWhite.contrast.light.find((c) => c.id === 'light/on-brand-on-brand');
+  ok(paleOnBrandFail != null && !paleOnBrandFail.pass, 'forced white on pale brand still fails contrast check');
+  const paleDark = resolveTheme(normalizeThemeConfig({ brand: pale, brandInk: 'dark' }));
+  eq(paleDark.light['--on-brand']?.toLowerCase(), '#0f172a', 'brandInk dark forces --on-brand');
 
   // resolveTheme itself must be safe against a config that skipped normalisation.
   const wild = resolveTheme({ preset: 'nope', mode: 'x', brand: 'zzz' } as unknown as ThemeConfig);

@@ -193,6 +193,13 @@ export default function AppearancePanel({ theme, onChange, category, phoneFull, 
           <BrandColorPicker
             value={theme.brand}
             onChange={(brand) => onChange({ ...theme, brand })}
+            brandInk={theme.brandInk ?? "auto"}
+            onBrandInkChange={(ink) => {
+              const next: ThemeConfig = { ...theme };
+              if (ink === "auto") delete next.brandInk;
+              else next.brandInk = ink;
+              onChange(next);
+            }}
             resolved={resolved}
             mode={resolved.config.mode}
           />
@@ -281,5 +288,6 @@ function key(c: ThemeConfig): string {
     c.animation ?? "",
     c.heroVariant ?? "",
     c.accent ?? "",
+    c.brandInk ?? "",
   ].join("|");
 }

@@ -192,7 +192,7 @@ export function LiveBoard({
   heading: string;
   queueWord: string;
   liveHeadline: string;
-  liveSub: string;
+  liveSub: ReactNode;
   ctaLabel: (name: string) => string;
   onJoin: (id: string) => void;
 }) {
@@ -255,7 +255,7 @@ export function LiveBoard({
             <div
               style={{
                 position: "relative",
-                font: "var(--fw-semibold) 15px/1.5 var(--font-sans)",
+                font: "var(--fw-semibold) 16px/1.5 var(--font-sans)",
                 color: "rgba(255,255,255,.88)",
                 marginTop: 14,
               }}

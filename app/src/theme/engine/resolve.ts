@@ -288,7 +288,10 @@ function buildMode(
   const brandOutline = brandOutlined === brand ? 'transparent' : brandOutlined;
   // The ink is resolved BEFORE the interactive states, because it decides which way they walk
   // — hovering and pressing must not carry the label out of contrast. See stateDirection().
-  const onBrand = ensureContrast(onColor(brand, '#ffffff', n[900]), brand, 4.5);
+  // `brandInk` lets the owner force white/dark; contrast checks still report the real ratio.
+  let onBrand = ensureContrast(onColor(brand, '#ffffff', n[900]), brand, 4.5);
+  if (config.brandInk === 'white') onBrand = '#ffffff';
+  else if (config.brandInk === 'dark') onBrand = '#0f172a';
   const brandDir = stateDirection(brandRamp, brandStep, onBrand, isDark ? -1 : 1, [1, 2]);
   const brandHover = brandRamp[stepBy(brandStep, brandDir)];
   const brandPressed = brandRamp[stepBy(brandStep, brandDir * 2)];
@@ -608,6 +611,7 @@ export function resolveTheme(config: ThemeConfig): ResolvedTheme {
     density: normalized.density ?? preset.defaults.density,
     animation: normalized.animation ?? preset.defaults.animation,
     heroVariant: normalized.heroVariant ?? defaultHeroVariantFor(preset.id),
+    brandInk: normalized.brandInk ?? 'auto',
   };
 
   const brandRamp = generateRamp(effective.brand);
