@@ -1,6 +1,19 @@
 # 14 — Environment Variables
 
-All configuration is injected via environment (12-factor). Never commit secrets. Provide a committed `.env.example` with non-secret defaults + placeholders. Validate on boot (fail fast if a required var is missing/invalid — Zod env schema).
+All configuration is injected via environment (12-factor). Never commit secrets. Validate on boot (fail fast if a required var is missing/invalid — Zod env schema).
+
+## Per-env example files
+
+Each app ships committed crib sheets (placeholders only). Copy `.env.local.example` → `.env.local` for laptop work. Use `.env.preprod.example` / `.env.prod.example` as the checklist when setting Railway variables for that environment. Next/Expo do **not** auto-load `.env.prod` / `.env.preprod` — Railway dashboard (or EAS profiles) is the runtime source for deployed builds.
+
+| App | Files |
+|---|---|
+| Backend | `backend/.env.example` (full catalog), `.env.local.example`, `.env.preprod.example`, `.env.prod.example` |
+| Frontend | `frontend/.env.local.example`, `.env.preprod.example`, `.env.prod.example` |
+| Admin | `admin-panel/.env.local.example`, `.env.preprod.example`, `.env.prod.example` |
+| Expo owner | `app/.env.local.example`, `.env.preprod.example`, `.env.prod.example` |
+
+**Preprod vs production:** preprod must use a **separate** Postgres (`DATABASE_URL` host ≠ production). Preprod admin must call `api-preprod`, not `api.tejotime.com`. See [DEPLOY.md](../DEPLOY.md) § Isolate preprod data.
 
 ## 1. Backend (`backend/.env`)
 
@@ -141,6 +154,7 @@ Set via `app.json` → `extra` / EAS build profiles.
 ## 4. Handling rules
 
 - **Required-on-boot:** `DATABASE_URL`, `REDIS_URL`, JWT secrets, `PUBLIC_WEB_URL`, storage creds, SMS creds (in prod). Validate & exit non-zero if absent.
-- **QR host alignment:** `PUBLIC_WEB_URL` (API), `EXPO_PUBLIC_WEB_URL` (owner app), and `NEXT_PUBLIC_FRONTEND_URL` (admin) must be the same customer origin (`https://www.tejotime.com` in prod). Mismatched hosts produce QRs that open the wrong site or 404.
-- **Secrets** (`*_SECRET`, `*_KEY`, `*_TOKEN`, `*_PEPPER`, `DATABASE_URL`) come from the secret manager, not `.env` files in prod.
-- Keep a committed `backend/.env.example` documenting every var with safe placeholders.
+- **QR host alignment:** `PUBLIC_WEB_URL` (API), `EXPO_PUBLIC_WEB_URL` (owner app), and `NEXT_PUBLIC_FRONTEND_URL` (admin) must be the same customer origin (`https://www.tejotime.com` in prod; `https://preprod.tejotime.com` in preprod). Mismatched hosts produce QRs that open the wrong site or 404.
+- **Secrets** (`*_SECRET`, `*_KEY`, `*_TOKEN`, `*_PEPPER`, `DATABASE_URL`) come from the secret manager / Railway dashboard, not committed `.env` files.
+- Keep committed `*.example` files documenting every var with safe placeholders; never commit real `.env.local` / `.env.preprod` / `.env.prod`.
+- **Data isolation:** preprod and production backends must not share `DATABASE_URL`. Store `is_active` is global to that database.

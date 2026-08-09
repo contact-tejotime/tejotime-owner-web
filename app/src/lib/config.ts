@@ -18,4 +18,4 @@ export const SOCKET_URL =
  * `getQr`, so keep this pointed at the same host as the API's `PUBLIC_WEB_URL`.
  */
 export const WEB_BASE_URL =
-  process.env.EXPO_PUBLIC_WEB_URL ?? 'https://www.tejotime.com';
+  process.env.EXPO_PUBLIC_WEB_URL ?? 'http://localhost:3000';

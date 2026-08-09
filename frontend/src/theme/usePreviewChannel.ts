@@ -31,9 +31,6 @@ import { useEffect } from 'react';
 import type { RefObject } from 'react';
 import type { ModeId, ThemeConfig, TokenMap } from './engine';
 
-/** Production admin origin; overridable per-deploy, never per-request. */
-const DEFAULT_ADMIN_ORIGIN = 'https://admin.tejotime.com';
-
 /** The message the admin sends. */
 const PREVIEW_MESSAGE = 'tt-theme-preview';
 /** The handshake we send back so the admin knows the frame is listening. */
@@ -47,18 +44,21 @@ interface PreviewMessage {
 /**
  * Origins allowed to drive the preview.
  *
- * Production ships EXACTLY one: `NEXT_PUBLIC_ADMIN_ORIGIN` (declared as a build ARG in
- * frontend/Dockerfile) or the default above. The two local dev hosts are behind a
- * `NODE_ENV !== 'production'` test so the bundler drops them from the production build —
- * otherwise any page a visitor happens to have open on localhost:3001 could iframe a live
- * microsite with `?preview=1` and repaint it.
+ * Production/preprod ships EXACTLY the value of `NEXT_PUBLIC_ADMIN_ORIGIN` (build ARG in
+ * frontend/Dockerfile). There is no hardcoded admin host — if the env is unset in a
+ * production build, the allowlist is empty and preview messages are ignored.
+ *
+ * The two local dev hosts are behind a `NODE_ENV !== 'production'` test so the bundler
+ * drops them from the production build — otherwise any page a visitor happens to have open
+ * on localhost:3001 could iframe a live microsite with `?preview=1` and repaint it.
  *
  * `NEXT_PUBLIC_*` and `NODE_ENV` are inlined at build time, so this is a constant in the
  * bundle — it cannot be influenced by a request.
  */
 function allowedOrigins(): string[] {
+  const list: string[] = [];
   const configured = process.env.NEXT_PUBLIC_ADMIN_ORIGIN?.trim();
-  const list = [configured && configured.length > 0 ? configured : DEFAULT_ADMIN_ORIGIN];
+  if (configured) list.push(configured);
   if (process.env.NODE_ENV !== 'production') {
     list.push('http://localhost:3001', 'http://127.0.0.1:3001');
   }
