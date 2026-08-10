@@ -119,7 +119,15 @@ export interface Me {
      */
     permissions: ModuleAccess;
   };
-  business: { id: string; name: string; slug: string; plan: "free" | "premium" };
+  business: {
+    id: string;
+    name: string;
+    slug: string;
+    plan: "free" | "premium";
+    /** Store Appearance — present once the API ships theme on /auth/me. */
+    theme?: ThemeConfig | null;
+    themeColor?: string | null;
+  };
 }
 
 /** A team login as the /settings/team screen sees it. Mirrors the backend's UserDTO. */
@@ -236,6 +244,9 @@ export interface CustomerRow {
 }
 
 export interface DashboardSummary {
+  range: "today" | "month";
+  periodLabel: string;
+  date: string;
   kpis: {
     todaysAppointments: number;
     activeNow: number;
@@ -246,10 +257,39 @@ export interface DashboardSummary {
   };
 }
 
+export interface DashboardStaffRow {
+  staffId: string;
+  name: string;
+  appointments: number;
+  completed: number;
+  revenue: Money;
+}
+
+export interface DashboardByStaff {
+  range: "today" | "month";
+  periodLabel: string;
+  data: DashboardStaffRow[];
+}
+
+/** Mirrors `business.theme` — the microsite appearance config. Every field optional. */
+export interface ThemeConfig {
+  preset?: "minimal" | "luxury" | "modern" | "bold" | "medical" | "warm";
+  mode?: "light" | "dark" | "auto";
+  brand?: string;
+  radius?: "sharp" | "medium" | "rounded";
+  shadow?: "none" | "soft" | "premium";
+  density?: "comfortable" | "compact";
+  animation?: "subtle" | "normal" | "rich";
+  heroVariant?: "split-classic" | "editorial" | "split-modern" | "full-bleed" | "trust" | "cozy";
+  accent?: string;
+  brandInk?: "auto" | "white" | "dark";
+}
+
 export interface BusinessDetail {
   id: string;
   name: string;
   slug: string;
+  isActive: boolean;
   category: string | null;
   area: string | null;
   address: string | null;
@@ -257,14 +297,29 @@ export interface BusinessDetail {
   countryCode: string | null;
   phoneNumber: string | null;
   tagline: string | null;
+  heroSubtitle: string | null;
+  statValue: string | null;
+  statLabel: string | null;
   description: string | null;
+  aboutHeading: string | null;
   logoUrl: string | null;
   heroImageUrl: string | null;
+  aboutImageUrl: string | null;
+  instagramUrl: string;
+  facebookUrl: string;
+  twitterUrl: string;
+  linkedinUrl: string;
+  payments: string[];
+  theme: ThemeConfig | null;
+  themeColor: string | null;
+  establishedYear: number | null;
   timezone: string;
   currency: string;
   plan: string;
   hours: { dayOfWeek: number; opensAt: string | null; closesAt: string | null; isClosed: boolean }[];
   amenities: string[];
+  faqs: { q: string; a: string }[];
+  reviews: { stars: number; text: string; authorName: string }[];
   gallery: { id: string; url: string; alt: string | null }[];
 }
 
@@ -294,8 +349,13 @@ export const getBusinessQr = () =>
     TTL.business,
   );
 
-export const getDashboard = () =>
-  get<DashboardSummary>("/dashboard/summary", [TAGS.dashboard], TTL.dashboard);
+/** Seat-scoped for staff — never share a business-wide cache entry. */
+export const getDashboard = (range: "today" | "month" = "today") =>
+  getFresh<DashboardSummary>(`/dashboard/summary?range=${range}`);
+
+/** Store-wide roles only; staff get 403 from the API. */
+export const getDashboardByStaff = (range: "today" | "month" = "today") =>
+  getFresh<DashboardByStaff>(`/dashboard/by-staff?range=${range}`);
 
 export const getAppointments = (query = "") =>
   get<{ data: AppointmentRow[] }>(

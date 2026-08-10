@@ -27,23 +27,32 @@ export function TSettingsRow({
 }) {
   const theme = useTheme();
   const s = useMemo(() => createTSettingsRowStyles(theme), [theme]);
+  const iconFg = destructive ? theme.colors.error : theme.colors.primarySoftFg;
+  const iconBg = destructive ? theme.colors.errorSoft : theme.colors.primarySoft;
 
   return (
-    <Pressable onPress={onPress} disabled={!onPress && !trailing} style={settingsRowStyle(s, showBorder, !!sub)}>
-      <View style={s.iconWrap}>
-        <Icon name={icon} size={18} color={destructive ? theme.colors.error : theme.colors.textBody} />
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress && !trailing}
+      style={({ pressed }) => [s.row, pressed && onPress ? s.rowPressed : null]}
+    >
+      <View style={[s.iconWrap, { backgroundColor: iconBg }]}>
+        <Icon name={icon} size={18} color={iconFg} />
       </View>
-      <View style={s.body}>
-        <TText variant="bodyMd" color={destructive ? 'error' : 'textStrong'} weight="medium">
-          {label}
-        </TText>
-        {sub && (
-          <TText variant="caption" color="textMuted" numberOfLines={1} style={s.sub}>
-            {sub}
+      <View style={[s.body, showBorder && s.bodyBorder]}>
+        <View style={s.textCol}>
+          <TText variant="bodyMd" color={destructive ? 'error' : 'textStrong'} weight="semibold">
+            {label}
           </TText>
-        )}
+          {sub ? (
+            <TText variant="caption" color="textMuted" numberOfLines={2} style={s.sub}>
+              {sub}
+            </TText>
+          ) : null}
+        </View>
+        {trailing ??
+          (onPress ? <Icon name="chevronRight" size={18} color={theme.colors.textSubtle} /> : null)}
       </View>
-      {trailing ?? (onPress ? <Icon name="chevronRight" size={18} color={theme.colors.textSubtle} /> : null)}
     </Pressable>
   );
 }
@@ -54,27 +63,34 @@ const createTSettingsRowStyles = ({ colors, radius }: ThemeStyleProps) =>
       ...styles.flexRow,
       ...styles.itemsCenter,
       ...styles.g3,
-      paddingVertical: moderateScale(15),
-      ...styles.ph4,
+      paddingLeft: moderateScale(16),
+      paddingRight: moderateScale(14),
+      // Keep icon vertically centered against the text column.
+      paddingVertical: moderateScale(4),
     },
-    rowBorder: {
-      borderBottomWidth: moderateScale(1),
-      borderBottomColor: colors.borderSubtle,
-    },
+    rowPressed: { backgroundColor: colors.surfaceHover },
     iconWrap: {
       ...styles.nonFlexCenter,
-      width: moderateScale(34),
-      height: moderateScale(34),
+      width: moderateScale(38),
+      height: moderateScale(38),
       borderRadius: moderateScale(radius.md),
-      backgroundColor: colors.surfaceSunken,
+      marginVertical: moderateScale(10),
     },
-    body: { ...styles.flex, ...styles.minWidth0 },
-    sub: { marginTop: moderateScale(3) },
-    rowWithSub: { paddingVertical: moderateScale(12) },
+    body: {
+      ...styles.flex,
+      ...styles.flexRow,
+      ...styles.itemsCenter,
+      ...styles.g3,
+      ...styles.minWidth0,
+      // Comfortable row height — label + optional sub without feeling cramped.
+      paddingVertical: moderateScale(14),
+      paddingRight: moderateScale(2),
+      minHeight: moderateScale(58),
+    },
+    bodyBorder: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.borderSubtle,
+    },
+    textCol: { ...styles.flex, ...styles.minWidth0, ...styles.g1 },
+    sub: { marginTop: moderateScale(2) },
   });
-
-const settingsRowStyle = (
-  s: ReturnType<typeof createTSettingsRowStyles>,
-  showBorder: boolean,
-  hasSub: boolean,
-) => [s.row, hasSub ? s.rowWithSub : null, showBorder ? s.rowBorder : null];

@@ -248,7 +248,9 @@ export function QueueBoard() {
   const s = useMemo(() => createQueueStyles(theme), [theme]);
 
   const groupsAll = store.seats;
-  const allView = store.queueStaff === 'all';
+  const isStaff = store.session?.role === 'staff';
+  const hideAllChip = isStaff || groupsAll.length <= 1;
+  const allView = !hideAllChip && store.queueStaff === 'all';
   const canCrossSeat = allView && groupsAll.length > 1;
 
   const remasureSeats = () => {
@@ -259,15 +261,18 @@ export function QueueBoard() {
     }
   };
 
-  const { groups, chips } = useMemo(() => {
+  const { groups, chips, waitingTotal } = useMemo(() => {
     const waiting = groupsAll.reduce((n, g) => n + g.waitN, 0);
+    const seatChips = groupsAll.map((g) => ({ id: g.id, label: g.name, count: g.waitN }));
     return {
-      groups: groupsAll.filter((g) => allView || store.queueStaff === g.id),
-      chips: [{ id: 'all', label: t.queue.all, count: waiting }].concat(
-        groupsAll.map((g) => ({ id: g.id, label: g.name, count: g.waitN })),
-      ),
+      // Staff (and single-seat) already get a scoped seat list from the API — show it as-is.
+      groups: hideAllChip
+        ? groupsAll
+        : groupsAll.filter((g) => allView || store.queueStaff === g.id),
+      chips: hideAllChip ? seatChips : [{ id: 'all', label: t.queue.all, count: waiting }, ...seatChips],
+      waitingTotal: waiting,
     };
-  }, [groupsAll, allView, store.queueStaff]);
+  }, [groupsAll, allView, store.queueStaff, hideAllChip]);
 
   return (
     <>
@@ -276,21 +281,29 @@ export function QueueBoard() {
         showsHorizontalScrollIndicator={false}
         style={s.chipScroll}
         contentContainerStyle={s.chipScrollContent}>
-        {chips.map((ch) => {
-          const on = store.queueStaff === ch.id;
-          return (
-            <Pressable key={ch.id} onPress={() => store.setQueueStaff(ch.id)} style={queueChipStyle(s, on)}>
-              <TText variant="bodySm" weight="semibold" style={queueChipLabelStyle(s, on) as TextStyle}>
-                {ch.label}
-              </TText>
-              <View style={queueChipCountStyle(s, on)}>
-                <TText weight="bold" style={queueChipCountTextStyle(s, on) as StyleProp<TextStyle>}>
-                  {ch.count}
+        {hideAllChip && groupsAll.length <= 1 ? (
+          <View style={s.waitingPill}>
+            <TText variant="bodySm" weight="bold" color="textStrong">
+              {waitingTotal} waiting
+            </TText>
+          </View>
+        ) : (
+          chips.map((ch) => {
+            const on = store.queueStaff === ch.id;
+            return (
+              <Pressable key={ch.id} onPress={() => store.setQueueStaff(ch.id)} style={queueChipStyle(s, on)}>
+                <TText variant="bodySm" weight="semibold" style={queueChipLabelStyle(s, on) as TextStyle}>
+                  {ch.label}
                 </TText>
-              </View>
-            </Pressable>
-          );
-        })}
+                <View style={queueChipCountStyle(s, on)}>
+                  <TText weight="bold" style={queueChipCountTextStyle(s, on) as StyleProp<TextStyle>}>
+                    {ch.count}
+                  </TText>
+                </View>
+              </Pressable>
+            );
+          })
+        )}
         <TButton variant="primary" size="sm" onPress={store.openWalkin} leadingIcon={<Icon name="plus" size={16} color="#fff" />}>
           {t.queue.walkIn}
         </TButton>
@@ -400,6 +413,16 @@ const createQueueStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
   StyleSheet.create({
     chipScroll: { flexGrow: 0 },
     chipScrollContent: { ...styles.g2, ...styles.screenPadding, ...styles.pb2, ...styles.itemsCenter },
+    waitingPill: {
+      minHeight: moderateScale(34),
+      paddingHorizontal: moderateScale(12),
+      borderRadius: moderateScale(999),
+      backgroundColor: colors.surfaceCard,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle,
+      ...styles.itemsCenter,
+      ...styles.justifyCenter,
+    },
     chip: {
       ...styles.flexRow,
       ...styles.itemsCenter,

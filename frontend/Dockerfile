@@ -19,10 +19,12 @@ ARG NEXT_PUBLIC_ASSET_PREFIX
 # https://admin.tejotime.com in code; set this when the admin runs anywhere else — e.g. the
 # interim *.up.railway.app domain, or a staging deploy — or every postMessage is dropped.
 ARG NEXT_PUBLIC_ADMIN_ORIGIN
+ARG NEXT_PUBLIC_OWNER_ORIGIN
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
     NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL \
     NEXT_PUBLIC_ASSET_PREFIX=$NEXT_PUBLIC_ASSET_PREFIX \
-    NEXT_PUBLIC_ADMIN_ORIGIN=$NEXT_PUBLIC_ADMIN_ORIGIN
+    NEXT_PUBLIC_ADMIN_ORIGIN=$NEXT_PUBLIC_ADMIN_ORIGIN \
+    NEXT_PUBLIC_OWNER_ORIGIN=$NEXT_PUBLIC_OWNER_ORIGIN
 RUN npm run build
 
 # ---- runner ----

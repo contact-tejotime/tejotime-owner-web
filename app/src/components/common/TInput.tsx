@@ -37,6 +37,7 @@ export function TInput({
   const [focus, setFocus] = useState(false);
   const borderColor = error ? theme.colors.error : focus ? theme.colors.borderFocus : theme.colors.borderDefault;
   const s = useMemo(() => createTInputStyles(theme, borderColor, disabled), [theme, borderColor, disabled]);
+  const multiline = Boolean(rest.multiline);
 
   return (
     <View style={[s.root, containerStyle]}>
@@ -45,7 +46,7 @@ export function TInput({
           {label}
         </TText>
       )}
-      <View style={tInputFieldStyle(s, size)}>
+      <View style={[tInputFieldStyle(s, size), multiline && s.fieldMultiline]}>
         {leadingIcon}
         {prefix && (
           <TText variant="bodyMd" color="textMuted">
@@ -54,6 +55,7 @@ export function TInput({
         )}
         <TextInput
           placeholderTextColor={theme.colors.textSubtle}
+          textAlignVertical={multiline ? 'top' : rest.textAlignVertical}
           {...rest}
           editable={disabled ? false : rest.editable}
           onFocus={(e) => {
@@ -64,7 +66,7 @@ export function TInput({
             setFocus(false);
             rest.onBlur?.(e);
           }}
-          style={s.input}
+          style={[s.input, multiline && s.inputMultiline, rest.style]}
         />
         {trailingIcon ?? (disabled ? <Icon name="lock" size={16} color={theme.colors.textSubtle} /> : null)}
       </View>
@@ -97,6 +99,12 @@ const createTInputStyles = (
     fieldSm: { height: rSize(theme.controlHeight.sm) },
     fieldMd: { height: rSize(theme.controlHeight.md) },
     fieldLg: { height: rSize(theme.controlHeight.lg) },
+    fieldMultiline: {
+      height: undefined,
+      minHeight: rSize(theme.controlHeight.lg) * 2,
+      alignItems: 'flex-start',
+      paddingVertical: moderateScale(10),
+    },
     input: {
       ...styles.flex,
       fontFamily: theme.fontFamily.regular,
@@ -105,6 +113,9 @@ const createTInputStyles = (
       padding: 0,
       includeFontPadding: false,
       // backgroundColor: 'red'
+    } as TextStyle,
+    inputMultiline: {
+      minHeight: rSize(theme.controlHeight.lg) * 1.5,
     } as TextStyle,
   });
 

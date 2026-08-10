@@ -29,13 +29,26 @@ export default async function DashboardPage() {
 
   const access = me.user.permissions ?? NO_ACCESS;
   const showQueue = can(access, "queue");
+  const staffScoped = me.user.role === "staff";
 
   const [queue, staff, services] = showQueue
     ? await Promise.all([getQueue(), getStaff(), getServices()])
     : [null, null, null];
 
+  const seats = queue?.seats ?? [];
+  const waitingLabel = queue
+    ? staffScoped
+      ? `${queue.summary.waitingCount} waiting · your chair`
+      : `${queue.summary.waitingCount} waiting · ${queue.summary.seatCount} seats`
+    : "—";
+
+  // Staff walk-ins always land on their linked chair — don't offer every seat in the sheet.
+  const walkInStaff = staffScoped
+    ? (staff?.data ?? []).filter((s) => s.isActive && s.id === me.user.staffId)
+    : (staff?.data ?? []).filter((s) => s.isActive);
+
   return (
-    <div className="page-app">
+    <div className={`page-app${staffScoped ? " page-app-staff" : ""}`}>
       <header className="home-header">
         <div className="home-header-left">
           <div className="home-avatar" aria-hidden>
@@ -43,11 +56,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="home-title">{me.business.name}</div>
-            <div className="home-sub">
-              {queue
-                ? `${queue.summary.waitingCount} waiting · ${queue.summary.seatCount} seats`
-                : "—"}
-            </div>
+            <div className="home-sub">{waitingLabel}</div>
           </div>
         </div>
         <Link href="/settings/notifications" className="icon-btn" aria-label="Notifications">
@@ -60,16 +69,17 @@ export default async function DashboardPage() {
       {showQueue ? (
         <Suspense fallback={null}>
           <HomeQueueSection
-            seats={queue?.seats ?? []}
-            staff={(staff?.data ?? []).filter((s) => s.isActive)}
+            seats={seats}
+            staff={walkInStaff}
             services={(services?.data ?? []).filter((s) => s.isActive)}
             showQr={can(access, "profile")}
+            singleChair={staffScoped || seats.length <= 1}
           />
         </Suspense>
       ) : can(access, "profile") ? (
         <>
           <h2 className="home-section-title">Quick actions</h2>
-          <div className="home-actions">
+          <div className="home-actions home-actions-solo">
             <Link href="/settings" className="btn secondary home-action-secondary">
               <Icon name="qrCode" size={18} />
               Contact QR

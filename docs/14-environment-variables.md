@@ -131,7 +131,8 @@ The bucket is private, so there is no CDN/public base URL: stored image URLs poi
 | `NEXT_PUBLIC_SOCKET_URL` | `https://api.tejotime.com` | Socket.IO origin |
 | `NEXT_PUBLIC_SITE_URL` | `https://www.tejotime.com` | canonical web URL |
 | `NEXT_PUBLIC_CAPTCHA_SITE_KEY` | — | public microsite anti-abuse |
-| `NEXT_PUBLIC_ADMIN_ORIGIN` | `https://admin.tejotime.com` | origin allowed to postMessage theme configs into `?preview=1`. Defaults to the production admin; set it only when the admin runs elsewhere. Must also be declared as a build ARG (it is, in `frontend/Dockerfile`). |
+| `NEXT_PUBLIC_ADMIN_ORIGIN` | `https://admin.tejotime.com` | origin allowed to postMessage theme configs into `?preview=1` from the admin panel. Must also be declared as a build ARG (it is, in `frontend/Dockerfile`). |
+| `NEXT_PUBLIC_OWNER_ORIGIN` | `https://business.tejotime.com` | origin allowed to postMessage theme configs into `?preview=1` from owner-web Settings → Profile Appearance. Preprod: `https://business-preprod.tejotime.com`. Local next-dev also allows `localhost:3002` / `127.0.0.1:3002`. Must be a build ARG in `frontend/Dockerfile`. |
 
 ## 2b. Admin — Next.js (`admin-panel/`)
 
@@ -139,6 +140,13 @@ The bucket is private, so there is no CDN/public base URL: stored image URLs poi
 |---|---|---|
 | `BACKEND_API_BASE_URL` | `https://api.tejotime.com/api/v1` | server-side API |
 | `NEXT_PUBLIC_FRONTEND_URL` | `https://www.tejotime.com` | customer host for store links, booking QR, and Appearance live preview. Keep identical to API `PUBLIC_WEB_URL` in prod. Unset in local `next dev` → Appearance preview defaults to `http://localhost:3000` so postMessage can reach a local frontend (prod rejects `localhost:3001`) |
+
+## 2c. Owner portal — Next.js (`owner-web/`)
+
+| Var | Example | Notes |
+|---|---|---|
+| `BACKEND_API_BASE_URL` | `https://api.tejotime.com/api/v1` | server-side API (browser never sees this; calls go through `/api/*` proxies) |
+| `NEXT_PUBLIC_FRONTEND_URL` | `https://www.tejotime.com` | customer host for Appearance live preview. Same alignment as admin. Unset in local `next dev` → defaults to `http://localhost:3000` |
 
 ## 3. Mobile — Expo (`app/`)
 
@@ -154,7 +162,7 @@ Set via `app.json` → `extra` / EAS build profiles.
 ## 4. Handling rules
 
 - **Required-on-boot:** `DATABASE_URL`, `REDIS_URL`, JWT secrets, `PUBLIC_WEB_URL`, storage creds, SMS creds (in prod). Validate & exit non-zero if absent.
-- **QR host alignment:** `PUBLIC_WEB_URL` (API), `EXPO_PUBLIC_WEB_URL` (owner app), and `NEXT_PUBLIC_FRONTEND_URL` (admin) must be the same customer origin (`https://www.tejotime.com` in prod; `https://preprod.tejotime.com` in preprod). Mismatched hosts produce QRs that open the wrong site or 404.
+- **QR host alignment:** `PUBLIC_WEB_URL` (API), `EXPO_PUBLIC_WEB_URL` (owner app), and `NEXT_PUBLIC_FRONTEND_URL` (admin + owner-web) must be the same customer origin (`https://www.tejotime.com` in prod; `https://preprod.tejotime.com` in preprod). Mismatched hosts produce QRs that open the wrong site or 404.
 - **Secrets** (`*_SECRET`, `*_KEY`, `*_TOKEN`, `*_PEPPER`, `DATABASE_URL`) come from the secret manager / Railway dashboard, not committed `.env` files.
 - Keep committed `*.example` files documenting every var with safe placeholders; never commit real `.env.local` / `.env.preprod` / `.env.prod`.
 - **Data isolation:** preprod and production backends must not share `DATABASE_URL`. Store `is_active` is global to that database.

@@ -14,6 +14,7 @@ export const QUEUE_ROUTE = '/(app)/(tabs)/queue';
 
 export type SettingsPageId =
   | 'profile'
+  | 'appearance'
   | 'hours'
   | 'services'
   | 'staff'
@@ -24,6 +25,7 @@ export type SettingsPageId =
 
 export const SETTINGS_ROUTES: Record<SettingsPageId, string> = {
   profile: '/(app)/settings/profile',
+  appearance: '/(app)/settings/appearance',
   hours: '/(app)/settings/hours',
   services: '/(app)/settings/services',
   staff: '/(app)/settings/staff',

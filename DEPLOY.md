@@ -40,9 +40,11 @@ No `RAILWAY_*` GitHub Actions secrets are required.
 
 **API (preprod):** `APP_BASE_URL=https://api-preprod.tejotime.com`, `PUBLIC_WEB_URL=https://preprod.tejotime.com`, `CORS_ALLOWED_ORIGINS=https://preprod.tejotime.com,https://admin-preprod.tejotime.com`
 
-**Web (preprod):** `NEXT_PUBLIC_API_BASE_URL=https://api-preprod.tejotime.com/api/v1`, `NEXT_PUBLIC_SOCKET_URL=https://api-preprod.tejotime.com`, `NEXT_PUBLIC_ASSET_PREFIX=https://preprod.tejotime.com`, `NEXT_PUBLIC_ADMIN_ORIGIN=https://admin-preprod.tejotime.com`
+**Web (preprod):** `NEXT_PUBLIC_API_BASE_URL=https://api-preprod.tejotime.com/api/v1`, `NEXT_PUBLIC_SOCKET_URL=https://api-preprod.tejotime.com`, `NEXT_PUBLIC_ASSET_PREFIX=https://preprod.tejotime.com`, `NEXT_PUBLIC_ADMIN_ORIGIN=https://admin-preprod.tejotime.com`, `NEXT_PUBLIC_OWNER_ORIGIN=https://business-preprod.tejotime.com`
 
 **Admin (preprod):** `BACKEND_API_BASE_URL=https://api-preprod.tejotime.com/api/v1`, `NEXT_PUBLIC_FRONTEND_URL=https://preprod.tejotime.com`
+
+**Owner (preprod):** `BACKEND_API_BASE_URL=https://api-preprod.tejotime.com/api/v1`, `NEXT_PUBLIC_FRONTEND_URL=https://preprod.tejotime.com`
 
 ### Isolate preprod data (required)
 
@@ -116,11 +118,13 @@ Each domain shows pending until DNS propagates, then flips to verified (green ch
 | `PUBLIC_WEB_URL` | `https://www.tejotime.com` |
 | `CORS_ALLOWED_ORIGINS` | `https://www.tejotime.com,https://admin.tejotime.com` |
 
-**`tejotime-web`:** `NEXT_PUBLIC_API_BASE_URL=https://api.tejotime.com/api/v1`, `NEXT_PUBLIC_SOCKET_URL=https://api.tejotime.com`, `NEXT_PUBLIC_ASSET_PREFIX=https://www.tejotime.com`, `NEXT_PUBLIC_ADMIN_ORIGIN=https://admin.tejotime.com`
+**`tejotime-web`:** `NEXT_PUBLIC_API_BASE_URL=https://api.tejotime.com/api/v1`, `NEXT_PUBLIC_SOCKET_URL=https://api.tejotime.com`, `NEXT_PUBLIC_ASSET_PREFIX=https://www.tejotime.com`, `NEXT_PUBLIC_ADMIN_ORIGIN=https://admin.tejotime.com`, `NEXT_PUBLIC_OWNER_ORIGIN=https://business.tejotime.com`
 
-> `NEXT_PUBLIC_ADMIN_ORIGIN` is the origin allowed to drive the microsite's live theme preview (`?preview=1`). The code default is already `https://admin.tejotime.com`, so you only need to set it while the admin is on a different host — e.g. the interim `*.up.railway.app` domain in step 3, or a staging deploy. If it is wrong the admin's Appearance preview silently shows "isn't accepting live theme updates".
+> `NEXT_PUBLIC_ADMIN_ORIGIN` and `NEXT_PUBLIC_OWNER_ORIGIN` are the origins allowed to drive the microsite's live theme preview (`?preview=1`) from admin-panel and owner-web respectively. If either is wrong, that portal's Appearance preview silently shows "isn't accepting live theme updates".
 
 **`tejotime-admin`:** `BACKEND_API_BASE_URL=https://api.tejotime.com/api/v1`, `NEXT_PUBLIC_FRONTEND_URL=https://www.tejotime.com`
+
+**`tejotime-owner`:** `BACKEND_API_BASE_URL=https://api.tejotime.com/api/v1`, `NEXT_PUBLIC_FRONTEND_URL=https://www.tejotime.com`
 
 > `NEXT_PUBLIC_*` are **baked in at build time**, so after setting them you must **redeploy** (not just restart) the two Next services.
 

@@ -442,10 +442,10 @@ admin-panel (parent)                          frontend (iframe, /{slug}?preview=
 Rules on both ends, in order:
 
 1. **Check `event.origin` first**, before touching `event.data`. The iframe compares against its
-   allowlist (`NEXT_PUBLIC_ADMIN_ORIGIN` plus the two localhost:3001 dev hosts); the parent
-   compares against `NEXT_PUBLIC_FRONTEND_URL`'s origin. Anything else is dropped silently — an
-   embedded page receives messages from every frame on the page, including extensions and ad
-   frames.
+   allowlist (`NEXT_PUBLIC_ADMIN_ORIGIN`, `NEXT_PUBLIC_OWNER_ORIGIN`, plus localhost:3001 / :3002
+   in non-production); the parent compares against `NEXT_PUBLIC_FRONTEND_URL`'s origin. Anything
+   else is dropped silently — an embedded page receives messages from every frame on the page,
+   including extensions and ad frames.
 2. **Never post with `targetOrigin: '*'`.** A theme config is not secret, but a wildcard target
    means any page that manages to host the frame receives the stream. The `tt-theme-ready`
    handshake is posted once per allowed origin rather than once with `'*'`.
@@ -460,8 +460,8 @@ Rules on both ends, in order:
    underneath.
 
 Both origins are configuration, not constants — see [14 — Environment Variables](./14-environment-variables.md).
-`NEXT_PUBLIC_FRONTEND_URL` already exists in the admin panel; the frontend reads
-`NEXT_PUBLIC_ADMIN_ORIGIN`. Neither may fall back to `'*'`.
+`NEXT_PUBLIC_FRONTEND_URL` already exists in the admin panel and owner-web; the frontend reads
+`NEXT_PUBLIC_ADMIN_ORIGIN` and `NEXT_PUBLIC_OWNER_ORIGIN`. Neither may fall back to `'*'`.
 
 The admin's own preview panel imports the engine from the **mirror** (`@/theme/engine`) to render
 swatches, contrast badges and the AA check locally, without a round trip. That is the entire

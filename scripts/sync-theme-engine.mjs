@@ -44,12 +44,13 @@ const SOURCE_REL = join('frontend', 'src', 'theme', 'engine');
 
 /**
  * Every app that needs the engine gets its own copy, for the same reason admin-panel does:
- * each is built from its own folder (frontend/ and admin-panel/ by Docker `COPY . .`, app/ by
- * EAS from the Expo project root), so nothing outside that folder exists at build time.
+ * each is built from its own folder (frontend/, admin-panel/, owner-web/ by Docker `COPY . .`,
+ * app/ by EAS from the Expo project root), so nothing outside that folder exists at build time.
  */
 const TARGET_RELS = [
   join('admin-panel', 'src', 'theme', 'engine'),
   join('app', 'src', 'theme', 'engine'),
+  join('owner-web', 'src', 'theme', 'engine'),
 ];
 
 const SOURCE_DIR = join(REPO_ROOT, SOURCE_REL);
