@@ -16,6 +16,21 @@ export function businessDayRange(tz = env.DEFAULT_TIMEZONE, date?: string) {
   return { startIso: start.utc().toISOString(), endIso: end.utc().toISOString() };
 }
 
+/**
+ * Start of the current calendar month through end of "today" in the business timezone.
+ * Used by Reports — month-to-date, not a full closed month.
+ */
+export function businessMonthRange(tz = env.DEFAULT_TIMEZONE) {
+  const now = dayjs().tz(tz);
+  const start = now.startOf('month');
+  const end = now.endOf('day');
+  return {
+    startIso: start.utc().toISOString(),
+    endIso: end.utc().toISOString(),
+    periodLabel: now.format('MMMM YYYY'),
+  };
+}
+
 /** Start of `from` through end of `to`, in a business timezone, as UTC ISO strings. */
 export function businessRangeWindow(tz = env.DEFAULT_TIMEZONE, from: string, to: string) {
   const start = dayjs.tz(from, tz).startOf('day');

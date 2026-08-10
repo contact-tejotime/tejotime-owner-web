@@ -72,7 +72,13 @@ export async function getQueueView(businessId: string, opts: QueueViewOpts = {})
   const ctx = await loadQueueContext(businessId);
   const groups = buildSeatGroups(ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
   const filtered = opts.staffId && opts.staffId !== 'all' ? groups.filter((g) => g.id === opts.staffId) : groups;
-  const summary = summarize(ctx);
+  // Summary must match the seats the caller actually sees — a staff login's filtered chair,
+  // not the whole shop (otherwise the header says "6 waiting · 3 seats" while the board shows one).
+  const summary = {
+    seatCount: filtered.length,
+    activeCount: filtered.reduce((n, g) => n + g.cards.length, 0),
+    waitingCount: filtered.reduce((n, g) => n + g.waitingCount, 0),
+  };
   if (opts.view === 'flat') return { cards: flatCards(filtered).map(cardToDTO), summary };
   return { seats: filtered.map(seatToDTO), summary };
 }

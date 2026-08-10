@@ -17,11 +17,14 @@ export function HomeQueueSection({
   staff,
   services,
   showQr,
+  singleChair = false,
 }: {
   seats: SeatGroup[];
   staff: StaffRow[];
   services: ServiceRow[];
   showQr: boolean;
+  /** Staff / one-seat shops — tighter layout, no redundant seat filter chips. */
+  singleChair?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -50,10 +53,12 @@ export function HomeQueueSection({
     }
   };
 
+  const soloAction = !showQr;
+
   return (
     <>
       <h2 className="home-section-title">Quick actions</h2>
-      <div className="home-actions">
+      <div className={`home-actions${soloAction ? " home-actions-solo" : ""}`}>
         <button type="button" className="btn home-action-primary" onClick={() => setWalkInOpen(true)}>
           <Icon name="plus" size={18} color="#fff" />
           Add walk-in
@@ -66,13 +71,14 @@ export function HomeQueueSection({
         ) : null}
       </div>
 
-      <h2 className="home-section-title">Queue</h2>
+      <h2 className="home-section-title">{singleChair ? "Your queue" : "Queue"}</h2>
       <QueueBoard
         initialSeats={seats}
         staff={staff}
         services={services}
         walkInOpen={walkInOpen}
         onWalkInOpenChange={setWalkInOpen}
+        singleChair={singleChair}
       />
     </>
   );

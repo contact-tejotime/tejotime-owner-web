@@ -149,11 +149,18 @@ export const api = {
   checkIn: (id: string) => raw('POST', `/appointments/${id}/check-in`),
   getCustomers: (search?: string) =>
     raw('GET', `/customers${search ? `?search=${encodeURIComponent(search)}` : ''}`),
-  getDashboard: () => raw('GET', '/dashboard/summary'),
+  getDashboard: (range: 'today' | 'month' = 'today') =>
+    raw('GET', `/dashboard/summary?range=${range}`),
+  getDashboardByStaff: (range: 'today' | 'month' = 'today') =>
+    raw('GET', `/dashboard/by-staff?range=${range}`),
   getBusiness: () => raw('GET', '/business'),
-  updateBusiness: (b: { name?: string; address?: string }) => raw('PATCH', '/business', b),
+  updateBusiness: (b: import('@/lib/business-profile').BusinessProfilePatch) =>
+    raw('PATCH', '/business', b),
   setHours: (hours: { dayOfWeek: number; opensAt: string | null; closesAt: string | null; isClosed: boolean }[]) =>
     raw('PUT', '/business/hours', { hours }),
+  setAmenities: (amenities: string[]) => raw('PUT', '/business/amenities', { amenities }),
+  setGallery: (images: import('@/lib/business-profile').GalleryImageInput[]) =>
+    raw('PUT', '/business/gallery', { images }),
 
   createService: (b: { name: string; durationMinutes: number; priceAmount: number; colorToken: string; position?: number }) =>
     raw('POST', '/services', b),

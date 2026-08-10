@@ -104,13 +104,47 @@ export function mapStaff(s: any, i = 0): Staff {
 export function mapBusinessDetail(r: any) {
   return {
     id: r.id,
-    name: r.name,
-    area: r.area,
+    name: r.name ?? '',
+    area: r.area ?? '',
     slug: r.slug,
-    address: r.address ?? undefined,
-    category: r.category ?? undefined,
+    address: r.address ?? '',
+    category: r.category ?? '',
+    city: r.city ?? '',
     countryCode: r.countryCode ?? null,
     phoneNumber: r.phoneNumber ?? null,
+    tagline: r.tagline ?? '',
+    heroSubtitle: r.heroSubtitle ?? '',
+    description: r.description ?? '',
+    aboutHeading: r.aboutHeading ?? '',
+    establishedYear: r.establishedYear != null ? Number(r.establishedYear) : null,
+    statValue: r.statValue ?? '',
+    statLabel: r.statLabel ?? '',
+    logoUrl: r.logoUrl ?? '',
+    heroImageUrl: r.heroImageUrl ?? '',
+    aboutImageUrl: r.aboutImageUrl ?? '',
+    instagramUrl: r.instagramUrl ?? '',
+    facebookUrl: r.facebookUrl ?? '',
+    twitterUrl: r.twitterUrl ?? '',
+    linkedinUrl: r.linkedinUrl ?? '',
+    payments: Array.isArray(r.payments) ? r.payments.map(String) : [],
+    amenities: Array.isArray(r.amenities) ? r.amenities.map(String) : [],
+    faqs: Array.isArray(r.faqs)
+      ? r.faqs.map((f: any) => ({ q: String(f.q ?? ''), a: String(f.a ?? '') }))
+      : [],
+    reviews: Array.isArray(r.reviews)
+      ? r.reviews.map((rev: any) => ({
+          stars: Number(rev.stars ?? 5),
+          text: String(rev.text ?? ''),
+          authorName: String(rev.authorName ?? ''),
+        }))
+      : [],
+    gallery: Array.isArray(r.gallery)
+      ? r.gallery.map((g: any) => ({
+          id: g.id != null ? String(g.id) : undefined,
+          url: String(g.url ?? ''),
+          alt: g.alt != null ? String(g.alt) : null,
+        }))
+      : [],
     hours: mapHours(r.hours ?? []),
   };
 }

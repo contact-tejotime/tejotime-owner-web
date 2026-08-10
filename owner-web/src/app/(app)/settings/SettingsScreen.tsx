@@ -89,8 +89,11 @@ export function SettingsScreen({
     <div className="page-app">
       <AppPageHeader title="Settings" subtitle={biz} avatar={avatar} showSettings={false} />
 
+      {/* Single column on phone/tablet — the grid rule only exists at ≥1025px. */}
+      <div className="settings-columns">
+
       {showBusinessGroup ? (
-        <>
+        <section className="settings-group">
           <p className="settings-group-label">Business</p>
           <div className="settings-card">
             {can(access, "profile") ? (
@@ -121,11 +124,11 @@ export function SettingsScreen({
               <SettingsRow href="/settings/staff" icon="users" label="Staff & seats" sub="Chairs and providers" />
             ) : null}
           </div>
-        </>
+        </section>
       ) : null}
 
       {isOwnerRole(role) ? (
-        <>
+        <section className="settings-group">
           <p className="settings-group-label">Team</p>
           <div className="settings-card">
             <SettingsRow
@@ -135,11 +138,11 @@ export function SettingsScreen({
               sub="Co-owners, staff and what each can see"
             />
           </div>
-        </>
+        </section>
       ) : null}
 
       {showBookingGroup ? (
-        <>
+        <section className="settings-group">
           <p className="settings-group-label">Bookings & queue</p>
           <div className="settings-card">
             <SettingsRow
@@ -149,9 +152,10 @@ export function SettingsScreen({
               sub="Alerts and reminders"
             />
           </div>
-        </>
+        </section>
       ) : null}
 
+      <section className="settings-group">
       <p className="settings-group-label">Account</p>
       <div className="settings-card">
         <SettingsRow
@@ -182,6 +186,9 @@ export function SettingsScreen({
             />
           }
         />
+      </div>
+
+      </section>
       </div>
 
       <div className="settings-card" style={{ marginTop: 16 }}>

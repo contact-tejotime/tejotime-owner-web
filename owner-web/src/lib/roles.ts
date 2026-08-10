@@ -175,7 +175,7 @@ export const NAV_ITEMS: {
   module: Module | null;
 }[] = [
   { href: "/dashboard", label: "Home", icon: "layoutDashboard", module: "dashboard" },
-  { href: "/stats", label: "Stats", icon: "star", module: "dashboard" },
+  { href: "/stats", label: "Reports", icon: "star", module: "dashboard" },
   { href: "/appointments", label: "Appointments", icon: "calendar", module: "appointments" },
   { href: "/calendar", label: "Calendar", icon: "grid", module: "calendar" },
   { href: "/customers", label: "Customers", icon: "user", module: "customers" },

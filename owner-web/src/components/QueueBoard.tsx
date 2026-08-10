@@ -83,12 +83,14 @@ export function QueueBoard({
   services,
   walkInOpen,
   onWalkInOpenChange,
+  singleChair = false,
 }: {
   initialSeats: SeatGroup[];
   staff: StaffRow[];
   services: ServiceRow[];
   walkInOpen: boolean;
   onWalkInOpenChange: (open: boolean) => void;
+  singleChair?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -244,25 +246,31 @@ export function QueueBoard({
 
   return (
     <>
-      <div className="chip-row">
-        <button
-          type="button"
-          className={`filter-chip ${filter === "all" ? "active" : ""}`}
-          onClick={() => setFilter("all")}
-        >
-          All <span className="filter-chip-count">{totalWaiting}</span>
-        </button>
-        {seatsState.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            className={`filter-chip ${filter === s.id ? "active" : ""}`}
-            onClick={() => setFilter(s.id)}
-          >
-            <span className="filter-chip-label">{s.name}</span>
-            <span className="filter-chip-count">{waitingCards(s).length}</span>
-          </button>
-        ))}
+      <div className={`chip-row${singleChair ? " chip-row-staff" : ""}`}>
+        {singleChair ? (
+          <span className="queue-waiting-pill">{totalWaiting} waiting</span>
+        ) : (
+          <>
+            <button
+              type="button"
+              className={`filter-chip ${filter === "all" ? "active" : ""}`}
+              onClick={() => setFilter("all")}
+            >
+              All <span className="filter-chip-count">{totalWaiting}</span>
+            </button>
+            {seatsState.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className={`filter-chip ${filter === s.id ? "active" : ""}`}
+                onClick={() => setFilter(s.id)}
+              >
+                <span className="filter-chip-label">{s.name}</span>
+                <span className="filter-chip-count">{waitingCards(s).length}</span>
+              </button>
+            ))}
+          </>
+        )}
         <button type="button" className="filter-chip filter-chip-cta" onClick={() => onWalkInOpenChange(true)}>
           <Icon name="plus" size={15} color="#fff" />
           Walk-in
@@ -270,13 +278,17 @@ export function QueueBoard({
       </div>
 
       {dragId ? (
-        <p className="queue-drag-hint">Drop on a seat to reorder or move · only waiting tickets</p>
+        <p className="queue-drag-hint">
+          {singleChair
+            ? "Drop to reorder · waiting customers only"
+            : "Drop on a seat to reorder or move · waiting customers only"}
+        </p>
       ) : null}
 
       {seats.length === 0 ? (
         <p className="home-empty">No seats set up yet. Add staff in Settings.</p>
       ) : (
-        <div className={`seat-list ${dragId ? "is-dragging" : ""}`}>
+        <div className={`seat-list${singleChair ? " seat-list-single" : ""}${dragId ? " is-dragging" : ""}`}>
           {seats.map((seat) => {
             const waiting = waitingCards(seat);
             const serving = servingCards(seat);
@@ -427,7 +439,7 @@ export function QueueBoard({
                   />
 
                   {seat.cards.length === 0 ? (
-                    <p className="seat-empty seat-empty-drop">Drop a waiting ticket here</p>
+                    <p className="seat-empty seat-empty-drop">Drop a waiting customer here</p>
                   ) : null}
                 </ul>
               </section>
