@@ -74,6 +74,7 @@ export default async function DashboardPage() {
             services={(services?.data ?? []).filter((s) => s.isActive)}
             showQr={can(access, "profile")}
             singleChair={staffScoped || seats.length <= 1}
+            category={me.business.category}
           />
         </Suspense>
       ) : can(access, "profile") ? (

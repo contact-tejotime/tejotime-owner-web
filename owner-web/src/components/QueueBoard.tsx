@@ -84,6 +84,7 @@ export function QueueBoard({
   walkInOpen,
   onWalkInOpenChange,
   singleChair = false,
+  category,
 }: {
   initialSeats: SeatGroup[];
   staff: StaffRow[];
@@ -91,6 +92,8 @@ export function QueueBoard({
   walkInOpen: boolean;
   onWalkInOpenChange: (open: boolean) => void;
   singleChair?: boolean;
+  /** Business category — gates checkout add-on chips in the detail sheet. */
+  category?: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -452,6 +455,7 @@ export function QueueBoard({
         <QueueDetailSheet
           card={openCard}
           seats={seatsState}
+          category={category}
           onClose={() => setOpenCard(null)}
           onChanged={() => refresh()}
         />

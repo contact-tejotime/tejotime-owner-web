@@ -574,7 +574,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             ...p,
             authed: true,
             authLoading: false,
-            business: me.business ? { id: me.business.id, name: me.business.name, slug: me.business.slug } : null,
+            business: me.business
+              ? {
+                  id: me.business.id,
+                  name: me.business.name,
+                  slug: me.business.slug,
+                  category: me.business.category ?? '',
+                }
+              : null,
             plan: me.business?.plan ?? 'free',
             session,
             // Staff start on their chair — never on the "All" filter.
@@ -620,7 +627,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             ...p,
             authed: true,
             signInLoading: false,
-            business: res.business ? { id: res.business.id, name: res.business.name, slug: res.business.slug } : null,
+            business: res.business
+              ? {
+                  id: res.business.id,
+                  name: res.business.name,
+                  slug: res.business.slug,
+                  category: res.business.category ?? '',
+                }
+              : null,
             plan: res.business?.plan ?? 'free',
             session,
             queueStaff: session?.role === 'staff' && session.staffId ? session.staffId : 'all',

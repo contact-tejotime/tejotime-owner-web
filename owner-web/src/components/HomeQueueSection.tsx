@@ -18,6 +18,7 @@ export function HomeQueueSection({
   services,
   showQr,
   singleChair = false,
+  category,
 }: {
   seats: SeatGroup[];
   staff: StaffRow[];
@@ -25,6 +26,7 @@ export function HomeQueueSection({
   showQr: boolean;
   /** Staff / one-seat shops — tighter layout, no redundant seat filter chips. */
   singleChair?: boolean;
+  category?: string | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -79,6 +81,7 @@ export function HomeQueueSection({
         walkInOpen={walkInOpen}
         onWalkInOpenChange={setWalkInOpen}
         singleChair={singleChair}
+        category={category}
       />
     </>
   );
