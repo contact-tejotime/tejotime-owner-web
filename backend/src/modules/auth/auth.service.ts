@@ -20,10 +20,11 @@ async function planForBusiness(businessId: string): Promise<PlanType> {
 }
 
 async function businessSummary(businessId: string) {
-  // theme + themeColor travel with every login/`/auth/me` so owner-web and the Expo app can
-  // theme their chrome for staff as well as owners — without requiring `profile` permission.
+  // theme + themeColor (+ category for checkout add-on chips) travel with every login/`/auth/me`
+  // so owner-web and the Expo app can theme chrome / gate extras for staff as well as owners —
+  // without requiring `profile` permission.
   return one(
-    `select id, name, slug, theme, theme_color as "themeColor"
+    `select id, name, slug, category, theme, theme_color as "themeColor"
        from business where id = $1`,
     [businessId],
   );

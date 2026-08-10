@@ -124,6 +124,8 @@ export interface Me {
     name: string;
     slug: string;
     plan: "free" | "premium";
+    /** Free-text category — gates checkout add-on chips. */
+    category?: string | null;
     /** Store Appearance — present once the API ships theme on /auth/me. */
     theme?: ThemeConfig | null;
     themeColor?: string | null;
