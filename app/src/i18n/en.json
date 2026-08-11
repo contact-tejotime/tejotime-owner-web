@@ -68,7 +68,8 @@
     "ownerSubtitle": "For the business owner and co-owners. Full access to the shop.",
     "staffTitle": "Staff sign in",
     "staffSubtitle": "For team members. You will see your own chair and whatever the owner has shared.",
-    "staffFoot": "Staff logins are created by your business owner. If you do not have one, ask them to add you under Settings → Team logins."
+    "staffFoot": "Staff logins are created by your business owner. If you do not have one, ask them to add you under Settings → Team logins.",
+    "needHelp": "Need help? Contact TejoTime support"
   },
   "dashboard": {
     "kpiAppts": "Today's appts",
@@ -153,7 +154,18 @@
     "teamLogins": "Team logins",
     "teamLoginsSub": "Co-owners, staff and what each can see",
     "yourAccount": "Your account",
-    "yourAccountSub": "Your name and password"
+    "yourAccountSub": "Your name and password",
+    "groupSupport": "Support",
+    "supportBlurb": "Need help with your salon? Reach TejoTime support.",
+    "supportEmail": "Email support",
+    "supportCall": "Call support"
+  },
+  "support": {
+    "needHelp": "Need help?",
+    "contactUs": "Contact us",
+    "email": "Email",
+    "call": "Call",
+    "strip": "Need help? Email · Call"
   },
   "hours": {
     "title": "Working hours",
@@ -226,9 +238,10 @@
     "facebookLabel": "Facebook",
     "twitterLabel": "X (Twitter)",
     "linkedinLabel": "LinkedIn",
-    "galleryHint": "The gallery on your page. The first photo shows largest — use Move up to reorder.",
+    "galleryHint": "The gallery on your page — up to 7 photos. The first photo shows largest; use Move up to reorder.",
     "galleryEmpty": "No photos yet.",
     "galleryAdd": "Add photo",
+    "galleryFull": "Gallery is full (7 photos).",
     "galleryRemove": "Remove",
     "galleryMoveUp": "Move up",
     "paymentsLabel": "Payments accepted",

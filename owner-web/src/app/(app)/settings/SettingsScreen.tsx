@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { AppPageHeader } from "@/components/AppPageHeader";
 import { Icon, type IconName } from "@/components/Icon";
 import { can, isOwnerRole, type ModuleAccess, type UserRole } from "@/lib/roles";
+import { SUPPORT } from "@/lib/support";
 
 function SettingsRow({
   href,
+  externalHref,
   icon,
   label,
   sub,
@@ -16,6 +18,8 @@ function SettingsRow({
   trailing,
 }: {
   href?: string;
+  /** mailto: / tel: — rendered as a plain anchor, not a Next.js route. */
+  externalHref?: string;
   icon: IconName;
   label: string;
   sub: string;
@@ -38,6 +42,13 @@ function SettingsRow({
     </>
   );
 
+  if (externalHref) {
+    return (
+      <a href={externalHref} className="settings-row">
+        {body}
+      </a>
+    );
+  }
   if (href) {
     return (
       <Link href={href} className="settings-row">
@@ -190,6 +201,24 @@ export function SettingsScreen({
 
       </section>
       </div>
+
+      <section className="settings-group">
+        <p className="settings-group-label">Support</p>
+        <div className="settings-card">
+          <SettingsRow
+            externalHref={`mailto:${SUPPORT.email}`}
+            icon="mail"
+            label="Email support"
+            sub={SUPPORT.email}
+          />
+          <SettingsRow
+            externalHref={`tel:${SUPPORT.phoneTel}`}
+            icon="phone"
+            label="Call support"
+            sub={SUPPORT.phoneDisplay}
+          />
+        </div>
+      </section>
 
       <div className="settings-card" style={{ marginTop: 16 }}>
         <div className="settings-row settings-row-stack">

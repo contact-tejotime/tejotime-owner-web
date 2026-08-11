@@ -8,6 +8,7 @@ import {
   TInput,
   TKeyboardScreen,
   TText,
+  SupportContact,
 } from "@/components/common";
 import { Icon } from "@/components/ui/Icon";
 import { t } from "@/i18n";
@@ -169,6 +170,7 @@ export default function Login() {
           ) : null}
         </View>
       </View>
+      <SupportContact variant="login" />
       <TText
         variant="caption"
         color="textSubtle"

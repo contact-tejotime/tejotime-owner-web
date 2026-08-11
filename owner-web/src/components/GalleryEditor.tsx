@@ -23,7 +23,7 @@ export interface GalleryImage {
 export function GalleryEditor({
   images,
   onChange,
-  max = 24,
+  max = 7,
 }: {
   images: GalleryImage[];
   onChange: (next: GalleryImage[]) => void;

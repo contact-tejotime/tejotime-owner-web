@@ -75,7 +75,7 @@ function findCard(seats: SeatGroup[], cardId: string): { card: QueueCard; seatId
 
 /**
  * Interactive queue board with Kanban drag: reorder waiting tickets within a seat, or drop
- * onto another seat. Uses HTML5 DnD from a grip so Start / Check out stay clickable.
+ * onto another seat. Uses HTML5 DnD from a grip so Start / End stay clickable.
  */
 export function QueueBoard({
   initialSeats,
@@ -339,7 +339,7 @@ export function QueueBoard({
                           disabled={cardBusy(card.id)}
                           onClick={() => setOpenCard(card)}
                         >
-                          Check out
+                          End
                         </button>
                         <button
                           type="button"

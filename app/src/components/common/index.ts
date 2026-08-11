@@ -17,4 +17,5 @@ export { TSafeAreaScreen } from './TSafeAreaScreen';
 export { TResponsiveContainer } from './TResponsiveContainer';
 export { TToast } from './TToast';
 export { TScopeNotice } from './TScopeNotice';
+export { SupportContact } from './SupportContact';
 export type { TextVariant } from '@/theme/tokens';

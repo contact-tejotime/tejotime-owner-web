@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AppPageHeader } from "@/components/AppPageHeader";
 import { CustomerSearch } from "@/components/CustomerSearch";
 import { Icon } from "@/components/Icon";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatMoney, formatPhone } from "@/lib/format";
 import { getCustomers } from "@/lib/server-api";
 
 function initials(name: string) {
@@ -54,7 +54,7 @@ export default async function CustomersPage({
                     {c.name}
                     {c.isVip ? " ★" : ""}
                   </div>
-                  <div className="meta">{c.phone}</div>
+                  <div className="meta">{formatPhone(c.phone)}</div>
                 </div>
               </div>
               <div className="customer-card-meta">

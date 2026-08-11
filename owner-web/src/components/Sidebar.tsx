@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Icon } from "@/components/Icon";
 import { NavLink } from "@/components/NavLink";
 import { Spinner } from "@/components/Skeleton";
+import { SupportContact } from "@/components/SupportContact";
 import { navItemsFor, ROLE_LABELS, type ModuleAccess } from "@/lib/roles";
 import type { Me } from "@/lib/server-api";
 
@@ -66,6 +67,7 @@ export function Sidebar({ me, access }: { me: Me; access: ModuleAccess }) {
       </nav>
 
       <div className="role-switcher">
+        <SupportContact variant="sidebar" />
         <button type="button" className="logout-btn" onClick={onLogout} disabled={signingOut}>
           {signingOut ? (
             <>

@@ -287,7 +287,7 @@ export function QueueDetailSheet({
               )}
             </div>
 
-            {/* Red, matching the board's Check out — it is the same action. */}
+            {/* Red, matching the board's End — it is the same action. */}
             <button type="button" className="btn danger block btn-xl" onClick={onComplete} disabled={busy}>
               {busy ? <Spinner size={16} /> : null}
               Complete &amp; start next

@@ -94,7 +94,7 @@ const patchSchema = z
 const gallerySchema = z.object({
   images: z
     .array(z.object({ url: z.string().url().max(500), alt: z.string().max(160).nullable().optional() }))
-    .max(24),
+    .max(7),
 });
 
 const hoursSchema = z.object({

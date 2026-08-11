@@ -5,7 +5,7 @@ import { useEffect, useId, useState } from "react";
 import { Icon } from "@/components/Icon";
 
 /**
- * Booking QR for the owner's store profile header.
+ * Booking QR for the owner's store profile header / home Contact QR action.
  *
  * Encodes the customer chooser at `/{phone}/card` (same target as the admin hub). No
  * qrcode.react dependency — the PNG comes from a public QR endpoint so the dialog stays
@@ -14,9 +14,14 @@ import { Icon } from "@/components/Icon";
 export function StoreBookingQr({
   cardUrl,
   storeName,
+  variant = "icon",
+  label = "Contact QR",
 }: {
   cardUrl: string;
   storeName: string;
+  /** `icon` = compact header control; `button` = dashboard quick-action style. */
+  variant?: "icon" | "button";
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   const titleId = useId();
@@ -36,15 +41,27 @@ export function StoreBookingQr({
 
   return (
     <>
-      <button
-        type="button"
-        className="qr-icon-btn"
-        onClick={() => setOpen(true)}
-        title="Booking QR — scan to book or save contact"
-        aria-label="Booking QR"
-      >
-        <Icon name="qrCode" size={18} />
-      </button>
+      {variant === "button" ? (
+        <button
+          type="button"
+          className="btn secondary home-action-secondary"
+          onClick={() => setOpen(true)}
+          aria-label={label}
+        >
+          <Icon name="qrCode" size={18} />
+          {label}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="qr-icon-btn"
+          onClick={() => setOpen(true)}
+          title="Booking QR — scan to book or save contact"
+          aria-label="Booking QR"
+        >
+          <Icon name="qrCode" size={18} />
+        </button>
+      )}
 
       {open ? (
         <div className="store-qr-overlay" onClick={() => setOpen(false)} role="presentation">
