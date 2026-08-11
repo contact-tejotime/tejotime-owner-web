@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { THeader, TScreenScroll, TSettingsRow, TSwitch, TText } from '@/components/common';
 import { Badge } from '@/components/ui/Badge';
@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/Icon';
 import { t, format } from '@/i18n';
 import { appVersion, businessProfile, notificationsSub, subscription } from '@/data/settings';
 import { hoursSummary } from '@/lib/hours';
+import { SUPPORT } from '@/lib/support';
 import { SETTINGS_ROUTES, SettingsPageId } from '@/navigation/routes';
 import { can, isOwnerRole } from '@/lib/permissions';
 import { useAppState } from '@/state/store';
@@ -178,6 +179,24 @@ export default function Settings() {
               label={t.settings.darkMode}
               sub={t.settings.darkModeSub}
               trailing={<TSwitch checked={theme.dark} onChange={theme.setDark} />}
+              showBorder={false}
+            />
+          </View>
+        </Section>
+
+        <Section title={t.settings.groupSupport} styles={s}>
+          <View style={s.card}>
+            <TSettingsRow
+              icon="bell"
+              label={t.settings.supportEmail}
+              sub={SUPPORT.email}
+              onPress={() => void Linking.openURL(`mailto:${SUPPORT.email}`)}
+            />
+            <TSettingsRow
+              icon="phone"
+              label={t.settings.supportCall}
+              sub={SUPPORT.phoneDisplay}
+              onPress={() => void Linking.openURL(`tel:${SUPPORT.phoneTel}`)}
               showBorder={false}
             />
           </View>

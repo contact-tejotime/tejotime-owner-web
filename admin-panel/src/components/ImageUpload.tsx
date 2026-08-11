@@ -101,28 +101,42 @@ export function ImageUpload({
 }
 
 /** Multi-image uploader for the gallery — appends each uploaded photo as a { url, alt } row. */
+const GALLERY_MAX = 7;
+
 export function GalleryUpload({
   value,
   onChange,
   assetType,
+  max = GALLERY_MAX,
 }: {
   value: GalleryRow[];
   onChange: (rows: GalleryRow[]) => void;
   assetType: string;
+  max?: number;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const full = value.length >= max;
 
   async function pick(e: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
     setErr("");
+    const room = max - value.length;
+    const chosen = files.slice(0, Math.max(0, room));
+    if (chosen.length < files.length) {
+      setErr(format(t.imageUpload.galleryMaxSkipped, { max }));
+    }
+    if (!chosen.length) {
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
     setBusy(true);
     try {
       // Upload in parallel and keep every success even if some fail, rather than
       // discarding already-uploaded photos when a later one errors.
-      const results = await Promise.allSettled(files.map((f) => uploadImage(f, assetType)));
+      const results = await Promise.allSettled(chosen.map((f) => uploadImage(f, assetType)));
       const added: GalleryRow[] = results
         .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
         .map((r) => ({ url: r.value, alt: "" }));
@@ -194,7 +208,17 @@ export function GalleryUpload({
           ))}
         </div>
       )}
-      <input ref={inputRef} type="file" accept={ACCEPT} multiple onChange={pick} disabled={busy} />
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPT}
+        multiple
+        onChange={pick}
+        disabled={busy || full}
+      />
+      <p className="hint" style={{ marginTop: 6 }}>
+        {format(t.imageUpload.galleryCount, { count: value.length, max })}
+      </p>
       {busy && (
         <p className="hint" style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <Spinner /> {t.imageUpload.uploading}

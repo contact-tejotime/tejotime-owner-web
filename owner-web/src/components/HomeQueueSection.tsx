@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Icon } from "@/components/Icon";
 import { QueueBoard } from "@/components/QueueBoard";
+import { StoreBookingQr } from "@/components/StoreBookingQr";
 import type { SeatGroup, ServiceRow, StaffRow } from "@/lib/server-api";
 
 /**
@@ -19,6 +19,8 @@ export function HomeQueueSection({
   showQr,
   singleChair = false,
   category,
+  cardUrl,
+  storeName,
 }: {
   seats: SeatGroup[];
   staff: StaffRow[];
@@ -27,6 +29,9 @@ export function HomeQueueSection({
   /** Staff / one-seat shops — tighter layout, no redundant seat filter chips. */
   singleChair?: boolean;
   category?: string | null;
+  /** Public booking chooser URL encoded into the Contact QR (from GET /business/qr). */
+  cardUrl?: string | null;
+  storeName?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -55,7 +60,8 @@ export function HomeQueueSection({
     }
   };
 
-  const soloAction = !showQr;
+  const qrReady = showQr && !!cardUrl;
+  const soloAction = !qrReady;
 
   return (
     <>
@@ -65,11 +71,13 @@ export function HomeQueueSection({
           <Icon name="plus" size={18} color="#fff" />
           Add walk-in
         </button>
-        {showQr ? (
-          <Link href="/settings" className="btn secondary home-action-secondary">
-            <Icon name="qrCode" size={18} />
-            Contact QR
-          </Link>
+        {qrReady ? (
+          <StoreBookingQr
+            variant="button"
+            label="Contact QR"
+            cardUrl={cardUrl!}
+            storeName={storeName || "Store"}
+          />
         ) : null}
       </div>
 

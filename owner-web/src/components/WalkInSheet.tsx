@@ -2,11 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
+import PhoneField from "@/components/PhoneField";
 import { formatMoney } from "@/lib/format";
+import {
+  combineToE164,
+  DEFAULT_DIAL_CODE,
+  DEFAULT_ISO2,
+} from "@/lib/phone";
 import type { ServiceRow, StaffRow } from "@/lib/server-api";
 
 type WalkInSheetProps = {
-
   onClose: () => void;
   staff: StaffRow[];
   services: ServiceRow[];
@@ -16,8 +21,7 @@ type WalkInSheetProps = {
 /**
  * Add a walk-in. Posts to `/api/queue`, which forwards to the backend's `queue_add` RPC —
  * the same call the Expo app makes, so token allocation and seat assignment stay identical.
- */
-/**
+ *
  * Mounted only while open (the parent renders it conditionally), so every field starts fresh
  * on each open without a reset effect — clearing state inside an effect paints the previous
  * customer's details for one frame before wiping them, which is what
@@ -28,7 +32,11 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
   const [serviceId, setServiceId] = useState(() => services[0]?.id ?? "");
   const [seatId, setSeatId] = useState("any");
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState({
+    dialCode: DEFAULT_DIAL_CODE,
+    iso2: DEFAULT_ISO2,
+  });
+  const [national, setNational] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -38,6 +46,7 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
     if (services.length > 0 && !serviceId) return setError("Pick a service.");
     setBusy(true);
     try {
+      const phone = combineToE164(phoneCountry.dialCode, national) || undefined;
       const res = await fetch("/api/queue", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -46,7 +55,7 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
         // matching what the mobile app sends.
         body: JSON.stringify({
           name: name.trim(),
-          phone: phone.replace(/\D/g, "") || undefined,
+          phone,
           serviceId: serviceId || undefined,
           staffId: seatId === "any" ? "auto" : seatId,
           position: "end",
@@ -66,7 +75,6 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
   }
 
   useEffect(() => {
-
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
@@ -78,8 +86,6 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
       window.removeEventListener("keydown", onKey);
     };
   }, [onClose]);
-
-
 
   return (
     <div className="sheet-root" role="dialog" aria-modal="true" aria-label="Add walk-in">
@@ -98,21 +104,16 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
           />
         </div>
 
-        <div className="field">
-          <label htmlFor="walkin-phone">Phone</label>
-          <div className="phone-split">
-            <button type="button" className="phone-cc-btn" tabIndex={-1}>
-              +91
-            </button>
-            <input
-              id="walkin-phone"
-              placeholder="98xxx xxxxx"
-              inputMode="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-          </div>
-        </div>
+        <PhoneField
+          id="walkin-phone"
+          label="Phone"
+          placeholder="Phone number"
+          value={{ dialCode: phoneCountry.dialCode, national, iso2: phoneCountry.iso2 }}
+          onChange={(v) => {
+            setPhoneCountry({ dialCode: v.dialCode, iso2: v.iso2 });
+            setNational(v.national);
+          }}
+        />
 
         <p className="field-label">Service</p>
         <div className="service-pick-list">

@@ -381,11 +381,13 @@
     "noImage": "No image",
     "remove": "Remove",
     "uploading": "Uploading…",
-    "chooseGallery": "Choose one or more photos from your device.",
+    "chooseGallery": "Choose photos from your device (up to 7 for the live mosaic).",
     "removeTitle": "Remove",
     "uploadFailed": "Upload failed",
     "partialFail": "{failed} of {total} photo failed: {reason}",
-    "partialFailPlural": "{failed} of {total} photos failed: {reason}"
+    "partialFailPlural": "{failed} of {total} photos failed: {reason}",
+    "galleryCount": "{count} of {max}",
+    "galleryMaxSkipped": "Only {max} photos can be shown, so the extras were skipped."
   },
   "confirm": {
     "cancel": "Cancel",
@@ -455,7 +457,7 @@
     "aboutPhoto": "About photo",
     "logoPhoto": "Logo (optional)",
     "galleryPhotos": "Gallery photos",
-    "galleryHint": "Upload from your device. Many photos horizontally scroll on the live site.",
+    "galleryHint": "Upload from your device. Up to 7 photos fill the live-site mosaic (first photo shows largest).",
     "services": "Services *",
     "servicesOptional": "Services",
     "serviceName": "Name",

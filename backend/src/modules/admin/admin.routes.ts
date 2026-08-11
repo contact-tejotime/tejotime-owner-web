@@ -124,7 +124,7 @@ const storeFieldsSchema = z.object({
   amenities: z.array(z.string().min(1).max(60)).max(30).default([]),
   gallery: z
     .array(z.object({ url: z.string().url().max(500), alt: z.string().max(120).nullable().optional() }))
-    .max(30)
+    .max(7)
     .default([]),
   services: z
     .array(

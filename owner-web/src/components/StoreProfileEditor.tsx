@@ -404,7 +404,7 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
       <div className="section">
         <h2>Photos</h2>
         <p className="field-hint">
-          The gallery on your page. The first photo shows largest — use the arrows to reorder.
+          The gallery on your page — up to 7 photos. The first photo shows largest; use the arrows to reorder.
         </p>
         <GalleryEditor images={gallery} onChange={(g) => { setGallery(g); setError(""); }} />
       </div>

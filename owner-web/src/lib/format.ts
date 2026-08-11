@@ -1,19 +1,6 @@
 import type { Money } from "./server-api";
 
-/**
- * Display a stored phone (E.164 or digits-only, e.g. `919824410712`) as `+91 9824410712`.
- * No libphonenumber dependency — India-first heuristic with a safe fallback.
- */
-export function formatPhone(raw: string | null | undefined): string {
-  if (!raw) return "";
-  const digits = String(raw).replace(/\D/g, "");
-  if (!digits) return String(raw).trim();
-  if (digits.length >= 12 && digits.startsWith("91")) {
-    return `+91 ${digits.slice(2)}`;
-  }
-  if (digits.length === 10) return `+91 ${digits}`;
-  return `+${digits}`;
-}
+export { formatPhone } from "./phone";
 
 /**
  * Money for display. The API returns minor units (paise) with an ISO 4217 code — see

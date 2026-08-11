@@ -89,6 +89,10 @@ export function OwnerStoreProfileForm() {
       showToast(t.profile.yearInvalid, 'error');
       return;
     }
+    if (gallery.filter((g) => g.url.trim()).length > 7) {
+      showToast(t.profile.galleryFull, 'error');
+      return;
+    }
 
     setSaving(true);
     const ok = await store.saveProfile(
@@ -296,9 +300,16 @@ export function OwnerStoreProfileForm() {
           variant="secondary"
           size="md"
           loading={uploading === 'gallery'}
-          onPress={() =>
-            upload('gallery', (url) => setGallery((xs) => [...xs, { url, alt: null }]))
-          }
+          disabled={gallery.length >= 7 || uploading === 'gallery'}
+          onPress={() => {
+            if (gallery.length >= 7) {
+              showToast(t.profile.galleryFull, 'error');
+              return;
+            }
+            upload('gallery', (url) =>
+              setGallery((xs) => (xs.length >= 7 ? xs : [...xs, { url, alt: null }])),
+            );
+          }}
         >
           {t.profile.galleryAdd}
         </TButton>

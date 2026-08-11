@@ -3,6 +3,14 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import PhoneField from "@/components/PhoneField";
+import { SupportContact } from "@/components/SupportContact";
+import {
+  combineToDigits,
+  DEFAULT_DIAL_CODE,
+  DEFAULT_ISO2,
+} from "@/lib/phone";
+
 type AccountType = "owner" | "staff";
 
 const COPY: Record<AccountType, { title: string; sub: string }> = {
@@ -28,7 +36,11 @@ const COPY: Record<AccountType, { title: string; sub: string }> = {
 export default function LoginPage() {
   const router = useRouter();
   const [accountType, setAccountType] = useState<AccountType>("owner");
-  const [phone, setPhone] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState({
+    dialCode: DEFAULT_DIAL_CODE,
+    iso2: DEFAULT_ISO2,
+  });
+  const [national, setNational] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -39,8 +51,8 @@ export default function LoginPage() {
     setError("");
     setBusy(true);
     try {
-      // The route handler exchanges these for two httpOnly cookies; no token ever reaches
-      // browser JS. The backend matches on digits only, so punctuation is stripped there.
+      // Bare digits (`<cc><national>`) match app_user.phone; the route strips non-digits too.
+      const phone = combineToDigits(phoneCountry.dialCode, national);
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -98,18 +110,17 @@ export default function LoginPage() {
             </div>
           ) : null}
 
-          <div className="field">
-            <label htmlFor="phone">Mobile number</label>
-            <input
-              id="phone"
-              type="tel"
-              autoComplete="tel"
-              placeholder="e.g. 919876543210"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              autoFocus
-            />
-          </div>
+          <PhoneField
+            id="phone"
+            label="Mobile number"
+            placeholder="Phone number"
+            autoFocus
+            value={{ dialCode: phoneCountry.dialCode, national, iso2: phoneCountry.iso2 }}
+            onChange={(v) => {
+              setPhoneCountry({ dialCode: v.dialCode, iso2: v.iso2 });
+              setNational(v.national);
+            }}
+          />
 
           <div className="field">
             <label htmlFor="password">Password</label>
@@ -142,6 +153,8 @@ export default function LoginPage() {
               to add you under Settings → Team logins.
             </p>
           ) : null}
+
+          <SupportContact variant="login" />
         </form>
       </div>
     </div>
