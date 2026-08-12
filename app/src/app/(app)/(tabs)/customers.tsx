@@ -54,7 +54,7 @@ export default function Customers() {
             <CustomerCard
               key={c.id}
               name="••••••••"
-              phone="+91 ••••• •••••"
+              phone="+•• ••••• •••••"
               meta={[
                 { label: t.customers.visits, value: '•' },
                 { label: t.customers.lastVisit, value: '•' },

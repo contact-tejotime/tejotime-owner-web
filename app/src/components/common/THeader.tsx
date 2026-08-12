@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { TText } from '@/components/common/TText';
 import { InitialsAvatar } from '@/components/ui/InitialsAvatar';
 import { styles } from '@/styles';
-import { scaleFont } from '@/styles/scale';
+import { moderateScale, scaleFont } from '@/styles/scale';
 
 export function THeader({
   title,
@@ -28,7 +28,7 @@ export function THeader({
           {title}
         </TText>
         {subtitle ? (
-          <TText variant="bodySm" color="textMuted" style={theaderStyles.subtitle}>
+          <TText variant="bodySm" color="textMuted">
             {subtitle}
           </TText>
         ) : null}
@@ -39,8 +39,14 @@ export function THeader({
 }
 
 const theaderStyles = StyleSheet.create({
-  root: { ...styles.flexRow, ...styles.itemsCenter, ...styles.g3, ...styles.ph5, ...styles.pt4, ...styles.pb4 },
-  body: { ...styles.flex, ...styles.minWidth0 },
+  root: {
+    ...styles.flexRow,
+    ...styles.itemsCenter,
+    ...styles.g3,
+    ...styles.ph5,
+    paddingTop: moderateScale(16),
+    paddingBottom: moderateScale(12),
+  },
+  body: { ...styles.flex, ...styles.minWidth0, gap: moderateScale(4) },
   title: { fontSize: scaleFont(22), letterSpacing: -0.4 },
-  subtitle: { ...styles.mt1 },
 });

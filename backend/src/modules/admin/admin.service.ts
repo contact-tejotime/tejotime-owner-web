@@ -6,6 +6,8 @@ import { env } from '../../config/env';
 import { Errors } from '../../domain/errors';
 import { money } from '../../domain/money';
 import { signAdminToken } from '../auth/token.service';
+// Shared with the owner portal so both writers produce the same appearance columns.
+import { themeColumns, type ThemeConfigInput } from '../../domain/business-theme';
 
 /**
  * Provisioning + management API for the admin panel — a parameterized version of db/seed.ts.
@@ -13,31 +15,9 @@ import { signAdminToken } from '../auth/token.service';
  * business piecemeal). Reached via the admin-JWT–gated /api/v1/admin/* routes.
  */
 
-/**
- * Microsite theme config as stored in `business.theme` (jsonb).
- *
- * The id unions are mirrored from the frontend theme engine rather than imported: the
- * backend is Docker-built with `COPY . .` from backend/, so frontend/ is not in its build
- * context. Keep in sync with frontend/src/theme/engine (and the zod schema in admin.routes).
- * Every field is optional — the engine fills gaps from the preset's own defaults.
- */
-export interface ThemeConfigInput {
-  preset?: 'minimal' | 'luxury' | 'modern' | 'bold' | 'medical' | 'warm';
-  mode?: 'light' | 'dark' | 'auto';
-  /** `#RRGGBB` brand seed. Dual-written to the legacy `theme_color` column. */
-  brand?: string;
-  radius?: 'sharp' | 'medium' | 'rounded';
-  shadow?: 'none' | 'soft' | 'premium';
-  density?: 'comfortable' | 'compact';
-  animation?: 'subtle' | 'normal' | 'rich';
-  heroVariant?: string;
-  /** Optional `#RRGGBB` override of the preset accent strategy. */
-  accent?: string;
-  /** Primary / on-brand label ink. Absent or `auto` → engine picks for WCAG AA. */
-  brandInk?: 'auto' | 'white' | 'dark';
-}
-
 /** The store fields shared by create and update (everything except the owner login). */
+export type { ThemeConfigInput };
+
 export interface StoreFields {
   name: string;
   category?: string;
@@ -154,30 +134,6 @@ function businessColumns(input: StoreFields) {
   };
 }
 
-/**
- * Theme columns, write-if-present. Unlike the rest of businessColumns these are spread
- * conditionally (same guarded pattern as currency / is_active): a payload that omits
- * `themeColor` or `theme` must PRESERVE what is stored, never null it out.
- *
- * `theme.brand` and `theme_color` are dual-written in both directions so the legacy
- * column stays a valid fallback for one release.
- *
- * `storedBrand` is the row's current `theme_color` (updates only). Without it a partial save
- * that carries a theme object but neither `theme.brand` nor `themeColor` would persist a
- * BRANDLESS theme jsonb — and since the stored theme wins over `theme_color` at render time,
- * the store's brand would silently fall back to the engine default blue.
- */
-function themeColumns(input: StoreFields, storedBrand?: string | null): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  // A brand hex inside the theme object wins; otherwise the legacy field, then the stored one.
-  const brand = (input.theme?.brand ?? input.themeColor ?? storedBrand ?? undefined)?.toUpperCase();
-
-  if (brand !== undefined) out.theme_color = brand;
-  if (input.theme !== undefined) {
-    out.theme = JSON.stringify(brand !== undefined ? { ...input.theme, brand } : input.theme);
-  }
-  return out;
-}
 
 /** Insert all child rows (hours, amenities, gallery, services, staff) for a business. */
 async function insertChildren(client: PoolClient, bid: string, input: StoreFields, currency: string) {

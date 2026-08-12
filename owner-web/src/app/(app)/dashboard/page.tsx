@@ -5,8 +5,9 @@ import { Suspense } from "react";
 import { HomeQueueSection } from "@/components/HomeQueueSection";
 import { Icon } from "@/components/Icon";
 import { ScopeNotice } from "@/components/ScopeNotice";
+import { StoreBookingQr } from "@/components/StoreBookingQr";
 import { can, NO_ACCESS } from "@/lib/roles";
-import { getMe, getQueue, getServices, getStaff } from "@/lib/server-api";
+import { getBusinessQr, getMe, getQueue, getServices, getStaff } from "@/lib/server-api";
 
 function initials(name: string) {
   return name
@@ -29,13 +30,33 @@ export default async function DashboardPage() {
 
   const access = me.user.permissions ?? NO_ACCESS;
   const showQueue = can(access, "queue");
+  const showQr = can(access, "profile");
+  const staffScoped = me.user.role === "staff";
 
-  const [queue, staff, services] = showQueue
-    ? await Promise.all([getQueue(), getStaff(), getServices()])
-    : [null, null, null];
+  const [queue, staff, services, qr] = await Promise.all([
+    showQueue ? getQueue() : Promise.resolve(null),
+    showQueue ? getStaff() : Promise.resolve(null),
+    showQueue ? getServices() : Promise.resolve(null),
+    showQr ? getBusinessQr() : Promise.resolve(null),
+  ]);
+
+  const seats = queue?.seats ?? [];
+  const waitingLabel = queue
+    ? staffScoped
+      ? `${queue.summary.waitingCount} waiting · your chair`
+      : `${queue.summary.waitingCount} waiting · ${queue.summary.seatCount} seats`
+    : "—";
+
+  // Staff walk-ins always land on their linked chair — don't offer every seat in the sheet.
+  const walkInStaff = staffScoped
+    ? (staff?.data ?? []).filter((s) => s.isActive && s.id === me.user.staffId)
+    : (staff?.data ?? []).filter((s) => s.isActive);
+
+  const cardUrl = qr?.cardUrl ?? null;
+  const storeName = me.business.name;
 
   return (
-    <div className="page-app">
+    <div className={`page-app${staffScoped ? " page-app-staff" : ""}`}>
       <header className="home-header">
         <div className="home-header-left">
           <div className="home-avatar" aria-hidden>
@@ -43,11 +64,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="home-title">{me.business.name}</div>
-            <div className="home-sub">
-              {queue
-                ? `${queue.summary.waitingCount} waiting · ${queue.summary.seatCount} seats`
-                : "—"}
-            </div>
+            <div className="home-sub">{waitingLabel}</div>
           </div>
         </div>
         <Link href="/settings/notifications" className="icon-btn" aria-label="Notifications">
@@ -60,20 +77,21 @@ export default async function DashboardPage() {
       {showQueue ? (
         <Suspense fallback={null}>
           <HomeQueueSection
-            seats={queue?.seats ?? []}
-            staff={(staff?.data ?? []).filter((s) => s.isActive)}
+            seats={seats}
+            staff={walkInStaff}
             services={(services?.data ?? []).filter((s) => s.isActive)}
-            showQr={can(access, "profile")}
+            showQr={showQr}
+            cardUrl={cardUrl}
+            storeName={storeName}
+            singleChair={staffScoped || seats.length <= 1}
+            category={me.business.category}
           />
         </Suspense>
-      ) : can(access, "profile") ? (
+      ) : showQr && cardUrl ? (
         <>
           <h2 className="home-section-title">Quick actions</h2>
-          <div className="home-actions">
-            <Link href="/settings" className="btn secondary home-action-secondary">
-              <Icon name="qrCode" size={18} />
-              Contact QR
-            </Link>
+          <div className="home-actions home-actions-solo">
+            <StoreBookingQr variant="button" label="Contact QR" cardUrl={cardUrl} storeName={storeName} />
           </div>
         </>
       ) : null}

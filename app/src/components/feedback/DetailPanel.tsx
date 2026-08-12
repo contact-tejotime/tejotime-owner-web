@@ -4,12 +4,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
-import { Icon, type IconName } from '@/components/ui/Icon';
+import { Icon } from '@/components/ui/Icon';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useResponsive } from '@/hooks/useResponsive';
 import { t, format } from '@/i18n';
 import { api } from '@/lib/api';
 import { flatCards } from '@/lib/queue';
+import { extrasForCategory } from '@/lib/service-extras';
 import { showToast } from '@/lib/toast';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
@@ -17,17 +18,6 @@ import type { ThemeStyleProps } from '@/styles/types';
 import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
 import { useTheme } from '@/theme/ThemeProvider';
-
-/**
- * Each add-on carries its own icon rather than a shared "+" — the same four shapes the portal
- * uses, so a barber moving between the two products recognises them without re-reading.
- */
-const EXTRAS: { label: string; mins: number; icon: IconName }[] = [
-  { label: t.detail.extras.shave, mins: 10, icon: 'razor' },
-  { label: t.detail.extras.beardTrim, mins: 15, icon: 'clipper' },
-  { label: t.detail.extras.hairWash, mins: 10, icon: 'droplet' },
-  { label: t.detail.extras.hairColor, mins: 30, icon: 'paintbrush' },
-];
 
 /** What this entry would be charged right now, as the API computes it. */
 interface Billing {
@@ -54,6 +44,10 @@ export function DetailPanel() {
   const open = !!card;
   const seatBusy = !!seatGroup?.serving;
   const busy = store.detailBusy;
+  const extras = useMemo(
+    () => extrasForCategory(store.business?.category),
+    [store.business?.category],
+  );
   /** Spin only the button that was pressed; disable the rest without spinning them. */
   const running = (action: typeof store.detailAction) => busy && store.detailAction === action;
 
@@ -252,7 +246,7 @@ export function DetailPanel() {
                   </View>
 
                   <View style={s.chipWrap}>
-                    {EXTRAS.map((e) => (
+                    {extras.map((e) => (
                       <Pressable
                         key={e.label}
                         disabled={busy}

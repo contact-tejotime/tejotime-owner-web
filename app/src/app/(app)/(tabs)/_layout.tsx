@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/BottomNav';
-import { TResponsiveContainer } from '@/components/common';
+import { SupportContact, TResponsiveContainer } from '@/components/common';
 import { styles } from '@/styles';
 
 export default function TabsLayout() {
@@ -15,6 +15,7 @@ export default function TabsLayout() {
         <TResponsiveContainer maxWidth={720}>
           <Slot />
         </TResponsiveContainer>
+        <SupportContact variant="strip" />
         <BottomNav />
       </View>
     </SafeAreaView>

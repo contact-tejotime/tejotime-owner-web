@@ -24,7 +24,9 @@
  *    server-rendered stylesheet stays intact underneath.
  *
  * Security: `event.origin` is checked against a fixed allowlist before the payload is even
- * looked at. Everything else is dropped silently.
+ * looked at (iframe / owner-web / admin). Same-origin messages are also accepted so the Expo
+ * owner app can drive preview from a WebView. Everything else is dropped silently.
+ * The native app may also call `window.__ttThemePreview(config)` after injectJavaScript.
  */
 
 import { useEffect } from 'react';
@@ -44,23 +46,29 @@ interface PreviewMessage {
 /**
  * Origins allowed to drive the preview.
  *
- * Production/preprod ships EXACTLY the value of `NEXT_PUBLIC_ADMIN_ORIGIN` (build ARG in
- * frontend/Dockerfile). There is no hardcoded admin host — if the env is unset in a
- * production build, the allowlist is empty and preview messages are ignored.
+ * Production/preprod ships the values of `NEXT_PUBLIC_ADMIN_ORIGIN` and
+ * `NEXT_PUBLIC_OWNER_ORIGIN` (build ARGs in frontend/Dockerfile). There is no hardcoded host —
+ * if both are unset in a production build, the allowlist is empty and preview messages are ignored.
  *
- * The two local dev hosts are behind a `NODE_ENV !== 'production'` test so the bundler
- * drops them from the production build — otherwise any page a visitor happens to have open
- * on localhost:3001 could iframe a live microsite with `?preview=1` and repaint it.
+ * Local admin (:3001) and owner-web (:3002) hosts are behind a `NODE_ENV !== 'production'` test
+ * so the bundler drops them from the production build.
  *
  * `NEXT_PUBLIC_*` and `NODE_ENV` are inlined at build time, so this is a constant in the
  * bundle — it cannot be influenced by a request.
  */
 function allowedOrigins(): string[] {
   const list: string[] = [];
-  const configured = process.env.NEXT_PUBLIC_ADMIN_ORIGIN?.trim();
-  if (configured) list.push(configured);
+  const admin = process.env.NEXT_PUBLIC_ADMIN_ORIGIN?.trim();
+  const owner = process.env.NEXT_PUBLIC_OWNER_ORIGIN?.trim();
+  if (admin) list.push(admin);
+  if (owner) list.push(owner);
   if (process.env.NODE_ENV !== 'production') {
-    list.push('http://localhost:3001', 'http://127.0.0.1:3001');
+    list.push(
+      'http://localhost:3001',
+      'http://127.0.0.1:3001',
+      'http://localhost:3002',
+      'http://127.0.0.1:3002',
+    );
   }
   // Normalise away a trailing slash — `event.origin` never has one.
   return Array.from(new Set(list.map((o) => o.replace(/\/+$/, ''))));
@@ -118,14 +126,29 @@ export function useThemePreview(rootRef: RefObject<HTMLElement | null>): void {
     let onSchemeChange: (() => void) | null = null;
 
     const onMessage = (event: MessageEvent) => {
-      if (!origins.includes(event.origin)) return; // Security gate — before touching data.
+      // iframe/popup parents use the allowlist; React Native WebView posts as same-origin
+      // (injectJavaScript / postMessage from the page itself).
+      const originOk =
+        origins.includes(event.origin) ||
+        (typeof window !== 'undefined' && event.origin === window.location.origin);
+      if (!originOk) return;
       if (!isPreviewMessage(event.data)) return;
       const config = event.data.config;
       if (apply) apply(config);
       else pending = config;
     };
 
+    /** RN owner app injects this rather than relying on MessageEvent.origin quirks. */
+    const onNativeConfig = (raw: unknown) => {
+      if (apply) apply(raw);
+      else pending = raw;
+    };
+
     window.addEventListener('message', onMessage);
+    // Android WebView historically dispatches on document.
+    document.addEventListener('message', onMessage as EventListener);
+    (window as Window & { __ttThemePreview?: (raw: unknown) => void }).__ttThemePreview =
+      onNativeConfig;
 
     // The engine is only pulled in on the preview path, so the public bundle is unaffected.
     void import('./engine').then(({ normalizeThemeConfig, resolveTheme, tokensForMode }) => {
@@ -165,8 +188,19 @@ export function useThemePreview(rootRef: RefObject<HTMLElement | null>): void {
 
     // Handshake: tell whoever opened us that the channel is live. Sent to every allowed
     // origin rather than '*' so the message body never leaks to an unexpected embedder.
+    // The Expo owner app listens via `window.ReactNativeWebView.postMessage` instead of
+    // window.parent (there is no parent frame inside a native WebView).
     const ready = { type: READY_MESSAGE } as const;
     const sendReady = () => {
+      const rn = (window as Window & { ReactNativeWebView?: { postMessage: (s: string) => void } })
+        .ReactNativeWebView;
+      if (rn) {
+        try {
+          rn.postMessage(JSON.stringify(ready));
+        } catch {
+          /* bridge missing — fall through to iframe path */
+        }
+      }
       for (const target of [window.opener, window.parent]) {
         if (!target || target === window) continue;
         for (const origin of origins) {
@@ -187,7 +221,10 @@ export function useThemePreview(rootRef: RefObject<HTMLElement | null>): void {
     return () => {
       disposed = true;
       window.removeEventListener('message', onMessage);
+      document.removeEventListener('message', onMessage as EventListener);
       window.removeEventListener('pageshow', sendReady);
+      const w = window as Window & { __ttThemePreview?: (raw: unknown) => void };
+      if (w.__ttThemePreview === onNativeConfig) delete w.__ttThemePreview;
       if (schemeQuery && onSchemeChange) schemeQuery.removeEventListener('change', onSchemeChange);
     };
   }, [rootRef]);

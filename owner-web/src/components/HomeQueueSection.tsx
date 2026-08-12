@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Icon } from "@/components/Icon";
 import { QueueBoard } from "@/components/QueueBoard";
+import { StoreBookingQr } from "@/components/StoreBookingQr";
 import type { SeatGroup, ServiceRow, StaffRow } from "@/lib/server-api";
 
 /**
@@ -17,11 +17,21 @@ export function HomeQueueSection({
   staff,
   services,
   showQr,
+  singleChair = false,
+  category,
+  cardUrl,
+  storeName,
 }: {
   seats: SeatGroup[];
   staff: StaffRow[];
   services: ServiceRow[];
   showQr: boolean;
+  /** Staff / one-seat shops — tighter layout, no redundant seat filter chips. */
+  singleChair?: boolean;
+  category?: string | null;
+  /** Public booking chooser URL encoded into the Contact QR (from GET /business/qr). */
+  cardUrl?: string | null;
+  storeName?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -50,29 +60,36 @@ export function HomeQueueSection({
     }
   };
 
+  const qrReady = showQr && !!cardUrl;
+  const soloAction = !qrReady;
+
   return (
     <>
       <h2 className="home-section-title">Quick actions</h2>
-      <div className="home-actions">
+      <div className={`home-actions${soloAction ? " home-actions-solo" : ""}`}>
         <button type="button" className="btn home-action-primary" onClick={() => setWalkInOpen(true)}>
           <Icon name="plus" size={18} color="#fff" />
           Add walk-in
         </button>
-        {showQr ? (
-          <Link href="/settings" className="btn secondary home-action-secondary">
-            <Icon name="qrCode" size={18} />
-            Contact QR
-          </Link>
+        {qrReady ? (
+          <StoreBookingQr
+            variant="button"
+            label="Contact QR"
+            cardUrl={cardUrl!}
+            storeName={storeName || "Store"}
+          />
         ) : null}
       </div>
 
-      <h2 className="home-section-title">Queue</h2>
+      <h2 className="home-section-title">{singleChair ? "Your queue" : "Queue"}</h2>
       <QueueBoard
         initialSeats={seats}
         staff={staff}
         services={services}
         walkInOpen={walkInOpen}
         onWalkInOpenChange={setWalkInOpen}
+        singleChair={singleChair}
+        category={category}
       />
     </>
   );

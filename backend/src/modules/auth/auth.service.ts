@@ -20,7 +20,14 @@ async function planForBusiness(businessId: string): Promise<PlanType> {
 }
 
 async function businessSummary(businessId: string) {
-  return one('select id, name, slug from business where id = $1', [businessId]);
+  // theme + themeColor (+ category for checkout add-on chips) travel with every login/`/auth/me`
+  // so owner-web and the Expo app can theme chrome / gate extras for staff as well as owners —
+  // without requiring `profile` permission.
+  return one(
+    `select id, name, slug, category, theme, theme_color as "themeColor"
+       from business where id = $1`,
+    [businessId],
+  );
 }
 
 async function issueSession(

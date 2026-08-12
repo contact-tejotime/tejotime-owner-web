@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { AppPageHeader } from "@/components/AppPageHeader";
 import { Icon, type IconName } from "@/components/Icon";
 import { can, isOwnerRole, type ModuleAccess, type UserRole } from "@/lib/roles";
+import { SUPPORT } from "@/lib/support";
 
 function SettingsRow({
   href,
+  externalHref,
   icon,
   label,
   sub,
@@ -16,6 +18,8 @@ function SettingsRow({
   trailing,
 }: {
   href?: string;
+  /** mailto: / tel: — rendered as a plain anchor, not a Next.js route. */
+  externalHref?: string;
   icon: IconName;
   label: string;
   sub: string;
@@ -38,6 +42,13 @@ function SettingsRow({
     </>
   );
 
+  if (externalHref) {
+    return (
+      <a href={externalHref} className="settings-row">
+        {body}
+      </a>
+    );
+  }
   if (href) {
     return (
       <Link href={href} className="settings-row">
@@ -89,8 +100,11 @@ export function SettingsScreen({
     <div className="page-app">
       <AppPageHeader title="Settings" subtitle={biz} avatar={avatar} showSettings={false} />
 
+      {/* Single column on phone/tablet — the grid rule only exists at ≥1025px. */}
+      <div className="settings-columns">
+
       {showBusinessGroup ? (
-        <>
+        <section className="settings-group">
           <p className="settings-group-label">Business</p>
           <div className="settings-card">
             {can(access, "profile") ? (
@@ -121,11 +135,11 @@ export function SettingsScreen({
               <SettingsRow href="/settings/staff" icon="users" label="Staff & seats" sub="Chairs and providers" />
             ) : null}
           </div>
-        </>
+        </section>
       ) : null}
 
       {isOwnerRole(role) ? (
-        <>
+        <section className="settings-group">
           <p className="settings-group-label">Team</p>
           <div className="settings-card">
             <SettingsRow
@@ -135,11 +149,11 @@ export function SettingsScreen({
               sub="Co-owners, staff and what each can see"
             />
           </div>
-        </>
+        </section>
       ) : null}
 
       {showBookingGroup ? (
-        <>
+        <section className="settings-group">
           <p className="settings-group-label">Bookings & queue</p>
           <div className="settings-card">
             <SettingsRow
@@ -149,9 +163,10 @@ export function SettingsScreen({
               sub="Alerts and reminders"
             />
           </div>
-        </>
+        </section>
       ) : null}
 
+      <section className="settings-group">
       <p className="settings-group-label">Account</p>
       <div className="settings-card">
         <SettingsRow
@@ -183,6 +198,27 @@ export function SettingsScreen({
           }
         />
       </div>
+
+      </section>
+      </div>
+
+      <section className="settings-group">
+        <p className="settings-group-label">Support</p>
+        <div className="settings-card">
+          <SettingsRow
+            externalHref={`mailto:${SUPPORT.email}`}
+            icon="mail"
+            label="Email support"
+            sub={SUPPORT.email}
+          />
+          <SettingsRow
+            externalHref={`tel:${SUPPORT.phoneTel}`}
+            icon="phone"
+            label="Call support"
+            sub={SUPPORT.phoneDisplay}
+          />
+        </div>
+      </section>
 
       <div className="settings-card" style={{ marginTop: 16 }}>
         <div className="settings-row settings-row-stack">

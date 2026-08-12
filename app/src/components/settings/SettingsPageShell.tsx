@@ -7,23 +7,27 @@ import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { t } from '@/i18n';
 import { styles } from '@/styles';
+import { moderateScale } from '@/styles/scale';
 import { useTheme } from '@/theme/ThemeProvider';
 
-/** Full-screen settings sub-page: back chevron + title header above a scroll body. */
+/**
+ * Settings sub-page chrome — back control + centered title, matching the profile-style header.
+ */
 export function SettingsPageShell({ title, children }: { title: string; children: React.ReactNode }) {
   const { colors } = useTheme();
 
   return (
     <TResponsiveContainer>
-      {/* Keyboard-aware so form fields (e.g. Business profile) aren't covered. */}
       <TKeyboardScreen isScrollView={false} style={styles.flex}>
         <View style={shellStyles.header}>
-          <IconButton variant="ghost" onPress={() => router.back()} accessibilityLabel={t.common.back}>
+          <IconButton variant="soft" onPress={() => router.back()} accessibilityLabel={t.common.back}>
             <Icon name="chevronLeft" size={22} color={colors.textStrong} />
           </IconButton>
-          <TText variant="h5" color="textStrong" weight="bold">
+          <TText variant="h5" color="textStrong" weight="bold" style={shellStyles.title} numberOfLines={1}>
             {title}
           </TText>
+          {/* Balance the back button so the title stays visually centered. */}
+          <View style={shellStyles.headerSpacer} />
         </View>
         <TScreenScroll>{children}</TScreenScroll>
       </TKeyboardScreen>
@@ -32,5 +36,19 @@ export function SettingsPageShell({ title, children }: { title: string; children
 }
 
 const shellStyles = StyleSheet.create({
-  header: { ...styles.flexRow, ...styles.itemsCenter, ...styles.g2, ...styles.ph3, ...styles.pt1, ...styles.pb3 },
+  header: {
+    ...styles.flexRow,
+    ...styles.itemsCenter,
+    paddingHorizontal: moderateScale(12),
+    paddingTop: moderateScale(6),
+    paddingBottom: moderateScale(12),
+  },
+  title: {
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerSpacer: {
+    width: moderateScale(40),
+    height: moderateScale(40),
+  },
 });

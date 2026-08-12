@@ -23,7 +23,27 @@ import { showToast } from '@/lib/toast';
 import { t, format } from '@/i18n';
 import { can, toSessionUser, type ModuleAccess, type SessionUser } from '@/lib/permissions';
 import { useTheme } from '@/theme/ThemeProvider';
-import { LEGACY_THEME_CONFIG, normalizeThemeConfig } from '@/theme/engine';
+import type { BusinessProfilePatch, GalleryImageInput } from '@/lib/business-profile';
+import { LEGACY_THEME_CONFIG, normalizeThemeConfig, type ThemeConfig } from '@/theme/engine';
+
+/** Staff logins only keep their linked chair — socket/API payloads can still include the whole shop. */
+function seatsForUser(raw: unknown, session: SessionUser | null | undefined): SeatGroupVM[] {
+  const seats = mapSeats(raw as any);
+  if (session?.role === 'staff' && session.staffId) {
+    return seats.filter((g) => g.id === session.staffId);
+  }
+  return seats;
+}
+
+/** Adopt Appearance from login/`/auth/me`/GET /business payloads (theme jsonb + legacy color). */
+function themeConfigFromBusiness(r: { theme?: unknown; themeColor?: string | null } | null | undefined): ThemeConfig | null {
+  if (!r) return null;
+  if (!r.theme && !r.themeColor) return null;
+  return normalizeThemeConfig(r.theme, {
+    ...LEGACY_THEME_CONFIG,
+    ...(r.themeColor ? { brand: r.themeColor } : {}),
+  });
+}
 
 export type Plan = 'free' | 'premium';
 type Sheet = 'walkin' | null;
@@ -52,6 +72,16 @@ export interface DashboardKpis {
   revenue: Money;
 }
 
+export type ReportRange = 'today' | 'month';
+
+export interface DashboardStaffRow {
+  staffId: string;
+  name: string;
+  appointments: number;
+  completed: number;
+  revenue: Money;
+}
+
 interface BusinessInfo {
   id?: string;
   name: string;
@@ -59,8 +89,28 @@ interface BusinessInfo {
   slug?: string;
   address?: string;
   category?: string;
+  city?: string;
   countryCode?: string | null;
   phoneNumber?: string | null;
+  tagline?: string;
+  heroSubtitle?: string;
+  description?: string;
+  aboutHeading?: string;
+  establishedYear?: number | null;
+  statValue?: string;
+  statLabel?: string;
+  logoUrl?: string;
+  heroImageUrl?: string;
+  aboutImageUrl?: string;
+  instagramUrl?: string;
+  facebookUrl?: string;
+  twitterUrl?: string;
+  linkedinUrl?: string;
+  payments?: string[];
+  amenities?: string[];
+  faqs?: { q: string; a: string }[];
+  reviews?: { stars: number; text: string; authorName: string }[];
+  gallery?: { id?: string; url: string; alt?: string | null }[];
   hours?: DayHoursVM[];
 }
 
@@ -110,6 +160,9 @@ type State = {
   customers: Customer[];
   customerMeta: { shown: number; total: number; lockedCount: number };
   dashboard: DashboardKpis | null;
+  reportRange: ReportRange;
+  reportPeriodLabel: string | null;
+  dashboardByStaff: DashboardStaffRow[];
 };
 
 type Store = State & {
@@ -144,8 +197,13 @@ type Store = State & {
   commitCrossSeatMove: (id: string, toStaffId: string, toIndex: number) => void;
   checkInAppt: (a: AppointmentEntry) => void;
   loadCalendarAppointments: (from: string, to: string) => Promise<void>;
+  setReportRange: (range: ReportRange) => void;
   upgrade: () => void;
-  saveProfile: (f: { name: string; address: string }) => Promise<boolean>;
+  saveProfile: (
+    patch: BusinessProfilePatch,
+    extras?: { amenities?: string[]; gallery?: GalleryImageInput[] },
+  ) => Promise<boolean>;
+  saveAppearance: (theme: ThemeConfig) => Promise<boolean>;
   saveHours: (next: DayHoursVM[]) => void;
   createService: (f: { name: string; durationMinutes: number; priceRupees: number }) => Promise<boolean>;
   updateService: (id: string, f: { name: string; durationMinutes: number; priceRupees: number }) => Promise<boolean>;
@@ -271,6 +329,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     customers: [],
     customerMeta: { shown: 0, total: 0, lockedCount: 0 },
     dashboard: null,
+    reportRange: 'today',
+    reportPeriodLabel: null,
+    dashboardByStaff: [],
   });
 
   const socketRef = useRef<Socket | null>(null);
@@ -278,6 +339,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const hoursSeq = useRef(0);
   /** Range currently shown on the calendar screen, so socket events can keep it fresh. */
   const calendarRangeRef = useRef<{ from: string; to: string } | null>(null);
+  /** Reports range — loadDashboard reads this on refresh so the toggle sticks. */
+  const reportRangeRef = useRef<ReportRange>('today');
   /**
    * The signed-in user's permissions, mirrored into a ref.
    *
@@ -286,6 +349,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
    * is therefore the only thing loadAll can trust about who just signed in.
    */
   const accessRef = useRef<ModuleAccess | null>(null);
+  /** Role for by-staff reports — staff must not call /dashboard/by-staff. */
+  const roleRef = useRef<SessionUser['role'] | null>(null);
 
   const patch = useCallback((fn: (p: State) => Partial<State>) => setS((p) => ({ ...p, ...fn(p) })), []);
 
@@ -293,7 +358,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const loadQueue = useCallback(async () => {
     try {
       const r = await api.getQueue();
-      setS((p) => ({ ...p, seats: mapSeats(r.seats) }));
+      setS((p) => {
+        const seats = seatsForUser(r.seats, p.session);
+        let queueStaff = p.queueStaff;
+        if (p.session?.role === 'staff') {
+          queueStaff = p.session.staffId ?? seats[0]?.id ?? queueStaff;
+        } else if (queueStaff !== 'all' && !seats.some((g) => g.id === queueStaff)) {
+          queueStaff = 'all';
+        }
+        return { ...p, seats, queueStaff };
+      });
     } catch {
       /* ignore */
     }
@@ -349,14 +423,38 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       /* ignore */
     }
   }, []);
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async (range?: ReportRange) => {
+    const r = range ?? reportRangeRef.current;
     try {
-      const r = await api.getDashboard();
-      setS((p) => ({ ...p, dashboard: r.kpis }));
+      const summary: any = await api.getDashboard(r);
+      setS((p) => ({
+        ...p,
+        dashboard: summary.kpis,
+        reportRange: r,
+        reportPeriodLabel: summary.periodLabel ?? null,
+      }));
     } catch {
       /* ignore */
     }
+    if (roleRef.current && roleRef.current !== 'staff') {
+      try {
+        const byStaff: any = await api.getDashboardByStaff(r);
+        setS((p) => ({ ...p, dashboardByStaff: byStaff.data ?? [] }));
+      } catch {
+        setS((p) => ({ ...p, dashboardByStaff: [] }));
+      }
+    } else {
+      setS((p) => ({ ...p, dashboardByStaff: [] }));
+    }
   }, []);
+  const setReportRange = useCallback(
+    (range: ReportRange) => {
+      reportRangeRef.current = range;
+      setS((p) => ({ ...p, reportRange: range }));
+      void loadDashboard(range);
+    },
+    [loadDashboard],
+  );
   const loadBusiness = useCallback(async () => {
     try {
       const r = await api.getBusiness();
@@ -364,14 +462,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       // Adopt the store's Appearance settings so the app matches its own microsite. The
       // normaliser repairs anything malformed and falls back to the legacy theme_color, so a
       // store that has never opened Appearance keeps today's exact TejoTime palette.
-      setThemeConfig(
-        r.theme || r.themeColor
-          ? normalizeThemeConfig(r.theme, {
-              ...LEGACY_THEME_CONFIG,
-              ...(r.themeColor ? { brand: r.themeColor } : {}),
-            })
-          : null,
-      );
+      setThemeConfig(themeConfigFromBusiness(r));
     } catch {
       /* ignore */
     }
@@ -427,7 +518,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     socketRef.current?.close();
     const sock = connectOwner(token);
     socketRef.current = sock;
-    sock.on('queue:snapshot', (d: any) => setS((p) => ({ ...p, seats: mapSeats(d.seats) })));
+    sock.on('queue:snapshot', (d: any) =>
+      setS((p) => ({ ...p, seats: seatsForUser(d.seats, p.session) })),
+    );
     const refreshVisibleCalendarRange = () => {
       const range = calendarRangeRef.current;
       if (range) loadCalendarAppointments(range.from, range.to);
@@ -465,6 +558,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setOnAuthFail(() => {
       teardown();
       accessRef.current = null;
+      roleRef.current = null;
+      setThemeConfig(null);
       setS((p) => ({ ...p, authed: false, authLoading: false, session: null }));
       showToast(t.toast.sessionExpired, 'error');
     });
@@ -474,15 +569,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         try {
           const me: any = await api.me();
           if (!alive) return;
+          const session = toSessionUser(me.user);
           setS((p) => ({
             ...p,
             authed: true,
             authLoading: false,
-            business: me.business ? { id: me.business.id, name: me.business.name, slug: me.business.slug } : null,
+            business: me.business
+              ? {
+                  id: me.business.id,
+                  name: me.business.name,
+                  slug: me.business.slug,
+                  category: me.business.category ?? '',
+                }
+              : null,
             plan: me.business?.plan ?? 'free',
-            session: toSessionUser(me.user),
+            session,
+            // Staff start on their chair — never on the "All" filter.
+            queueStaff: session?.role === 'staff' && session.staffId ? session.staffId : p.queueStaff,
           }));
-          accessRef.current = toSessionUser(me.user)?.permissions ?? null;
+          accessRef.current = session?.permissions ?? null;
+          roleRef.current = session?.role ?? null;
+          // Every role gets chrome theme from /auth/me — staff often cannot call GET /business.
+          setThemeConfig(themeConfigFromBusiness(me.business));
           connectSocket();
           bootstrap();
           return;
@@ -514,15 +622,26 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           const message =
             res?.message ??
             (res?.user?.name ? format(t.toast.welcomeBackName, { name: res.user.name }) : t.toast.signedIn);
+          const session = toSessionUser(res.user);
           setS((p) => ({
             ...p,
             authed: true,
             signInLoading: false,
-            business: res.business ? { id: res.business.id, name: res.business.name, slug: res.business.slug } : null,
+            business: res.business
+              ? {
+                  id: res.business.id,
+                  name: res.business.name,
+                  slug: res.business.slug,
+                  category: res.business.category ?? '',
+                }
+              : null,
             plan: res.business?.plan ?? 'free',
-            session: toSessionUser(res.user),
+            session,
+            queueStaff: session?.role === 'staff' && session.staffId ? session.staffId : 'all',
           }));
-          accessRef.current = toSessionUser(res.user)?.permissions ?? null;
+          accessRef.current = session?.permissions ?? null;
+          roleRef.current = session?.role ?? null;
+          setThemeConfig(themeConfigFromBusiness(res.business));
           showToast(message, 'success');
           connectSocket();
           bootstrap();
@@ -546,11 +665,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         // Clear the identity too. Leaving a stale session behind meant the next person to sign
         // in on this device saw the previous user's nav for a frame.
         accessRef.current = null;
+        roleRef.current = null;
+        setThemeConfig(null);
         setS((p) => ({ ...p, authed: false, signOutLoading: false, session: null }));
         showToast(message, type);
       },
       refresh,
-      setQueueStaff: (id) => patch(() => ({ queueStaff: id })),
+      setReportRange,
+      setQueueStaff: (id) =>
+        patch((p) => {
+          // Staff cannot switch to the shop-wide "All" view.
+          if (p.session?.role === 'staff' && id === 'all') return {};
+          return { queueStaff: id };
+        }),
       setSearch: (v) => {
         patch(() => ({ search: v }));
         if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -590,7 +717,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             position: w.position,
             visitorType: w.visitorType,
           });
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), sheet: null, walkinLoading: false }));
+          setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session), sheet: null, walkinLoading: false }));
           showToast(w.position === 'next' ? t.toast.addedAsNext : t.toast.addedToQueue, 'success');
           loadDashboard();
         } catch (e) {
@@ -605,7 +732,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         patch(() => ({ detailBusy: true, detailAction: 'start' }));
         try {
           const res: any = await api.startService(id);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null, detailBusy: false, detailAction: null }));
+          setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session), detailId: null, detailBusy: false, detailAction: null }));
           showToast(t.toast.serviceStarted, 'success');
         } catch (e) {
           patch(() => ({ detailBusy: false, detailAction: null }));
@@ -630,7 +757,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         patch(() => ({ detailBusy: true, detailAction: 'checkout' }));
         try {
           const res: any = await api.checkout(id, amountPaise);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null, detailBusy: false, detailAction: null }));
+          setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session), detailId: null, detailBusy: false, detailAction: null }));
           showToast(
             res.promoted ? format(t.toast.nowInService, { name: String(res.promoted.name).split(' ')[0] }) : t.toast.checkedOut,
             'success',
@@ -645,7 +772,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         patch(() => ({ detailBusy: true, detailAction: 'noShow' }));
         try {
           const res: any = await api.noShow(id);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailId: null, detailBusy: false, detailAction: null }));
+          setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session), detailId: null, detailBusy: false, detailAction: null }));
           showToast(t.toast.markedNoShow, 'success');
         } catch (e) {
           patch(() => ({ detailBusy: false, detailAction: null }));
@@ -656,7 +783,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         patch(() => ({ detailBusy: true, detailAction: 'reassign' }));
         try {
           const res: any = await api.reassign(id, staffId);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailBusy: false, detailAction: null }));
+          setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session), detailBusy: false, detailAction: null }));
           const nm = s.staff.find((st) => st.id === staffId)?.name ?? '';
           showToast(nm ? format(t.toast.movedTo, { name: nm }) : t.toast.moved, 'success');
         } catch (e) {
@@ -668,7 +795,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         patch(() => ({ detailBusy: true, detailAction: 'extend' }));
         try {
           const res: any = await api.extend(id, label, mins);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats), detailBusy: false, detailAction: null }));
+          setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session), detailBusy: false, detailAction: null }));
           showToast(format(t.toast.extendAdded, { mins, label }), 'success');
         } catch (e) {
           patch(() => ({ detailBusy: false, detailAction: null }));
@@ -693,7 +820,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (idx < 0) return;
         try {
           const res: any = await api.move(id, idx);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats) }));
+          setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session) }));
         } catch {
           loadQueue();
         }
@@ -702,7 +829,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         try {
           await api.reassign(id, toStaffId);
           const res: any = await api.move(id, toIndex);
-          setS((p) => ({ ...p, seats: mapSeats(res.seats) }));
+          setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session) }));
           const nm = s.staff.find((st) => st.id === toStaffId)?.name ?? '';
           showToast(nm ? format(t.toast.movedTo, { name: nm }) : t.toast.moved, 'success');
         } catch {
@@ -741,14 +868,38 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           showToast((e as ApiError)?.message ?? t.toast.upgradeFailed, 'error');
         }
       },
-      saveProfile: async ({ name, address }) => {
+      saveProfile: async (patch, extras) => {
         try {
-          const res: any = await api.updateBusiness({ name, address });
-          setS((p) => ({ ...p, business: mapBusinessDetail(res) }));
+          let res: any = await api.updateBusiness(patch);
+          if (extras?.amenities) {
+            res = await api.setAmenities(extras.amenities);
+          }
+          if (extras?.gallery) {
+            res = await api.setGallery(extras.gallery);
+          }
+          setS((p) => ({ ...p, business: mapBusinessDetail(res), plan: res.plan ?? p.plan }));
           showToast(t.toast.profileSaved, 'success');
           return true;
         } catch (e) {
           showToast((e as ApiError)?.message ?? t.toast.couldNotSaveProfile, 'error');
+          return false;
+        }
+      },
+      saveAppearance: async (theme) => {
+        try {
+          const res: any = await api.updateBusiness({ theme });
+          setS((p) => ({ ...p, business: mapBusinessDetail(res), plan: res.plan ?? p.plan }));
+          const legacyBrand =
+            typeof res.themeColor === 'string' && /^#[0-9A-Fa-f]{6}$/.test(res.themeColor)
+              ? res.themeColor
+              : theme.brand;
+          setThemeConfig(
+            normalizeThemeConfig(res.theme ?? theme, { ...LEGACY_THEME_CONFIG, brand: legacyBrand }),
+          );
+          showToast(t.toast.appearanceSaved, 'success');
+          return true;
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? t.toast.couldNotSaveAppearance, 'error');
           return false;
         }
       },
@@ -846,6 +997,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     loadStaff,
     loadBusiness,
     loadCalendarAppointments,
+    setReportRange,
+    setThemeConfig,
   ]);
 
   return <AppStateContext.Provider value={store}>{children}</AppStateContext.Provider>;

@@ -1,5 +1,7 @@
 import type { Money } from "./server-api";
 
+export { formatPhone } from "./phone";
+
 /**
  * Money for display. The API returns minor units (paise) with an ISO 4217 code — see
  * backend/src/domain/money.ts — so the amount is divided here, never on the server.

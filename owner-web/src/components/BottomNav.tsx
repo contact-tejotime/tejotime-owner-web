@@ -7,7 +7,7 @@ import { can, type Module, type ModuleAccess } from "@/lib/roles";
 
 const TABS: { href: string; label: string; match: string; icon: IconName; module: Module | null }[] = [
   { href: "/dashboard", label: "Home", match: "/dashboard", icon: "layoutDashboard", module: "dashboard" },
-  { href: "/stats", label: "Stats", match: "/stats", icon: "star", module: "dashboard" },
+  { href: "/stats", label: "Reports", match: "/stats", icon: "star", module: "dashboard" },
   { href: "/appointments", label: "Appts", match: "/appointments", icon: "calendarCheck", module: "appointments" },
   { href: "/calendar", label: "Calendar", match: "/calendar", icon: "grid", module: "calendar" },
   { href: "/customers", label: "Clients", match: "/customers", icon: "user", module: "customers" },

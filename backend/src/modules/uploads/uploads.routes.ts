@@ -8,7 +8,7 @@ import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import { MAX_IMAGE_BYTES, signUpload } from '../../integrations/storage';
 
-const ASSET_TYPES = ['logo', 'hero', 'gallery', 'avatar'] as const;
+const ASSET_TYPES = ['logo', 'hero', 'about', 'gallery', 'avatar'] as const;
 
 export const uploadsRouter = Router();
 uploadsRouter.use(authenticate);

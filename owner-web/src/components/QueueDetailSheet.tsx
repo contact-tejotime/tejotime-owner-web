@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 
-import { Icon, type IconName } from "@/components/Icon";
+import { Icon } from "@/components/Icon";
 import { Skeleton, Spinner } from "@/components/Skeleton";
 import { formatMoney } from "@/lib/format";
+import { extrasForCategory } from "@/lib/service-extras";
 import { showToast } from "@/lib/toast";
 import type { Money, QueueCard, SeatGroup } from "@/lib/server-api";
 
@@ -35,14 +36,6 @@ interface Billing {
   extras: { id: string; label: string; minutes: number; pricePaise: number }[];
 }
 
-/** Mirrors the backend's SERVICE_EXTRAS catalogue, which is what `extend` accepts. */
-const ADD_ONS: { label: string; minutes: number; icon: IconName }[] = [
-  { label: "Shave", minutes: 10, icon: "razor" },
-  { label: "Beard trim", minutes: 15, icon: "clipper" },
-  { label: "Hair wash", minutes: 10, icon: "droplet" },
-  { label: "Hair color", minutes: 30, icon: "paintbrush" },
-];
-
 const TOASTS: Record<string, string> = {
   start: "Service started",
   checkout: "Checked out",
@@ -53,6 +46,7 @@ const TOASTS: Record<string, string> = {
 export function QueueDetailSheet({
   card,
   seats,
+  category,
   onClose,
   onChanged,
 }: {
@@ -62,6 +56,8 @@ export function QueueDetailSheet({
    */
   card: QueueCard;
   seats: SeatGroup[];
+  /** Business category — gates checkout add-on chips. */
+  category?: string | null;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -70,6 +66,7 @@ export function QueueDetailSheet({
   const [error, setError] = useState("");
   /** Rupees as typed. A string so the field can be empty mid-edit. */
   const [amount, setAmount] = useState("");
+  const addOns = extrasForCategory(category);
 
   const entryId = card.id;
   const inService = card.status === "in_service";
@@ -245,7 +242,7 @@ export function QueueDetailSheet({
                   same glance as the tap that caused it. Icon + minutes only — label is in
                   the title/aria for screen readers and long-press tooltips. */}
               <div className="addon-row">
-                {ADD_ONS.map((a) => (
+                {addOns.map((a) => (
                   <button
                     key={a.label}
                     type="button"
@@ -290,7 +287,7 @@ export function QueueDetailSheet({
               )}
             </div>
 
-            {/* Red, matching the board's Check out — it is the same action. */}
+            {/* Red, matching the board's End — it is the same action. */}
             <button type="button" className="btn danger block btn-xl" onClick={onComplete} disabled={busy}>
               {busy ? <Spinner size={16} /> : null}
               Complete &amp; start next

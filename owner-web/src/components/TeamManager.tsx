@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Icon } from "@/components/Icon";
+import PhoneField from "@/components/PhoneField";
 import {
   ACCESS_LABELS,
   CREATABLE_ROLES,
@@ -15,6 +16,13 @@ import {
   type Module,
   type ModuleAccess,
 } from "@/lib/roles";
+import {
+  combineToDigits,
+  DEFAULT_DIAL_CODE,
+  DEFAULT_ISO2,
+  formatPhone,
+  isValidNational,
+} from "@/lib/phone";
 import type { StaffRow, TeamUser } from "@/lib/server-api";
 import { showToast } from "@/lib/toast";
 import { Spinner } from "@/components/Skeleton";
@@ -31,7 +39,9 @@ import { Spinner } from "@/components/Skeleton";
 
 type Draft = {
   name: string;
-  phone: string;
+  dialCode: string;
+  iso2: string;
+  national: string;
   password: string;
   role: "co_owner" | "staff";
   staffId: string;
@@ -40,7 +50,9 @@ type Draft = {
 
 const EMPTY_DRAFT: Draft = {
   name: "",
-  phone: "",
+  dialCode: DEFAULT_DIAL_CODE,
+  iso2: DEFAULT_ISO2,
+  national: "",
   password: "",
   role: "staff",
   staffId: "",
@@ -155,8 +167,8 @@ export function TeamManager({
 
   async function onCreate() {
     if (!draft.name.trim()) return setError("Enter a name.");
-    if (draft.phone.replace(/\D/g, "").length < 10) {
-      return setError("Enter the full mobile number, including country code.");
+    if (!isValidNational(draft.national, draft.iso2)) {
+      return setError("Enter a valid mobile number for the selected country.");
     }
     if (draft.password.length < 8) return setError("The password needs at least 8 characters.");
     if (draft.role === "staff" && !draft.staffId) {
@@ -168,7 +180,7 @@ export function TeamManager({
       "POST",
       {
         name: draft.name.trim(),
-        phone: draft.phone.replace(/\D/g, ""),
+        phone: combineToDigits(draft.dialCode, draft.national),
         password: draft.password,
         role: draft.role,
         staffId: draft.role === "staff" ? draft.staffId : null,
@@ -305,7 +317,7 @@ export function TeamManager({
                   <div className="meta">
                     {ROLE_LABELS[user.role]}
                     {user.staffName ? ` · ${user.staffName}'s chair` : ""}
-                    {user.phone ? ` · ${user.phone}` : ""}
+                    {user.phone ? ` · ${formatPhone(user.phone)}` : ""}
                   </div>
                 </div>
                 {!locked ? (
@@ -458,17 +470,25 @@ export function TeamManager({
             />
           </div>
 
-          <div className="field">
-            <label htmlFor="team-phone">Mobile number</label>
-            <input
-              id="team-phone"
-              type="tel"
-              placeholder="e.g. 919876543210"
-              value={draft.phone}
-              onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
-            />
-            <p className="field-hint">This is what they sign in with. Include the country code.</p>
-          </div>
+          <PhoneField
+            id="team-phone"
+            label="Mobile number"
+            placeholder="Phone number"
+            value={{
+              dialCode: draft.dialCode,
+              national: draft.national,
+              iso2: draft.iso2,
+            }}
+            onChange={(v) =>
+              setDraft((d) => ({
+                ...d,
+                dialCode: v.dialCode,
+                national: v.national,
+                iso2: v.iso2,
+              }))
+            }
+            hint={<p className="field-hint">This is what they sign in with.</p>}
+          />
 
           <div className="field">
             <label htmlFor="team-password">Temporary password</label>
