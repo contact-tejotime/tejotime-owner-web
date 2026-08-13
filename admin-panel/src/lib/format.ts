@@ -1,4 +1,5 @@
 import { currencySymbol } from "./currencies";
+import { t, format } from "@/i18n";
 import type { Money } from "./types";
 
 /**
@@ -112,14 +113,14 @@ export function formatDateTime(iso: string | null | undefined): string {
 
 /** ISO → relative label: Today / 3d ago / 2w ago / 5mo ago; null → "Never". */
 export function formatRelative(iso: string | null | undefined): string {
-  if (!iso) return "Never";
+  if (!iso) return t.common.never;
   const then = parseIso(iso);
-  if (Number.isNaN(then.getTime())) return "Never";
+  if (Number.isNaN(then.getTime())) return t.common.never;
   const days = Math.floor((Date.now() - then.getTime()) / 86_400_000);
-  if (days <= 0) return "Today";
-  if (days < 7) return `${days}d ago`;
-  if (days < 35) return `${Math.floor(days / 7)}w ago`;
-  return `${Math.floor(days / 30)}mo ago`;
+  if (days <= 0) return t.common.today;
+  if (days < 7) return format(t.common.daysAgo, { count: days });
+  if (days < 35) return format(t.common.weeksAgo, { count: Math.floor(days / 7) });
+  return format(t.common.monthsAgo, { count: Math.floor(days / 30) });
 }
 
 /** Whole number with Indian grouping: 3,847. */

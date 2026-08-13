@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { t } from "@/i18n";
 import { useState, useTransition } from "react";
 import { Spinner } from "@/components/Skeleton";
 
@@ -39,13 +40,13 @@ export function BusinessProfileForm({ name, address }: { name: string; address: 
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setError(json?.error?.message ?? "Could not save.");
+        setError(json?.error?.message ?? t.businessForm.errSave);
         return;
       }
       setSaved(true);
       startTransition(() => router.refresh());
     } catch {
-      setError("Could not reach the server.");
+      setError(t.businessForm.networkError);
     } finally {
       setInFlight(false);
     }
@@ -53,13 +54,13 @@ export function BusinessProfileForm({ name, address }: { name: string; address: 
 
   return (
     <div className="section">
-      <h2>Business</h2>
+      <h2>{t.businessForm.title}</h2>
       <div className="field">
-        <label htmlFor="bp-name">Name</label>
+        <label htmlFor="bp-name">{t.businessForm.name}</label>
         <input id="bp-name" value={n} onChange={(e) => { setN(e.target.value); setSaved(false); }} />
       </div>
       <div className="field">
-        <label htmlFor="bp-addr">Address</label>
+        <label htmlFor="bp-addr">{t.businessForm.address}</label>
         <input id="bp-addr" value={a} onChange={(e) => { setA(e.target.value); setSaved(false); }} />
       </div>
 
@@ -68,7 +69,7 @@ export function BusinessProfileForm({ name, address }: { name: string; address: 
           {error}
         </div>
       ) : null}
-      {saved ? <p className="hint">Saved.</p> : null}
+      {saved ? <p className="hint">{t.businessForm.saved}</p> : null}
 
       <button type="button" className="btn" onClick={save} disabled={busy || !dirty}>
         {busy ? (
@@ -77,7 +78,7 @@ export function BusinessProfileForm({ name, address }: { name: string; address: 
             Saving…
           </>
         ) : (
-          "Save changes"
+          t.businessForm.save
         )}
       </button>
     </div>

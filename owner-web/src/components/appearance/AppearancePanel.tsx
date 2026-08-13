@@ -21,6 +21,7 @@ import {
 import { t, formatAppearance as format } from "./appearanceCopy";
 import { Icon } from "@/components/Icon";
 import BrandColorPicker from "./BrandColorPicker";
+import ButtonColorPicker from "./ButtonColorPicker";
 import MicrositePreview from "./MicrositePreview";
 import OptionCards, { type OptionCardItem } from "./OptionCards";
 import PresetPicker from "./PresetPicker";
@@ -106,7 +107,8 @@ export default function AppearancePanel({ theme, onChange, category, phoneFull, 
     onChange({
       preset: recommended ?? "minimal",
       // Brand and light/dark mode are the store's own decisions, not part of the category
-      // recommendation — reset clears the preset and the modifier axes, nothing else.
+      // recommendation. Everything else goes, including the accent, the label ink and the
+      // button colour: they are overrides, and "reset to recommended" means no overrides.
       mode: theme.mode,
       brand: theme.brand,
     });
@@ -193,6 +195,23 @@ export default function AppearancePanel({ theme, onChange, category, phoneFull, 
           <BrandColorPicker
             value={theme.brand}
             onChange={(brand) => onChange({ ...theme, brand })}
+            resolved={resolved}
+            mode={resolved.config.mode}
+          />
+
+          <ButtonColorPicker
+            value={theme.button}
+            brand={theme.brand}
+            onChange={(button) => {
+              // Absent, never `undefined`-valued: the key has to disappear so the engine falls
+              // back to the brand ramp and the config round-trips through jsonb cleanly.
+              const next: ThemeConfig = { ...theme };
+              if (button === undefined) delete next.button;
+              else next.button = button;
+              onChange(next);
+            }}
+            resolved={resolved}
+            mode={resolved.config.mode}
             brandInk={theme.brandInk ?? "auto"}
             onBrandInkChange={(ink) => {
               const next: ThemeConfig = { ...theme };
@@ -200,8 +219,6 @@ export default function AppearancePanel({ theme, onChange, category, phoneFull, 
               else next.brandInk = ink;
               onChange(next);
             }}
-            resolved={resolved}
-            mode={resolved.config.mode}
           />
 
           <PresetPicker
@@ -289,5 +306,8 @@ function key(c: ThemeConfig): string {
     c.heroVariant ?? "",
     c.accent ?? "",
     c.brandInk ?? "",
+    // Every axis the panel can edit has to appear here. Omitting one does not just skip a
+    // repaint: `dirty` gates Save, so an unlisted axis is silently unsaveable on its own.
+    c.button ?? "",
   ].join("|");
 }

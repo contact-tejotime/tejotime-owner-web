@@ -129,7 +129,7 @@ function Thumb({ tokens, label }: { tokens: TokenMap; label: string }) {
             boxShadow: px(tokens["--shadow-sm"], "none"),
           }}
         >
-          Book
+          {t.appearance.previewBook}
         </span>
         <span
           className="ap-thumb-card"

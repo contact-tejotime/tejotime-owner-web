@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { t } from "@/i18n";
 import { Icon } from "@/components/Icon";
 import { flagEmoji, searchCountries } from "@/lib/phone";
 
@@ -30,7 +31,7 @@ export default function PhoneField({
   label,
   id,
   required,
-  placeholder = "Phone number",
+  placeholder = t.phoneField.placeholder,
   autoFocus,
   disabled,
   hint,
@@ -90,7 +91,7 @@ export default function PhoneField({
           disabled={disabled}
           aria-haspopup="listbox"
           aria-expanded={open}
-          aria-label="Select country code"
+          aria-label={t.phoneField.selectCountryCode}
         >
           <span className="phone-flag">{flagEmoji(value.iso2)}</span>
           <span className="phone-dial">+{value.dialCode}</span>
@@ -114,17 +115,17 @@ export default function PhoneField({
       </div>
 
       {open && (
-        <div className="phone-pop" role="listbox" aria-label="Countries">
+        <div className="phone-pop" role="listbox" aria-label={t.phoneField.countries}>
           <input
             ref={searchRef}
             className="phone-search"
             type="search"
-            placeholder="Search country or code…"
+            placeholder={t.phoneField.searchPlaceholder}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
           <ul className="phone-list">
-            {results.length === 0 && <li className="phone-empty">No matches</li>}
+            {results.length === 0 && <li className="phone-empty">{t.phoneField.noMatches}</li>}
             {results.map((c) => (
               <li key={c.iso2}>
                 <button

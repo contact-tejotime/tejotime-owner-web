@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { t } from "@/i18n";
 
 import { assertSameOrigin, BACKEND, REQUEST_TIMEOUT_MS, unreachable } from "./http";
 import { revalidateTags } from "./server-api";
@@ -24,7 +25,7 @@ export async function forward(
 
   const token = await getAccessToken();
   if (!token) {
-    return NextResponse.json({ error: { message: "Not authenticated" } }, { status: 401 });
+    return NextResponse.json({ error: { message: t.api.notAuthenticated } }, { status: 401 });
   }
 
   const method = opts.method ?? req.method;

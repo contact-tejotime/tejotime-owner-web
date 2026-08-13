@@ -74,13 +74,13 @@ export default function Calendar() {
       <TScreenScroll refreshing={store.refreshing} onRefresh={store.refresh}>
         <TScopeNotice />
         <View style={s.monthNav}>
-          <IconButton variant="ghost" accessibilityLabel="Previous month" onPress={() => goToMonth(-1)}>
+          <IconButton variant="ghost" accessibilityLabel={t.calendar.prevMonth} onPress={() => goToMonth(-1)}>
             <Icon name="chevronLeft" size={20} color={theme.colors.textBody} />
           </IconButton>
           <TText variant="h5" color="textStrong" weight="semibold">
             {monthLabel}
           </TText>
-          <IconButton variant="ghost" accessibilityLabel="Next month" onPress={() => goToMonth(1)}>
+          <IconButton variant="ghost" accessibilityLabel={t.calendar.nextMonth} onPress={() => goToMonth(1)}>
             <Icon name="chevronRight" size={20} color={theme.colors.textBody} />
           </IconButton>
         </View>

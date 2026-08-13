@@ -1,0 +1,908 @@
+{
+  "common": {
+    "dash": "—",
+    "to": "to",
+    "savingEllipsis": "Saving…",
+    "thatDidntWork": "That didn't work.",
+    "settings": "Settings",
+    "dismiss": "Dismiss"
+  },
+  "appearance": {
+    "title": "Appearance",
+    "subtitle": "How this store's customer website looks. Nothing is applied until you save the form.",
+    "unsaved": "Unsaved appearance changes",
+    "reset": "Reset to recommended",
+    "resetHint": "Goes back to the preset suggested for this category and clears every override. Your brand color is kept.",
+    "brandTitle": "Brand color",
+    "brandHint": "One color seeds the whole palette — buttons, links, chips, borders and the banner gradient.",
+    "brandCustom": "Brand color hex",
+    "brandPickerLabel": "Pick a brand color",
+    "brandSwatchLabel": "{name} — {hex}",
+    "rampTitle": "Generated palette",
+    "rampStep": "Step {step} — {hex}",
+    "rampCaption": "Links, chips and the banner render as {brand}.",
+    "aaWhite": "AA — white text on brand ({ratio}:1)",
+    "aaDark": "Using dark text for contrast ({ratio}:1)",
+    "aaPass": "All contrast checks pass",
+    "aaFail": "{count} contrast check needs attention",
+    "aaFailPlural": "{count} contrast checks need attention",
+    "aaManualFail": "Your button label choice is below 4.5:1 on this brand ({ratio}:1). It will still apply — consider a darker brand or Auto.",
+    "brandInkTitle": "Button label color",
+    "brandInkHint": "Text on primary buttons. Auto picks white or dark for contrast; White/Dark force a choice.",
+    "buttonTitle": "Button colour",
+    "buttonHint": "The solid primary button. Independent of the theme colour, so a black button can sit on a blue site — links, chips and the banner keep the theme colour.",
+    "buttonSourceLegend": "Button colour source",
+    "buttonSourceTheme": "Same as theme colour",
+    "buttonSourceThemeDesc": "Buttons follow the theme colour. The default.",
+    "buttonSourceCustom": "Custom colour",
+    "buttonSourceCustomDesc": "Pick a colour for buttons only. Changing the theme colour will not overwrite it.",
+    "buttonPickerLabel": "Pick a button colour",
+    "buttonCustom": "Button colour hex",
+    "buttonPreviewLabel": "Book now",
+    "buttonInkPass": "Label contrast {ratio}:1 — passes AA",
+    "buttonInkFail": "Label contrast {ratio}:1 — below AA, pick a darker or lighter button",
+    "buttonSwatches": {
+      "black": "Black",
+      "charcoal": "Charcoal",
+      "ink": "Ink",
+      "blue": "TejoTime blue",
+      "pine": "Pine",
+      "violet": "Violet",
+      "pink": "Pink",
+      "red": "Red",
+      "orange": "Orange",
+      "gold": "Gold"
+    },
+    "brandInks": {
+      "auto": {
+        "label": "Auto",
+        "desc": "Best contrast for this brand."
+      },
+      "white": {
+        "label": "White",
+        "desc": "Always white labels."
+      },
+      "dark": {
+        "label": "Dark",
+        "desc": "Always dark labels."
+      }
+    },
+    "swatches": {
+      "blue": "TejoTime blue",
+      "teal": "Teal",
+      "emerald": "Emerald",
+      "gold": "Gold",
+      "clay": "Clay",
+      "sky": "Sky",
+      "indigo": "Indigo",
+      "violet": "Violet",
+      "pink": "Pink",
+      "red": "Red",
+      "orange": "Orange",
+      "pine": "Pine"
+    },
+    "presetTitle": "Theme preset",
+    "presetHint": "Sets the neutrals, typography and banner style — plus the default corners, shadows, spacing and motion.",
+    "recommended": "Recommended",
+    "presets": {
+      "minimal": {
+        "label": "Minimal",
+        "desc": "Calm slate neutrals and lots of white space. The safe default."
+      },
+      "luxury": {
+        "label": "Luxury",
+        "desc": "Warm ink, gold accent, serif headings. Salons, spas, jewellery."
+      },
+      "modern": {
+        "label": "Modern",
+        "desc": "Crisp, tech-forward, high contrast. Agencies and services."
+      },
+      "bold": {
+        "label": "Bold",
+        "desc": "Heavy type, hard edges, thick borders. Gyms and barbershops."
+      },
+      "medical": {
+        "label": "Medical",
+        "desc": "Clean, clinical, unmistakably trustworthy. Clinics and labs."
+      },
+      "warm": {
+        "label": "Warm",
+        "desc": "Soft, appetising, inviting. Restaurants and cafés."
+      }
+    },
+    "modeTitle": "Mode",
+    "modeHint": "Auto follows each visitor's device setting.",
+    "modes": {
+      "light": {
+        "label": "Light",
+        "desc": "Always light."
+      },
+      "dark": {
+        "label": "Dark",
+        "desc": "Always dark."
+      },
+      "auto": {
+        "label": "Auto (System)",
+        "desc": "Matches the visitor."
+      }
+    },
+    "densityTitle": "Density",
+    "densityHint": "How much breathing room sections and controls get.",
+    "densities": {
+      "comfortable": {
+        "label": "Comfortable",
+        "desc": "Roomy — the current spacing."
+      },
+      "compact": {
+        "label": "Compact",
+        "desc": "Tighter; more fits on screen."
+      }
+    },
+    "radiusTitle": "Border radius",
+    "radiusHint": "Corner rounding for cards, buttons and images.",
+    "radii": {
+      "sharp": {
+        "label": "Sharp",
+        "desc": "Near-square corners."
+      },
+      "medium": {
+        "label": "Medium",
+        "desc": "Gently rounded — the current look."
+      },
+      "rounded": {
+        "label": "Rounded",
+        "desc": "Soft, friendly corners."
+      }
+    },
+    "shadowTitle": "Shadow",
+    "shadowHint": "How much cards lift off the page.",
+    "shadows": {
+      "none": {
+        "label": "None",
+        "desc": "Flat; hairline edges only."
+      },
+      "soft": {
+        "label": "Soft",
+        "desc": "Subtle depth — the current look."
+      },
+      "premium": {
+        "label": "Premium",
+        "desc": "Deeper, layered elevation."
+      }
+    },
+    "animationTitle": "Animation",
+    "animationHint": "Hover and transition feel. Reduced-motion visitors always see less.",
+    "animations": {
+      "subtle": {
+        "label": "Subtle",
+        "desc": "Quick and understated."
+      },
+      "normal": {
+        "label": "Normal",
+        "desc": "Balanced — the current feel."
+      },
+      "rich": {
+        "label": "Rich",
+        "desc": "Slower, more expressive motion."
+      }
+    },
+    "presetDefault": "Preset default",
+    "presetDefaultValue": "Follows the preset ({value})",
+    "effective": "Rendering as {preset} · {mode} · {density} · {radius} corners · {shadow} shadow · {animation} motion.",
+    "previewTitle": "Live preview",
+    "previewHint": "This is the real customer website, themed live. Save the form to publish it.",
+    "previewLoading": "Loading the live site…",
+    "previewNotResponding": "The site loaded but isn't accepting live theme updates. Locally, run the frontend on port 3000 (or set NEXT_PUBLIC_FRONTEND_URL). Save and open the live site to confirm.",
+    "previewUnavailable": "The live preview could not load.",
+    "previewDemo": "No phone number yet — showing the demo store. Add a phone number to preview this store.",
+    "previewOpen": "Open",
+    "previewReload": "Reload",
+    "device": "Preview device",
+    "devices": {
+      "desktop": "Desktop",
+      "tablet": "Tablet",
+      "mobile": "Mobile"
+    },
+    "previewBook": "Book",
+    "linkAa": "Links {ratio}:1 on the page — passes AA",
+    "linkAaFail": "Links {ratio}:1 on the page — below AA, try a darker theme colour"
+  },
+  "storeForm": {
+    "invalidThemeColor": "Enter a valid hex color like #2563EB."
+  },
+  "roles": {
+    "labels": {
+      "owner": "Owner",
+      "co_owner": "Co-owner",
+      "manager": "Manager",
+      "staff": "Staff"
+    },
+    "creatable": {
+      "co_owner": {
+        "label": "Co-owner",
+        "blurb": "Same access as you. Can add and manage staff. Cannot change your owner account."
+      },
+      "staff": {
+        "label": "Staff",
+        "blurb": "Sees only what you allow, and only their own chair's queue and appointments."
+      }
+    },
+    "modules": {
+      "dashboard": "Dashboard",
+      "queue": "Queue",
+      "appointments": "Appointments",
+      "calendar": "Calendar",
+      "customers": "Customers",
+      "services": "Services",
+      "staff": "Staff & seats",
+      "hours": "Opening hours",
+      "notifications": "Notifications",
+      "billing": "Subscription & billing",
+      "profile": "Business profile",
+      "team": "Team logins"
+    },
+    "access": {
+      "none": "Hidden",
+      "view": "View only",
+      "manage": "Full access"
+    }
+  },
+  "nav": {
+    "home": "Home",
+    "reports": "Reports",
+    "appointments": "Appointments",
+    "calendar": "Calendar",
+    "customers": "Customers",
+    "settings": "Settings"
+  },
+  "settingsTiles": {
+    "profile": {
+      "title": "Profile",
+      "desc": "Your name and password"
+    },
+    "team": {
+      "title": "Team logins",
+      "desc": "Co-owners, staff and what they can see"
+    },
+    "staff": {
+      "title": "Staff",
+      "desc": "Seats and team members"
+    },
+    "services": {
+      "title": "Services",
+      "desc": "Services and durations"
+    },
+    "hours": {
+      "title": "Hours",
+      "desc": "Weekly opening hours"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "desc": "Alerts and reminders"
+    },
+    "subscription": {
+      "title": "Subscription",
+      "desc": "Plan and billing"
+    }
+  },
+  "serviceExtras": {
+    "shave": "Shave",
+    "beardTrim": "Beard trim",
+    "hairWash": "Hair wash",
+    "hairColor": "Hair color",
+    "touchUpCut": "Touch-up cut",
+    "mustacheTrim": "Mustache trim",
+    "blowDry": "Blow-dry",
+    "headMassage": "Head massage",
+    "consultation": "Consultation",
+    "injection": "Injection",
+    "medication": "Medication",
+    "checkUp": "Check-up",
+    "bloodTest": "Blood test",
+    "firstAid": "First aid",
+    "assistedCare": "Assisted care",
+    "dental": "Dental",
+    "dineIn": "Dine-in",
+    "burger": "Burger",
+    "pizza": "Pizza",
+    "coffee": "Coffee",
+    "beverage": "Beverage",
+    "dessert": "Dessert",
+    "takeaway": "Takeaway",
+    "chefSpecial": "Chef special"
+  },
+  "auth": {
+    "brandAlt": "TejoTime",
+    "accountTypeLabel": "Account type",
+    "owner": "Owner",
+    "staff": "Staff",
+    "ownerTitle": "Owner sign in",
+    "ownerSubtitle": "For the business owner and co-owners. Full access to the shop.",
+    "staffTitle": "Staff sign in",
+    "staffSubtitle": "For team members. You will see your own chair and whatever the owner has shared.",
+    "phoneLabel": "Mobile number",
+    "phonePlaceholder": "Phone number",
+    "passwordLabel": "Password",
+    "hidePassword": "Hide password",
+    "showPassword": "Show password",
+    "hide": "Hide",
+    "show": "Show",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "signInFailed": "Could not sign in. Check your number and password.",
+    "networkError": "Could not reach the server. Check your connection and try again.",
+    "staffFoot": "Staff logins are created by your business owner. If you do not have one, ask them to add you under Settings → Team logins."
+  },
+  "settings": {
+    "title": "Settings",
+    "groupBusiness": "Business",
+    "groupTeam": "Team",
+    "groupBookings": "Bookings & queue",
+    "groupAccount": "Account",
+    "groupSupport": "Support",
+    "businessProfile": "Business profile",
+    "workingHours": "Working hours",
+    "workingHoursSub": "Weekly opening times",
+    "services": "Services & pricing",
+    "servicesSub": "Services and durations",
+    "staff": "Staff & seats",
+    "staffSub": "Chairs and providers",
+    "teamLogins": "Team logins",
+    "teamLoginsSub": "Co-owners, staff and what each can see",
+    "notifications": "Notifications & reminders",
+    "notificationsSub": "Alerts and reminders",
+    "account": "Your account",
+    "accountSub": "Your name and password",
+    "subscription": "Subscription",
+    "subscriptionSub": "Plan and billing",
+    "darkMode": "Dark mode",
+    "darkModeSub": "Easier on the eyes at night",
+    "emailSupport": "Email support",
+    "callSupport": "Call support",
+    "logout": "Log out"
+  },
+  "team": {
+    "genericError": "Something went wrong.",
+    "networkError": "Could not reach the server. Check your connection and try again.",
+    "noFreeSeats": "Every chair already has a staff login. Add another chair under Settings → Staff, or unlink one first.",
+    "noFreeSeatsShort": "Every chair already has a staff login. Add another chair under Settings → Staff first.",
+    "noFreeSeatsTitle": "Every chair already has a staff login. Add a chair first.",
+    "allSeatsLinked": "All chairs are linked. Add another chair under Settings → Staff before creating a new staff login.",
+    "errName": "Enter a name.",
+    "errPhone": "Enter a valid mobile number for the selected country.",
+    "errPassword": "The password needs at least 8 characters.",
+    "errSeat": "Pick a chair. You cannot add more staff logins than you have chairs.",
+    "errCreate": "Could not create that login.",
+    "okCreate": "Login created. Share the password with them — they can change it under Settings.",
+    "errPermissions": "Could not save those permissions.",
+    "okPermissions": "Permissions saved. They take effect within 15 minutes, or straight away on their next sign-in.",
+    "errReactivate": "Could not turn that login back on.",
+    "errSeatRequired": "A staff login must stay linked to a chair.",
+    "errChangeSeat": "Could not change that chair.",
+    "okChangeSeat": "Chair linked. They will see that chair's queue from their next sign-in, or within 15 minutes.",
+    "errDeactivate": "Could not turn off that login.",
+    "errResetPassword": "Could not reset that password.",
+    "okResetPassword": "Password reset. Share the new one with them.",
+    "turnedOffToast": "{name} was turned off",
+    "thatLogin": "That login",
+    "badgeOwnerAccount": "Owner account",
+    "badgeYou": "You",
+    "badgeTurnedOff": "Turned off",
+    "badgeNoChair": "No chair",
+    "metaChair": "· {name}'s chair",
+    "metaPhone": "· {phone}",
+    "permissions": "Permissions",
+    "resetPassword": "Reset password",
+    "turnOff": "Turn off",
+    "turnOn": "Turn on",
+    "chair": "Chair",
+    "pickChair": "Pick a chair",
+    "pickChairWarn": "Pick a chair — without one they see an empty queue and calendar.",
+    "savePermissions": "Save permissions",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "superOwnerSummary": "Full access. Created by TejoTime when this store was set up — change it from the admin panel.",
+    "coOwnerSummary": "Full access to everything, the same as you.",
+    "addTitle": "Add a login",
+    "nameLabel": "Name",
+    "phoneLabel": "Mobile number",
+    "phonePlaceholder": "Phone number",
+    "phoneHint": "This is what they sign in with.",
+    "passwordLabel": "Temporary password",
+    "passwordHint": "At least 8 characters. They can change it once signed in.",
+    "seatLabel": "Chair (required)",
+    "noFreeChairsOption": "No free chairs left",
+    "seatHint": "Required. Each staff login needs its own chair — you cannot add more staff than you have chairs.",
+    "permissionsLabel": "What they can see",
+    "coOwnerHint": "A co-owner gets everything you have, including adding and removing staff. They cannot change your owner account.",
+    "createLogin": "Create login",
+    "creating": "Creating…",
+    "addStaffLogin": "Add staff login",
+    "addCoOwner": "Add co-owner",
+    "dlgResetTitle": "Reset password",
+    "dlgDeactivateTitle": "Turn off this login?",
+    "dlgResetBody": "{name} will be signed out everywhere and will need the new password to sign back in.",
+    "dlgDeactivateBody": "{name} will be signed out everywhere and cannot sign back in until you turn it on again.",
+    "dlgConfirmReset": "Reset password",
+    "dlgConfirmDeactivate": "Turn off",
+    "dlgNewPassword": "New password",
+    "dlgNewPasswordHint": "At least 8 characters.",
+    "them": "They",
+    "noAccessYet": "No access to anything yet.",
+    "canSee": "Can see: {modules}."
+  },
+  "profile": {
+    "errName": "The business needs a name.",
+    "errSave": "Could not save your changes.",
+    "errPartial": "Your profile was saved, but {label} could not be updated. Try saving again.",
+    "labelAmenities": "amenities",
+    "labelPhotos": "photos",
+    "okSaved": "Store profile saved — your page is updated",
+    "networkError": "Could not reach the server. Check your connection and try again.",
+    "secBasics": "Basics",
+    "name": "Business name",
+    "category": "Category",
+    "categoryPlaceholder": "Salon, Barbershop, Clinic…",
+    "categoryHint": "Sets the wording used across your public page.",
+    "tagline": "Tagline",
+    "taglinePlaceholder": "Sharp cuts, no waiting",
+    "heroSubtitle": "Hero subtitle",
+    "heroSubtitleHint": "The line under the big heading at the top of your page.",
+    "secWhere": "Where you are",
+    "address": "Address",
+    "area": "Area",
+    "city": "City",
+    "phoneLockedHint": "Your phone number is your sign-in and your page’s web address, so it can only be changed by TejoTime support.",
+    "secStory": "Your story",
+    "aboutHeading": "About heading",
+    "aboutText": "About text",
+    "statValue": "Highlight number",
+    "statValuePlaceholder": "12",
+    "statLabel": "Highlight label",
+    "statLabelPlaceholder": "years in business",
+    "establishedYear": "Established year",
+    "establishedYearPlaceholder": "2014",
+    "secPictures": "Pictures",
+    "logo": "Logo",
+    "heroImage": "Hero image",
+    "heroImageHint": "The large picture at the top of your page.",
+    "aboutImage": "About image",
+    "secSocial": "Social links",
+    "socialHint": "Shown as icons at the bottom of your page. Paste the full profile address, or clear a box to hide it.",
+    "secPhotos": "Photos",
+    "photosHint": "The gallery on your page — up to 7 photos. The first photo shows largest; use the arrows to reorder.",
+    "secOffer": "What you offer",
+    "payments": "Payments accepted",
+    "paymentsPlaceholder": "UPI, Card, Cash",
+    "paymentsHint": "Separate each with a comma.",
+    "amenities": "Amenities",
+    "amenitiesEmpty": "Nothing listed. These are the small perks shown on your page — air conditioning, parking, card payments.",
+    "amenityPlaceholder": "Air conditioned",
+    "amenityAria": "Amenity {index}",
+    "removeAmenity": "Remove amenity",
+    "remove": "Remove",
+    "addAmenity": "Add amenity",
+    "secFaq": "Common questions",
+    "faqHint": "Shown as a FAQ on your page. Blank rows are dropped when you save.",
+    "faqQuestion": "Question",
+    "faqAnswer": "Answer",
+    "removeQuestion": "Remove question",
+    "addQuestion": "Add question",
+    "secReviews": "Customer reviews",
+    "reviewsHint": "Quotes shown on your page. These are the ones you choose to feature — your star rating is worked out by TejoTime and cannot be edited here.",
+    "reviewName": "Customer name",
+    "reviewStars": "Stars",
+    "reviewText": "What they said",
+    "removeReview": "Remove review",
+    "addReview": "Add review",
+    "dirty": "You have unsaved changes",
+    "clean": "Everything is saved",
+    "saving": "Saving…",
+    "save": "Save changes",
+    "socials": {
+      "instagram": "Instagram",
+      "facebook": "Facebook",
+      "twitter": "X (Twitter)",
+      "linkedin": "LinkedIn"
+    }
+  },
+  "stats": {
+    "title": "Reports",
+    "rangeAria": "Report range",
+    "today": "Today",
+    "thisMonth": "This month",
+    "myReport": "My report",
+    "storeReport": "Store report",
+    "monthToDate": "Month to date",
+    "todayAtAGlance": "Today at a glance",
+    "scopeContext": "your reports",
+    "chairOf": "{name}’s chair",
+    "yourRevenue": "Your revenue",
+    "revenue": "Revenue",
+    "appointments": "Appointments",
+    "completed": "Completed",
+    "inQueueNow": "In queue now",
+    "staffBreakdown": "Staff breakdown",
+    "seatCountOne": "{count} seat",
+    "seatCount": "{count} seats",
+    "leadMonth": "Each chair’s appointments, completed visits, and revenue this month.",
+    "leadToday": "Each chair’s appointments, completed visits, and revenue today.",
+    "noStaff": "No active staff yet",
+    "colStaff": "Staff",
+    "colAppts": "Appts",
+    "colDone": "Done",
+    "colRevenue": "Revenue",
+    "yourQueue": "Your queue",
+    "activeQueue": "Active queue",
+    "viewAll": "View all",
+    "emptyYourQueue": "No one in your queue right now",
+    "emptyQueue": "No one in the queue right now",
+    "inService": "In service"
+  },
+  "queue": {
+    "actionFailed": "That didn't work. Try again.",
+    "startedToast": "Started {name}",
+    "noShowToast": "{name} marked as a no-show",
+    "networkError": "Could not reach the server. Check your connection.",
+    "errReassign": "Could not move to that seat.",
+    "errReorder": "Could not reorder the queue.",
+    "okReorder": "Queue order updated",
+    "okMoved": "Moved to another seat",
+    "walkIn": "Walk-in",
+    "dragHintSingle": "Drop to reorder · waiting customers only",
+    "dragHint": "Drop on a seat to reorder or move · waiting customers only",
+    "noSeats": "No seats set up yet. Add staff in Settings.",
+    "busy": "Busy",
+    "free": "Free",
+    "openCard": "Open {name}",
+    "end": "End",
+    "start": "Start",
+    "markNoShow": "Mark no-show",
+    "markNoShowAria": "Mark {name} as a no-show",
+    "dragCard": "Drag {name}",
+    "dropHere": "Drop a waiting customer here"
+  },
+  "detail": {
+    "started": "Service started",
+    "checkedOut": "Checked out",
+    "noShow": "Marked as a no-show",
+    "movedSeat": "Moved to another seat",
+    "errPrice": "Could not load the price for this customer.",
+    "networkError": "Could not reach the server.",
+    "done": "Done",
+    "errAmount": "Enter the amount to charge.",
+    "close": "Close",
+    "amount": "Amount to charge",
+    "amountHint": "Edit if the final bill is different.",
+    "addExtra": "Add {label}, +{minutes} minutes",
+    "service": "Service",
+    "suggested": "Suggested",
+    "moveSeat": "Move to another seat",
+    "addonTitle": "{label} · +{minutes}m",
+    "extraLine": "{label} · +{minutes}m",
+    "completeAndNext": "Complete & start next",
+    "startService": "Start service"
+  },
+  "walkin": {
+    "errAdd": "Could not add to the queue.",
+    "networkError": "Could not reach the server.",
+    "title": "Add walk-in",
+    "close": "Close",
+    "nameLabel": "Customer name",
+    "namePlaceholder": "Full name",
+    "phoneLabel": "Phone",
+    "phonePlaceholder": "Phone number",
+    "service": "Service",
+    "assignSeat": "Assign to seat",
+    "anySeat": "Any seat",
+    "soonestFree": "Soonest free",
+    "teamMember": "Team member",
+    "adding": "Adding…",
+    "addToQueue": "Add to queue",
+    "minShort": "{mins} min"
+  },
+  "calendar": {
+    "days": [
+      "Sun",
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat"
+    ],
+    "title": "Calendar",
+    "bookingsOne": "1 booking this month",
+    "bookings": "{count} bookings this month",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "todayLabel": "Today · {label}",
+    "empty": "Nothing booked this day",
+    "emptyHint": "Bookings made online or added here will appear on the day they are scheduled.",
+    "noService": "No service selected",
+    "scopeContext": "your calendar"
+  },
+  "hours": {
+    "days": [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday"
+    ],
+    "errSave": "Could not save your hours.",
+    "networkError": "Could not reach the server.",
+    "closed": "Closed",
+    "saved": "Saved.",
+    "save": "Save hours"
+  },
+  "staffEditor": {
+    "networkError": "Could not reach the server.",
+    "errName": "Enter a name.",
+    "title": "Team",
+    "empty": "No team members yet.",
+    "takesWalkIns": "Takes walk-ins",
+    "appointmentsOnly": "Appointments only",
+    "addTitle": "Add a team member",
+    "nameLabel": "Name",
+    "namePlaceholder": "Divya",
+    "roleLabel": "Role (optional)",
+    "rolePlaceholder": "Hair & bridal",
+    "add": "Add team member",
+    "remove": "Remove"
+  },
+  "password": {
+    "tooShort": "Use at least 8 characters.",
+    "mismatch": "The two new passwords do not match.",
+    "errChange": "Could not change your password.",
+    "networkError": "Could not reach the server. Check your connection and try again.",
+    "title": "Change your password",
+    "changed": "Password changed.",
+    "current": "Current password",
+    "new": "New password",
+    "hint": "At least 8 characters.",
+    "confirm": "Confirm new password",
+    "submit": "Change password"
+  },
+  "gallery": {
+    "maxSkipped": "Only {max} photos can be shown, so the extras were skipped.",
+    "networkError": "Could not reach the server.",
+    "empty": "No photos yet. These appear in the gallery on your page.",
+    "moveEarlier": "Move earlier",
+    "moveLater": "Move later",
+    "removePhoto": "Remove photo",
+    "remove": "Remove",
+    "uploading": "Uploading…",
+    "add": "Add photos",
+    "uploadFailed": "{name} could not be uploaded.",
+    "counter": "{count} of {max} · JPEG, PNG or WebP, up to 5 MB each"
+  },
+  "services": {
+    "networkError": "Could not reach the server.",
+    "errName": "Give the service a name.",
+    "current": "Current services",
+    "empty": "No services yet. Add your first below.",
+    "addTitle": "Add a service",
+    "nameLabel": "Name",
+    "namePlaceholder": "Haircut",
+    "duration": "Duration (minutes)",
+    "price": "Price (₹)",
+    "add": "Add service",
+    "remove": "Remove",
+    "minShort": "{mins} min"
+  },
+  "upload": {
+    "expectedFile": "Expected a file upload.",
+    "noFile": "No file was sent.",
+    "badSlot": "Unsupported image slot.",
+    "onlyImages": "Only JPEG, PNG or WebP images are supported.",
+    "tooLarge": "That image is over 5 MB.",
+    "noUploadUrl": "The API did not return an upload URL.",
+    "uploadFailed": "Upload failed ({status})."
+  },
+  "customers": {
+    "title": "Customers",
+    "noMatch": "No customers match “{query}”",
+    "empty": "No customers yet — they appear after their first visit.",
+    "visits": "Visits",
+    "lastVisit": "Last visit",
+    "spend": "Spend",
+    "upsell": "Upgrade to Premium to see your full customer list and history.",
+    "upgrade": "Upgrade to Premium",
+    "shownOf": "{shown} of {total} shown",
+    "lockedCount": "{count} more clients locked"
+  },
+  "account": {
+    "title": "Profile",
+    "subtitle": "Business and account details",
+    "section": "Your account",
+    "name": "Name",
+    "role": "Role",
+    "ownerRole": "Owner (account holder)",
+    "nameHint": "Your name is set by whoever created this login. Ask the business owner to change it.",
+    "panelTitle": "Account & password"
+  },
+  "qr": {
+    "buttonTitle": "Booking QR — scan to book or save contact",
+    "buttonAria": "Booking QR",
+    "storeFallback": "Store",
+    "subtitle": "Scan to book an appointment, or save this store as a contact.",
+    "openLink": "Open link",
+    "close": "Close",
+    "heading": "{name} — booking QR",
+    "label": "Contact QR"
+  },
+  "notifications": {
+    "queueAlerts": "Queue alerts when a customer is next",
+    "apptReminders": "Appointment reminders",
+    "dailySummary": "Daily summary email",
+    "title": "Notifications",
+    "subtitle": "Alerts and reminders",
+    "prefs": "Preferences",
+    "save": "Save"
+  },
+  "bottomNav": {
+    "home": "Home",
+    "reports": "Reports",
+    "appts": "Appts",
+    "calendar": "Calendar",
+    "clients": "Clients",
+    "settings": "Settings",
+    "primary": "Primary"
+  },
+  "meta": {
+    "title": "TejoTime Business",
+    "description": "Business portal for TejoTime owners and staff"
+  },
+  "appointments": {
+    "title": "Appointments",
+    "today": "Today",
+    "empty": "No appointments today",
+    "emptyHint": "Bookings for today show up here. Use Calendar for the rest of the week.",
+    "noService": "No service selected",
+    "checkIn": "Check in",
+    "noShow": "No-show",
+    "networkError": "Could not reach the server."
+  },
+  "dashboard": {
+    "notifications": "Notifications",
+    "quickActions": "Quick actions",
+    "contactQr": "Contact QR",
+    "addWalkIn": "Add walk-in",
+    "storeFallback": "Store",
+    "yourQueue": "Your queue",
+    "queue": "Queue"
+  },
+  "teamPage": {
+    "title": "Team logins",
+    "subtitle": "Who can sign in, and what each of them sees",
+    "loadError": "Could not load your team right now. Try again in a moment."
+  },
+  "subscription": {
+    "title": "Subscription",
+    "subtitle": "Plan and billing",
+    "currentPlan": "Current plan",
+    "premium": "Premium",
+    "note": "Renews on the 1st of each month. Billing UI will connect later.",
+    "manage": "Manage plan",
+    "planLine": "mock plan for Sharp Cut Salon"
+  },
+  "businessForm": {
+    "errSave": "Could not save.",
+    "networkError": "Could not reach the server.",
+    "title": "Business",
+    "name": "Name",
+    "address": "Address",
+    "saved": "Saved.",
+    "save": "Save changes"
+  },
+  "confirm": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "close": "Close",
+    "minLength": "Use at least {count} characters."
+  },
+  "imageField": {
+    "errUpload": "That image could not be uploaded.",
+    "networkError": "Could not reach the server.",
+    "remove": "Remove",
+    "replace": "Replace",
+    "upload": "Upload",
+    "hint": "JPEG, PNG or WebP, up to 5 MB."
+  },
+  "imageCrop": {
+    "title": "Crop image",
+    "hint": "Drag to reposition, scroll or use the slider to zoom. The shaded area is what gets saved.",
+    "step": "Image {index} of {total}",
+    "zoom": "Zoom",
+    "rotate": "Rotate",
+    "reset": "Reset",
+    "cancel": "Cancel",
+    "apply": "Apply crop",
+    "applying": "Applying…",
+    "failed": "Could not process that image. Try another one.",
+    "errType": "That file type isn’t supported. Choose a JPEG, PNG or WebP image.",
+    "errSize": "That image is over {mb} MB. Choose a smaller one."
+  },
+  "imagePreview": {
+    "title": "Image preview",
+    "open": "Open full size",
+    "close": "Close preview",
+    "previous": "Previous image",
+    "next": "Next image",
+    "counter": "{index} of {total}"
+  },
+  "phoneField": {
+    "placeholder": "Phone number",
+    "selectCountryCode": "Select country code",
+    "countries": "Countries",
+    "searchPlaceholder": "Search country or code…",
+    "noMatches": "No matches"
+  },
+  "support": {
+    "needHelp": "Need help?",
+    "contactUs": "Contact TejoTime support",
+    "email": "Email",
+    "call": "Call"
+  },
+  "storeHeader": {
+    "unnamed": "Unnamed store",
+    "active": "Active",
+    "inactive": "Inactive",
+    "storeFallback": "Store"
+  },
+  "sidebar": {
+    "brand": "TejoTime",
+    "primary": "Primary",
+    "logout": "Log out"
+  },
+  "http": {
+    "csrf": "Cross-site request rejected.",
+    "unknown": "Unknown error",
+    "unreachable": "Could not reach the API at {base}: {message}"
+  },
+  "api": {
+    "notAuthenticated": "Not authenticated",
+    "invalidRequest": "Invalid request.",
+    "sessionExpired": "Session expired. Please sign in again.",
+    "unknownAction": "Unknown action.",
+    "enterPhonePassword": "Enter your phone number and password.",
+    "noSession": "The API did not return a session."
+  },
+  "mutation": {
+    "generic": "Something went wrong. Try again.",
+    "networkError": "Could not reach the server. Check your connection and try again."
+  },
+  "search": {
+    "placeholder": "Search by name or phone",
+    "aria": "Search customers"
+  },
+  "roleGate": {
+    "noAccess": "No access",
+    "goBack": "Go back",
+    "body": "Your account ({role}) has not been given access to this page. Ask the business owner if you need it."
+  },
+  "scope": {
+    "noChair": "Your login isn’t linked to a chair yet.",
+    "yourAccount": "Your account",
+    "showingChair": "Showing your chair only."
+  },
+  "loading": {
+    "customers": "Loading customers",
+    "settings": "Loading settings",
+    "generic": "Loading",
+    "calendar": "Loading your calendar",
+    "dashboard": "Loading your dashboard",
+    "queue": "Loading the queue"
+  },
+  "pages": {
+    "hoursTitle": "Opening hours",
+    "hoursSubtitle": "Shown on your microsite",
+    "staffTitle": "Staff",
+    "staffSubtitle": "Seats and team members",
+    "servicesTitle": "Services",
+    "servicesSubtitle": "What customers can book"
+  }
+}

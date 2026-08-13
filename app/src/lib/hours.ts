@@ -23,8 +23,8 @@ export const DAY_NAMES: string[] = t.days.long;
 /** Monday-first display order of dayOfWeek values. */
 export const DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
-const DEFAULT_FROM = '9:00 AM';
-const DEFAULT_TO = '9:00 PM';
+const DEFAULT_FROM = `9:00 ${t.days.am}`;
+const DEFAULT_TO = `9:00 ${t.days.pm}`;
 
 /** '6:00 AM' … '11:30 PM' in 30-minute steps. */
 export const TIME_OPTIONS: string[] = (() => {

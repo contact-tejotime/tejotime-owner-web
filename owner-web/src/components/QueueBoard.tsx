@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { t, format } from "@/i18n";
 
 import { QueueDetailSheet } from "@/components/QueueDetailSheet";
 import { Spinner } from "@/components/Skeleton";
@@ -147,16 +148,16 @@ export function QueueBoard({
       const res = await fetch(`/api/queue/${entryId}/${action}`, { method: "POST" });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        showToast(json?.error?.message ?? "That didn't work. Try again.", "error");
+        showToast(json?.error?.message ?? t.queue.actionFailed, "error");
         return;
       }
       showToast(
-        action === "start" ? `Started ${name}` : `${name} marked as a no-show`,
+        action === "start" ? format(t.queue.startedToast, { name }) : format(t.queue.noShowToast, { name }),
         "success",
       );
       refresh();
     } catch {
-      showToast("Could not reach the server. Check your connection.", "error");
+      showToast(t.queue.networkError, "error");
     } finally {
       setRunning(null);
     }
@@ -174,7 +175,7 @@ export function QueueBoard({
         });
         if (!re.ok) {
           const json = await re.json().catch(() => ({}));
-          throw new Error(json?.error?.message ?? "Could not move to that seat.");
+          throw new Error(json?.error?.message ?? t.queue.errReassign);
         }
       }
       const mv = await fetch(`/api/queue/${cardId}/move`, {
@@ -184,10 +185,10 @@ export function QueueBoard({
       });
       if (!mv.ok) {
         const json = await mv.json().catch(() => ({}));
-        throw new Error(json?.error?.message ?? "Could not reorder the queue.");
+        throw new Error(json?.error?.message ?? t.queue.errReorder);
       }
       showToast(
-        fromSeatId === toSeatId ? "Queue order updated" : "Moved to another seat",
+        fromSeatId === toSeatId ? t.queue.okReorder : t.queue.okMoved,
         "success",
       );
       refresh();
@@ -276,20 +277,20 @@ export function QueueBoard({
         )}
         <button type="button" className="filter-chip filter-chip-cta" onClick={() => onWalkInOpenChange(true)}>
           <Icon name="plus" size={15} color="#fff" />
-          Walk-in
+          {t.queue.walkIn}
         </button>
       </div>
 
       {dragId ? (
         <p className="queue-drag-hint">
           {singleChair
-            ? "Drop to reorder · waiting customers only"
-            : "Drop on a seat to reorder or move · waiting customers only"}
+            ? t.queue.dragHintSingle
+            : t.queue.dragHint}
         </p>
       ) : null}
 
       {seats.length === 0 ? (
-        <p className="home-empty">No seats set up yet. Add staff in Settings.</p>
+        <p className="home-empty">{t.queue.noSeats}</p>
       ) : (
         <div className={`seat-list${singleChair ? " seat-list-single" : ""}${dragId ? " is-dragging" : ""}`}>
           {seats.map((seat) => {
@@ -313,7 +314,7 @@ export function QueueBoard({
                     <span className="meta">{seat.subLine}</span>
                   </span>
                   <span className={`seat-status ${seat.serving ? "busy" : "free"}`}>
-                    {seat.serving ? "Busy" : "Free"}
+                    {seat.serving ? t.queue.busy : t.queue.free}
                   </span>
                 </header>
 
@@ -324,7 +325,7 @@ export function QueueBoard({
                         type="button"
                         className="card-open"
                         onClick={() => setOpenCard(card)}
-                        aria-label={`Open ${card.name}`}
+                        aria-label={format(t.queue.openCard, { name: card.name })}
                       />
                       <div className="card-main">
                         <div className="title">{card.name}</div>
@@ -339,15 +340,15 @@ export function QueueBoard({
                           disabled={cardBusy(card.id)}
                           onClick={() => setOpenCard(card)}
                         >
-                          End
+                          {t.queue.end}
                         </button>
                         <button
                           type="button"
                           className="btn secondary btn-sm btn-icon card-action-x"
                           disabled={cardBusy(card.id)}
                           onClick={() => act(card.id, "no-show", card.name)}
-                          title="Mark no-show"
-                          aria-label={`Mark ${card.name} as a no-show`}
+                          title={t.queue.markNoShow}
+                          aria-label={format(t.queue.markNoShowAria, { name: card.name })}
                         >
                           {isRunning(card.id, "no-show") ? <Spinner size={13} /> : <Icon name="x" size={15} />}
                         </button>
@@ -381,7 +382,7 @@ export function QueueBoard({
                           type="button"
                           className="card-drag-grip"
                           draggable
-                          aria-label={`Drag ${card.name}`}
+                          aria-label={format(t.queue.dragCard, { name: card.name })}
                           onDragStart={(e) => onDragStart(e, card, seat.id)}
                           onDragEnd={onDragEnd}
                         >
@@ -391,7 +392,7 @@ export function QueueBoard({
                           type="button"
                           className="card-open"
                           onClick={() => setOpenCard(card)}
-                          aria-label={`Open ${card.name}`}
+                          aria-label={format(t.queue.openCard, { name: card.name })}
                         />
                         <div className="card-main">
                           <div className="title">{card.name}</div>
@@ -407,15 +408,15 @@ export function QueueBoard({
                             onClick={() => act(card.id, "start", card.name)}
                           >
                             {isRunning(card.id, "start") ? <Spinner size={13} /> : null}
-                            Start
+                            {t.queue.start}
                           </button>
                           <button
                             type="button"
                             className="btn secondary btn-sm btn-icon card-action-x"
                             disabled={cardBusy(card.id)}
                             onClick={() => act(card.id, "no-show", card.name)}
-                            title="Mark no-show"
-                            aria-label={`Mark ${card.name} as a no-show`}
+                            title={t.queue.markNoShow}
+                            aria-label={format(t.queue.markNoShowAria, { name: card.name })}
                           >
                             {isRunning(card.id, "no-show") ? <Spinner size={13} /> : <Icon name="x" size={15} />}
                           </button>
@@ -442,7 +443,7 @@ export function QueueBoard({
                   />
 
                   {seat.cards.length === 0 ? (
-                    <p className="seat-empty seat-empty-drop">Drop a waiting customer here</p>
+                    <p className="seat-empty seat-empty-drop">{t.queue.dropHere}</p>
                   ) : null}
                 </ul>
               </section>

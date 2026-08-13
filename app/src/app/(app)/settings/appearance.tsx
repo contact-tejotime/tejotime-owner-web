@@ -53,6 +53,23 @@ const SWATCHES = [
   '#0F766E',
 ] as const;
 
+/**
+ * Button swatches. Neutrals lead because the reason this axis exists is owners wanting a button
+ * that is NOT their brand hue; the saturated options follow. Same list as the web panels.
+ */
+const BUTTON_SWATCHES = [
+  '#111111',
+  '#334155',
+  '#0F172A',
+  '#2563EB',
+  '#0F766E',
+  '#7C3AED',
+  '#DB2777',
+  '#DC2626',
+  '#EA580C',
+  '#C9A227',
+] as const;
+
 const INHERIT = '__preset__';
 type WithInherit<T extends string> = T | typeof INHERIT;
 
@@ -68,6 +85,10 @@ function themeKey(c: ThemeConfig): string {
     c.heroVariant ?? '',
     c.accent ?? '',
     c.brandInk ?? '',
+    // Listed even though this screen has no button-colour control: the value round-trips through
+    // here on save, and the day a control is added an omission would silently break the dirty
+    // check rather than fail loudly.
+    c.button ?? '',
   ].join('|');
 }
 
@@ -122,6 +143,9 @@ function AppearanceForm() {
   const usesWhiteInk = (tokens['--on-brand'] ?? '#ffffff').toLowerCase() === '#ffffff';
   const ratio = onBrandCheck ? onBrandCheck.ratio.toFixed(2) : '—';
   const brandInk: BrandInkId = theme.brandInk ?? 'auto';
+  // Absent → follow the theme colour, which is the default and what every store had before.
+  const buttonCustom = theme.button !== undefined;
+  const buttonValid = !buttonCustom || HEX_RE.test((theme.button ?? '').trim());
   const manualFailsAa = brandInk !== 'auto' && onBrandCheck != null && !onBrandCheck.pass;
   const gatedFailures = resolved.contrast.failures.filter((c) => c.tier !== 'decorative');
 
@@ -226,7 +250,59 @@ function AppearanceForm() {
         </View>
       </Section>
 
-      <Section title={t.appearance.brandInkTitle}>
+      <Section title={t.appearance.buttonTitle} hint={t.appearance.buttonHint}>
+        <ChipRow
+          options={[
+            { value: 'theme', label: t.appearance.buttonSourceTheme },
+            { value: 'custom', label: t.appearance.buttonSourceCustom },
+          ]}
+          value={buttonCustom ? 'custom' : 'theme'}
+          onChange={(src) => {
+            setTheme((prev) => {
+              const next: ThemeConfig = { ...prev };
+              // Seeded from the theme colour, so Custom starts where the button already was.
+              if (src === 'theme') delete next.button;
+              else next.button = prev.button ?? prev.brand;
+              return next;
+            });
+          }}
+        />
+
+        {buttonCustom ? (
+          <>
+            <View style={s.swatchRow}>
+              {BUTTON_SWATCHES.map((hex) => {
+                const selected = buttonValid && (theme.button ?? '').trim().toUpperCase() === hex;
+                return (
+                  <Pressable
+                    key={hex}
+                    onPress={() => setTheme((p) => ({ ...p, button: hex }))}
+                    style={[s.swatch, { backgroundColor: hex }, selected && s.swatchSelected]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                  />
+                );
+              })}
+            </View>
+            <TInput
+              label={t.appearance.buttonCustom}
+              value={theme.button ?? ''}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              onChangeText={(v) => {
+                const raw = v.trim();
+                const next = raw.startsWith('#') ? raw.toUpperCase() : `#${raw}`.toUpperCase();
+                setTheme((p) => ({ ...p, button: next.slice(0, 7) }));
+              }}
+              error={!buttonValid ? t.appearance.invalidHex : undefined}
+            />
+          </>
+        ) : null}
+
+        {/* Label ink belongs to the button it colours, not to the theme colour. */}
+        <TText variant="caption" color="textMuted" style={s.badge}>
+          {t.appearance.brandInkTitle}
+        </TText>
         <ChipRow
           options={BRAND_INK_IDS.map((id) => ({
             value: id,
@@ -242,6 +318,20 @@ function AppearanceForm() {
             });
           }}
         />
+
+        {/* Real resolved tokens, so this is the colour and ink the site will actually paint. */}
+        <View style={s.buttonPreview}>
+          <View
+            style={[
+              s.buttonPreviewFill,
+              { backgroundColor: tokens['--primary'] ?? theme.brand },
+            ]}
+          >
+            <TText variant="bodySm" weight="semibold" style={{ color: tokens['--on-brand'] ?? '#ffffff' }}>
+              {t.appearance.buttonPreviewLabel}
+            </TText>
+          </View>
+        </View>
         <TText variant="caption" color="textMuted" style={s.badge}>
           {format(usesWhiteInk ? t.appearance.aaWhite : t.appearance.aaDark, { ratio })}
         </TText>
@@ -489,6 +579,17 @@ const createStyles = ({ colors, radius }: ThemeStyleProps) =>
     swatchSelected: {
       borderWidth: moderateScale(2),
       borderColor: colors.textStrong,
+    },
+    buttonPreview: {
+      ...styles.flexRow,
+      ...styles.mt3,
+    },
+    buttonPreviewFill: {
+      ...styles.itemsCenter,
+      ...styles.justifyCenter,
+      paddingHorizontal: moderateScale(20),
+      height: moderateScale(40),
+      borderRadius: moderateScale(radius.md),
     },
     ramp: {
       ...styles.flexRow,

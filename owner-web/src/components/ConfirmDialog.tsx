@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { t, format } from "@/i18n";
 
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Skeleton";
@@ -25,8 +26,8 @@ export function ConfirmDialog({
   open,
   title,
   body,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
+  confirmLabel = t.confirm.confirm,
+  cancelLabel = t.confirm.cancel,
   destructive = false,
   /** Present a text field and hand its value to onConfirm. Used for setting a password. */
   input,
@@ -61,7 +62,7 @@ export function ConfirmDialog({
 
   function confirm() {
     if (input?.minLength && value.length < input.minLength) {
-      setError(`Use at least ${input.minLength} characters.`);
+      setError(format(t.confirm.minLength, { count: input.minLength }));
       return;
     }
     onConfirm(value);
@@ -80,7 +81,7 @@ export function ConfirmDialog({
       <div className="sheet confirm-sheet">
         <header className="sheet-head">
           <h2>{title}</h2>
-          <button type="button" className="icon-btn" onClick={onCancel} aria-label="Close">
+          <button type="button" className="icon-btn" onClick={onCancel} aria-label={t.confirm.close}>
             <Icon name="x" size={18} />
           </button>
         </header>

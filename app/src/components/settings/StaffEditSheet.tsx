@@ -61,7 +61,7 @@ function StaffForm({
       const url = await pickAndUploadAvatar();
       if (url) setPhotoUrl(url);
     } catch (e) {
-      setError((e as Error)?.message ?? 'Could not upload photo.');
+      setError((e as Error)?.message ?? t.staffSheet.photoFailed);
     } finally {
       setUploading(false);
     }
@@ -89,12 +89,12 @@ function StaffForm({
         </Pressable>
         <View style={styles.g2}>
           <TButton variant="outline" size="sm" onPress={pickPhoto} loading={uploading} disabled={saving}>
-            {photoUrl ? 'Change photo' : 'Add photo'}
+            {photoUrl ? t.staffSheet.changePhoto : t.staffSheet.addPhoto}
           </TButton>
           {photoUrl && !uploading && (
             <Pressable onPress={() => setPhotoUrl(null)} disabled={saving}>
               <TText variant="bodySm" color="error">
-                Remove photo
+                {t.staffSheet.removePhoto}
               </TText>
             </Pressable>
           )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { t } from "@/i18n";
 import { Spinner } from "@/components/Skeleton";
 
 /**
@@ -22,8 +23,8 @@ export function ChangePasswordForm() {
     e.preventDefault();
     setError("");
     setDone(false);
-    if (newPassword.length < 8) return setError("Use at least 8 characters.");
-    if (newPassword !== confirm) return setError("The two new passwords do not match.");
+    if (newPassword.length < 8) return setError(t.password.tooShort);
+    if (newPassword !== confirm) return setError(t.password.mismatch);
 
     setBusy(true);
     try {
@@ -34,7 +35,7 @@ export function ChangePasswordForm() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(json?.error?.message ?? "Could not change your password.");
+        setError(json?.error?.message ?? t.password.errChange);
         return;
       }
       setCurrentPassword("");
@@ -42,7 +43,7 @@ export function ChangePasswordForm() {
       setConfirm("");
       setDone(true);
     } catch {
-      setError("Could not reach the server. Check your connection and try again.");
+      setError(t.password.networkError);
     } finally {
       setBusy(false);
     }
@@ -50,7 +51,7 @@ export function ChangePasswordForm() {
 
   return (
     <form className="section" onSubmit={onSubmit}>
-      <h2>Change your password</h2>
+      <h2>{t.password.title}</h2>
 
       {error ? (
         <div className="alert err" role="alert">
@@ -59,12 +60,12 @@ export function ChangePasswordForm() {
       ) : null}
       {done ? (
         <div className="alert ok" role="status">
-          Password changed.
+          {t.password.changed}
         </div>
       ) : null}
 
       <div className="field">
-        <label htmlFor="cp-current">Current password</label>
+        <label htmlFor="cp-current">{t.password.current}</label>
         <input
           id="cp-current"
           type="password"
@@ -74,7 +75,7 @@ export function ChangePasswordForm() {
         />
       </div>
       <div className="field">
-        <label htmlFor="cp-new">New password</label>
+        <label htmlFor="cp-new">{t.password.new}</label>
         <input
           id="cp-new"
           type="password"
@@ -82,10 +83,10 @@ export function ChangePasswordForm() {
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
         />
-        <p className="field-hint">At least 8 characters.</p>
+        <p className="field-hint">{t.password.hint}</p>
       </div>
       <div className="field">
-        <label htmlFor="cp-confirm">Confirm new password</label>
+        <label htmlFor="cp-confirm">{t.password.confirm}</label>
         <input
           id="cp-confirm"
           type="password"
@@ -99,10 +100,10 @@ export function ChangePasswordForm() {
         {busy ? (
           <>
             <Spinner size={14} />
-            Saving…
+            {t.common.savingEllipsis}
           </>
         ) : (
-          "Change password"
+          t.password.submit
         )}
       </button>
     </form>

@@ -56,12 +56,15 @@ export function Icon({
   size = 20,
   strokeWidth = 2,
   color = "currentColor",
+  fill = "none",
   style,
 }: {
   name: IconName;
   size?: number;
   strokeWidth?: number;
   color?: string;
+  /** Solid glyph. Outline stays the default; rating stars opt in. Mirrors components/Icon.tsx. */
+  fill?: string;
   style?: CSSProperties;
 }) {
   const inner = ICONS[name];
@@ -71,7 +74,7 @@ export function Icon({
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={fill}
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"

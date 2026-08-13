@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { t } from "@/i18n";
 
 import { assertSameOrigin, BACKEND, unreachable } from "@/lib/http";
 import { landingPath, NO_ACCESS } from "@/lib/roles";
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: { message: "Invalid request." } }, { status: 400 });
+    return NextResponse.json({ error: { message: t.api.invalidRequest } }, { status: 400 });
   }
 
   const { phone, password, accountType } = (body ?? {}) as {
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   };
   if (!phone || !password) {
     return NextResponse.json(
-      { error: { message: "Enter your phone number and password." } },
+      { error: { message: t.api.enterPhonePassword } },
       { status: 400 },
     );
   }
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
   const { accessToken, refreshToken } = json as { accessToken?: string; refreshToken?: string };
   if (!accessToken || !refreshToken) {
     return NextResponse.json(
-      { error: { message: "The API did not return a session." } },
+      { error: { message: t.api.noSession } },
       { status: 502 },
     );
   }

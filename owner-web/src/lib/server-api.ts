@@ -285,6 +285,8 @@ export interface ThemeConfig {
   heroVariant?: "split-classic" | "editorial" | "split-modern" | "full-bleed" | "trust" | "cozy";
   accent?: string;
   brandInk?: "auto" | "white" | "dark";
+  /** Solid primary button only. Absent → buttons follow `brand`. */
+  button?: string;
 }
 
 export interface BusinessDetail {

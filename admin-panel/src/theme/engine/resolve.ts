@@ -199,11 +199,14 @@ function buildMode(
   preset: PresetDefinition,
   brandRamp: ColorRamp,
   accent: AccentResolution,
+  /** Seeds the solid button only. Identity-equal to `brandRamp` when the owner has not split them. */
+  buttonRamp: ColorRamp,
 ): ModeBuild {
   const isDark = mode === 'dark';
   const n = isDark ? preset.neutralsDark : preset.neutralsLight;
   const neutralArr = neutralToArray(n);
   const brandArr = rampToArray(brandRamp);
+  const buttonArr = rampToArray(buttonRamp);
   const accentArr = rampToArray(accent.ramp);
 
   const checks: ContrastCheck[] = [];
@@ -276,15 +279,25 @@ function buildMode(
   const borderStrong = isDark ? n[500] : n[400];
 
   /* ---- Brand -------------------------------------------------------------- */
+  /*
+   * Two ramps from here on, and the split is deliberate:
+   *
+   *   buttonRamp  the solid primary button — fill, hover, pressed, label ink, outline
+   *   brandRamp   everything else the palette tints — chips, borders, links, focus, hero
+   *
+   * They are the same object unless the owner set a button colour, so an untouched store
+   * resolves byte-for-byte as before. Keeping the tints on `brand` is what stops a black button
+   * from draining the colour out of the rest of the site.
+   */
   const brandStep: RampStop = isDark ? 400 : 600;
   // The fill is the owner's colour, untouched. Darkening it to clear the 3:1 non-text minimum
   // (what this used to do) makes the brand picker lie — #FF5A5F came back as #d43641. WCAG
   // 1.4.11 wants the control's BOUNDARY to be perceivable, not the fill specifically, so a pale
   // brand keeps its fill and gets `--brand-outline` instead; the ink flips to dark via onColor.
-  const brand = brandRamp[brandStep];
+  const brand = buttonRamp[brandStep];
   // Hardest backdrop the fill sits on (page vs card) — the outline has to clear both.
   const fillBackdrop = contrastRatio(brand, bg) <= contrastRatio(brand, surface1) ? bg : surface1;
-  const brandOutlined = ensureContrast(brand, fillBackdrop, 3, brandArr);
+  const brandOutlined = ensureContrast(brand, fillBackdrop, 3, buttonArr);
   const brandOutline = brandOutlined === brand ? 'transparent' : brandOutlined;
   // The ink is resolved BEFORE the interactive states, because it decides which way they walk
   // — hovering and pressing must not carry the label out of contrast. See stateDirection().
@@ -292,9 +305,9 @@ function buildMode(
   let onBrand = ensureContrast(onColor(brand, '#ffffff', n[900]), brand, 4.5);
   if (config.brandInk === 'white') onBrand = '#ffffff';
   else if (config.brandInk === 'dark') onBrand = '#0f172a';
-  const brandDir = stateDirection(brandRamp, brandStep, onBrand, isDark ? -1 : 1, [1, 2]);
-  const brandHover = brandRamp[stepBy(brandStep, brandDir)];
-  const brandPressed = brandRamp[stepBy(brandStep, brandDir * 2)];
+  const brandDir = stateDirection(buttonRamp, brandStep, onBrand, isDark ? -1 : 1, [1, 2]);
+  const brandHover = buttonRamp[stepBy(brandStep, brandDir)];
+  const brandPressed = buttonRamp[stepBy(brandStep, brandDir * 2)];
   const brandSubtle = isDark ? mixSrgb(surface1, brandRamp[400], 0.18) : brandRamp[50];
   const brandBorder = isDark ? mixSrgb(surface1, brandRamp[400], 0.4) : brandRamp[200];
   const brandSubtleFgSeed = isDark ? brandRamp[300] : brandRamp[stepBy(brandStep, 1)];
@@ -615,10 +628,13 @@ export function resolveTheme(config: ThemeConfig): ResolvedTheme {
   };
 
   const brandRamp = generateRamp(effective.brand);
+  // Same object when unset, so `buttonRamp === brandRamp` and nothing about an existing store
+  // changes — including the generated ramp, which is not regenerated for the common case.
+  const buttonRamp = effective.button ? generateRamp(effective.button) : brandRamp;
   const accent = resolveAccent(preset, effective, brandRamp);
 
-  const light = buildMode('light', effective, preset, brandRamp, accent);
-  const dark = buildMode('dark', effective, preset, brandRamp, accent);
+  const light = buildMode('light', effective, preset, brandRamp, accent, buttonRamp);
+  const dark = buildMode('dark', effective, preset, brandRamp, accent, buttonRamp);
 
   const all = [...light.checks, ...dark.checks];
   const failures = all.filter((c) => !c.pass);

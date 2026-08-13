@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { t, format } from "@/i18n";
 
 import { AppPageHeader } from "@/components/AppPageHeader";
 import { CustomerSearch } from "@/components/CustomerSearch";
@@ -33,15 +34,15 @@ export default async function CustomersPage({
   return (
     <div className="page-app">
       <AppPageHeader
-        title="Customers"
-        subtitle={res ? `${res.shown} of ${res.total} shown` : "—"}
+        title={t.customers.title}
+        subtitle={res ? format(t.customers.shownOf, { shown: res.shown, total: res.total }) : t.common.dash}
       />
 
       <CustomerSearch initialQuery={q} />
 
       {customers.length === 0 ? (
         <p className="home-empty">
-          {q ? `No customers match “${q}”` : "No customers yet — they appear after their first visit."}
+          {q ? format(t.customers.noMatch, { query: q }) : t.customers.empty}
         </p>
       ) : (
         <div className="customer-list">
@@ -59,15 +60,15 @@ export default async function CustomersPage({
               </div>
               <div className="customer-card-meta">
                 <div>
-                  <div className="label">Visits</div>
+                  <div className="label">{t.customers.visits}</div>
                   <div className="val">{c.visitsCount}</div>
                 </div>
                 <div>
-                  <div className="label">Last visit</div>
+                  <div className="label">{t.customers.lastVisit}</div>
                   <div className="val">{formatDate(c.lastVisitAt)}</div>
                 </div>
                 <div>
-                  <div className="label">Spend</div>
+                  <div className="label">{t.customers.spend}</div>
                   <div className="val">{formatMoney(c.totalSpend)}</div>
                 </div>
               </div>
@@ -81,11 +82,11 @@ export default async function CustomersPage({
           <div className="upsell-icon">
             <Icon name="star" size={22} color="#F59E0B" />
           </div>
-          <h3>{locked} more clients locked</h3>
-          <p>Upgrade to Premium to see your full customer list and history.</p>
+          <h3>{format(t.customers.lockedCount, { count: locked })}</h3>
+          <p>{t.customers.upsell}</p>
           <Link href="/settings/subscription" className="btn block">
             <Icon name="creditCard" size={18} color="#fff" />
-            Upgrade to Premium
+            {t.customers.upgrade}
           </Link>
         </div>
       ) : null}

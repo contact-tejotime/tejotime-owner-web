@@ -1,0 +1,564 @@
+{
+  "meta": {
+    "title": "TejoTime — Run your queue, bookings & customers in one place",
+    "description": "The digital OS for small business. TejoTime gives any appointment-based business online booking, a live queue, reminders and customer management — without a developer or IT team."
+  },
+  "common": {
+    "close": "Close",
+    "back": "Back",
+    "done": "Done",
+    "gotIt": "Got it",
+    "continue": "Continue →"
+  },
+  "brand": {
+    "logoAlt": "TejoTime — Easy Appointments for Small Business",
+    "nameFirst": "Tejo",
+    "nameSecond": "Time",
+    "poweredBy": "Powered by",
+    "termsPrivacy": "Terms · Privacy"
+  },
+  "notFound": {
+    "title": "We couldn’t find that salon",
+    "body": "Check the number and try again.",
+    "goHome": "Go home"
+  },
+  "errorPage": {
+    "title": "Could not load this salon",
+    "apiHint": "{message}. Is the API running?",
+    "failedToLoad": "Failed to load"
+  },
+  "phoneField": {
+    "selectCountryCode": "Select country code",
+    "countries": "Countries",
+    "searchPlaceholder": "Search country or code…",
+    "noMatches": "No matches"
+  },
+  "api": {
+    "requestFailed": "Request failed"
+  },
+  "landing": {
+    "nav": {
+      "features": "Features",
+      "industries": "Industries",
+      "vision": "Vision",
+      "getStarted": "Get started"
+    },
+    "hero": {
+      "eyebrow": "The digital OS for small business",
+      "titleLead": "Run your queue, bookings & customers —",
+      "titleAccent": "all in one place.",
+      "body": "More than online appointments. TejoTime gives any appointment-based business the tools big companies use — without the developer, the IT team, or the price tag.",
+      "getStarted": "Get started",
+      "requestDemo": "Request a demo",
+      "lovedByLine1": "Loved by barber shops, salons, clinics",
+      "lovedByLine2": "& service centers across India"
+    },
+    "mock": {
+      "liveQueue": "Live queue",
+      "storeToday": "Sharp Cuts · today",
+      "open": "Open",
+      "addWalkIn": "Add walk-in",
+      "newBooking": "New booking",
+      "newBookingSub": "Asha · 4:30 PM",
+      "waitValue": "~25 min",
+      "waitLabel": "est. wait to clear"
+    },
+    "features": {
+      "eyebrow": "Everything you need",
+      "title": "One platform to run the whole business",
+      "body": "No web designer. No IT consultant. No expensive software. Just the tools to look professional and stay organised."
+    },
+    "booking": {
+      "eyebrow": "Online booking",
+      "title": "Let customers book 24/7",
+      "body": "Your own page at tejotime.com/yourbusiness. No missed calls, no WhatsApp confusion — just bookings that land straight in your queue.",
+      "storeName": "Sharp Cuts",
+      "storeMeta": "· Barber · 0.4 km",
+      "storeRating": "4.9",
+      "open": "Open",
+      "serviceName": "Haircut + beard",
+      "serviceDuration": "45 min",
+      "servicePrice": "₹250",
+      "selectDate": "Select a date",
+      "chooseTime": "Choose a time",
+      "confirm": "Confirm booking"
+    },
+    "ownerApp": {
+      "eyebrow": "Owner app",
+      "title": "Run your day from your phone",
+      "body": "Queue, walk-ins, appointments, staff and customers — one dashboard that updates live. See exactly what’s happening, wherever you are."
+    },
+    "industries": {
+      "eyebrow": "Built for every business",
+      "title": "If you book it or queue it, TejoTime runs it"
+    },
+    "vision": {
+      "eyebrow": "Our goal",
+      "titleLead": "From your first customer to your thousandth,",
+      "titleAccent": "TejoTime grows with you.",
+      "body": "Every small business deserves the technology large companies use. We make enterprise-grade tools affordable for every entrepreneur — and we add more every month."
+    },
+    "cta": {
+      "title": "Ready to grow with TejoTime?",
+      "body": "Tell us about your business — we’ll set everything up and walk you through it. No tech skills needed.",
+      "button": "Send an inquiry"
+    },
+    "footer": {
+      "blurb": "Enterprise technology. Small business pricing. Your business, your brand, your customers.",
+      "copyright": "© 2026 TejoTime · Easy appointments for small business",
+      "legal": "Privacy · Terms · Contact"
+    },
+    "inquiry": {
+      "title": "Request access",
+      "subtitle": "We’ll set you up — no tech skills needed.",
+      "businessNameLabel": "Business name",
+      "businessNamePlaceholder": "e.g. Sharp Cuts",
+      "addressLabel": "Address",
+      "addressPlaceholder": "Shop / clinic address",
+      "phoneLabel": "Phone number",
+      "phonePlaceholder": "00000 00000",
+      "submit": "Submit inquiry",
+      "submitting": "Submitting…",
+      "privacyNote": "We’ll never share your details. Reply within one business day.",
+      "invalid": "Please fill in all fields with a valid phone number.",
+      "failed": "Something went wrong. Please try again.",
+      "successTitle": "Inquiry received!",
+      "successBody": "Our team will reach out within one business day to get you set up.",
+      "successDone": "Done"
+    }
+  },
+  "landingData": {
+    "queueMock": [
+      {
+        "name": "Rahul M.",
+        "service": "Haircut + beard",
+        "status": "In service"
+      },
+      {
+        "name": "Imran K.",
+        "service": "Haircut",
+        "status": "Waiting"
+      },
+      {
+        "name": "Vikram S.",
+        "service": "Shave",
+        "status": "Waiting"
+      }
+    ],
+    "marquee": [
+      "Barber shops",
+      "Salons",
+      "Clinics",
+      "Dentists",
+      "Hospitals",
+      "Service centers",
+      "Consultants",
+      "Car wash",
+      "Spas",
+      "Fitness studios",
+      "Tutors",
+      "Pet groomers"
+    ],
+    "features": {
+      "businessPage": {
+        "title": "Professional business page",
+        "desc": "A beautiful page at tejotime.com/yourbusiness with services, pricing, photos and reviews. No coding."
+      },
+      "appointments": {
+        "title": "Online appointments",
+        "desc": "Customers book 24/7. Pick a service, choose a time, confirm — it lands straight in your queue."
+      },
+      "queue": {
+        "title": "Live queue & tokens",
+        "desc": "Walk-ins and bookings in one line. Tokens, wait times and status update in real time."
+      },
+      "reminders": {
+        "title": "Automated reminders",
+        "desc": "Confirmations and reminders cut no-shows automatically — no manual WhatsApp or calls."
+      },
+      "customers": {
+        "title": "Customer management",
+        "desc": "Every customer, visit and history in one place. Know your regulars and bring them back."
+      },
+      "grow": {
+        "title": "Grow your business",
+        "desc": "Build presence, increase bookings and improve retention with technology that works for you."
+      }
+    },
+    "bookingBullets": [
+      "Service → time → confirm in seconds",
+      "Share via WhatsApp, Instagram or a QR code",
+      "Fewer no-shows with auto reminders"
+    ],
+    "ownerBullets": [
+      "One live dashboard for the whole day",
+      "Add walk-ins and start service in a tap",
+      "Manage staff, services and working hours"
+    ],
+    "bookingDays": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri"
+    ],
+    "kpis": {
+      "inQueue": "In queue",
+      "todaysBookings": "Today's bookings",
+      "completed": "Completed",
+      "revenueToday": "Revenue today"
+    },
+    "stats": {
+      "businesses": "Businesses onboard",
+      "appointments": "Appointments booked",
+      "industries": "Industries served",
+      "rating": "Average owner rating"
+    },
+    "industries": [
+      "Barber shops",
+      "Beauty salons",
+      "Nail studios",
+      "Spas & wellness",
+      "Doctors",
+      "Dentists",
+      "Clinics",
+      "Hospitals",
+      "Fitness trainers",
+      "Yoga studios",
+      "Tutors",
+      "Driving schools",
+      "Consultants",
+      "Lawyers",
+      "Photographers",
+      "Pet groomers",
+      "Car wash",
+      "Service centers",
+      "Tattoo artists",
+      "And many more"
+    ],
+    "testimonials": [
+      {
+        "quote": "Walk-ins used to be chaos. Now everyone gets a token and I can actually focus on cutting hair.",
+        "name": "Suresh",
+        "role": "Sharp Cuts · Barber"
+      },
+      {
+        "quote": "My patients book online and get reminders. No-shows dropped and my front desk is calmer.",
+        "name": "Dr. Anjali",
+        "role": "Smile Care · Dental clinic"
+      },
+      {
+        "quote": "Setup took ten minutes and I didn't need a developer. It just works on my phone.",
+        "name": "Faisal",
+        "role": "AutoShine · Car wash"
+      }
+    ],
+    "inquiryPerks": [
+      "No setup fee",
+      "Live in minutes",
+      "Cancel anytime"
+    ],
+    "footerCols": [
+      {
+        "title": "Product",
+        "links": [
+          "Features",
+          "Booking page",
+          "Owner app",
+          "Pricing"
+        ]
+      },
+      {
+        "title": "Industries",
+        "links": [
+          "Salons",
+          "Clinics",
+          "Fitness",
+          "Consultants"
+        ]
+      },
+      {
+        "title": "Company",
+        "links": [
+          "About",
+          "Vision",
+          "Careers",
+          "Contact"
+        ]
+      }
+    ]
+  },
+  "microsite": {
+    "header": {
+      "saveContact": "Save contact",
+      "trackMyTurn": "Track my turn",
+      "takeToken": "Take token",
+      "checkIn": "Check in",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu"
+    },
+    "hero": {
+      "since": "Since {year}",
+      "rightNow": "Right now",
+      "takeAToken": "Take a token",
+      "checkIn": "Check in",
+      "bookSlot": "Book a time slot",
+      "noAppNote": "No app, no account — just your number",
+      "heroPhoto": "Hero photo"
+    },
+    "about": {
+      "eyebrow": "About Us",
+      "amenities": "Amenities",
+      "aboutPhoto": "About photo"
+    },
+    "faq": {
+      "eyebrow": "Good to know"
+    },
+    "visit": {
+      "eyebrow": "Visit us",
+      "saveContact": "Save contact",
+      "openingHours": "Opening hours",
+      "mapTitle": "Map of {name}"
+    },
+    "cta": {
+      "sub": "{count} in the queue · {wait} · we’ll text you when you’re close",
+      "button": "Check in →"
+    },
+    "resume": {
+      "yourTurn": "It's your turn",
+      "inLine": "You're in line",
+      "headToChair": "Head to the chair",
+      "track": "Track →"
+    },
+    "mobileBar": {
+      "checkIn": "Check in →"
+    },
+    "wait": {
+      "walkInNow": "Walk in now",
+      "minWait": "~{min} min wait",
+      "noWait": "no wait — walk in",
+      "waitingCount": "{count} waiting",
+      "almostYourTurn": "Almost your turn",
+      "aheadCount": "{count} ahead",
+      "aheadWithWait": "{count} ahead · ~{min} min",
+      "aheadOfYou": "ahead of you",
+      "estWait": "est. wait",
+      "now": "Now",
+      "aheadShortest": " ahead of you · shortest line shown",
+      "free": "Free",
+      "any": "Any",
+      "moreCount": "+{count} more",
+      "minShort": "~{min}m"
+    },
+    "ticker": {
+      "yearsOpen": "{years}+ yrs",
+      "inArea": "in {area}",
+      "membersCount": "{count} members",
+      "ratingStars": "★ {rating}",
+      "reviewsCount": "{count} reviews",
+      "yearsServing": "{years} yrs",
+      "servingArea": "serving {area}",
+      "verifiedReviews": "{count} verified reviews",
+      "ratingReviews": "{rating} ★ {reviewCount} reviews",
+      "expertTeam": "expert team"
+    },
+    "nav": {
+      "bookATime": "Book a time slot",
+      "checkIn": "Check in",
+      "visitUs": "Visit us",
+      "holdOn": "Hold on",
+      "noActiveBooking": "No active booking",
+      "checkYourPlace": "Check your place in line",
+      "about": "About",
+      "gallery": "Gallery",
+      "services": "Services",
+      "team": "Team"
+    },
+    "join": {
+      "visitorQuestion": "Who is this for?",
+      "visitorMr": "MR",
+      "visitorMrSub": "Medical representative",
+      "visitorPatient": "Patient",
+      "visitorPatientSub": "Visiting for care",
+      "visitorPickOne": "Pick one to continue",
+      "serviceQuestion": "What are you here for today? Prices & durations below.",
+      "servicePickOne": "Pick a service to continue",
+      "serviceContinue": "Continue · {name} →",
+      "nameLabel": "Your name",
+      "namePlaceholder": "e.g. Aman",
+      "phoneLabel": "Phone number",
+      "memberLabel": "Preferred member (optional)",
+      "memberAny": "Any",
+      "timeLabel": "Pick a time (today)",
+      "slotsLoading": "Loading slots…",
+      "slotsEmpty": "No slots available today — try joining the live queue instead.",
+      "timeSelected": "time selected",
+      "chooseTimeAbove": "choose a time above",
+      "confirmBooking": "Confirm booking →",
+      "confirmCheckIn": "Check in →",
+      "errNoPhone": "Enter your phone number",
+      "errNoNamePhone": "Enter your name and phone number",
+      "errNoSlot": "Pick a time slot",
+      "errGeneric": "Something went wrong"
+    },
+    "success": {
+      "booked": "You're booked!",
+      "allDone": "All done — thanks for visiting!",
+      "noLongerInQueue": "You're no longer in the queue",
+      "yourTurn": "It's your turn!",
+      "inQueue": "You're in the queue!",
+      "bookedSub": "See you at your slot.",
+      "bookingLine": "{service} · {when}",
+      "yourVisit": "Your visit",
+      "completedSub": "Your service is complete. See you next time!",
+      "noLongerSub": "You're no longer in the queue.",
+      "yourTurnSub": "Head to the chair — see you inside.",
+      "nextSub": "You're next — we'll text you the moment the chair's free.",
+      "waitSub": "We'll text you when you're 2 away.",
+      "yourToken": "Your token",
+      "leaveQueue": "Leave queue"
+    },
+    "track": {
+      "title": "Check your place in line",
+      "body": "Enter the phone number you joined or booked with, and we’ll show your slot.",
+      "phoneLabel": "Phone number",
+      "submit": "Show my slot →",
+      "noneTitle": "No active booking found",
+      "noneBody": "This number isn’t in today’s queue. It may have been served, cancelled, or expired.",
+      "checkIn": "Check in"
+    },
+    "already": {
+      "yourTurn": "It's your turn!",
+      "title": "You're already in line",
+      "yourTurnBody": "You're up now — head to the chair, we're ready for you.",
+      "body": "This number already holds a live token. One active token per phone — no need to join twice.",
+      "trackMyTurn": "Track my turn",
+      "differentNumber": "Different number",
+      "leaveQueue": "Leave queue"
+    },
+    "blocked": {
+      "title": "Too many attempts today",
+      "bodyLead": "This number has joined and cancelled several times. To keep the line fair for everyone, please",
+      "bodyCall": "call the shop",
+      "bodyTail": "or come in to join."
+    },
+    "left": {
+      "title": "You’ve left the queue",
+      "body": "Your spot is freed and the next customer has moved up.",
+      "rejoin": "Rejoin queue",
+      "bodyMany": "Your spot is freed. Heads up — repeated cancellations may require you to call the shop to rejoin."
+    },
+    "leaveConfirm": {
+      "title": "Leave the queue?",
+      "body": "You’ll lose token {token} and the next customer moves up. You can rejoin, but you’ll go to the back of the line.",
+      "stay": "Stay in queue",
+      "leave": "Yes, leave"
+    },
+    "sections": {
+      "liveFloor": "Live floor",
+      "liveNote": "Pick who you want. The numbers move as the {queueWord} moves.",
+      "waitRightNow": "Wait right now",
+      "inService": "In service",
+      "freeNow": "Free now",
+      "book": "Book →",
+      "bookService": "Book {name}, {price}",
+      "showAllServices": "Show all ({count})",
+      "gallery": "Gallery",
+      "openPhoto": "Open photo {index} of {total}",
+      "reviewsEyebrow": "Reviews",
+      "reviewsTitle": "What people say",
+      "photoViewer": "Photo viewer",
+      "prevPhoto": "Previous photo",
+      "nextPhoto": "Next photo",
+      "photoIndex": "Photo {index} of {total}",
+      "close": "Close",
+      "svcEyebrowMenu": "The menu",
+      "svcEyebrowTreatments": "Treatments"
+    },
+    "card": {
+      "metaTitle": "{name} — book or save contact",
+      "metaDescription": "Book an appointment at {name}, or save their number and address to your phone.",
+      "saveContact": "Save contact",
+      "bookAppointment": "Book an appointment →",
+      "savingNote": "Saving adds {name}’s number, address & website to your phone."
+    },
+    "queueWord": {
+      "queue": "queue",
+      "waitingList": "waiting list",
+      "waitlist": "waitlist"
+    },
+    "saveSheet": {
+      "title": "Scan for {name}",
+      "body": "Point your phone’s camera at this code to book an appointment at {name}, or save their number, address & website to your contacts.",
+      "saveToPhone": "Save to this phone",
+      "close": "Close"
+    },
+    "days": [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday"
+    ]
+  },
+  "domains": {
+    "generic": {
+      "liveHeading": "Our team · live availability",
+      "liveNote": "Updated live · pick a member when you join",
+      "liveCta": "Join {name}'s line",
+      "servicesHeading": "What we offer",
+      "servicesNote": "Book or walk in — pick a service when you join",
+      "serviceNoun": "service",
+      "galleryHeading": "Gallery",
+      "ctaHeading": "Skip the wait — join the live queue",
+      "ctaSub": "It's the queue · Walk in soon · we'll text you when you're near"
+    },
+    "beauty": {
+      "liveHeading": "Our stylists · live availability",
+      "liveNote": "Updated live · pick your stylist when you join",
+      "liveCta": "Book with {name}",
+      "servicesHeading": "Treatments & pricing",
+      "servicesNote": "Walk in or reserve a slot — prices are per treatment",
+      "serviceNoun": "treatment",
+      "galleryHeading": "Our work",
+      "ctaHeading": "Skip the wait — join the live queue",
+      "ctaSub": "See the real wait before you leave home"
+    },
+    "clinic": {
+      "liveHeading": "Doctors on duty · live OPD wait",
+      "liveNote": "Updated live · queue position is held from the moment you join",
+      "liveCta": "Join Dr. {name}'s queue",
+      "servicesHeading": "Departments & consultations",
+      "servicesNote": "Consultation charges shown per department",
+      "serviceNoun": "consultation",
+      "galleryHeading": "Our facility",
+      "ctaHeading": "Join the OPD queue from home",
+      "ctaSub": "Track your position live — no waiting-room crowding",
+      "urgentLabel": "For emergencies call the hospital directly"
+    },
+    "food": {
+      "liveHeading": "Live table availability",
+      "liveNote": "Updated live · we'll text you when your table is ready",
+      "liveCta": "Join {name}'s section",
+      "servicesHeading": "Menu highlights",
+      "servicesNote": "A taste of the menu — full card available in-store",
+      "serviceNoun": "dish",
+      "galleryHeading": "From our kitchen",
+      "ctaHeading": "Join the waitlist — skip the queue outside",
+      "ctaSub": "See the real wait before you drive over"
+    },
+    "fitness": {
+      "liveHeading": "Trainers on the floor",
+      "liveNote": "Updated live · grab a trainer when they're free",
+      "liveCta": "Train with {name}",
+      "servicesHeading": "Classes & sessions",
+      "servicesNote": "Drop in or reserve a slot",
+      "serviceNoun": "session",
+      "galleryHeading": "Inside the gym",
+      "ctaHeading": "Reserve your slot",
+      "ctaSub": "See how busy the floor is before you head over"
+    }
+  }
+}

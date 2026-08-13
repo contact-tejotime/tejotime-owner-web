@@ -14,6 +14,7 @@
  */
 
 export type UserRole = "owner" | "co_owner" | "manager" | "staff";
+import { t } from "@/i18n";
 
 export type Module =
   | "dashboard"
@@ -33,41 +34,23 @@ export type Access = "none" | "view" | "manage";
 
 export type ModuleAccess = Record<Module, Access>;
 
-export const ROLE_LABELS: Record<UserRole, string> = {
-  owner: "Owner",
-  co_owner: "Co-owner",
-  manager: "Manager",
-  staff: "Staff",
-};
+export const ROLE_LABELS: Record<UserRole, string> = t.roles.labels;
 
 /** What the team screen offers when creating a login. The super owner is not creatable. */
 export const CREATABLE_ROLES: { value: "co_owner" | "staff"; label: string; blurb: string }[] = [
   {
     value: "co_owner",
-    label: "Co-owner",
-    blurb: "Same access as you. Can add and manage staff. Cannot change your owner account.",
+    label: t.roles.creatable.co_owner.label,
+    blurb: t.roles.creatable.co_owner.blurb,
   },
   {
     value: "staff",
-    label: "Staff",
-    blurb: "Sees only what you allow, and only their own chair's queue and appointments.",
+    label: t.roles.creatable.staff.label,
+    blurb: t.roles.creatable.staff.blurb,
   },
 ];
 
-export const MODULE_LABELS: Record<Module, string> = {
-  dashboard: "Dashboard",
-  queue: "Queue",
-  appointments: "Appointments",
-  calendar: "Calendar",
-  customers: "Customers",
-  services: "Services",
-  staff: "Staff & seats",
-  hours: "Opening hours",
-  notifications: "Notifications",
-  billing: "Subscription & billing",
-  profile: "Business profile",
-  team: "Team logins",
-};
+export const MODULE_LABELS: Record<Module, string> = t.roles.modules;
 
 /** Mirrors backend GRANTABLE_MODULES — `team` is owner-only and never a checkbox. */
 export const GRANTABLE_MODULES: Module[] = [
@@ -84,11 +67,7 @@ export const GRANTABLE_MODULES: Module[] = [
   "profile",
 ];
 
-export const ACCESS_LABELS: Record<Access, string> = {
-  none: "Hidden",
-  view: "View only",
-  manage: "Full access",
-};
+export const ACCESS_LABELS: Record<Access, string> = t.roles.access;
 
 const RANK: Record<Access, number> = { none: 0, view: 1, manage: 2 };
 
@@ -174,12 +153,12 @@ export const NAV_ITEMS: {
   /** Primary module for the item; Home also allows queue-only via navItemsFor. */
   module: Module | null;
 }[] = [
-  { href: "/dashboard", label: "Home", icon: "layoutDashboard", module: "dashboard" },
-  { href: "/stats", label: "Reports", icon: "star", module: "dashboard" },
-  { href: "/appointments", label: "Appointments", icon: "calendar", module: "appointments" },
-  { href: "/calendar", label: "Calendar", icon: "grid", module: "calendar" },
-  { href: "/customers", label: "Customers", icon: "user", module: "customers" },
-  { href: "/settings", label: "Settings", icon: "settings", module: null },
+  { href: "/dashboard", label: t.nav.home, icon: "layoutDashboard", module: "dashboard" },
+  { href: "/stats", label: t.nav.reports, icon: "star", module: "dashboard" },
+  { href: "/appointments", label: t.nav.appointments, icon: "calendar", module: "appointments" },
+  { href: "/calendar", label: t.nav.calendar, icon: "grid", module: "calendar" },
+  { href: "/customers", label: t.nav.customers, icon: "user", module: "customers" },
+  { href: "/settings", label: t.nav.settings, icon: "settings", module: null },
 ];
 
 export function navItemsFor(access: ModuleAccess) {
@@ -193,13 +172,13 @@ export function navItemsFor(access: ModuleAccess) {
 
 export function settingsTilesFor(access: ModuleAccess, role: UserRole) {
   const all: { href: string; title: string; desc: string; module: Module }[] = [
-    { href: "/settings/profile", title: "Profile", desc: "Your name and password", module: "profile" },
-    { href: "/settings/team", title: "Team logins", desc: "Co-owners, staff and what they can see", module: "team" },
-    { href: "/settings/staff", title: "Staff", desc: "Seats and team members", module: "staff" },
-    { href: "/settings/services", title: "Services", desc: "Services and durations", module: "services" },
-    { href: "/settings/hours", title: "Hours", desc: "Weekly opening hours", module: "hours" },
-    { href: "/settings/notifications", title: "Notifications", desc: "Alerts and reminders", module: "notifications" },
-    { href: "/settings/subscription", title: "Subscription", desc: "Plan and billing", module: "billing" },
+    { href: "/settings/profile", title: t.settingsTiles.profile.title, desc: t.settingsTiles.profile.desc, module: "profile" },
+    { href: "/settings/team", title: t.settingsTiles.team.title, desc: t.settingsTiles.team.desc, module: "team" },
+    { href: "/settings/staff", title: t.settingsTiles.staff.title, desc: t.settingsTiles.staff.desc, module: "staff" },
+    { href: "/settings/services", title: t.settingsTiles.services.title, desc: t.settingsTiles.services.desc, module: "services" },
+    { href: "/settings/hours", title: t.settingsTiles.hours.title, desc: t.settingsTiles.hours.desc, module: "hours" },
+    { href: "/settings/notifications", title: t.settingsTiles.notifications.title, desc: t.settingsTiles.notifications.desc, module: "notifications" },
+    { href: "/settings/subscription", title: t.settingsTiles.subscription.title, desc: t.settingsTiles.subscription.desc, module: "billing" },
   ];
   return all.filter((t) => {
     // Team management is tied to the role, not to a permission — matching the backend, where

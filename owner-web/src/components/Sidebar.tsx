@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { t } from "@/i18n";
 import { useState } from "react";
 
 import { Icon } from "@/components/Icon";
@@ -42,7 +43,7 @@ export function Sidebar({ me, access }: { me: Me; access: ModuleAccess }) {
     <aside className="sidebar" id="app-sidebar">
       <div className="brand">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="brand-logo" src="/logo.png" alt="TejoTime" />
+        <img className="brand-logo" src="/logo.png" alt={t.sidebar.brand} />
       </div>
 
       <div className="biz-chip">
@@ -51,7 +52,7 @@ export function Sidebar({ me, access }: { me: Me; access: ModuleAccess }) {
         <span className="role-badge">{ROLE_LABELS[role]}</span>
       </div>
 
-      <nav aria-label="Primary" className="sidebar-nav">
+      <nav aria-label={t.sidebar.primary} className="sidebar-nav">
         {navItemsFor(access).map((item) => (
           <NavLink
             key={item.href}
@@ -75,7 +76,7 @@ export function Sidebar({ me, access }: { me: Me; access: ModuleAccess }) {
               Signing out…
             </>
           ) : (
-            "Log out"
+            t.sidebar.logout
           )}
         </button>
       </div>

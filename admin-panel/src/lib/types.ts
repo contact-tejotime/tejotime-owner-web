@@ -1,9 +1,10 @@
 /** Payload shapes shared between the store form and the API route handlers.
  *  These mirror the backend zod schema in backend/src/modules/admin/admin.routes.ts. */
 
+import { t } from "@/i18n";
 import { LEGACY_THEME_CONFIG, normalizeThemeConfig, type ThemeConfig } from "@/theme/engine";
 
-export const DAY_LABELS =["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+export const DAY_LABELS = t.days.long;
 
 /** Categories where services/staff aren't required (mirrors admin.routes.ts backend zod schema). */
 export const OPTIONAL_SERVICES_STAFF_CATEGORIES = new Set(["Hospital", "Restaurant"]);
@@ -145,7 +146,7 @@ export const EMPTY_FORM: StoreForm = {
   facebookUrl: "",
   twitterUrl: "",
   linkedinUrl: "",
-  payments: "UPI, Card, Cash",
+  payments: t.storeForm.paymentsDefault,
   currency: "INR",
   themeColor: "#2563EB",
   /**

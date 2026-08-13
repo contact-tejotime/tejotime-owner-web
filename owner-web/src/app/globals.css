@@ -4122,6 +4122,15 @@ textarea:focus {
 .ap-hex-text[aria-invalid="true"] {
   border-color: var(--red-600);
 }
+/* Button-colour preview: the live sample plus the engine's contrast verdict, side by side. */
+.ap-button-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
 .ap-warn {
   margin: 6px 0 0;
   font-size: 12px;

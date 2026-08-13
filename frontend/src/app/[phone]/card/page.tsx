@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { ApiError, publicApi } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/config";
+import { t, format } from "@/i18n";
 import { micrositeThemeConfig } from "@/theme";
 import ThemeStyle from "@/theme/ThemeStyle";
 
@@ -28,8 +29,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const site = await publicApi.getMicrositeByPhone(phone);
     return {
-      title: `${site.name} — book or save contact`,
-      description: `Book an appointment at ${site.name}, or save their number and address to your phone.`,
+      title: format(t.microsite.card.metaTitle, { name: site.name }),
+      description: format(t.microsite.card.metaDescription, { name: site.name }),
     };
   } catch {
     return {};
@@ -151,7 +152,7 @@ export default async function CardPage({ params }: Props) {
               boxShadow: "var(--shadow-sm)",
             }}
           >
-            Book an appointment →
+            {t.microsite.card.bookAppointment}
           </a>
 
           <a
@@ -170,7 +171,7 @@ export default async function CardPage({ params }: Props) {
               textDecoration: "none",
             }}
           >
-            Save contact
+            {t.microsite.card.saveContact}
           </a>
 
           <p
@@ -180,7 +181,7 @@ export default async function CardPage({ params }: Props) {
               margin: "20px 0 0",
             }}
           >
-            Saving adds {site.name}&apos;s number, address &amp; website to your phone.
+            {format(t.microsite.card.savingNote, { name: site.name })}
           </p>
         </div>
       </div>

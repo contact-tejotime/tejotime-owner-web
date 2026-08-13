@@ -1,6 +1,7 @@
 "use client";
 
 import { SUPPORT } from "@/lib/support";
+import { t } from "@/i18n";
 
 type Variant = "sidebar" | "settings" | "login" | "mobile" | "main";
 
@@ -12,7 +13,7 @@ export function SupportContact({ variant = "sidebar" }: { variant?: Variant }) {
   if (variant === "main") {
     return (
       <div className="support-contact support-contact--main">
-        <span className="support-contact-title">Need help?</span>
+        <span className="support-contact-title">{t.support.needHelp}</span>
         <a className="support-contact-link" href={`mailto:${SUPPORT.email}`}>
           {SUPPORT.email}
         </a>
@@ -28,8 +29,8 @@ export function SupportContact({ variant = "sidebar" }: { variant?: Variant }) {
 
   return (
     <div className={`support-contact support-contact--${variant}`}>
-      <p className="support-contact-title">Need help?</p>
-      <p className="support-contact-blurb">Contact TejoTime support</p>
+      <p className="support-contact-title">{t.support.needHelp}</p>
+      <p className="support-contact-blurb">{t.support.contactUs}</p>
       <div className="support-contact-links">
         <a className="support-contact-link" href={`mailto:${SUPPORT.email}`}>
           {SUPPORT.email}
@@ -46,12 +47,12 @@ export function SupportContact({ variant = "sidebar" }: { variant?: Variant }) {
 export function SupportStrip() {
   return (
     <div className="support-strip" role="contentinfo">
-      <span className="support-strip-label">Need help?</span>
-      <a href={`mailto:${SUPPORT.email}`}>Email</a>
+      <span className="support-strip-label">{t.support.needHelp}</span>
+      <a href={`mailto:${SUPPORT.email}`}>{t.support.email}</a>
       <span className="support-strip-sep" aria-hidden>
         ·
       </span>
-      <a href={`tel:${SUPPORT.phoneTel}`}>Call</a>
+      <a href={`tel:${SUPPORT.phoneTel}`}>{t.support.call}</a>
     </div>
   );
 }

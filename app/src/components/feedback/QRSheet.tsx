@@ -31,7 +31,7 @@ function buildPrintHtml(name: string, qrMarkup: string): string {
     `padding:40px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;color:#111}` +
     `h1{font-size:28px;font-weight:700;margin:0 0 8px}p{font-size:15px;color:#555;margin:0 0 36px}` +
     `svg,img{width:420px;height:420px;max-width:80vw}</style></head>` +
-    `<body><div class="wrap"><h1>${safe}</h1><p>Scan to book an appointment, or save this store as a contact.</p>` +
+    `<body><div class="wrap"><h1>${safe}</h1><p>${t.qr.subtitle}</p>` +
     `${qrMarkup}</div></body></html>`
   );
 }
@@ -74,7 +74,7 @@ export function QRSheet() {
   const qrBoxRef = useRef<View | null>(null);
 
   const slug = store.business?.slug;
-  const name = store.business?.name || 'Store';
+  const name = store.business?.name || t.qr.storeFallback;
   const phoneFull = `${store.business?.countryCode ?? ''}${store.business?.phoneNumber ?? ''}`;
   // Live vCard endpoint: always reflects the latest details, since the backend rebuilds the
   // .vcf from the current business row. Kept as the fallback target below.

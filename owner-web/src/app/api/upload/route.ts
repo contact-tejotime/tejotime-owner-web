@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { t, format } from "@/i18n";
 
 import { assertSameOrigin, BACKEND, unreachable } from "@/lib/http";
 import { getAccessToken } from "@/lib/session";
@@ -26,32 +27,32 @@ export async function POST(req: NextRequest) {
 
   const token = await getAccessToken();
   if (!token) {
-    return NextResponse.json({ error: { message: "Not authenticated" } }, { status: 401 });
+    return NextResponse.json({ error: { message: t.api.notAuthenticated } }, { status: 401 });
   }
 
   let form: FormData;
   try {
     form = await req.formData();
   } catch {
-    return NextResponse.json({ error: { message: "Expected a file upload." } }, { status: 400 });
+    return NextResponse.json({ error: { message: t.upload.expectedFile } }, { status: 400 });
   }
 
   const file = form.get("file");
   const assetType = String(form.get("assetType") ?? "avatar");
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: { message: "No file was sent." } }, { status: 400 });
+    return NextResponse.json({ error: { message: t.upload.noFile } }, { status: 400 });
   }
   if (!ASSET_TYPES.has(assetType)) {
-    return NextResponse.json({ error: { message: "Unsupported image slot." } }, { status: 400 });
+    return NextResponse.json({ error: { message: t.upload.badSlot } }, { status: 400 });
   }
   if (!ALLOWED.has(file.type)) {
     return NextResponse.json(
-      { error: { message: "Only JPEG, PNG or WebP images are supported." } },
+      { error: { message: t.upload.onlyImages } },
       { status: 400 },
     );
   }
   if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: { message: "That image is over 5 MB." } }, { status: 400 });
+    return NextResponse.json({ error: { message: t.upload.tooLarge } }, { status: 400 });
   }
 
   let signed: Response;
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
   const { uploadUrl, publicUrl } = signedJson as { uploadUrl?: string; publicUrl?: string };
   if (!uploadUrl || !publicUrl) {
     return NextResponse.json(
-      { error: { message: "The API did not return an upload URL." } },
+      { error: { message: t.upload.noUploadUrl } },
       { status: 502 },
     );
   }
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
     });
     if (!put.ok) {
       return NextResponse.json(
-        { error: { message: `Upload failed (${put.status}).` } },
+        { error: { message: format(t.upload.uploadFailed, { status: put.status }) } },
         { status: 502 },
       );
     }

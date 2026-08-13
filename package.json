@@ -16,6 +16,9 @@
     "test:theme": "cd backend && npx tsx ../frontend/src/theme/engine/__tests__/run.ts",
     "sync:theme": "node scripts/sync-theme-engine.mjs",
     "check:theme": "node scripts/sync-theme-engine.mjs --check",
+    "sync:crop": "node scripts/sync-image-crop.mjs",
+    "check:crop": "node scripts/sync-image-crop.mjs --check",
+    "check:axes": "node scripts/check-theme-axes.mjs",
     "android:reverse": "adb reverse tcp:8080 tcp:8080 && adb reverse tcp:3000 tcp:3000 && adb reverse tcp:3002 tcp:3002 && adb reverse --list"
   }
 }

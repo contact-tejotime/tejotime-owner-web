@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { t } from "@/i18n";
 import type { ThemeConfig } from "@/theme/engine";
 
 /** Thrown on any non-2xx response; carries the backend error envelope's code. */
@@ -20,7 +21,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = json?.error ?? {};
-    throw new ApiError(res.status, err.code ?? "ERROR", err.message ?? "Request failed");
+    throw new ApiError(res.status, err.code ?? "ERROR", err.message ?? t.api.requestFailed);
   }
   return json as T;
 }

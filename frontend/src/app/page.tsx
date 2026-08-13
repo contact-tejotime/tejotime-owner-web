@@ -5,6 +5,7 @@ import { Icon } from "@/components/landing/Icon";
 import { Logo } from "@/components/landing/Logo";
 import { Button, Input } from "@/components/landing/ui";
 import PhoneField from "@/components/ui/PhoneField";
+import { t } from "@/i18n";
 import { publicApi } from "@/lib/api";
 import { combineToE164, DEFAULT_DIAL_CODE, DEFAULT_ISO2, isValidNational } from "@/lib/phone";
 import {
@@ -52,7 +53,7 @@ export default function Home() {
   const submitInquiry = async () => {
     if (submitting) return;
     if (!businessName.trim() || !address.trim() || !isValidNational(national, phoneCountry.iso2)) {
-      setFormError("Please fill in all fields with a valid phone number.");
+      setFormError(t.landing.inquiry.invalid);
       return;
     }
     setSubmitting(true);
@@ -65,7 +66,7 @@ export default function Home() {
       });
       setSubmitted(true);
     } catch (e) {
-      setFormError((e as Error)?.message ?? "Something went wrong. Please try again.");
+      setFormError((e as Error)?.message ?? t.landing.inquiry.failed);
     } finally {
       setSubmitting(false);
     }
@@ -259,13 +260,13 @@ export default function Home() {
               className="tt-nav-links"
               style={{ display: "flex", gap: 28, alignItems: "center" }}
             >
-              <a href="#features" className="tt-nav-link">Features</a>
-              <a href="#industries" className="tt-nav-link">Industries</a>
-              <a href="#vision" className="tt-nav-link">Vision</a>
+              <a href="#features" className="tt-nav-link">{t.landing.nav.features}</a>
+              <a href="#industries" className="tt-nav-link">{t.landing.nav.industries}</a>
+              <a href="#vision" className="tt-nav-link">{t.landing.nav.vision}</a>
             </div>
           </div>
           <Button variant="primary" trailingIcon="arrowRight" onClick={openInquiry}>
-            Get started
+            {t.landing.nav.getStarted}
           </Button>
         </div>
       </div>
@@ -335,7 +336,7 @@ export default function Home() {
                   letterSpacing: ".01em",
                 }}
               >
-                The digital OS for small business
+                {t.landing.hero.eyebrow}
               </span>
             </div>
             <h1
@@ -347,8 +348,8 @@ export default function Home() {
                 margin: "0 0 20px",
               }}
             >
-              Run your queue, bookings &amp; customers —{" "}
-              <span className="tt-grad-text">all in one place.</span>
+              {t.landing.hero.titleLead}{" "}
+              <span className="tt-grad-text">{t.landing.hero.titleAccent}</span>
             </h1>
             <p
               style={{
@@ -358,18 +359,16 @@ export default function Home() {
                 margin: "0 0 16px",
               }}
             >
-              More than online appointments. TejoTime gives any appointment-based
-              business the tools big companies use — without the developer, the IT
-              team, or the price tag.
+              {t.landing.hero.body}
             </p>
             <div style={{ display: "flex", gap: 14, marginTop: 26, flexWrap: "wrap" }}>
               <span className="tt-cta-pulse" style={{ display: "inline-flex", borderRadius: "var(--radius-md)" }}>
                 <Button variant="primary" size="lg" trailingIcon="arrowRight" onClick={openInquiry}>
-                  Get started
+                  {t.landing.hero.getStarted}
                 </Button>
               </span>
               <Button variant="outline" size="lg" onClick={openInquiry}>
-                Request a demo
+                {t.landing.hero.requestDemo}
               </Button>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 28 }}>
@@ -384,8 +383,8 @@ export default function Home() {
                   color: "var(--text-muted)",
                 }}
               >
-                Loved by barber shops, salons, clinics
-                <br />&amp; service centers across India
+                {t.landing.hero.lovedByLine1}
+                <br />{t.landing.hero.lovedByLine2}
               </div>
             </div>
           </div>
@@ -406,15 +405,15 @@ export default function Home() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                 <div>
                   <div style={{ font: "var(--fw-bold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>
-                    Live queue
+                    {t.landing.mock.liveQueue}
                   </div>
                   <div style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 4 }}>
-                    Sharp Cuts · today
+                    {t.landing.mock.storeToday}
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 11px", borderRadius: 999, background: "var(--success-soft)" }}>
                   <span className="tt-pulse-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--success)" }} />
-                  <span style={{ font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--success-soft-fg)" }}>Open</span>
+                  <span style={{ font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--success-soft-fg)" }}>{t.landing.mock.open}</span>
                 </div>
               </div>
               {queueMock.map((q) => (
@@ -455,7 +454,7 @@ export default function Home() {
                 </div>
               ))}
               <Button variant="secondary" fullWidth leadingIcon="plus" onClick={openInquiry}>
-                Add walk-in
+                {t.landing.mock.addWalkIn}
               </Button>
             </div>
 
@@ -482,8 +481,8 @@ export default function Home() {
                 <Icon name="checkCircle" size={18} />
               </span>
               <div>
-                <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)" }}>New booking</div>
-                <div style={{ font: "var(--fw-regular) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 3 }}>Asha · 4:30 PM</div>
+                <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)" }}>{t.landing.mock.newBooking}</div>
+                <div style={{ font: "var(--fw-regular) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 3 }}>{t.landing.mock.newBookingSub}</div>
               </div>
             </div>
 
@@ -501,8 +500,8 @@ export default function Home() {
                 animationDelay: "-3.5s",
               }}
             >
-              <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "#fff", fontVariantNumeric: "tabular-nums" }}>~25 min</div>
-              <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--blue-200)", marginTop: 5 }}>est. wait to clear</div>
+              <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "#fff", fontVariantNumeric: "tabular-nums" }}>{t.landing.mock.waitValue}</div>
+              <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--blue-200)", marginTop: 5 }}>{t.landing.mock.waitLabel}</div>
             </div>
           </div>
         </div>
@@ -540,14 +539,13 @@ export default function Home() {
       <div id="features" style={{ maxWidth: MAX, margin: "0 auto", padding: "84px 28px 40px" }}>
         <div className="reveal" style={{ textAlign: "center", maxWidth: 680, margin: "0 auto 48px" }}>
           <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>
-            Everything you need
+            {t.landing.features.eyebrow}
           </div>
           <h2 style={{ font: "var(--fw-extrabold) 38px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", margin: "0 0 14px" }}>
-            One platform to run the whole business
+            {t.landing.features.title}
           </h2>
           <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.55 var(--font-sans)", color: "var(--text-body)", margin: 0 }}>
-            No web designer. No IT consultant. No expensive software. Just the tools
-            to look professional and stay organised.
+            {t.landing.features.body}
           </p>
         </div>
         <div className="tt-features-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }}>
@@ -595,14 +593,13 @@ export default function Home() {
         <div className="reveal tt-detail-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center", marginBottom: 60 }}>
           <div>
             <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--secondary)", marginBottom: 12 }}>
-              Online booking
+              {t.landing.booking.eyebrow}
             </div>
             <h3 style={{ font: "var(--fw-extrabold) 30px/1.15 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>
-              Let customers book 24/7
+              {t.landing.booking.title}
             </h3>
             <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.55 var(--font-sans)", color: "var(--text-body)", margin: "0 0 20px" }}>
-              Your own page at tejotime.com/yourbusiness. No missed calls, no WhatsApp
-              confusion — just bookings that land straight in your queue.
+              {t.landing.booking.body}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {bookingBullets.map((b) => (
@@ -620,26 +617,26 @@ export default function Home() {
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 13, background: "linear-gradient(135deg,var(--brand-ink),var(--primary))", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", font: "var(--fw-extrabold) var(--fs-body-md)/1 var(--font-sans)", flexShrink: 0 }}>SC</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ font: "var(--fw-bold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>Sharp Cuts</div>
+                  <div style={{ font: "var(--fw-bold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>{t.landing.booking.storeName}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6 }}>
-                    <span style={{ color: "var(--amber-500)", display: "flex" }}><Icon name="star" size={13} /></span>
-                    <span style={{ font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-body)" }}>4.9</span>
-                    <span style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)" }}>· Barber · 0.4 km</span>
+                    <span style={{ color: "var(--amber-500)", display: "flex" }}><Icon name="star" size={13} fill="currentColor" /></span>
+                    <span style={{ font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-body)" }}>{t.landing.booking.storeRating}</span>
+                    <span style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)" }}>{t.landing.booking.storeMeta}</span>
                   </div>
                 </div>
-                <span style={{ padding: "5px 11px", borderRadius: 999, background: "var(--success-soft)", color: "var(--success-soft-fg)", font: "var(--fw-semibold) 11px/1 var(--font-sans)" }}>Open</span>
+                <span style={{ padding: "5px 11px", borderRadius: 999, background: "var(--success-soft)", color: "var(--success-soft-fg)", font: "var(--fw-semibold) 11px/1 var(--font-sans)" }}>{t.landing.booking.open}</span>
               </div>
 
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 14px", borderRadius: "var(--radius-md)", border: "1.5px solid var(--primary)", background: "var(--primary-soft)" }}>
                 <div>
-                  <div style={{ font: "var(--fw-semibold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>Haircut + beard</div>
-                  <div style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>45 min</div>
+                  <div style={{ font: "var(--fw-semibold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>{t.landing.booking.serviceName}</div>
+                  <div style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{t.landing.booking.serviceDuration}</div>
                 </div>
-                <div style={{ font: "var(--fw-extrabold) var(--fs-body-lg)/1 var(--font-sans)", color: "var(--primary)", fontVariantNumeric: "tabular-nums" }}>₹250</div>
+                <div style={{ font: "var(--fw-extrabold) var(--fs-body-lg)/1 var(--font-sans)", color: "var(--primary)", fontVariantNumeric: "tabular-nums" }}>{t.landing.booking.servicePrice}</div>
               </div>
 
               <div>
-                <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)", marginBottom: 10 }}>Select a date</div>
+                <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)", marginBottom: 10 }}>{t.landing.booking.selectDate}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 7 }}>
                   {bookingDays.map((d) => (
                     <div key={d.d} style={{ textAlign: "center", padding: "9px 0", borderRadius: "var(--radius-md)", border: `1px solid ${d.border}`, background: d.bg }}>
@@ -651,7 +648,7 @@ export default function Home() {
               </div>
 
               <div>
-                <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)", marginBottom: 10 }}>Choose a time</div>
+                <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)", marginBottom: 10 }}>{t.landing.booking.chooseTime}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 9 }}>
                   {slots.map((s) => (
                     <div key={s.t} style={{ textAlign: "center", padding: "10px 0", borderRadius: "var(--radius-md)", border: `1px solid ${s.border}`, background: s.bg, color: s.fg, font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)", fontVariantNumeric: "tabular-nums" }}>{s.t}</div>
@@ -660,7 +657,7 @@ export default function Home() {
               </div>
 
               <Button variant="primary" size="lg" fullWidth onClick={openInquiry}>
-                Confirm booking
+                {t.landing.booking.confirm}
               </Button>
             </div>
           </div>
@@ -683,14 +680,13 @@ export default function Home() {
           </div>
           <div style={{ order: 2 }}>
             <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>
-              Owner app
+              {t.landing.ownerApp.eyebrow}
             </div>
             <h3 style={{ font: "var(--fw-extrabold) 30px/1.15 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>
-              Run your day from your phone
+              {t.landing.ownerApp.title}
             </h3>
             <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.55 var(--font-sans)", color: "var(--text-body)", margin: "0 0 20px" }}>
-              Queue, walk-ins, appointments, staff and customers — one dashboard that
-              updates live. See exactly what&apos;s happening, wherever you are.
+              {t.landing.ownerApp.body}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {ownerBullets.map((b) => (
@@ -725,10 +721,10 @@ export default function Home() {
       <div id="industries" style={{ maxWidth: 1100, margin: "0 auto", padding: "64px 28px", textAlign: "center" }}>
         <div className="reveal" style={{ marginBottom: 38 }}>
           <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>
-            Built for every business
+            {t.landing.industries.eyebrow}
           </div>
           <h2 style={{ font: "var(--fw-extrabold) 38px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", margin: 0 }}>
-            If you book it or queue it, TejoTime runs it
+            {t.landing.industries.title}
           </h2>
         </div>
         <div className="reveal" style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center" }}>
@@ -742,16 +738,14 @@ export default function Home() {
       <div id="vision" style={{ maxWidth: 900, margin: "0 auto", padding: "64px 28px", textAlign: "center" }}>
         <div className="reveal">
           <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--secondary)", marginBottom: 18 }}>
-            Our goal
+            {t.landing.vision.eyebrow}
           </div>
           <h2 style={{ font: "var(--fw-extrabold) 44px/1.18 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", margin: "0 0 22px" }}>
-            From your first customer to your thousandth,{" "}
-            <span className="tt-grad-text">TejoTime grows with you.</span>
+            {t.landing.vision.titleLead}{" "}
+            <span className="tt-grad-text">{t.landing.vision.titleAccent}</span>
           </h2>
           <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.6 var(--font-sans)", color: "var(--text-body)", margin: "0 auto", maxWidth: 640 }}>
-            Every small business deserves the technology large companies use. We make
-            enterprise-grade tools affordable for every entrepreneur — and we add more
-            every month.
+            {t.landing.vision.body}
           </p>
         </div>
       </div>
@@ -764,7 +758,7 @@ export default function Home() {
               <span aria-hidden="true" style={{ position: "absolute", top: 6, right: 20, font: "var(--fw-extrabold) 96px/1 Georgia,serif", color: "var(--primary)", opacity: 0.08, pointerEvents: "none" }}>&rdquo;</span>
               <div style={{ display: "flex", gap: 3, color: "var(--amber-500)", marginBottom: 16 }}>
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <Icon key={i} name="star" size={16} />
+                  <Icon key={i} name="star" size={16} fill="currentColor" />
                 ))}
               </div>
               <p style={{ flex: 1, font: "var(--fw-medium) var(--fs-body-md)/1.65 var(--font-sans)", color: "var(--text-body)", margin: "0 0 22px", position: "relative" }}>{t.quote}</p>
@@ -784,15 +778,14 @@ export default function Home() {
       <div style={{ maxWidth: MAX, margin: "0 auto", padding: "0 28px 70px" }}>
         <div className="reveal tt-hero-grad" style={{ borderRadius: "var(--radius-xl)", padding: "60px 40px", textAlign: "center", position: "relative", overflow: "hidden", boxShadow: "var(--shadow-lg)" }}>
           <h2 style={{ font: "var(--fw-extrabold) 40px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "#fff", margin: "0 0 14px" }}>
-            Ready to grow with TejoTime?
+            {t.landing.cta.title}
           </h2>
           <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.5 var(--font-sans)", color: "rgba(255,255,255,.9)", margin: "0 auto 28px", maxWidth: 520 }}>
-            Tell us about your business — we&apos;ll set everything up and walk you
-            through it. No tech skills needed.
+            {t.landing.cta.body}
           </p>
           <div style={{ display: "inline-flex" }}>
             <Button variant="outline" size="lg" onDark trailingIcon="arrowRight" onClick={openInquiry}>
-              Send an inquiry
+              {t.landing.cta.button}
             </Button>
           </div>
         </div>
@@ -806,8 +799,7 @@ export default function Home() {
               <Logo height={48} />
             </div>
             <p style={{ font: "var(--fw-regular) var(--fs-body-md)/1.5 var(--font-sans)", color: "var(--text-muted)", margin: 0, maxWidth: 260 }}>
-              Enterprise technology. Small business pricing. Your business, your brand,
-              your customers.
+              {t.landing.footer.blurb}
             </p>
           </div>
           {footerCols.map((col) => (
@@ -823,8 +815,8 @@ export default function Home() {
         </div>
         <div style={{ borderTop: "1px solid var(--border-subtle)" }}>
           <div style={{ maxWidth: MAX, margin: "0 auto", padding: "18px 28px", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-subtle)" }}>
-            <span>© 2026 TejoTime · Easy appointments for small business</span>
-            <span>Privacy · Terms · Contact</span>
+            <span>{t.landing.footer.copyright}</span>
+            <span>{t.landing.footer.legal}</span>
           </div>
         </div>
       </div>
@@ -853,8 +845,8 @@ export default function Home() {
                   <Icon name="calendar" size={24} />
                 </div>
                 <div>
-                  <h3 style={{ font: "var(--fw-extrabold) var(--fs-h4)/1.1 var(--font-sans)", color: "#fff", margin: 0, letterSpacing: "-.02em" }}>Request access</h3>
-                  <p style={{ font: "var(--fw-regular) var(--fs-body-sm)/1.35 var(--font-sans)", color: "rgba(255,255,255,.85)", margin: "5px 0 0" }}>We&apos;ll set you up — no tech skills needed.</p>
+                  <h3 style={{ font: "var(--fw-extrabold) var(--fs-h4)/1.1 var(--font-sans)", color: "#fff", margin: 0, letterSpacing: "-.02em" }}>{t.landing.inquiry.title}</h3>
+                  <p style={{ font: "var(--fw-regular) var(--fs-body-sm)/1.35 var(--font-sans)", color: "rgba(255,255,255,.85)", margin: "5px 0 0" }}>{t.landing.inquiry.subtitle}</p>
                 </div>
               </div>
             </div>
@@ -869,12 +861,12 @@ export default function Home() {
                       <Icon name="checkCircle" size={36} />
                     </div>
                   </div>
-                  <h3 style={{ font: "var(--fw-bold) var(--fs-h5)/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 8px" }}>Inquiry received!</h3>
+                  <h3 style={{ font: "var(--fw-bold) var(--fs-h5)/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 8px" }}>{t.landing.inquiry.successTitle}</h3>
                   <p style={{ font: "var(--fw-regular) var(--fs-body-md)/1.5 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 22px" }}>
-                    Our team will reach out within one business day to get you set up.
+                    {t.landing.inquiry.successBody}
                   </p>
                   <Button variant="primary" fullWidth onClick={closeInquiry}>
-                    Done
+                    {t.landing.inquiry.successDone}
                   </Button>
                 </div>
               ) : (
@@ -890,8 +882,8 @@ export default function Home() {
                     </div>
                     <div style={{ marginBottom: 15 }}>
                       <Input
-                        label="Business name"
-                        placeholder="e.g. Sharp Cuts"
+                        label={t.landing.inquiry.businessNameLabel}
+                        placeholder={t.landing.inquiry.businessNamePlaceholder}
                         leadingIcon="building"
                         value={businessName}
                         onChange={(e) => setBusinessName(e.target.value)}
@@ -899,8 +891,8 @@ export default function Home() {
                     </div>
                     <div style={{ marginBottom: 15 }}>
                       <Input
-                        label="Address"
-                        placeholder="Shop / clinic address"
+                        label={t.landing.inquiry.addressLabel}
+                        placeholder={t.landing.inquiry.addressPlaceholder}
                         leadingIcon="mapPin"
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
@@ -916,14 +908,14 @@ export default function Home() {
                             marginBottom: 8,
                           }}
                         >
-                          Phone number
+                          {t.landing.inquiry.phoneLabel}
                         </span>
                         <PhoneField
                           country={phoneCountry}
                           national={national}
                           onCountryChange={setPhoneCountry}
                           onNationalChange={setNational}
-                          placeholder="00000 00000"
+                          placeholder={t.landing.inquiry.phonePlaceholder}
                           marginBottom={0}
                         />
                       </label>
@@ -936,13 +928,13 @@ export default function Home() {
                   )}
                   <div style={{ marginTop: 22 }}>
                     <Button variant="primary" fullWidth trailingIcon="arrowRight" onClick={submitInquiry} disabled={submitting}>
-                      {submitting ? "Submitting…" : "Submit inquiry"}
+                      {submitting ? t.landing.inquiry.submitting : t.landing.inquiry.submit}
                     </Button>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginTop: 14 }}>
                     <span style={{ color: "var(--text-subtle)", display: "flex" }}><Icon name="checkCircle" size={14} /></span>
                     <p style={{ font: "var(--fw-regular) var(--fs-body-sm)/1.4 var(--font-sans)", color: "var(--text-subtle)", margin: 0 }}>
-                      We&apos;ll never share your details. Reply within one business day.
+                      {t.landing.inquiry.privacyNote}
                     </p>
                   </div>
                 </>

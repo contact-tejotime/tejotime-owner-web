@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { t, format, plural } from "@/i18n";
 import { redirect } from "next/navigation";
 
 import { AppPageHeader } from "@/components/AppPageHeader";
@@ -72,10 +73,10 @@ export default async function StatsPage({
     )
     .slice(0, 3);
 
-  const rangeTitle = range === "month" ? "This month" : "Today";
-  const headerTitle = scoped ? "My report" : "Store report";
+  const rangeTitle = range === "month" ? t.stats.thisMonth : t.stats.today;
+  const headerTitle = scoped ? t.stats.myReport : t.stats.storeReport;
   const subtitle =
-    periodLabel ?? (range === "month" ? "Month to date" : "Today at a glance");
+    periodLabel ?? (range === "month" ? t.stats.monthToDate : t.stats.todayAtAGlance);
 
   const appts = kpis?.todaysAppointments ?? null;
   const completed = kpis?.completed ?? null;
@@ -84,18 +85,18 @@ export default async function StatsPage({
 
   return (
     <div className="page-app">
-      <AppPageHeader title="Reports" subtitle={subtitle} showSettings={false} />
+      <AppPageHeader title={t.stats.title} subtitle={subtitle} showSettings={false} />
 
-      <ScopeNotice me={me} context="your reports" />
+      <ScopeNotice me={me} context={t.stats.scopeContext} />
 
-      <div className="segmented report-range" role="tablist" aria-label="Report range">
+      <div className="segmented report-range" role="tablist" aria-label={t.stats.rangeAria}>
         <Link
           href="/stats?range=today"
           className={`segmented-btn${range === "today" ? " active" : ""}`}
           role="tab"
           aria-selected={range === "today"}
         >
-          Today
+          {t.stats.today}
         </Link>
         <Link
           href="/stats?range=month"
@@ -103,7 +104,7 @@ export default async function StatsPage({
           role="tab"
           aria-selected={range === "month"}
         >
-          This month
+          {t.stats.thisMonth}
         </Link>
       </div>
 
@@ -115,12 +116,12 @@ export default async function StatsPage({
               {headerTitle}
             </h2>
             {scoped && me.user.name ? (
-              <p className="report-hero-sub">{me.user.name}&apos;s chair</p>
+              <p className="report-hero-sub">{format(t.stats.chairOf, { name: me.user.name })}</p>
             ) : null}
           </div>
           <div className="report-hero-revenue">
             <span className="report-hero-revenue-label">
-              {scoped ? "Your revenue" : "Revenue"}
+              {scoped ? t.stats.yourRevenue : t.stats.revenue}
             </span>
             <span className="report-hero-revenue-value">{revenue}</span>
           </div>
@@ -128,16 +129,16 @@ export default async function StatsPage({
 
         <div className={`report-metric-grid${range === "today" ? " is-today" : ""}`}>
           <div className="report-metric">
-            <span className="report-metric-label">Appointments</span>
+            <span className="report-metric-label">{t.stats.appointments}</span>
             <span className="report-metric-value">{appts ?? "—"}</span>
           </div>
           <div className="report-metric">
-            <span className="report-metric-label">Completed</span>
+            <span className="report-metric-label">{t.stats.completed}</span>
             <span className="report-metric-value">{completed ?? "—"}</span>
           </div>
           {range === "today" ? (
             <div className="report-metric">
-              <span className="report-metric-label">In queue now</span>
+              <span className="report-metric-label">{t.stats.inQueueNow}</span>
               <span className="report-metric-value">{active ?? "—"}</span>
             </div>
           ) : null}
@@ -148,27 +149,27 @@ export default async function StatsPage({
         <section className="report-staff-section" aria-labelledby="report-staff-title">
           <div className="home-section-row">
             <h2 id="report-staff-title" className="home-section-title">
-              Staff breakdown
+              {t.stats.staffBreakdown}
             </h2>
             <span className="report-staff-count">
-              {staffRows.length} seat{staffRows.length === 1 ? "" : "s"}
+              {plural(staffRows.length, t.stats.seatCountOne, t.stats.seatCount)}
             </span>
           </div>
           <p className="report-staff-lead">
             {range === "month"
-              ? "Each chair’s appointments, completed visits, and revenue this month."
-              : "Each chair’s appointments, completed visits, and revenue today."}
+              ? t.stats.leadMonth
+              : t.stats.leadToday}
           </p>
 
           {staffRows.length === 0 ? (
-            <p className="home-empty">No active staff yet</p>
+            <p className="home-empty">{t.stats.noStaff}</p>
           ) : (
             <div className="report-staff-cards">
               <div className="report-staff-head" aria-hidden>
-                <span>Staff</span>
-                <span>Appts</span>
-                <span>Done</span>
-                <span>Revenue</span>
+                <span>{t.stats.colStaff}</span>
+                <span>{t.stats.colAppts}</span>
+                <span>{t.stats.colDone}</span>
+                <span>{t.stats.colRevenue}</span>
               </div>
               {staffRows.map((row, i) => (
                 <article
@@ -181,13 +182,13 @@ export default async function StatsPage({
                     </span>
                     <div className="report-staff-name">{row.name}</div>
                   </div>
-                  <div className="report-staff-stat" data-label="Appts">
+                  <div className="report-staff-stat" data-label={t.stats.colAppts}>
                     <span className="report-staff-stat-value">{row.appointments}</span>
                   </div>
-                  <div className="report-staff-stat" data-label="Done">
+                  <div className="report-staff-stat" data-label={t.stats.colDone}>
                     <span className="report-staff-stat-value">{row.completed}</span>
                   </div>
-                  <div className="report-staff-stat report-staff-stat-rev" data-label="Revenue">
+                  <div className="report-staff-stat report-staff-stat-rev" data-label={t.stats.colRevenue}>
                     <span className="report-staff-stat-value">{formatMoney(row.revenue)}</span>
                   </div>
                 </article>
@@ -200,14 +201,14 @@ export default async function StatsPage({
       {showQueue && range === "today" ? (
         <section className="report-queue-section">
           <div className="home-section-row">
-            <h2 className="home-section-title">{scoped ? "Your queue" : "Active queue"}</h2>
+            <h2 className="home-section-title">{scoped ? t.stats.yourQueue : t.stats.activeQueue}</h2>
             <Link href="/dashboard" className="home-link">
-              View all
+              {t.stats.viewAll}
             </Link>
           </div>
           {preview.length === 0 ? (
             <p className="home-empty">
-              {scoped ? "No one in your queue right now" : "No one in the queue right now"}
+              {scoped ? t.stats.emptyYourQueue : t.stats.emptyQueue}
             </p>
           ) : (
             <div className="home-queue-list">
@@ -215,7 +216,7 @@ export default async function StatsPage({
                 <Link key={q.id} href="/dashboard" className="home-queue-card">
                   <div className="title">{q.name}</div>
                   <div className="meta">
-                    {[q.service, q.staff, q.status === "waiting" ? q.rightText : "In service"]
+                    {[q.service, q.staff, q.status === "waiting" ? q.rightText : t.stats.inService]
                       .filter(Boolean)
                       .join(" · ")}
                   </div>

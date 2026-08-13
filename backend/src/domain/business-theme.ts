@@ -28,6 +28,8 @@ export interface ThemeConfigInput {
   accent?: string;
   /** Primary / on-brand label ink. Absent or `auto` → engine picks for WCAG AA. */
   brandInk?: 'auto' | 'white' | 'dark';
+  /** Optional `#RRGGBB` for the solid primary button only. Absent → buttons follow `brand`. */
+  button?: string;
 }
 
 /**

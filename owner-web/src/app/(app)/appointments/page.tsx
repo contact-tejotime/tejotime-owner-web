@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { t } from "@/i18n";
 
 import { AppointmentActions } from "@/components/AppointmentActions";
 import { AppPageHeader } from "@/components/AppPageHeader";
@@ -14,15 +15,15 @@ export default async function AppointmentsPage() {
 
   return (
     <div className="page-app">
-      <AppPageHeader title="Appointments" subtitle="Today" />
+      <AppPageHeader title={t.appointments.title} subtitle={t.appointments.today} />
 
       <ScopeNotice me={me} context="your appointments" />
 
       {appointments.length === 0 ? (
         <div className="week-empty">
-          <p className="nm">No appointments today</p>
+          <p className="nm">{t.appointments.empty}</p>
           <p className="sub">
-            Bookings for today show up here. Use Calendar for the rest of the week.
+            {t.appointments.emptyHint}
           </p>
         </div>
       ) : (
@@ -32,7 +33,7 @@ export default async function AppointmentsPage() {
               <div className="appt-time">{formatTime(a.scheduledStartAt)}</div>
               <div className="appt-body">
                 <div className="nm">{a.customerName}</div>
-                <div className="meta">{a.serviceName ?? "No service selected"}</div>
+                <div className="meta">{a.serviceName ?? t.appointments.noService}</div>
                 <AppointmentActions id={a.id} status={a.status} />
               </div>
               <span className={`chip ${a.status}`}>{a.status.replace("_", " ")}</span>

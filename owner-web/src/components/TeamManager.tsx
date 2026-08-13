@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { t, format } from "@/i18n";
 import { useMemo, useState, useTransition } from "react";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -118,7 +119,7 @@ export function TeamManager({
   );
   const freeSeats = staff.filter((s) => s.isActive && !linkedSeatIds.has(s.id));
 
-  async function send(url: string, method: string, body?: unknown, fallback = "Something went wrong.") {
+  async function send(url: string, method: string, body?: unknown, fallback = t.team.genericError) {
     setInFlight(true);
     setError("");
     setNotice("");
@@ -136,7 +137,7 @@ export function TeamManager({
       startTransition(() => router.refresh());
       return true;
     } catch {
-      setError("Could not reach the server. Check your connection and try again.");
+      setError(t.team.networkError);
       return false;
     } finally {
       setInFlight(false);
@@ -145,9 +146,7 @@ export function TeamManager({
 
   function startAdd(role: "co_owner" | "staff") {
     if (role === "staff" && freeSeats.length === 0) {
-      setError(
-        "Every chair already has a staff login. Add another chair under Settings → Staff, or unlink one first.",
-      );
+      setError(t.team.noFreeSeats);
       return;
     }
     setEditing(null);
@@ -166,13 +165,13 @@ export function TeamManager({
   }
 
   async function onCreate() {
-    if (!draft.name.trim()) return setError("Enter a name.");
+    if (!draft.name.trim()) return setError(t.team.errName);
     if (!isValidNational(draft.national, draft.iso2)) {
-      return setError("Enter a valid mobile number for the selected country.");
+      return setError(t.team.errPhone);
     }
-    if (draft.password.length < 8) return setError("The password needs at least 8 characters.");
+    if (draft.password.length < 8) return setError(t.team.errPassword);
     if (draft.role === "staff" && !draft.staffId) {
-      return setError("Pick a chair. You cannot add more staff logins than you have chairs.");
+      return setError(t.team.errSeat);
     }
 
     const ok = await send(
@@ -186,12 +185,12 @@ export function TeamManager({
         staffId: draft.role === "staff" ? draft.staffId : null,
         ...(draft.role === "staff" ? { permissions: toPermissionPayload(draft.permissions) } : {}),
       },
-      "Could not create that login.",
+      t.team.errCreate,
     );
     if (ok) {
       setAdding(false);
       setDraft(EMPTY_DRAFT);
-      setNotice("Login created. Share the password with them — they can change it under Settings.");
+      setNotice(t.team.okCreate);
     }
   }
 
@@ -208,11 +207,11 @@ export function TeamManager({
       `/api/users/${userId}/permissions`,
       "PUT",
       { permissions: toPermissionPayload(permDraft) },
-      "Could not save those permissions.",
+      t.team.errPermissions,
     );
     if (ok) {
       setEditing(null);
-      setNotice("Permissions saved. They take effect within 15 minutes, or straight away on their next sign-in.");
+      setNotice(t.team.okPermissions);
     }
   }
 
@@ -223,7 +222,7 @@ export function TeamManager({
       setDialog({ kind: "deactivate", user });
       return;
     }
-    await send(`/api/users/${user.id}`, "PATCH", { isActive: true }, "Could not turn that login back on.");
+    await send(`/api/users/${user.id}`, "PATCH", { isActive: true }, t.team.errReactivate);
   }
 
   /**
@@ -236,19 +235,17 @@ export function TeamManager({
    */
   async function onChangeSeat(user: TeamUser, staffId: string) {
     if (!staffId) {
-      setError("A staff login must stay linked to a chair.");
+      setError(t.team.errSeatRequired);
       return;
     }
     const ok = await send(
       `/api/users/${user.id}`,
       "PATCH",
       { staffId },
-      "Could not change that chair.",
+      t.team.errChangeSeat,
     );
     if (ok) {
-      setNotice(
-        "Chair linked. They will see that chair's queue from their next sign-in, or within 15 minutes.",
-      );
+      setNotice(t.team.okChangeSeat);
     }
   }
 
@@ -264,11 +261,11 @@ export function TeamManager({
         `/api/users/${dialog.user.id}`,
         "DELETE",
         undefined,
-        "Could not turn off that login.",
+        t.team.errDeactivate,
       );
       if (ok) {
         setDialog(null);
-        showToast(`${dialog.user.name ?? "That login"} was turned off`, "success");
+        showToast(format(t.team.turnedOffToast, { name: dialog.user.name ?? t.team.thatLogin }), "success");
       }
       return;
     }
@@ -276,11 +273,11 @@ export function TeamManager({
       `/api/users/${dialog.user.id}/password`,
       "POST",
       { password: value },
-      "Could not reset that password.",
+      t.team.errResetPassword,
     );
     if (ok) {
       setDialog(null);
-      showToast("Password reset. Share the new one with them.", "success");
+      showToast(t.team.okResetPassword, "success");
     }
   }
 
@@ -307,17 +304,17 @@ export function TeamManager({
                 <div>
                   <div className="nm">
                     {user.name ?? "—"}
-                    {user.isSuperOwner ? <span className="pill-badge">Owner account</span> : null}
-                    {isSelf && !user.isSuperOwner ? <span className="pill-badge">You</span> : null}
-                    {!user.isActive ? <span className="pill-badge muted">Turned off</span> : null}
+                    {user.isSuperOwner ? <span className="pill-badge">{t.team.badgeOwnerAccount}</span> : null}
+                    {isSelf && !user.isSuperOwner ? <span className="pill-badge">{t.team.badgeYou}</span> : null}
+                    {!user.isActive ? <span className="pill-badge muted">{t.team.badgeTurnedOff}</span> : null}
                     {user.role === "staff" && user.isActive && !user.staffId ? (
-                      <span className="pill-badge warn">No chair</span>
+                      <span className="pill-badge warn">{t.team.badgeNoChair}</span>
                     ) : null}
                   </div>
                   <div className="meta">
                     {ROLE_LABELS[user.role]}
-                    {user.staffName ? ` · ${user.staffName}'s chair` : ""}
-                    {user.phone ? ` · ${formatPhone(user.phone)}` : ""}
+                    {user.staffName ? ` ${format(t.team.metaChair, { name: user.staffName })}` : ""}
+                    {user.phone ? ` ${format(t.team.metaPhone, { phone: formatPhone(user.phone) })}` : ""}
                   </div>
                 </div>
                 {!locked ? (
@@ -329,7 +326,7 @@ export function TeamManager({
                         onClick={() => startEditPermissions(user)}
                         disabled={busy}
                       >
-                        Permissions
+                        {t.team.permissions}
                       </button>
                     ) : null}
                     <button
@@ -338,7 +335,7 @@ export function TeamManager({
                       onClick={() => onResetPassword(user)}
                       disabled={busy}
                     >
-                      Reset password
+                      {t.team.resetPassword}
                     </button>
                     <button
                       type="button"
@@ -346,7 +343,7 @@ export function TeamManager({
                       onClick={() => onToggleActive(user)}
                       disabled={busy}
                     >
-                      {user.isActive ? "Turn off" : "Turn on"}
+                      {user.isActive ? t.team.turnOff : t.team.turnOn}
                     </button>
                   </div>
                 ) : null}
@@ -354,7 +351,7 @@ export function TeamManager({
 
               {user.role === "staff" && !locked ? (
                 <div className={`seat-link ${user.staffId ? "" : "warn"}`}>
-                  <label htmlFor={`seat-${user.id}`}>Chair</label>
+                  <label htmlFor={`seat-${user.id}`}>{t.team.chair}</label>
                   <select
                     id={`seat-${user.id}`}
                     value={user.staffId ?? ""}
@@ -364,7 +361,7 @@ export function TeamManager({
                   >
                     {!user.staffId ? (
                       <option value="" disabled>
-                        Pick a chair
+                        {t.team.pickChair}
                       </option>
                     ) : null}
                     {/* Their own chair stays in the list; every other taken chair does not. */}
@@ -378,7 +375,7 @@ export function TeamManager({
                   </select>
                   {!user.staffId ? (
                     <span className="seat-link-warn">
-                      Pick a chair — without one they see an empty queue and calendar.
+                      {t.team.pickChairWarn}
                     </span>
                   ) : null}
                 </div>
@@ -398,10 +395,10 @@ export function TeamManager({
                         {busy ? (
                           <>
                             <Spinner size={13} />
-                            Saving…
+                            {t.team.saving}
                           </>
                         ) : (
-                          "Save permissions"
+                          t.team.savePermissions
                         )}
                       </button>
                       <button
@@ -410,7 +407,7 @@ export function TeamManager({
                         onClick={() => setEditing(null)}
                         disabled={busy}
                       >
-                        Cancel
+                        {t.team.cancel}
                       </button>
                     </div>
                   </div>
@@ -420,8 +417,8 @@ export function TeamManager({
               ) : (
                 <p className="team-card-summary">
                   {user.isSuperOwner
-                    ? "Full access. Created by TejoTime when this store was set up — change it from the admin panel."
-                    : "Full access to everything, the same as you."}
+                    ? t.team.superOwnerSummary
+                    : t.team.coOwnerSummary}
                 </p>
               )}
             </article>
@@ -431,7 +428,7 @@ export function TeamManager({
 
       {adding ? (
         <div className="team-add">
-          <h2>Add a login</h2>
+          <h2>{t.team.addTitle}</h2>
 
           <div className="role-choice">
             {CREATABLE_ROLES.map((r) => (
@@ -441,9 +438,7 @@ export function TeamManager({
                 className={`role-choice-btn ${draft.role === r.value ? "active" : ""}`}
                 onClick={() => {
                   if (r.value === "staff" && freeSeats.length === 0) {
-                    setError(
-                      "Every chair already has a staff login. Add another chair under Settings → Staff first.",
-                    );
+                    setError(t.team.noFreeSeatsShort);
                     return;
                   }
                   setDraft((d) => ({
@@ -462,7 +457,7 @@ export function TeamManager({
           </div>
 
           <div className="field">
-            <label htmlFor="team-name">Name</label>
+            <label htmlFor="team-name">{t.team.nameLabel}</label>
             <input
               id="team-name"
               value={draft.name}
@@ -472,8 +467,8 @@ export function TeamManager({
 
           <PhoneField
             id="team-phone"
-            label="Mobile number"
-            placeholder="Phone number"
+            label={t.team.phoneLabel}
+            placeholder={t.team.phonePlaceholder}
             value={{
               dialCode: draft.dialCode,
               national: draft.national,
@@ -487,24 +482,24 @@ export function TeamManager({
                 iso2: v.iso2,
               }))
             }
-            hint={<p className="field-hint">This is what they sign in with.</p>}
+            hint={<p className="field-hint">{t.team.phoneHint}</p>}
           />
 
           <div className="field">
-            <label htmlFor="team-password">Temporary password</label>
+            <label htmlFor="team-password">{t.team.passwordLabel}</label>
             <input
               id="team-password"
               type="text"
               value={draft.password}
               onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))}
             />
-            <p className="field-hint">At least 8 characters. They can change it once signed in.</p>
+            <p className="field-hint">{t.team.passwordHint}</p>
           </div>
 
           {draft.role === "staff" ? (
             <>
               <div className="field">
-                <label htmlFor="team-seat">Chair (required)</label>
+                <label htmlFor="team-seat">{t.team.seatLabel}</label>
                 <select
                   id="team-seat"
                   value={draft.staffId}
@@ -512,7 +507,7 @@ export function TeamManager({
                   required
                 >
                   {freeSeats.length === 0 ? (
-                    <option value="">No free chairs left</option>
+                    <option value="">{t.team.noFreeChairsOption}</option>
                   ) : (
                     freeSeats.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -522,13 +517,12 @@ export function TeamManager({
                   )}
                 </select>
                 <p className="field-hint">
-                  Required. Each staff login needs its own chair — you cannot add more staff
-                  than you have chairs.
+                  {t.team.seatHint}
                 </p>
               </div>
 
               <div className="field">
-                <label>What they can see</label>
+                <label>{t.team.permissionsLabel}</label>
                 <PermissionGrid
                   value={draft.permissions}
                   onChange={(permissions) => setDraft((d) => ({ ...d, permissions }))}
@@ -537,8 +531,7 @@ export function TeamManager({
             </>
           ) : (
             <p className="field-hint">
-              A co-owner gets everything you have, including adding and removing staff. They
-              cannot change your owner account.
+              {t.team.coOwnerHint}
             </p>
           )}
 
@@ -547,10 +540,10 @@ export function TeamManager({
               {busy ? (
                 <>
                   <Spinner size={14} />
-                  Creating…
+                  {t.team.creating}
                 </>
               ) : (
-                "Create login"
+                t.team.createLogin
               )}
             </button>
             <button
@@ -562,7 +555,7 @@ export function TeamManager({
               }}
               disabled={busy}
             >
-              Cancel
+              {t.team.cancel}
             </button>
           </div>
         </div>
@@ -575,12 +568,12 @@ export function TeamManager({
             disabled={busy || freeSeats.length === 0}
             title={
               freeSeats.length === 0
-                ? "Every chair already has a staff login. Add a chair first."
+                ? t.team.noFreeSeatsTitle
                 : undefined
             }
           >
             <Icon name="user" size={16} color="#fff" />
-            Add staff login
+            {t.team.addStaffLogin}
           </button>
           <button
             type="button"
@@ -588,12 +581,11 @@ export function TeamManager({
             onClick={() => startAdd("co_owner")}
             disabled={busy}
           >
-            Add co-owner
+            {t.team.addCoOwner}
           </button>
           {freeSeats.length === 0 ? (
             <p className="field-hint" style={{ width: "100%", margin: 0 }}>
-              All chairs are linked. Add another chair under Settings → Staff before creating a
-              new staff login.
+              {t.team.allSeatsLinked}
             </p>
           ) : null}
         </div>
@@ -601,17 +593,17 @@ export function TeamManager({
       <ConfirmDialog
         key={dialog ? `${dialog.kind}:${dialog.user.id}` : "none"}
         open={!!dialog}
-        title={dialog?.kind === "password" ? "Reset password" : "Turn off this login?"}
+        title={dialog?.kind === "password" ? t.team.dlgResetTitle : t.team.dlgDeactivateTitle}
         body={
           dialog?.kind === "password"
-            ? `${dialog.user.name ?? "They"} will be signed out everywhere and will need the new password to sign back in.`
-            : `${dialog?.user.name ?? "They"} will be signed out everywhere and cannot sign back in until you turn it on again.`
+            ? format(t.team.dlgResetBody, { name: dialog.user.name ?? t.team.them })
+            : format(t.team.dlgDeactivateBody, { name: dialog?.user.name ?? t.team.them })
         }
-        confirmLabel={dialog?.kind === "password" ? "Reset password" : "Turn off"}
+        confirmLabel={dialog?.kind === "password" ? t.team.dlgConfirmReset : t.team.dlgConfirmDeactivate}
         destructive={dialog?.kind === "deactivate"}
         input={
           dialog?.kind === "password"
-            ? { label: "New password", type: "text", hint: "At least 8 characters.", minLength: 8 }
+            ? { label: t.team.dlgNewPassword, type: "text", hint: t.team.dlgNewPasswordHint, minLength: 8 }
             : undefined
         }
         busy={busy}
@@ -625,8 +617,8 @@ export function TeamManager({
 /** A one-line "what they can see" for the collapsed card. */
 function summarise(access: ModuleAccess): string {
   const visible = GRANTABLE_MODULES.filter((m) => access[m] && access[m] !== "none");
-  if (visible.length === 0) return "No access to anything yet.";
-  return `Can see: ${visible.map((m) => MODULE_LABELS[m]).join(", ")}.`;
+  if (visible.length === 0) return t.team.noAccessYet;
+  return format(t.team.canSee, { modules: visible.map((m) => MODULE_LABELS[m]).join(", ") });
 }
 
 function PermissionGrid({

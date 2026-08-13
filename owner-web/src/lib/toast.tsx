@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { t as copy } from "@/i18n";
 
 /**
  * Toasts.
@@ -82,7 +83,7 @@ export function Toaster() {
               type="button"
               className="toast-close"
               onClick={() => onDismiss(t.id)}
-              aria-label="Dismiss"
+              aria-label={copy.common.dismiss}
             >
               ×
             </button>

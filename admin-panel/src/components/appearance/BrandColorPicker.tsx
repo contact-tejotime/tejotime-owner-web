@@ -1,25 +1,21 @@
 "use client";
 
 import { useRef, type KeyboardEvent } from "react";
-import {
-  BRAND_INK_IDS,
-  RAMP_STOPS,
-  type BrandInkId,
-  type ModeId,
-  type ResolvedTheme,
-} from "@/theme/engine";
+import { RAMP_STOPS, type ModeId, type ResolvedTheme } from "@/theme/engine";
 import { t, format } from "@/i18n";
 import { Icon } from "@/components/icons";
-import OptionCards, { type OptionCardItem } from "./OptionCards";
 
 /**
  * Brand colour: 12 curated swatches, a free hex field, the generated 50→900 ramp, and a live
  * WCAG verdict.
  *
- * The verdict is the point. One hex seeds every button, chip, link and hero stop on the
- * microsite, and a store owner asking for #FFE066 has no way to know it cannot carry white
- * label text. The engine already computed that (it picks `--on-brand` and reports the ratio);
- * this component just refuses to let the answer stay invisible.
+ * The verdict is the point. This hex seeds every link, chip and hero stop on the microsite, and
+ * a store owner asking for #FFE066 has no way to know it cannot carry readable link text. The
+ * engine already computed that; this component just refuses to let the answer stay invisible.
+ *
+ * The primary BUTTON is judged separately, in ButtonColorPicker — it has had its own colour axis
+ * since `theme.button` landed, so a verdict here would describe a control this colour may not
+ * even touch.
  */
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -48,43 +44,27 @@ interface Props {
   /** Raw field value — may be mid-typing and invalid; that is the form's business, not ours. */
   value: string;
   onChange: (hex: string) => void;
-  /** Label ink on primary buttons — auto / white / dark. */
-  brandInk: BrandInkId;
-  onBrandInkChange: (ink: BrandInkId) => void;
   /** Resolved from the *current* config, so the ramp and badge always match the live preview. */
   resolved: ResolvedTheme;
   /** Which face of the theme the badge should judge. `auto` is judged as light. */
   mode: ModeId;
 }
 
-export default function BrandColorPicker({
-  value,
-  onChange,
-  brandInk,
-  onBrandInkChange,
-  resolved,
-  mode,
-}: Props) {
+export default function BrandColorPicker({ value, onChange, resolved, mode }: Props) {
   const valid = HEX_RE.test(value.trim());
   const swatchRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const face = mode === "dark" ? "dark" : "light";
   const tokens = face === "dark" ? resolved.dark : resolved.light;
 
-  // The engine's own verdict on the primary button, in the face being previewed.
-  const onBrandCheck = resolved.contrast[face].find((c) => c.id === `${face}/on-brand-on-brand`);
-  const usesWhiteInk = (tokens["--on-brand"] ?? "#ffffff").toLowerCase() === "#ffffff";
-  const ratio = onBrandCheck ? onBrandCheck.ratio.toFixed(2) : "—";
-  const manualFailsAa = brandInk !== "auto" && onBrandCheck != null && !onBrandCheck.pass;
+  // The engine's verdict on LINKS — the thing this colour still decides. The button's own
+  // legibility is judged in ButtonColorPicker, against the button's own colour.
+  const linkCheck = resolved.contrast[face].find((c) => c.id === `${face}/text-link-on-bg`);
+  const linkRatio = linkCheck ? linkCheck.ratio.toFixed(2) : "—";
+  const linkFails = linkCheck != null && !linkCheck.pass;
 
   // Decorative pairs are reported but never gated — see ContrastTier in the engine. Counting
   // them here would show a permanent red badge on the parity theme.
   const gatedFailures = resolved.contrast.failures.filter((c) => c.tier !== "decorative");
-
-  const inkOptions: OptionCardItem<BrandInkId>[] = BRAND_INK_IDS.map((id) => ({
-    value: id,
-    label: t.appearance.brandInks[id].label,
-    description: t.appearance.brandInks[id].desc,
-  }));
 
   /**
    * Roving tabindex over the swatch row, matching every other axis in the panel (OptionCards).
@@ -194,30 +174,17 @@ export default function BrandColorPicker({
         ))}
       </div>
       <p className="ap-ramp-caption">
-        {format(t.appearance.rampCaption, { brand: tokens["--brand"] ?? resolved.brandRamp[600] })}
+        {/* --text-link, not --brand: the button has its own colour axis now, so --brand no
+            longer describes what this ramp drives. */}
+        {format(t.appearance.rampCaption, { brand: tokens["--text-link"] ?? resolved.brandRamp[600] })}
       </p>
 
-      <OptionCards
-        legend={t.appearance.brandInkTitle}
-        hint={t.appearance.brandInkHint}
-        value={brandInk}
-        options={inkOptions}
-        onChange={onBrandInkChange}
-      />
-
-      <div className={`ap-badge${usesWhiteInk ? " is-white" : " is-dark"}`}>
-        <Icon name={usesWhiteInk ? "checkCircle" : "info"} size={15} />
-        <span>
-          {format(usesWhiteInk ? t.appearance.aaWhite : t.appearance.aaDark, { ratio })}
-        </span>
+      {/* Judged on LINKS, which is what this colour still drives. The primary button has its
+          own colour and its own verdict, in the Button colour group. */}
+      <div className={`ap-badge ${linkFails ? "is-warn" : "is-ok"}`} role={linkFails ? "alert" : undefined}>
+        <Icon name={linkFails ? "alertTriangle" : "checkCircle"} size={15} />
+        <span>{format(linkFails ? t.appearance.linkAaFail : t.appearance.linkAa, { ratio: linkRatio })}</span>
       </div>
-
-      {manualFailsAa && (
-        <div className="ap-badge is-warn" role="alert">
-          <Icon name="alertTriangle" size={15} />
-          <span>{format(t.appearance.aaManualFail, { ratio })}</span>
-        </div>
-      )}
 
       {gatedFailures.length > 0 ? (
         <div className="ap-badge is-warn" role="alert">

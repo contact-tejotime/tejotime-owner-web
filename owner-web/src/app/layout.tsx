@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next";
+import { t } from "@/i18n";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "TejoTime Business",
-  description: "Business portal for TejoTime owners and staff",
+  title: t.meta.title,
+  description: t.meta.description,
 };
 
 export const viewport: Viewport = {

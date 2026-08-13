@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { t, format } from "@/i18n";
 import { Icon } from "@/components/Icon";
 import PhoneField from "@/components/PhoneField";
 import { formatMoney } from "@/lib/format";
@@ -63,12 +64,12 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(json?.error?.message ?? "Could not add to the queue.");
+        setError(json?.error?.message ?? t.walkin.errAdd);
         return;
       }
       onAdded();
     } catch {
-      setError("Could not reach the server.");
+      setError(t.walkin.networkError);
     } finally {
       setBusy(false);
     }
@@ -88,17 +89,17 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
   }, [onClose]);
 
   return (
-    <div className="sheet-root" role="dialog" aria-modal="true" aria-label="Add walk-in">
-      <button type="button" className="sheet-root-backdrop" aria-label="Close" onClick={onClose} />
+    <div className="sheet-root" role="dialog" aria-modal="true" aria-label={t.walkin.title}>
+      <button type="button" className="sheet-root-backdrop" aria-label={t.walkin.close} onClick={onClose} />
       <div className="sheet-panel">
         <div className="sheet-grabber" aria-hidden />
-        <h2 className="sheet-title">Add walk-in</h2>
+        <h2 className="sheet-title">{t.walkin.title}</h2>
 
         <div className="field">
-          <label htmlFor="walkin-name">Customer name</label>
+          <label htmlFor="walkin-name">{t.walkin.nameLabel}</label>
           <input
             id="walkin-name"
-            placeholder="Full name"
+            placeholder={t.walkin.namePlaceholder}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
@@ -106,8 +107,8 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
 
         <PhoneField
           id="walkin-phone"
-          label="Phone"
-          placeholder="Phone number"
+          label={t.walkin.phoneLabel}
+          placeholder={t.walkin.phonePlaceholder}
           value={{ dialCode: phoneCountry.dialCode, national, iso2: phoneCountry.iso2 }}
           onChange={(v) => {
             setPhoneCountry({ dialCode: v.dialCode, iso2: v.iso2 });
@@ -115,7 +116,7 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
           }}
         />
 
-        <p className="field-label">Service</p>
+        <p className="field-label">{t.walkin.service}</p>
         <div className="service-pick-list">
           {services.map((s) => (
             <button
@@ -128,7 +129,7 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
               <span className="service-pick-body">
                 <span className="nm">{s.name}</span>
                 <span className="meta">
-                  <Icon name="clock" size={12} /> {s.durationMinutes} min
+                  <Icon name="clock" size={12} /> {format(t.walkin.minShort, { mins: s.durationMinutes })}
                 </span>
               </span>
               <span className="service-pick-price">{formatMoney(s.price)}</span>
@@ -136,7 +137,7 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
           ))}
         </div>
 
-        <p className="field-label">Assign to seat</p>
+        <p className="field-label">{t.walkin.assignSeat}</p>
         <div className="seat-pick-list">
           <button
             type="button"
@@ -147,8 +148,8 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
               <Icon name="sparkles" size={16} />
             </span>
             <span className="seat-pick-body">
-              <span className="nm">Any seat</span>
-              <span className="meta">Soonest free</span>
+              <span className="nm">{t.walkin.anySeat}</span>
+              <span className="meta">{t.walkin.soonestFree}</span>
             </span>
             {seatId === "any" ? <Icon name="check" size={18} className="seat-pick-check" /> : null}
           </button>
@@ -162,7 +163,7 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
               <span className="seat-pick-avatar">{seat.name[0]}</span>
               <span className="seat-pick-body">
                 <span className="nm">{seat.name}</span>
-                <span className="meta">{seat.roleLabel ?? "Team member"}</span>
+                <span className="meta">{seat.roleLabel ?? t.walkin.teamMember}</span>
               </span>
               {seatId === seat.id ? <Icon name="check" size={18} className="seat-pick-check" /> : null}
             </button>
@@ -176,7 +177,7 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
         ) : null}
 
         <button type="button" className="btn sheet-submit" onClick={submit} disabled={busy}>
-          {busy ? "Adding…" : "Add to queue"}
+          {busy ? t.walkin.adding : t.walkin.addToQueue}
         </button>
       </div>
     </div>

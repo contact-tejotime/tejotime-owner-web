@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display, Plus_Jakarta_Sans, Yellowtail } from "next/font/google";
+import { t } from "@/i18n";
 import "./globals.css";
 
 const inter = Inter({
@@ -40,9 +41,8 @@ const playfairDisplay = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "TejoTime — Run your queue, bookings & customers in one place",
-  description:
-    "The digital OS for small business. TejoTime gives any appointment-based business online booking, a live queue, reminders and customer management — without a developer or IT team.",
+  title: t.meta.title,
+  description: t.meta.description,
 };
 
 // Explicit mobile viewport (Next injects a default, but pin it here so scaling is

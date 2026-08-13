@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { t } from "@/i18n";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppPageHeader } from "@/components/AppPageHeader";
@@ -98,20 +99,20 @@ export function SettingsScreen({
 
   return (
     <div className="page-app">
-      <AppPageHeader title="Settings" subtitle={biz} avatar={avatar} showSettings={false} />
+      <AppPageHeader title={t.settings.title} subtitle={biz} avatar={avatar} showSettings={false} />
 
       {/* Single column on phone/tablet — the grid rule only exists at ≥1025px. */}
       <div className="settings-columns">
 
       {showBusinessGroup ? (
         <section className="settings-group">
-          <p className="settings-group-label">Business</p>
+          <p className="settings-group-label">{t.settings.groupBusiness}</p>
           <div className="settings-card">
             {can(access, "profile") ? (
               <SettingsRow
                 href="/settings/profile"
                 icon="building"
-                label="Business profile"
+                label={t.settings.businessProfile}
                 sub={biz}
               />
             ) : null}
@@ -119,20 +120,20 @@ export function SettingsScreen({
               <SettingsRow
                 href="/settings/hours"
                 icon="clock"
-                label="Working hours"
-                sub="Weekly opening times"
+                label={t.settings.workingHours}
+                sub={t.settings.workingHoursSub}
               />
             ) : null}
             {can(access, "services") ? (
               <SettingsRow
                 href="/settings/services"
                 icon="scissors"
-                label="Services & pricing"
-                sub="Services and durations"
+                label={t.settings.services}
+                sub={t.settings.servicesSub}
               />
             ) : null}
             {can(access, "staff") ? (
-              <SettingsRow href="/settings/staff" icon="users" label="Staff & seats" sub="Chairs and providers" />
+              <SettingsRow href="/settings/staff" icon="users" label={t.settings.staff} sub={t.settings.staffSub} />
             ) : null}
           </div>
         </section>
@@ -140,13 +141,13 @@ export function SettingsScreen({
 
       {isOwnerRole(role) ? (
         <section className="settings-group">
-          <p className="settings-group-label">Team</p>
+          <p className="settings-group-label">{t.settings.groupTeam}</p>
           <div className="settings-card">
             <SettingsRow
               href="/settings/team"
               icon="users"
-              label="Team logins"
-              sub="Co-owners, staff and what each can see"
+              label={t.settings.teamLogins}
+              sub={t.settings.teamLoginsSub}
             />
           </div>
         </section>
@@ -154,45 +155,45 @@ export function SettingsScreen({
 
       {showBookingGroup ? (
         <section className="settings-group">
-          <p className="settings-group-label">Bookings & queue</p>
+          <p className="settings-group-label">{t.settings.groupBookings}</p>
           <div className="settings-card">
             <SettingsRow
               href="/settings/notifications"
               icon="bell"
-              label="Notifications & reminders"
-              sub="Alerts and reminders"
+              label={t.settings.notifications}
+              sub={t.settings.notificationsSub}
             />
           </div>
         </section>
       ) : null}
 
       <section className="settings-group">
-      <p className="settings-group-label">Account</p>
+      <p className="settings-group-label">{t.settings.groupAccount}</p>
       <div className="settings-card">
         <SettingsRow
           href="/settings/profile"
           icon="user"
-          label="Your account"
-          sub="Your name and password"
+          label={t.settings.account}
+          sub={t.settings.accountSub}
         />
         {can(access, "billing") ? (
           <SettingsRow
             href="/settings/subscription"
             icon="creditCard"
-            label="Subscription"
-            sub="Plan and billing"
+            label={t.settings.subscription}
+            sub={t.settings.subscriptionSub}
           />
         ) : null}
         <SettingsRow
           icon="settings"
-          label="Dark mode"
-          sub="Easier on the eyes at night"
+          label={t.settings.darkMode}
+          sub={t.settings.darkModeSub}
           trailing={
             <button
               type="button"
               className={`toggle ${dark ? "on" : ""}`}
               aria-pressed={dark}
-              aria-label="Dark mode"
+              aria-label={t.settings.darkMode}
               onClick={() => setDark((v) => !v)}
             />
           }
@@ -203,18 +204,18 @@ export function SettingsScreen({
       </div>
 
       <section className="settings-group">
-        <p className="settings-group-label">Support</p>
+        <p className="settings-group-label">{t.settings.groupSupport}</p>
         <div className="settings-card">
           <SettingsRow
             externalHref={`mailto:${SUPPORT.email}`}
             icon="mail"
-            label="Email support"
+            label={t.settings.emailSupport}
             sub={SUPPORT.email}
           />
           <SettingsRow
             externalHref={`tel:${SUPPORT.phoneTel}`}
             icon="phone"
-            label="Call support"
+            label={t.settings.callSupport}
             sub={SUPPORT.phoneDisplay}
           />
         </div>
@@ -226,7 +227,7 @@ export function SettingsScreen({
               It comes from the server with the session. */}
           <button type="button" className="btn secondary block" onClick={onLogout}>
             <Icon name="logOut" size={16} />
-            Log out
+            {t.settings.logout}
           </button>
         </div>
       </div>

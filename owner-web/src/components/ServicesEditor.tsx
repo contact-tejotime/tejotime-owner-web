@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { t, format } from "@/i18n";
 import { useState, useTransition } from "react";
 
 import { Icon } from "@/components/Icon";
@@ -49,7 +50,7 @@ export function ServicesEditor({ services }: { services: ServiceRow[] }) {
       startTransition(() => router.refresh());
       return true;
     } catch {
-      setError("Could not reach the server.");
+      setError(t.services.networkError);
       return false;
     } finally {
       setInFlight(false);
@@ -57,7 +58,7 @@ export function ServicesEditor({ services }: { services: ServiceRow[] }) {
   }
 
   async function add() {
-    if (!name.trim()) return setError("Give the service a name.");
+    if (!name.trim()) return setError(t.services.errName);
     const ok = await send("/api/services", "POST", {
       name: name.trim(),
       durationMinutes: Number(mins) || 30,
@@ -73,16 +74,16 @@ export function ServicesEditor({ services }: { services: ServiceRow[] }) {
 
   return (
     <div className="section">
-      <h2>Current services</h2>
+      <h2>{t.services.current}</h2>
       {services.length === 0 ? (
-        <p className="empty">No services yet. Add your first below.</p>
+        <p className="empty">{t.services.empty}</p>
       ) : (
         <ul className="home-queue-list">
           {services.map((s) => (
             <li key={s.id} className="home-queue-card">
               <div className="title">{s.name}</div>
               <div className="meta">
-                {s.durationMinutes} min · {formatMoney(s.price)}
+                {format(t.services.minShort, { mins: s.durationMinutes })} · {formatMoney(s.price)}
               </div>
               <button
                 type="button"
@@ -91,24 +92,24 @@ export function ServicesEditor({ services }: { services: ServiceRow[] }) {
                 disabled={busy}
                 onClick={() => send(`/api/services/${s.id}`, "DELETE")}
               >
-                <Icon name="trash" size={14} /> Remove
+                <Icon name="trash" size={14} /> {t.services.remove}
               </button>
             </li>
           ))}
         </ul>
       )}
 
-      <h2 style={{ marginTop: 24 }}>Add a service</h2>
+      <h2 style={{ marginTop: 24 }}>{t.services.addTitle}</h2>
       <div className="field">
-        <label htmlFor="sv-name">Name</label>
-        <input id="sv-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Haircut" />
+        <label htmlFor="sv-name">{t.services.nameLabel}</label>
+        <input id="sv-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t.services.namePlaceholder} />
       </div>
       <div className="field">
-        <label htmlFor="sv-mins">Duration (minutes)</label>
+        <label htmlFor="sv-mins">{t.services.duration}</label>
         <input id="sv-mins" inputMode="numeric" value={mins} onChange={(e) => setMins(e.target.value)} />
       </div>
       <div className="field">
-        <label htmlFor="sv-price">Price (₹)</label>
+        <label htmlFor="sv-price">{t.services.price}</label>
         <input
           id="sv-price"
           inputMode="numeric"
@@ -128,10 +129,10 @@ export function ServicesEditor({ services }: { services: ServiceRow[] }) {
         {busy ? (
           <>
             <Spinner size={14} />
-            Saving…
+            {t.common.savingEllipsis}
           </>
         ) : (
-          "Add service"
+          t.services.add
         )}
       </button>
     </div>
