@@ -57,12 +57,19 @@ export function Icon({
   size = 20,
   strokeWidth = 2,
   color = "currentColor",
+  fill = "none",
   style,
 }: {
   name: IconName;
   size?: number;
   strokeWidth?: number;
   color?: string;
+  /**
+   * Solid glyph. The set is outline-first, so this stays "none" by default and every existing
+   * call site is unchanged — it exists for glyphs that read as a value rather than an action,
+   * a rating star being the one that actually needs it.
+   */
+  fill?: string;
   style?: CSSProperties;
 }) {
   const inner = ICONS[name];
@@ -72,7 +79,7 @@ export function Icon({
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={fill}
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"

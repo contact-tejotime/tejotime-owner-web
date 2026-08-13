@@ -1,17 +1,18 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { t } from "@/i18n";
 import { Icon, type IconName } from "@/components/Icon";
 import { NavLink } from "@/components/NavLink";
 import { can, type Module, type ModuleAccess } from "@/lib/roles";
 
 const TABS: { href: string; label: string; match: string; icon: IconName; module: Module | null }[] = [
-  { href: "/dashboard", label: "Home", match: "/dashboard", icon: "layoutDashboard", module: "dashboard" },
-  { href: "/stats", label: "Reports", match: "/stats", icon: "star", module: "dashboard" },
-  { href: "/appointments", label: "Appts", match: "/appointments", icon: "calendarCheck", module: "appointments" },
-  { href: "/calendar", label: "Calendar", match: "/calendar", icon: "grid", module: "calendar" },
-  { href: "/customers", label: "Clients", match: "/customers", icon: "user", module: "customers" },
-  { href: "/settings", label: "Settings", match: "/settings", icon: "settings", module: null },
+  { href: "/dashboard", label: t.bottomNav.home, match: "/dashboard", icon: "layoutDashboard", module: "dashboard" },
+  { href: "/stats", label: t.bottomNav.reports, match: "/stats", icon: "star", module: "dashboard" },
+  { href: "/appointments", label: t.bottomNav.appts, match: "/appointments", icon: "calendarCheck", module: "appointments" },
+  { href: "/calendar", label: t.bottomNav.calendar, match: "/calendar", icon: "grid", module: "calendar" },
+  { href: "/customers", label: t.bottomNav.clients, match: "/customers", icon: "user", module: "customers" },
+  { href: "/settings", label: t.bottomNav.settings, match: "/settings", icon: "settings", module: null },
 ];
 
 export function BottomNav({ access }: { access: ModuleAccess }) {
@@ -24,7 +25,7 @@ export function BottomNav({ access }: { access: ModuleAccess }) {
   });
 
   return (
-    <nav className="bottom-nav" aria-label="Primary">
+    <nav className="bottom-nav" aria-label={t.bottomNav.primary}>
       {tabs.map((tab) => {
         const active =
           tab.match === "/dashboard"

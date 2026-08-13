@@ -1,4 +1,5 @@
 import { Icon } from "@/components/Icon";
+import { t } from "@/i18n";
 import { StoreBookingQr } from "@/components/StoreBookingQr";
 import { formatPhone } from "@/lib/format";
 
@@ -35,12 +36,12 @@ export function StoreProfileHeader({
     <div className="store-head">
       <div className="store-head-top">
         <div className="store-head-title">
-          <h1>{name || "Unnamed store"}</h1>
+          <h1>{name || t.storeHeader.unnamed}</h1>
           <span className={`status-badge ${isActive ? "on" : "off"}`}>
-            {isActive ? "Active" : "Inactive"}
+            {isActive ? t.storeHeader.active : t.storeHeader.inactive}
           </span>
         </div>
-        {cardUrl ? <StoreBookingQr cardUrl={cardUrl} storeName={name || "Store"} /> : null}
+        {cardUrl ? <StoreBookingQr cardUrl={cardUrl} storeName={name || t.storeHeader.storeFallback} /> : null}
       </div>
       <p className="store-head-meta">
         {meta}

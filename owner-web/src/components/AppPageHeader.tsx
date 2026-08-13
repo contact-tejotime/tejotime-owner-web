@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { t } from "@/i18n";
 import type { ReactNode } from "react";
 import { Icon } from "@/components/Icon";
 
@@ -33,7 +34,7 @@ export function AppPageHeader({
       <div className="app-header-actions">
         {action}
         {showSettings ? (
-          <Link href={settingsHref} className="icon-btn" aria-label="Settings">
+          <Link href={settingsHref} className="icon-btn" aria-label={t.common.settings}>
             <Icon name="settings" size={20} />
           </Link>
         ) : null}

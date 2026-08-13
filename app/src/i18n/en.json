@@ -65,10 +65,10 @@
     "owner": "Owner",
     "staff": "Staff",
     "ownerTitle": "Owner sign in",
-    "ownerSubtitle": "For the business owner and co-owners. Full access to the shop.",
+    "ownerSubtitle": "For owners and co-owners. Full shop access.",
     "staffTitle": "Staff sign in",
-    "staffSubtitle": "For team members. You will see your own chair and whatever the owner has shared.",
-    "staffFoot": "Staff logins are created by your business owner. If you do not have one, ask them to add you under Settings → Team logins.",
+    "staffSubtitle": "For team members. See your own chair.",
+    "staffFoot": "No login yet? Ask your owner to create one.",
     "needHelp": "Need help? Contact TejoTime support"
   },
   "dashboard": {
@@ -104,12 +104,15 @@
     "add": "Add",
     "upcomingToday": "Upcoming today",
     "addToQueue": "Add to queue",
-    "empty": "No appointments today"
+    "empty": "No appointments today",
+    "emptyHint": "Bookings for today show up here. Check Calendar for the rest of the week."
   },
   "calendar": {
     "title": "Calendar",
     "empty": "No appointments on this day",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month"
   },
   "customers": {
     "title": "Customers",
@@ -283,13 +286,28 @@
     "previewDemo": "No store phone yet — showing the demo store so you can still preview the look.",
     "invalidHex": "Enter a valid hex color like #2563EB.",
     "brandTitle": "Brand color",
-    "brandHint": "One color seeds buttons, links and the banner.",
+    "brandHint": "One colour seeds the palette — links, chips, borders and the banner gradient.",
+    "buttonTitle": "Button colour",
+    "buttonHint": "The solid primary button. Independent of the theme colour — links, chips and the banner keep the theme colour.",
+    "buttonSourceTheme": "Same as theme",
+    "buttonSourceCustom": "Custom",
+    "buttonCustom": "Button colour hex",
+    "buttonPreviewLabel": "Book now",
     "brandCustom": "Brand color hex",
     "brandInkTitle": "Button label color",
     "brandInks": {
-      "auto": { "label": "Auto", "desc": "Best contrast" },
-      "white": { "label": "White", "desc": "Always white" },
-      "dark": { "label": "Dark", "desc": "Always dark" }
+      "auto": {
+        "label": "Auto",
+        "desc": "Best contrast"
+      },
+      "white": {
+        "label": "White",
+        "desc": "Always white"
+      },
+      "dark": {
+        "label": "Dark",
+        "desc": "Always dark"
+      }
     },
     "aaWhite": "AA — white text on brand ({ratio}:1)",
     "aaDark": "Using dark text for contrast ({ratio}:1)",
@@ -300,41 +318,87 @@
     "presetTitle": "Theme preset",
     "recommended": "Recommended",
     "presets": {
-      "minimal": { "label": "Minimal", "desc": "Calm slate, lots of space" },
-      "luxury": { "label": "Luxury", "desc": "Warm ink, gold accent" },
-      "modern": { "label": "Modern", "desc": "Crisp and high contrast" },
-      "bold": { "label": "Bold", "desc": "Heavy type, hard edges" },
-      "medical": { "label": "Medical", "desc": "Clean and clinical" },
-      "warm": { "label": "Warm", "desc": "Soft and inviting" }
+      "minimal": {
+        "label": "Minimal",
+        "desc": "Calm slate, lots of space"
+      },
+      "luxury": {
+        "label": "Luxury",
+        "desc": "Warm ink, gold accent"
+      },
+      "modern": {
+        "label": "Modern",
+        "desc": "Crisp and high contrast"
+      },
+      "bold": {
+        "label": "Bold",
+        "desc": "Heavy type, hard edges"
+      },
+      "medical": {
+        "label": "Medical",
+        "desc": "Clean and clinical"
+      },
+      "warm": {
+        "label": "Warm",
+        "desc": "Soft and inviting"
+      }
     },
     "modeTitle": "Mode",
     "modes": {
-      "light": { "label": "Light" },
-      "dark": { "label": "Dark" },
-      "auto": { "label": "Auto" }
+      "light": {
+        "label": "Light"
+      },
+      "dark": {
+        "label": "Dark"
+      },
+      "auto": {
+        "label": "Auto"
+      }
     },
     "densityTitle": "Density",
     "densities": {
-      "comfortable": { "label": "Comfortable" },
-      "compact": { "label": "Compact" }
+      "comfortable": {
+        "label": "Comfortable"
+      },
+      "compact": {
+        "label": "Compact"
+      }
     },
     "radiusTitle": "Corners",
     "radii": {
-      "sharp": { "label": "Sharp" },
-      "medium": { "label": "Medium" },
-      "rounded": { "label": "Rounded" }
+      "sharp": {
+        "label": "Sharp"
+      },
+      "medium": {
+        "label": "Medium"
+      },
+      "rounded": {
+        "label": "Rounded"
+      }
     },
     "shadowTitle": "Shadow",
     "shadows": {
-      "none": { "label": "None" },
-      "soft": { "label": "Soft" },
-      "premium": { "label": "Premium" }
+      "none": {
+        "label": "None"
+      },
+      "soft": {
+        "label": "Soft"
+      },
+      "premium": {
+        "label": "Premium"
+      }
     },
     "animationTitle": "Motion",
     "animations": {
-      "subtle": { "label": "Subtle" },
-      "normal": { "label": "Normal" },
-      "rich": { "label": "Rich" }
+      "subtle": {
+        "label": "Subtle"
+      },
+      "normal": {
+        "label": "Normal"
+      },
+      "rich": {
+        "label": "Rich"
+      }
     },
     "presetDefault": "Preset default",
     "effective": "{preset} · {mode} · {density} · {radius} · {shadow} · {animation}"
@@ -442,7 +506,8 @@
   "qr": {
     "contactTitle": "{name} — booking QR",
     "subtitle": "Scan to book an appointment, or save this store as a contact.",
-    "print": "Print"
+    "print": "Print",
+    "storeFallback": "Store"
   },
   "serviceSheet": {
     "editTitle": "Edit service",
@@ -467,7 +532,21 @@
     "namePlaceholder": "Full name",
     "roleLabel": "Role",
     "rolePlaceholder": "e.g. Stylist",
-    "save": "Save"
+    "save": "Save",
+    "addPhoto": "Add photo",
+    "changePhoto": "Change photo",
+    "removePhoto": "Remove photo",
+    "photoFailed": "Could not upload photo."
+  },
+  "upload": {
+    "permissionTitle": "Permission needed",
+    "permissionBody": "Allow photo library access to upload an image.",
+    "tooLargeTitle": "Photo too large",
+    "tooLargeBody": "Please choose an image under 5 MB."
+  },
+  "errors": {
+    "requestFailed": "Request failed",
+    "uploadFailed": "Upload failed ({status})"
   },
   "phone": {
     "placeholder": "Phone number",

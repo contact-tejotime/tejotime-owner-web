@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { t, format } from "@/i18n";
 import { usePathname } from "next/navigation";
 
 import {
@@ -35,13 +36,12 @@ export function RoleGate({
 
   return (
     <div className="no-access">
-      <h1>No access</h1>
+      <h1>{t.roleGate.noAccess}</h1>
       <p>
-        Your account ({ROLE_LABELS[role]}) has not been given access to this page. Ask the
-        business owner if you need it.
+        {format(t.roleGate.body, { role: ROLE_LABELS[role] })}
       </p>
       <Link href={landingPath(access)} className="btn">
-        Go back
+        {t.roleGate.goBack}
       </Link>
     </div>
   );

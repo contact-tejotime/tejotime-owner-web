@@ -1,8 +1,9 @@
 import { Skeleton, SkeletonCards, SkeletonScreen } from "@/components/Skeleton";
+import { t } from "@/i18n";
 
 export default function DashboardLoading() {
   return (
-    <SkeletonScreen label="Loading your dashboard">
+    <SkeletonScreen label={t.loading.dashboard}>
       <div className="page-app">
         <div className="skeleton-header-row">
           <Skeleton width={44} height={44} radius={12} />

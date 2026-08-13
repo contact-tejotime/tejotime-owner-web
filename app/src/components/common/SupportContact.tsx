@@ -50,20 +50,37 @@ export function SupportContact({ variant = 'block' }: { variant?: Variant }) {
     );
   }
 
+  // `login` drops the heading and blurb — on a sign-in screen the two blue contacts read as support
+  // on their own, and anything more turns the footer into a second block competing with the form.
+  if (variant === 'login') {
+    return (
+      <View style={s.login}>
+        <Pressable onPress={openMail} hitSlop={8}>
+          <TText variant="caption" color="primary" weight="semibold">
+            {SUPPORT.email}
+          </TText>
+        </Pressable>
+        <TText variant="caption" color="textSubtle">
+          ·
+        </TText>
+        <Pressable onPress={openTel} hitSlop={8}>
+          <TText variant="caption" color="primary" weight="semibold">
+            {SUPPORT.phoneDisplay}
+          </TText>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
-    <View style={[s.block, variant === 'login' && s.login]}>
-      <TText variant="bodySm" color="textStrong" weight="bold" align={variant === 'login' ? 'center' : 'left'}>
+    <View style={s.block}>
+      <TText variant="bodySm" color="textStrong" weight="bold">
         {t.support.needHelp}
       </TText>
-      <TText
-        variant="caption"
-        color="textMuted"
-        align={variant === 'login' ? 'center' : 'left'}
-        style={s.blurb}
-      >
+      <TText variant="caption" color="textMuted" style={s.blurb}>
         {t.settings.supportBlurb}
       </TText>
-      <View style={[s.links, variant === 'login' && s.linksCenter]}>
+      <View style={s.links}>
         <Pressable onPress={openMail}>
           <TText variant="bodySm" color="primary" weight="semibold">
             {SUPPORT.email}
@@ -96,11 +113,14 @@ const createSupportStyles = ({ colors }: ThemeStyleProps) =>
       gap: moderateScale(4),
     },
     login: {
-      marginTop: moderateScale(16),
-      paddingTop: moderateScale(16),
+      ...styles.flexRow,
+      ...styles.itemsCenter,
+      ...styles.justifyCenter,
+      flexWrap: 'wrap',
+      gap: moderateScale(8),
+      paddingTop: moderateScale(14),
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.borderSubtle,
-      alignItems: 'center',
     },
     blurb: {
       marginBottom: moderateScale(4),
@@ -108,8 +128,5 @@ const createSupportStyles = ({ colors }: ThemeStyleProps) =>
     links: {
       gap: moderateScale(6),
       marginTop: moderateScale(4),
-    },
-    linksCenter: {
-      alignItems: 'center',
     },
   });

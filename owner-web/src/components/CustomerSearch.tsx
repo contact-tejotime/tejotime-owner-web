@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { t } from "@/i18n";
 import { useEffect, useState } from "react";
 
 import { Icon } from "@/components/Icon";
@@ -29,8 +30,8 @@ export function CustomerSearch({ initialQuery }: { initialQuery: string }) {
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Search by name or phone"
-        aria-label="Search customers"
+        placeholder={t.search.placeholder}
+        aria-label={t.search.aria}
       />
     </div>
   );

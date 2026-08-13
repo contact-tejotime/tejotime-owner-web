@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { flagEmoji, searchCountries } from "@/lib/phone";
+import { t } from "@/i18n";
 import { useThemePortalContainer } from "@/theme/ThemePortal";
 
 export type PhoneCountry = { dialCode: string; iso2: string };
@@ -129,7 +130,7 @@ export default function PhoneField({
           onClick={() => setOpen((o) => !o)}
           aria-haspopup="listbox"
           aria-expanded={open}
-          aria-label="Select country code"
+          aria-label={t.phoneField.selectCountryCode}
           style={{
             ...inputBase,
             display: "inline-flex",
@@ -161,7 +162,7 @@ export default function PhoneField({
         <div
           ref={dropdownRef}
           role="listbox"
-          aria-label="Countries"
+          aria-label={t.phoneField.countries}
           style={{
             position: "fixed",
             zIndex: 1000,
@@ -182,7 +183,7 @@ export default function PhoneField({
           <input
             ref={searchRef}
             type="search"
-            placeholder="Search country or code…"
+            placeholder={t.phoneField.searchPlaceholder}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{
@@ -201,7 +202,7 @@ export default function PhoneField({
           />
           <ul style={{ listStyle: "none", margin: 0, padding: 4, flex: "1 1 auto", minHeight: 0, overflowY: "auto" }}>
             {results.length === 0 && (
-              <li style={{ padding: 12, color: "var(--text-muted)", fontSize: 13, textAlign: "center" }}>No matches</li>
+              <li style={{ padding: 12, color: "var(--text-muted)", fontSize: 13, textAlign: "center" }}>{t.phoneField.noMatches}</li>
             )}
             {results.map((c) => {
               const on = c.iso2 === country.iso2;

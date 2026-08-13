@@ -5,6 +5,7 @@ import type { GalleryRow } from "@/lib/types";
 import { t, format } from "@/i18n";
 import { Icon } from "@/components/icons";
 import Spinner from "@/components/ui/Spinner";
+import { ACCEPT_ATTR, ImageCropModal, ImagePreviewModal, checkerBehind, useImageCropQueue } from "@/components/image-crop";
 
 /** POST a file to the admin panel's server proxy, which pushes it to object storage and returns the URL. */
 async function uploadImage(file: File, assetType: string): Promise<string> {
@@ -13,14 +14,19 @@ async function uploadImage(file: File, assetType: string): Promise<string> {
   fd.append("assetType", assetType);
   const res = await fetch("/api/upload", { method: "POST", body: fd });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error?.message ?? `Upload failed (${res.status})`);
+  if (!res.ok) throw new Error(json?.error?.message ?? format(t.imageUpload.uploadFailedStatus, { status: res.status }));
   return json.publicUrl as string;
 }
 
-const ACCEPT = "image/jpeg,image/png,image/webp";
 const errStyle = { color: "var(--red-600)" };
 
-/** Single-image uploader (hero / about). Shows the current image with replace + remove. */
+/**
+ * Single-image uploader (hero / about / logo / staff avatar).
+ *
+ * Picking a file no longer uploads it. The file is validated, then handed to the crop modal;
+ * only the cropped result is sent. The existing value is left alone until that upload succeeds,
+ * so a cancelled or failed crop never clears a picture the store already had.
+ */
 export function ImageUpload({
   value,
   onChange,
@@ -34,28 +40,58 @@ export function ImageUpload({
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [preview, setPreview] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function pick(e: ChangeEvent<HTMLInputElement>) {
+  const clearPicker = () => {
+    // Reset so choosing the SAME file again still fires a change event.
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const crop = useImageCropQueue({
+    assetType,
+    onError: setErr,
+    onDone: clearPicker,
+    onCropped: async (file) => {
+      setBusy(true);
+      try {
+        onChange(await uploadImage(file, assetType));
+      } catch (ex) {
+        setErr(ex instanceof Error ? ex.message : t.imageUpload.uploadFailed);
+      } finally {
+        setBusy(false);
+      }
+    },
+  });
+
+  function pick(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setErr("");
-    setBusy(true);
-    try {
-      onChange(await uploadImage(file, assetType));
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : t.imageUpload.uploadFailed);
-    } finally {
-      setBusy(false);
-      if (inputRef.current) inputRef.current.value = "";
-    }
+    if (crop.enqueue([file]) === 0) clearPicker();
   }
 
   return (
     <div className="field full" style={{ marginBottom: 14 }}>
       <label>{label}</label>
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        {/* A button only once there is something to open, so an empty slot stays inert. */}
         <div
+          role={value ? "button" : undefined}
+          tabIndex={value ? 0 : undefined}
+          aria-label={value ? t.imagePreview.open : undefined}
+          title={value ? t.imagePreview.open : undefined}
+          onClick={value ? () => setPreview(true) : undefined}
+          onKeyDown={
+            value
+              ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setPreview(true);
+                  }
+                }
+              : undefined
+          }
           style={{
             position: "relative",
             width: 160,
@@ -63,16 +99,15 @@ export function ImageUpload({
             flexShrink: 0,
             borderRadius: 10,
             border: "1px solid var(--border-subtle)",
-            background: "var(--gray-100)",
-            backgroundImage: value ? `url(${value})` : undefined,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
+            // Checker only once there is an image; an empty slot keeps the plain placeholder fill.
+            ...(value ? checkerBehind(value) : { background: "var(--gray-100)" }),
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             color: "var(--text-muted)",
             fontSize: 12,
             overflow: "hidden",
+            cursor: value ? "zoom-in" : "default",
           }}
         >
           {busy ? (
@@ -82,7 +117,7 @@ export function ImageUpload({
           )}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <input ref={inputRef} type="file" accept={ACCEPT} onChange={pick} disabled={busy} style={{ maxWidth: 260 }} />
+          <input ref={inputRef} type="file" accept={ACCEPT_ATTR} onChange={pick} disabled={busy} style={{ maxWidth: 260 }} />
           {value && (
             <button type="button" className="btn-remove" style={{ height: "auto", padding: "6px 12px" }} onClick={() => onChange("")}>
               {t.common.remove}
@@ -96,6 +131,22 @@ export function ImageUpload({
         </p>
       )}
       {err && <p className="hint" style={errStyle} role="alert">{err}</p>}
+
+      {crop.request && (
+        <ImageCropModal
+          request={crop.request}
+          busy={crop.busy || busy}
+          onApply={crop.apply}
+          onCancel={() => {
+            crop.cancelCurrent();
+            clearPicker();
+          }}
+        />
+      )}
+
+      {preview && value && (
+        <ImagePreviewModal images={[value]} index={0} onIndexChange={() => {}} onClose={() => setPreview(false)} />
+      )}
     </div>
   );
 }
@@ -103,6 +154,13 @@ export function ImageUpload({
 /** Multi-image uploader for the gallery — appends each uploaded photo as a { url, alt } row. */
 const GALLERY_MAX = 7;
 
+/**
+ * Gallery uploader.
+ *
+ * Each selected photo is cropped and uploaded one at a time, in order, so the batch is never
+ * uploaded wholesale behind the user's back. Applying a crop appends that photo immediately;
+ * skipping one leaves the rest of the batch running.
+ */
 export function GalleryUpload({
   value,
   onChange,
@@ -116,10 +174,35 @@ export function GalleryUpload({
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // Index of the photo open in the viewer; null when closed.
+  const [preview, setPreview] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const full = value.length >= max;
 
-  async function pick(e: ChangeEvent<HTMLInputElement>) {
+  const clearPicker = () => {
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const crop = useImageCropQueue({
+    assetType,
+    onError: setErr,
+    onDone: clearPicker,
+    onCropped: async (file) => {
+      setBusy(true);
+      try {
+        const url = await uploadImage(file, assetType);
+        // `value` is current: each crop is applied by a separate click, so the parent has
+        // re-rendered with the previous photo appended before this callback is rebuilt.
+        onChange([...value, { url, alt: "" }]);
+      } catch (ex) {
+        setErr(ex instanceof Error ? ex.message : t.imageUpload.uploadFailed);
+      } finally {
+        setBusy(false);
+      }
+    },
+  });
+
+  function pick(e: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
     setErr("");
@@ -128,37 +211,7 @@ export function GalleryUpload({
     if (chosen.length < files.length) {
       setErr(format(t.imageUpload.galleryMaxSkipped, { max }));
     }
-    if (!chosen.length) {
-      if (inputRef.current) inputRef.current.value = "";
-      return;
-    }
-    setBusy(true);
-    try {
-      // Upload in parallel and keep every success even if some fail, rather than
-      // discarding already-uploaded photos when a later one errors.
-      const results = await Promise.allSettled(chosen.map((f) => uploadImage(f, assetType)));
-      const added: GalleryRow[] = results
-        .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
-        .map((r) => ({ url: r.value, alt: "" }));
-      if (added.length) onChange([...value, ...added]);
-      const failed = results.length - added.length;
-      if (failed > 0) {
-        const firstErr = results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
-        const reason = firstErr?.reason instanceof Error ? firstErr.reason.message : t.imageUpload.uploadFailed;
-        setErr(
-          format(failed === 1 ? t.imageUpload.partialFail : t.imageUpload.partialFailPlural, {
-            failed,
-            total: results.length,
-            reason,
-          }),
-        );
-      }
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : t.imageUpload.uploadFailed);
-    } finally {
-      setBusy(false);
-      if (inputRef.current) inputRef.current.value = "";
-    }
+    if (!chosen.length || crop.enqueue(chosen) === 0) clearPicker();
   }
 
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i));
@@ -170,20 +223,34 @@ export function GalleryUpload({
           {value.map((g, i) => (
             <div
               key={i}
+              role="button"
+              tabIndex={0}
+              aria-label={t.imagePreview.open}
+              title={t.imagePreview.open}
+              onClick={() => setPreview(i)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setPreview(i);
+                }
+              }}
               style={{
                 position: "relative",
                 width: 120,
                 height: 84,
                 borderRadius: 8,
                 border: "1px solid var(--border-subtle)",
-                backgroundImage: `url(${g.url})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
+                ...checkerBehind(g.url),
+                cursor: "zoom-in",
               }}
             >
               <button
                 type="button"
-                onClick={() => remove(i)}
+                onClick={(e) => {
+                  // The tile behind this is the "open preview" target.
+                  e.stopPropagation();
+                  remove(i);
+                }}
                 title={t.imageUpload.removeTitle}
                 style={{
                   position: "absolute",
@@ -211,7 +278,7 @@ export function GalleryUpload({
       <input
         ref={inputRef}
         type="file"
-        accept={ACCEPT}
+        accept={ACCEPT_ATTR}
         multiple
         onChange={pick}
         disabled={busy || full}
@@ -226,6 +293,24 @@ export function GalleryUpload({
       )}
       {err && <p className="hint" style={errStyle} role="alert">{err}</p>}
       {value.length === 0 && !busy && <p className="hint">{t.imageUpload.chooseGallery}</p>}
+
+      {crop.request && (
+        <ImageCropModal
+          request={crop.request}
+          busy={crop.busy || busy}
+          onApply={crop.apply}
+          onCancel={crop.cancelCurrent}
+        />
+      )}
+
+      {preview !== null && value[preview] && (
+        <ImagePreviewModal
+          images={value.map((g) => g.url)}
+          index={preview}
+          onIndexChange={setPreview}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </div>
   );
 }

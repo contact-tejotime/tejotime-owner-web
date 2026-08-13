@@ -69,7 +69,7 @@ const storeFieldsSchema = z.object({
   establishedYear: z.coerce.number().int().min(1900).max(2100).optional(),
   rating: z.coerce.number().min(0).max(5).optional(),
   reviewCount: z.coerce.number().int().min(0).optional(),
-  payments: z.array(z.string().min(1).max(40)).max(10).optional(),
+  payments: z.array(z.string().min(1).max(60)).max(15).optional(),
   /**
    * Social profile URLs. `.url()` rejects a bare handle like "@tejotime" — these render as
    * links on a customer-facing page, so a value that cannot be clicked is worse than none.
@@ -103,6 +103,7 @@ const storeFieldsSchema = z.object({
       animation: z.enum(['subtle', 'normal', 'rich']),
       heroVariant: z.enum(['split-classic', 'editorial', 'split-modern', 'full-bleed', 'trust', 'cozy']),
       accent: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Expected #RRGGBB hex color'),
+      button: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Expected #RRGGBB hex color'),
       brandInk: z.enum(['auto', 'white', 'dark']),
     })
     .partial()

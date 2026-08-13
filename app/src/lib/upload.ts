@@ -2,6 +2,7 @@ import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
 
+import { t, format } from '@/i18n';
 import { api } from '@/lib/api';
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -24,7 +25,7 @@ export async function pickAndUploadImage(
 ): Promise<string | null> {
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!perm.granted) {
-    Alert.alert('Permission needed', 'Allow photo library access to upload an image.');
+    Alert.alert(t.upload.permissionTitle, t.upload.permissionBody);
     return null;
   }
 
@@ -42,7 +43,7 @@ export async function pickAndUploadImage(
   const file = new File(asset.uri);
   const byteSize = asset.fileSize ?? file.size;
   if (byteSize > MAX_BYTES) {
-    Alert.alert('Photo too large', 'Please choose an image under 5 MB.');
+    Alert.alert(t.upload.tooLargeTitle, t.upload.tooLargeBody);
     return null;
   }
 
@@ -52,7 +53,7 @@ export async function pickAndUploadImage(
     httpMethod: 'PUT',
     headers: { 'content-type': contentType },
   });
-  if (put.status < 200 || put.status >= 300) throw new Error(`Upload failed (${put.status})`);
+  if (put.status < 200 || put.status >= 300) throw new Error(format(t.errors.uploadFailed, { status: put.status }));
 
   return publicUrl;
 }

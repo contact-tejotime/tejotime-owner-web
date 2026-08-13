@@ -1,8 +1,9 @@
 import { Skeleton, SkeletonHeader, SkeletonScreen } from "@/components/Skeleton";
+import { t } from "@/i18n";
 
 export default function CalendarLoading() {
   return (
-    <SkeletonScreen label="Loading your calendar">
+    <SkeletonScreen label={t.loading.calendar}>
       <div className="page-app">
         <SkeletonHeader />
         {Array.from({ length: 4 }, (_, i) => (

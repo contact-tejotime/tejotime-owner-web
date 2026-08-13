@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { t } from "@/i18n";
 import { useState, useTransition } from "react";
 
 import { Icon } from "@/components/Icon";
@@ -38,13 +39,13 @@ export function StaffEditor({ staff }: { staff: StaffRow[] }) {
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setError(json?.error?.message ?? "That didn't work.");
+        setError(json?.error?.message ?? t.common.thatDidntWork);
         return false;
       }
       startTransition(() => router.refresh());
       return true;
     } catch {
-      setError("Could not reach the server.");
+      setError(t.staffEditor.networkError);
       return false;
     } finally {
       setInFlight(false);
@@ -52,7 +53,7 @@ export function StaffEditor({ staff }: { staff: StaffRow[] }) {
   }
 
   async function add() {
-    if (!name.trim()) return setError("Enter a name.");
+    if (!name.trim()) return setError(t.staffEditor.errName);
     const ok = await send("/api/staff", "POST", {
       name: name.trim(),
       roleLabel: roleLabel.trim() || undefined,
@@ -65,16 +66,16 @@ export function StaffEditor({ staff }: { staff: StaffRow[] }) {
 
   return (
     <div className="section">
-      <h2>Team</h2>
+      <h2>{t.staffEditor.title}</h2>
       {staff.length === 0 ? (
-        <p className="empty">No team members yet.</p>
+        <p className="empty">{t.staffEditor.empty}</p>
       ) : (
         <ul className="home-queue-list">
           {staff.map((s) => (
             <li key={s.id} className="home-queue-card">
               <div className="title">{s.name}</div>
               <div className="meta">
-                {[s.roleLabel, s.acceptsWalkIns ? "Takes walk-ins" : "Appointments only"]
+                {[s.roleLabel, s.acceptsWalkIns ? t.staffEditor.takesWalkIns : t.staffEditor.appointmentsOnly]
                   .filter(Boolean)
                   .join(" · ")}
               </div>
@@ -85,25 +86,25 @@ export function StaffEditor({ staff }: { staff: StaffRow[] }) {
                 disabled={busy}
                 onClick={() => send(`/api/staff/${s.id}`, "DELETE")}
               >
-                <Icon name="trash" size={14} /> Remove
+                <Icon name="trash" size={14} /> {t.staffEditor.remove}
               </button>
             </li>
           ))}
         </ul>
       )}
 
-      <h2 style={{ marginTop: 24 }}>Add a team member</h2>
+      <h2 style={{ marginTop: 24 }}>{t.staffEditor.addTitle}</h2>
       <div className="field">
-        <label htmlFor="st-name">Name</label>
-        <input id="st-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Divya" />
+        <label htmlFor="st-name">{t.staffEditor.nameLabel}</label>
+        <input id="st-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t.staffEditor.namePlaceholder} />
       </div>
       <div className="field">
-        <label htmlFor="st-role">Role (optional)</label>
+        <label htmlFor="st-role">{t.staffEditor.roleLabel}</label>
         <input
           id="st-role"
           value={roleLabel}
           onChange={(e) => setRoleLabel(e.target.value)}
-          placeholder="Hair & bridal"
+          placeholder={t.staffEditor.rolePlaceholder}
         />
       </div>
 
@@ -117,10 +118,10 @@ export function StaffEditor({ staff }: { staff: StaffRow[] }) {
         {busy ? (
           <>
             <Spinner size={14} />
-            Saving…
+            {t.common.savingEllipsis}
           </>
         ) : (
-          "Add team member"
+          t.staffEditor.add
         )}
       </button>
     </div>

@@ -1,9 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { t, format } from "@/i18n";
 
 import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Skeleton";
+import { ACCEPT_ATTR, CHECKERBOARD, ImageCropModal, ImagePreviewModal, useImageCropQueue } from "@/components/image-crop";
 
 export interface GalleryImage {
   url: string;
@@ -19,6 +21,10 @@ export interface GalleryImage {
  *
  * Uploads go through owner-web's `/api/upload` proxy: the token is attached server-side and the
  * bytes are PUT to storage from there, so the browser never holds a storage credential.
+ *
+ * Selecting photos does not upload them. Each one is framed in the shared crop modal at the
+ * gallery's own square ratio and uploaded as it is applied, one at a time, so nothing reaches
+ * storage un-cropped and skipping a photo leaves the rest of the batch running.
  */
 export function GalleryEditor({
   images,
@@ -32,38 +38,48 @@ export function GalleryEditor({
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Index of the photo open in the viewer; null when closed.
+  const [preview, setPreview] = useState<number | null>(null);
 
-  async function addFiles(files: FileList) {
-    setBusy(true);
-    setError("");
-    const room = max - images.length;
-    const chosen = Array.from(files).slice(0, Math.max(0, room));
-    if (chosen.length < files.length) {
-      setError(`Only ${max} photos can be shown, so the extras were skipped.`);
-    }
-    const added: GalleryImage[] = [];
-    try {
-      for (const file of chosen) {
+  const clearPicker = () => {
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const crop = useImageCropQueue({
+    assetType: "gallery",
+    onError: setError,
+    onDone: clearPicker,
+    onCropped: async (file) => {
+      setBusy(true);
+      try {
         const body = new FormData();
         body.append("file", file);
         body.append("assetType", "gallery");
         const res = await fetch("/api/upload", { method: "POST", body });
         const json = await res.json().catch(() => ({}));
         if (!res.ok || !json?.publicUrl) {
-          setError(json?.error?.message ?? `${file.name} could not be uploaded.`);
-          break;
+          setError(json?.error?.message ?? format(t.gallery.uploadFailed, { name: file.name }));
+          return;
         }
-        added.push({ url: json.publicUrl as string, alt: null });
+        // Appended per photo rather than at the end of the batch: each crop is a separate
+        // action, so a later failure must not discard what already uploaded.
+        onChange([...images, { url: json.publicUrl as string, alt: null }]);
+      } catch {
+        setError(t.gallery.networkError);
+      } finally {
+        setBusy(false);
       }
-      // Applied once at the end rather than per file, so a part-failed batch still keeps
-      // whatever did upload instead of discarding the lot.
-      if (added.length) onChange([...images, ...added]);
-    } catch {
-      setError("Could not reach the server.");
-    } finally {
-      setBusy(false);
-      if (inputRef.current) inputRef.current.value = "";
+    },
+  });
+
+  function addFiles(files: FileList) {
+    setError("");
+    const room = max - images.length;
+    const chosen = Array.from(files).slice(0, Math.max(0, room));
+    if (chosen.length < files.length) {
+      setError(format(t.gallery.maxSkipped, { max }));
     }
+    if (!chosen.length || crop.enqueue(chosen) === 0) clearPicker();
   }
 
   function move(from: number, to: number) {
@@ -77,21 +93,36 @@ export function GalleryEditor({
   return (
     <div>
       {images.length === 0 ? (
-        <p className="field-hint">No photos yet. These appear in the gallery on your page.</p>
+        <p className="field-hint">{t.gallery.empty}</p>
       ) : (
         <ul className="gallery-grid">
           {images.map((img, i) => (
             <li key={`${img.url}-${i}`} className="gallery-item">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.url} alt={img.alt ?? ""} />
+              <img
+                src={img.url}
+                alt={img.alt ?? ""}
+                role="button"
+                tabIndex={0}
+                aria-label={t.imagePreview.open}
+                title={t.imagePreview.open}
+                onClick={() => setPreview(i)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setPreview(i);
+                  }
+                }}
+                style={{ ...CHECKERBOARD, cursor: "zoom-in" }}
+              />
               <div className="gallery-item-bar">
                 <button
                   type="button"
                   className="gallery-btn"
                   onClick={() => move(i, i - 1)}
                   disabled={i === 0}
-                  aria-label="Move earlier"
-                  title="Move earlier"
+                  aria-label={t.gallery.moveEarlier}
+                  title={t.gallery.moveEarlier}
                 >
                   <Icon name="chevronLeft" size={14} />
                 </button>
@@ -100,8 +131,8 @@ export function GalleryEditor({
                   className="gallery-btn"
                   onClick={() => move(i, i + 1)}
                   disabled={i === images.length - 1}
-                  aria-label="Move later"
-                  title="Move later"
+                  aria-label={t.gallery.moveLater}
+                  title={t.gallery.moveLater}
                 >
                   <Icon name="chevronRight" size={14} />
                 </button>
@@ -109,8 +140,8 @@ export function GalleryEditor({
                   type="button"
                   className="gallery-btn danger"
                   onClick={() => onChange(images.filter((_, idx) => idx !== i))}
-                  aria-label="Remove photo"
-                  title="Remove"
+                  aria-label={t.gallery.removePhoto}
+                  title={t.gallery.remove}
                 >
                   <Icon name="x" size={14} />
                 </button>
@@ -128,17 +159,17 @@ export function GalleryEditor({
           disabled={busy || images.length >= max}
         >
           {busy ? <Spinner size={13} /> : <Icon name="plus" size={14} />}
-          {busy ? "Uploading…" : "Add photos"}
+          {busy ? t.gallery.uploading : t.gallery.add}
         </button>
         <span className="field-hint">
-          {images.length} of {max} · JPEG, PNG or WebP, up to 5 MB each
+          {format(t.gallery.counter, { count: images.length, max })}
         </span>
       </div>
 
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept={ACCEPT_ATTR}
         multiple
         hidden
         onChange={(e) => {
@@ -150,6 +181,24 @@ export function GalleryEditor({
         <p className="field-hint" role="alert" style={{ color: "var(--error)" }}>
           {error}
         </p>
+      ) : null}
+
+      {preview !== null && images[preview] ? (
+        <ImagePreviewModal
+          images={images.map((g) => g.url)}
+          index={preview}
+          onIndexChange={setPreview}
+          onClose={() => setPreview(null)}
+        />
+      ) : null}
+
+      {crop.request ? (
+        <ImageCropModal
+          request={crop.request}
+          busy={crop.busy || busy}
+          onApply={crop.apply}
+          onCancel={crop.cancelCurrent}
+        />
       ) : null}
     </div>
   );

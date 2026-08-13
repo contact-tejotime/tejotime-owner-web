@@ -3,12 +3,18 @@
 import { useEffect, useId, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Icon } from "@/components/Icon";
+import { t, format } from "@/i18n";
 
 /**
- * Desktop "Save contact" sheet for the customer microsite. The QR encodes `/{phone}/card`
- * (book-or-save chooser) — same landing as the owner/printed booking QR — so a phone scan
- * never drops straight into a .vcf download. Handheld "Save contact" navigates to that
- * same URL in MicrositeClient.
+ * "Save contact" sheet for the customer microsite, on every device.
+ *
+ * The QR encodes `/{phone}/card` (book-or-save chooser) — same landing as the owner/printed
+ * booking QR — so a scan never drops straight into a .vcf download.
+ *
+ * It shows on handheld too, which is why `onSaveToPhone` exists. A QR is useless to the person
+ * holding the screen; it is for showing the shop to someone ELSE. The button underneath is the
+ * path for the visitor's own phone, and it goes exactly where handheld "Save contact" used to
+ * go directly. Both jobs, one sheet.
  *
  * Absolute QR URL is built only while the sheet is open (client-only), so SSR never emits a
  * wrong origin and scanning always hits the current host.
@@ -18,12 +24,15 @@ export default function SaveContactSheet({
   onClose,
   phoneFull,
   storeName,
+  onSaveToPhone,
 }: {
   open: boolean;
   onClose: () => void;
   /** Digits-only international number — microsite URL key. */
   phoneFull: string;
   storeName: string;
+  /** Sends this device to the book-or-save chooser. Same target as the QR encodes. */
+  onSaveToPhone: () => void;
 }) {
   const titleId = useId();
   const cardRef = useRef<HTMLDivElement>(null);
@@ -63,9 +72,9 @@ export default function SaveContactSheet({
       >
         <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <span id={titleId} style={{ font: "var(--fw-extrabold) 20px/1.15 var(--font-sans)", color: "var(--text-strong)" }}>
-            Scan for {storeName}
+            {format(t.microsite.saveSheet.title, { name: storeName })}
           </span>
-          <div onClick={onClose} aria-label="Close" style={{ flexShrink: 0, width: 34, height: 34, borderRadius: "50%", background: "var(--surface-page)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--text-muted)" }}>
+          <div onClick={onClose} aria-label={t.microsite.saveSheet.close} style={{ flexShrink: 0, width: 34, height: 34, borderRadius: "50%", background: "var(--surface-page)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--text-muted)" }}>
             <Icon name="x" size={18} />
           </div>
         </div>
@@ -77,9 +86,30 @@ export default function SaveContactSheet({
             </div>
           ) : null}
           <span style={{ font: "var(--fw-regular) 14px/1.5 var(--font-sans)", color: "var(--text-muted)", textAlign: "center", maxWidth: 280 }}>
-            Point your phone&apos;s camera at this code to book an appointment at {storeName}, or
-            save their number, address &amp; website to your contacts.
+            {format(t.microsite.saveSheet.body, { name: storeName })}
           </span>
+          <button
+            type="button"
+            onClick={onSaveToPhone}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              width: "100%",
+              height: "var(--control-h-md, 38px)",
+              padding: "0 18px",
+              background: "var(--primary)",
+              color: "var(--on-brand, #fff)",
+              border: "1px solid var(--brand-outline, transparent)",
+              borderRadius: "calc(10px * var(--radius-scale, 1))",
+              font: "var(--fw-semibold) 14px/1 var(--font-sans)",
+              cursor: "pointer",
+            }}
+          >
+            <Icon name="user" size={16} />
+            {t.microsite.saveSheet.saveToPhone}
+          </button>
         </div>
       </div>
     </div>

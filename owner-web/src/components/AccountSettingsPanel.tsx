@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
+import { t } from "@/i18n";
 
 import { Icon } from "@/components/Icon";
 
@@ -21,7 +22,7 @@ export function AccountSettingsPanel({ children }: { children: ReactNode }) {
         aria-controls={bodyId}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="account-fold-title">Account & password</span>
+        <span className="account-fold-title">{t.account.panelTitle}</span>
         <Icon name="chevronDown" size={18} className="account-fold-chevron" />
       </button>
       {open ? (

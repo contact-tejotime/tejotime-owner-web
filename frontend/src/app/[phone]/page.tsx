@@ -3,6 +3,7 @@ import { ApiError, publicApi } from "@/lib/api";
 import MicrositeClient from "@/components/microsite/MicrositeClient";
 import ThemeStyle from "@/theme/ThemeStyle";
 import { micrositeThemeConfig } from "@/theme";
+import { t, format } from "@/i18n";
 
 // Live data — opt out of full-route caching so the server fetch runs per request
 // (this also makes the underlying fetch `no-store`). Matches the previous /sharp-cuts page.
@@ -23,11 +24,11 @@ export default async function PhonePage({ params }: { params: Promise<{ phone: s
     initialSite = await publicApi.getMicrositeByPhone(phone);
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) notFound(); // no business with this number
-    const message = e instanceof Error ? e.message : "Failed to load";
+    const message = e instanceof Error ? e.message : t.errorPage.failedToLoad;
     return (
       <div style={{ minHeight: "60vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 32, textAlign: "center" }}>
-        <span style={{ font: "var(--fw-bold) 20px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>Could not load this salon</span>
-        <span style={{ font: "var(--fw-regular) 14px/1.4 var(--font-sans)", color: "var(--text-muted)" }}>{message}. Is the API running?</span>
+        <span style={{ font: "var(--fw-bold) 20px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{t.errorPage.title}</span>
+        <span style={{ font: "var(--fw-regular) 14px/1.4 var(--font-sans)", color: "var(--text-muted)" }}>{format(t.errorPage.apiHint, { message })}</span>
       </div>
     );
   }
@@ -36,6 +37,15 @@ export default async function PhonePage({ params }: { params: Promise<{ phone: s
   // already in the store's brand — no client JS on this path and therefore no flash of blue.
   return (
     <>
+      {/*
+        The hero is painted as a CSS background-image, which the preload scanner cannot see: the
+        browser would have to download and parse CSS, then lay the element out, before it even
+        learns the URL. It is also the LCP element on this page. Preloading it here starts the
+        fetch in the same breath as the document, without touching any markup or layout.
+      */}
+      {initialSite.heroImageUrl ? (
+        <link rel="preload" as="image" href={initialSite.heroImageUrl} fetchPriority="high" />
+      ) : null}
       <ThemeStyle config={micrositeThemeConfig(initialSite)} />
       <MicrositeClient initialSite={initialSite} />
     </>

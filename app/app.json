@@ -38,8 +38,8 @@
           },
           "android": {
             "backgroundColor": "#FFFFFF",
-            "image": "./assets/images/logo-full.png",
-            "imageWidth": 280
+            "image": "./assets/images/splash-icon.png",
+            "imageWidth": 180
           }
         }
       ],

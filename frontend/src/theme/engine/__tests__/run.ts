@@ -14,6 +14,7 @@
  *   (c) RAMP    — monotonic lightness, hue preserved, every step a valid #rrggbb.
  *   (d) CSS     — all three selector blocks, every contract token, in both maps.
  *   (e) INPUT   — normalizeThemeConfig repairs garbage without throwing.
+ *   (g) BUTTON  — the button colour splits off the palette without disturbing it.
  *
  * Failures throw. A non-zero exit code is the signal; the log is for humans.
  */
@@ -590,6 +591,103 @@ function testNormalize(): void {
   eq(presetForCategory('Something Unheard Of'), 'minimal', 'unknown category → minimal');
 }
 
+
+/* ============================================================
+   Button colour — the axis that splits the solid button off the palette
+   ============================================================ */
+
+function testButtonColour(): void {
+  section('(g) button colour');
+
+  const base: ThemeConfig = { preset: 'minimal', mode: 'light', brand: '#2563EB' };
+  const split: ThemeConfig = { ...base, button: '#111111' };
+
+  const plain = resolveTheme(base);
+  const withButton = resolveTheme(split);
+
+  // 1. Absent button === today's behaviour, token for token. This is the compatibility gate:
+  //    every existing store has no `button`, and none of them may shift by a single value.
+  const plainAgain = resolveTheme({ ...base, button: undefined });
+  eq(
+    JSON.stringify(plainAgain.light),
+    JSON.stringify(plain.light),
+    'an absent button changes nothing',
+  );
+
+  // 2. The solid button moves.
+  for (const face of ['light', 'dark'] as const) {
+    const a = plain[face];
+    const b = withButton[face];
+    ok(a['--primary'] !== b['--primary'], `${face}: --primary follows the button colour`);
+    ok(a['--brand'] !== b['--brand'], `${face}: --brand follows the button colour`);
+    ok(a['--brand-hover'] !== b['--brand-hover'], `${face}: hover follows the button colour`);
+    ok(a['--brand-pressed'] !== b['--brand-pressed'], `${face}: pressed follows the button colour`);
+    ok(a['--primary-hover'] !== b['--primary-hover'], `${face}: --primary-hover follows too`);
+    ok(a['--primary-active'] !== b['--primary-active'], `${face}: --primary-active follows too`);
+  }
+
+  // 3. The palette does NOT. A black button must not drain the colour out of the site — links,
+  //    chips, borders, focus and the hero all stay on the theme colour.
+  for (const face of ['light', 'dark'] as const) {
+    const a = plain[face];
+    const b = withButton[face];
+    for (const token of [
+      '--text-link',
+      '--focus-ring',
+      '--primary-soft',
+      '--primary-soft-fg',
+      '--brand-subtle',
+      '--brand-border',
+      '--hero-from',
+      '--hero-via',
+      '--hero-to',
+      '--brand-50',
+      '--brand-900',
+    ]) {
+      eq(b[token], a[token], `${face}: ${token} stays on the theme colour`);
+    }
+  }
+
+  // 4. Changing the theme colour leaves an explicit button colour alone — the whole point of
+  //    the axis, and the thing a shared ramp got wrong.
+  const purple = resolveTheme({ ...split, brand: '#7C3AED' });
+  eq(purple.light['--primary'], withButton.light['--primary'], 'button survives a brand change');
+  ok(
+    purple.light['--text-link'] !== withButton.light['--text-link'],
+    'the theme colour still moves the palette',
+  );
+
+  // 5. The label ink is judged against the BUTTON, not the brand. A near-black button has to
+  //    come back with white ink whatever the theme colour is.
+  const ink = (withButton.light['--on-brand'] ?? '').toLowerCase();
+  eq(ink, '#ffffff', 'dark button gets white ink');
+  const pale = resolveTheme({ ...base, button: '#FFE066' });
+  ok((pale.light['--on-brand'] ?? '').toLowerCase() !== '#ffffff', 'pale button gets dark ink');
+
+  // 6. Contrast is reported for the pair actually painted.
+  for (const face of ['light', 'dark'] as const) {
+    const check = withButton.contrast[face].find((c) => c.id === `${face}/on-brand-on-brand`);
+    ok(check != null, `${face}: primary-button pair is still reported`);
+    ok(check != null && check.ratio >= 4.5, `${face}: black button clears AA for its label`);
+  }
+
+  // 7. brandInk still forces the label, now against the button colour.
+  const forced = resolveTheme({ ...split, brandInk: 'dark' });
+  eq(forced.light['--on-brand'], '#0f172a', 'brandInk=dark still wins');
+
+  // 8. normalizeThemeConfig treats it like `accent`: valid hex kept, junk dropped, key absent.
+  eq(normalizeThemeConfig({ ...base, button: '#abcdef' }).button, '#ABCDEF', 'valid button hex kept');
+  ok(!('button' in normalizeThemeConfig({ ...base, button: 'nope' })), 'invalid button dropped');
+  ok(!('button' in normalizeThemeConfig(base)), 'absent button stays absent');
+  ok(!('button' in normalizeThemeConfig(null)), 'null config has no button');
+  // Round-trips through jsonb without picking up an explicit undefined.
+  eq(
+    JSON.stringify(normalizeThemeConfig(JSON.parse(JSON.stringify(split)))),
+    JSON.stringify(normalizeThemeConfig(split)),
+    'button survives a JSON round-trip',
+  );
+}
+
 /* ============================================================
    Structural sanity
    ============================================================ */
@@ -647,6 +745,7 @@ testContrast();
 testRamp();
 testCss();
 testNormalize();
+testButtonColour();
 testStructure();
 
 console.log(`\n${'─'.repeat(60)}`);

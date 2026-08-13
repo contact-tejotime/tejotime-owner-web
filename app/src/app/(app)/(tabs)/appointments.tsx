@@ -17,6 +17,13 @@ export default function Appointments() {
   const store = useAppState();
   const emptyStyles = useMemo(() => createEmptyStyles(theme), [theme]);
 
+  // Was the literal string "Thursday, 24 June" — it never changed with the date. Locale-
+  // formatted like the calendar's month label, so it needs no dictionary entry.
+  const todayLabel = useMemo(
+    () => new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }),
+    [],
+  );
+
   const staffById = useMemo(() => {
     const map: Record<string, string> = {};
     store.staff.forEach((st) => (map[st.id] = st.name));
@@ -27,7 +34,7 @@ export default function Appointments() {
     <>
       <THeader
         title={t.appointments.title}
-        subtitle="Thursday, 24 June"
+        subtitle={todayLabel}
         action={
           <IconButton variant="soft" accessibilityLabel={t.appointments.add} onPress={store.openWalkin}>
             <Icon name="plus" size={20} color={theme.colors.textBody} />
@@ -44,7 +51,7 @@ export default function Appointments() {
                 {t.appointments.empty}
               </TText>
               <TText variant="bodySm" color="textMuted" align="center" style={styles.mt2}>
-                Bookings for today show up here. Check Calendar for the rest of the week.
+                {t.appointments.emptyHint}
               </TText>
             </View>
           ) : (

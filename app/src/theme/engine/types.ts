@@ -267,6 +267,18 @@ export interface ThemeConfig {
   /** Optional `#rrggbb` override of the preset's accent strategy. */
   accent?: string;
   /**
+   * Optional `#rrggbb` for the primary BUTTON only. Absent → buttons follow `brand`, which is
+   * what every store did before this axis existed.
+   *
+   * Separate from `brand` because the two jobs pull apart: `brand` is the palette the whole
+   * microsite is tinted with (links, chips, hero gradient), while the button is a single control
+   * that often wants to be flatter or louder than the palette — black buttons on a blue site
+   * being the common ask. Only the solid button's fill, its hover/pressed states, its label ink
+   * and its outline read this; tints, links and the hero stay on `brand`, so setting it cannot
+   * wash out the rest of the theme.
+   */
+  button?: string;
+  /**
    * Primary button / on-brand label ink. Absent or `auto` → engine picks white or dark for
    * WCAG AA. `white` / `dark` force the label colour (contrast report still flags failures).
    */

@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import { API_BASE_URL } from '@/lib/config';
 import { clearTokens, getTokens, setTokens } from '@/lib/tokenStore';
 
@@ -73,13 +74,13 @@ async function raw<T = any>(method: string, path: string, body?: unknown, retry 
     if (await tryRefresh()) return raw<T>(method, path, body, false);
     await clearSession();
     onAuthFail?.();
-    throw new ApiError(401, 'UNAUTHENTICATED', 'Session expired');
+    throw new ApiError(401, 'UNAUTHENTICATED', t.toast.sessionExpired);
   }
 
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     const e = (json as any)?.error ?? {};
-    throw new ApiError(res.status, e.code ?? 'ERROR', e.message ?? 'Request failed');
+    throw new ApiError(res.status, e.code ?? 'ERROR', e.message ?? t.errors.requestFailed);
   }
   return json as T;
 }

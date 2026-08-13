@@ -4,8 +4,14 @@ import { useState } from "react";
 import { t, format } from "@/i18n";
 
 const AUDIENCES = [t.broadcasts.audienceAll, t.broadcasts.audienceCity, t.broadcasts.audiencePlan];
-// Canonical channel keys (also the checkbox state keys); labels are proper nouns.
+// Canonical channel keys double as the checkbox state keys, so they stay literal; the
+// visible labels come from the dictionary.
 const CHANNELS = ["SMS", "WhatsApp", "Push"] as const;
+const CHANNEL_LABELS: Record<(typeof CHANNELS)[number], string> = {
+  SMS: t.broadcasts.channelSms,
+  WhatsApp: t.broadcasts.channelWhatsApp,
+  Push: t.broadcasts.channelPush,
+};
 
 /**
  * Broadcast compose card (wireframe 1c). Visual placeholder — audience pills and
@@ -46,7 +52,7 @@ export default function BroadcastComposer({ ownerCount }: { ownerCount: number }
               onChange={(e) => setChannels((c) => ({ ...c, [ch]: e.target.checked }))}
               style={{ width: "auto" }}
             />
-            {ch}
+            {CHANNEL_LABELS[ch]}
           </label>
         ))}
         <button type="button" className="btn-primary" disabled style={{ marginLeft: "auto" }} title={t.common.comingSoon}>

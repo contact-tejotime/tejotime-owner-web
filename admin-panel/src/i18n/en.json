@@ -14,7 +14,23 @@
     "allStores": "All stores",
     "noData": "No data yet",
     "loading": "Loading",
-    "brandAlt": "TejoTime"
+    "loadingLabel": "Loading…",
+    "brandAlt": "TejoTime",
+    "never": "Never",
+    "today": "Today",
+    "daysAgo": "{count}d ago",
+    "weeksAgo": "{count}w ago",
+    "monthsAgo": "{count}mo ago"
+  },
+  "qr": {
+    "buttonTitle": "Booking QR — scan to book or save contact",
+    "buttonAria": "Booking QR",
+    "heading": "{name} — booking QR",
+    "printTitle": "{name} booking QR",
+    "subtitle": "Scan to book an appointment, or save this store as a contact.",
+    "downloadVcard": "Download vCard",
+    "print": "Print",
+    "storeFallback": "Store"
   },
   "charts": {
     "countBar": "Bar chart of {name} per month",
@@ -22,7 +38,9 @@
     "revenueArea": "Area chart of revenue over time",
     "walkIn": "Walk-in",
     "online": "Online",
-    "sourceEmpty": "No visits in this period yet"
+    "sourceEmpty": "No visits in this period yet",
+    "revenueLabel": "Revenue",
+    "visitsLabel": "Visits"
   },
   "meta": {
     "title": "TejoTime Admin",
@@ -155,7 +173,8 @@
     "disableTitle": "Disable {name}?",
     "disableBody": "The microsite goes offline and online bookings stop. Existing data is kept.",
     "disableConfirm": "Disable store",
-    "updateFailed": "Update failed"
+    "updateFailed": "Update failed",
+    "updateFailedStatus": "Update failed ({status})"
   },
   "storeHub": {
     "active": "Active",
@@ -358,7 +377,38 @@
     "colRole": "Role",
     "colLastActive": "Last active",
     "auditLog": "Audit log",
-    "rolesNote": "Roles: Owner = everything · Support = stores + customers, no billing · Analyst = read-only + reports."
+    "rolesNote": "Roles: Owner = everything · Support = stores + customers, no billing · Analyst = read-only + reports.",
+    "staticMembers": [
+      {
+        "name": "Ravi (you)",
+        "role": "Owner",
+        "lastActive": "now"
+      },
+      {
+        "name": "Sneha",
+        "role": "Support",
+        "lastActive": "2h ago"
+      },
+      {
+        "name": "Karan",
+        "role": "Analyst",
+        "lastActive": "1d ago"
+      }
+    ],
+    "staticAudit": [
+      {
+        "time": "10:41",
+        "text": "Sneha edited Glow & Go services"
+      },
+      {
+        "time": "09:12",
+        "text": "Ravi deactivated Style Studio"
+      },
+      {
+        "time": "Yesterday",
+        "text": "Karan exported stores.csv"
+      }
+    ]
   },
   "broadcasts": {
     "title": "Broadcasts",
@@ -375,7 +425,17 @@
     "messagePlaceholder": "New: WhatsApp booking reminders are live…",
     "sendTo": "Send to {count} owner",
     "sendToPlural": "Send to {count} owners",
-    "notWired": "Sending is not wired up yet — messaging backend coming soon."
+    "notWired": "Sending is not wired up yet — messaging backend coming soon.",
+    "historyItems": [
+      {
+        "title": "Price update notice",
+        "meta": "Jul 2 · 12 sent · 92% read"
+      },
+      {
+        "title": "Diwali campaign kit",
+        "meta": "Jun 20 · 10 sent · 80% read"
+      }
+    ]
   },
   "imageUpload": {
     "noImage": "No image",
@@ -387,7 +447,30 @@
     "partialFail": "{failed} of {total} photo failed: {reason}",
     "partialFailPlural": "{failed} of {total} photos failed: {reason}",
     "galleryCount": "{count} of {max}",
-    "galleryMaxSkipped": "Only {max} photos can be shown, so the extras were skipped."
+    "galleryMaxSkipped": "Only {max} photos can be shown, so the extras were skipped.",
+    "uploadFailedStatus": "Upload failed ({status})"
+  },
+  "imageCrop": {
+    "title": "Crop image",
+    "hint": "Drag to reposition, scroll or use the slider to zoom. The shaded area is what gets saved.",
+    "step": "Image {index} of {total}",
+    "zoom": "Zoom",
+    "rotate": "Rotate",
+    "reset": "Reset",
+    "cancel": "Cancel",
+    "apply": "Apply crop",
+    "applying": "Applying…",
+    "failed": "Could not process that image. Try another one.",
+    "errType": "That file type isn’t supported. Choose a JPEG, PNG or WebP image.",
+    "errSize": "That image is over {mb} MB. Choose a smaller one."
+  },
+  "imagePreview": {
+    "title": "Image preview",
+    "open": "Open full size",
+    "close": "Close preview",
+    "previous": "Previous image",
+    "next": "Next image",
+    "counter": "{index} of {total}"
   },
   "confirm": {
     "cancel": "Cancel",
@@ -469,6 +552,7 @@
     "staffName": "Name",
     "staffRole": "Role",
     "staffRolePlaceholder": "e.g. Master barber",
+    "staffPhoto": "Photo",
     "addStaff": "+ Add staff",
     "servicesStaffOptionalHint": "Optional for Hospital and Restaurant — leave blank if not applicable.",
     "faqTitle": "Good to know (Q&A)",
@@ -501,7 +585,8 @@
     "instagramUrl": "Instagram",
     "facebookUrl": "Facebook",
     "twitterUrl": "X (Twitter)",
-    "linkedinUrl": "LinkedIn"
+    "linkedinUrl": "LinkedIn",
+    "paymentsDefault": "UPI, Card, Cash"
   },
   "appearance": {
     "title": "Appearance",
@@ -514,9 +599,10 @@
     "brandCustom": "Brand color hex",
     "brandPickerLabel": "Pick a brand color",
     "brandSwatchLabel": "{name} — {hex}",
+    "previewBook": "Book",
     "rampTitle": "Generated palette",
     "rampStep": "Step {step} — {hex}",
-    "rampCaption": "Buttons and links render as {brand}.",
+    "rampCaption": "Links, chips and the banner render as {brand}.",
     "aaWhite": "AA — white text on brand ({ratio}:1)",
     "aaDark": "Using dark text for contrast ({ratio}:1)",
     "aaPass": "All contrast checks pass",
@@ -525,6 +611,30 @@
     "aaManualFail": "Your button label choice is below 4.5:1 on this brand ({ratio}:1). It will still apply — consider a darker brand or Auto.",
     "brandInkTitle": "Button label color",
     "brandInkHint": "Text on primary buttons. Auto picks white or dark for contrast; White/Dark force a choice.",
+    "buttonTitle": "Button colour",
+    "buttonHint": "The solid primary button. Independent of the theme colour, so a black button can sit on a blue site — links, chips and the banner keep the theme colour.",
+    "buttonSourceLegend": "Button colour source",
+    "buttonSourceTheme": "Same as theme colour",
+    "buttonSourceThemeDesc": "Buttons follow the theme colour. The default.",
+    "buttonSourceCustom": "Custom colour",
+    "buttonSourceCustomDesc": "Pick a colour for buttons only. Changing the theme colour will not overwrite it.",
+    "buttonPickerLabel": "Pick a button colour",
+    "buttonCustom": "Button colour hex",
+    "buttonPreviewLabel": "Book now",
+    "buttonInkPass": "Label contrast {ratio}:1 — passes AA",
+    "buttonInkFail": "Label contrast {ratio}:1 — below AA, pick a darker or lighter button",
+    "buttonSwatches": {
+      "black": "Black",
+      "charcoal": "Charcoal",
+      "ink": "Ink",
+      "blue": "TejoTime blue",
+      "pine": "Pine",
+      "violet": "Violet",
+      "pink": "Pink",
+      "red": "Red",
+      "orange": "Orange",
+      "gold": "Gold"
+    },
     "brandInks": {
       "auto": {
         "label": "Auto",
@@ -674,7 +784,9 @@
       "desktop": "Desktop",
       "tablet": "Tablet",
       "mobile": "Mobile"
-    }
+    },
+    "linkAa": "Links {ratio}:1 on the page — passes AA",
+    "linkAaFail": "Links {ratio}:1 on the page — below AA, try a darker theme colour"
   },
   "search": {
     "placeholder": "Search customers by name or phone…",
@@ -699,5 +811,16 @@
     "storageRejected": "Storage rejected the upload ({status}). {text}",
     "unreachable": "unreachable",
     "uploadFailed": "upload failed"
+  },
+  "days": {
+    "long": [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday"
+    ]
   }
 }
