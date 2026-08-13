@@ -66,6 +66,24 @@ export default function CustomersDirectory({
   const [profiles, setProfiles] = useState<Record<string, ProfileVisits>>({});
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const inflight = useRef<Set<string>>(new Set());
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Selecting a row, and dragging the profile into view on the stacked layout.
+   *
+   * Below 900px the profile panel sits under the WHOLE list, so on a phone a tap updates a panel
+   * that is several screens down and reads as "nothing happened". Scrolling lives here rather
+   * than in an effect on `selected` so it fires only on a real tap — `selected` also changes on
+   * mount and whenever a filter drops the current pick, and neither should yank the page.
+   */
+  function selectCustomer(key: string) {
+    setSelectedKey(key);
+    if (!window.matchMedia("(max-width: 900px)").matches) return;
+    profileRef.current?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start",
+    });
+  }
 
   // Reset paging whenever the filter inputs change so a narrower filter starts at
   // the top. Done during render (not in an effect) via the previous-value pattern.
@@ -251,14 +269,14 @@ export default function CustomersDirectory({
                     <tr
                       key={c.key}
                       className={`clickable ${selected?.key === c.key ? "sel" : ""}`}
-                      onClick={() => setSelectedKey(c.key)}
+                      onClick={() => selectCustomer(c.key)}
                       tabIndex={0}
                       role="button"
                       aria-pressed={selected?.key === c.key}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          setSelectedKey(c.key);
+                          selectCustomer(c.key);
                         }
                       }}
                     >
@@ -295,7 +313,7 @@ export default function CustomersDirectory({
           )}
         </div>
 
-        <div className="cust-profile">
+        <div className="cust-profile" ref={profileRef}>
           {!selected ? (
             <div className="profile-empty">{t.customers.selectPrompt}</div>
           ) : (

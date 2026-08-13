@@ -379,6 +379,13 @@ button {
   font-size: 16px;
   color: var(--text-strong);
 }
+/* .field-hint normally sits under an input, where a 5px lead-in is right. Directly after a
+   section heading it is that section's subtitle instead, so it pulls up to the heading and owns
+   the gap to the content below. The negative margin collapses against the h2's 14px. */
+.section > h2 + .field-hint {
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
 
 /* Profile — secondary account + password fold (collapsed by default) */
 .account-fold {
@@ -4290,4 +4297,5 @@ textarea:focus {
   .ap-card {
     transition: none;
   }
+}
 

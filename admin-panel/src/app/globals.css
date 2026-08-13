@@ -267,6 +267,12 @@ a {
   font-size: 16px;
   color: var(--text-strong);
 }
+/* A hint straight after a section heading reads as its subtitle, so it pulls up to the heading
+   and owns the gap to the content below. The negative margin collapses against the h2's 14px. */
+.section > h2 + .hint {
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
 
 /* ---------- Store table (All stores list) ---------- */
 .table-wrap {
@@ -500,6 +506,10 @@ textarea {
 .row.faq {
   grid-template-columns: 1fr 1.6fr auto;
 }
+/* Stars size to their content; the comment gets the slack, the author name a fixed share. */
+.row.review {
+  grid-template-columns: auto 2fr 1.2fr auto;
+}
 .hours-row {
   display: grid;
   grid-template-columns: 120px 1fr 1fr 120px;
@@ -690,7 +700,8 @@ button {
   .row.service,
   .row.staff,
   .row.gallery,
-  .row.faq {
+  .row.faq,
+  .row.review {
     grid-template-columns: 1fr 1fr;
   }
   .hours-row {

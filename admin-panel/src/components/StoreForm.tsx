@@ -336,10 +336,10 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
         </section>
 
         {/* Social links ------------------------------------------------- */}
-        <section className="card">
+        <section className="section">
           <h2>{t.storeForm.socialTitle}</h2>
           <p className="hint">{t.storeForm.socialHint}</p>
-          <div className="grid2">
+          <div className="grid">
             {SOCIAL_FIELDS.map((f) => (
               <div className="field" key={f.key}>
                 <label htmlFor={`sf-${f.key}`}>{t.storeForm[f.key]}</label>
