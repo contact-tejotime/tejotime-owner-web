@@ -53,7 +53,11 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "reverse": "adb reverse tcp:8080 tcp:8080 && adb reverse tcp:3000 tcp:3000"
+    "reverse": "adb reverse tcp:8080 tcp:8080 && adb reverse tcp:3000 tcp:3000",
+    "build:preprod": "bash ./scripts/build-android.sh preprod",
+    "build:prod": "bash ./scripts/build-android.sh prod",
+    "eas:preprod": "eas build --platform android --profile preprod",
+    "eas:prod": "eas build --platform android --profile production"
   },
   "private": true
 }

@@ -385,19 +385,22 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
         <p className="field-hint">
           {t.profile.socialHint}
         </p>
-        {SOCIALS.map((s) => (
-          <div className="field" key={s.key}>
-            <label htmlFor={`sp-${s.key}`}>{s.label}</label>
-            <input
-              id={`sp-${s.key}`}
-              type="url"
-              inputMode="url"
-              placeholder={s.placeholder}
-              value={draft[s.key]}
-              onChange={(e) => set(s.key, e.target.value)}
-            />
-          </div>
-        ))}
+        {/* Four short URL fields pair up from 560px, matching the stat/hero rows above. */}
+        <div className="field-row">
+          {SOCIALS.map((s) => (
+            <div className="field" key={s.key}>
+              <label htmlFor={`sp-${s.key}`}>{s.label}</label>
+              <input
+                id={`sp-${s.key}`}
+                type="url"
+                inputMode="url"
+                placeholder={s.placeholder}
+                value={draft[s.key]}
+                onChange={(e) => set(s.key, e.target.value)}
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="section">

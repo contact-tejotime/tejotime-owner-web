@@ -43,3 +43,6 @@ example
 # generated native folders
 /ios
 /android
+
+# Named release APKs from scripts/build-android.sh (100MB+ binaries, never committed)
+/build-apk

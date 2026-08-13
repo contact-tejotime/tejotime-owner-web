@@ -11,14 +11,19 @@
         "buildType": "apk"
       }
     },
-    "preview": {
+    "preprod": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "environment": "preview"
+    },
+    "preview": {
+      "extends": "preprod"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "environment": "production"
     }
   },
   "submit": {
