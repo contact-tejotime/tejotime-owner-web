@@ -1,17 +1,18 @@
 import { PageHeader } from "@/components/PageHeader";
+import { t } from "@/i18n";
 
 export default function SubscriptionSettingsPage() {
   return (
     <div className="wrap">
-      <PageHeader title="Subscription" subtitle="Plan and billing" />
+      <PageHeader title={t.subscription.title} subtitle={t.subscription.subtitle} />
       <div className="section">
-        <h2>Current plan</h2>
+        <h2>{t.subscription.currentPlan}</h2>
         <p>
-          <strong>Premium</strong> — mock plan for Sharp Cut Salon
+          <strong>{t.subscription.premium}</strong> — {t.subscription.planLine}
         </p>
-        <p className="hint">Renews on the 1st of each month. Billing UI will connect later.</p>
+        <p className="hint">{t.subscription.note}</p>
         <button type="button" className="btn secondary">
-          Manage plan
+          {t.subscription.manage}
         </button>
       </div>
     </div>

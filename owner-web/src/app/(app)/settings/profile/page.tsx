@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { t } from "@/i18n";
 
 import { AccountSettingsPanel } from "@/components/AccountSettingsPanel";
 import { BusinessProfileForm } from "@/components/BusinessProfileForm";
@@ -50,8 +51,8 @@ export default async function ProfileSettingsPage() {
       ) : (
         <>
           <PageHeader
-            title="Profile"
-            subtitle="Business and account details"
+            title={t.account.title}
+            subtitle={t.account.subtitle}
           />
           {canEditBusiness ? (
             <BusinessProfileForm
@@ -64,23 +65,23 @@ export default async function ProfileSettingsPage() {
 
       <AccountSettingsPanel>
         <div className="section">
-          <h2>Your account</h2>
+          <h2>{t.account.section}</h2>
           <div className="field">
-            <label htmlFor="pf-user">Name</label>
+            <label htmlFor="pf-user">{t.account.name}</label>
             <input id="pf-user" defaultValue={me.user.name ?? ""} readOnly />
           </div>
           <div className="field">
-            <label htmlFor="pf-role">Role</label>
+            <label htmlFor="pf-role">{t.account.role}</label>
             <input
               id="pf-role"
               defaultValue={
-                me.user.isSuperOwner ? "Owner (account holder)" : ROLE_LABELS[me.user.role]
+                me.user.isSuperOwner ? t.account.ownerRole : ROLE_LABELS[me.user.role]
               }
               readOnly
             />
           </div>
           <p className="hint">
-            Your name is set by whoever created this login. Ask the business owner to change it.
+            {t.account.nameHint}
           </p>
         </div>
 

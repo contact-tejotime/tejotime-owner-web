@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { t } from "@/i18n";
 
 import { PageHeader } from "@/components/PageHeader";
 import { TeamManager } from "@/components/TeamManager";
@@ -26,8 +27,8 @@ export default async function TeamSettingsPage() {
   return (
     <div className="wrap">
       <PageHeader
-        title="Team logins"
-        subtitle="Who can sign in, and what each of them sees"
+        title={t.teamPage.title}
+        subtitle={t.teamPage.subtitle}
       />
 
       {team ? (
@@ -41,7 +42,7 @@ export default async function TeamSettingsPage() {
           currentUserId={me.user.id}
         />
       ) : (
-        <p className="home-empty">Could not load your team right now. Try again in a moment.</p>
+        <p className="home-empty">{t.teamPage.loadError}</p>
       )}
     </div>
   );

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { t } from "@/i18n";
 
 import { Icon } from "@/components/Icon";
 import type { Me } from "@/lib/server-api";
@@ -26,7 +27,7 @@ export function ScopeNotice({ me, context }: { me: Me; context: string }) {
       <div className="scope-notice warn" role="status">
         <Icon name="bell" size={16} />
         <div>
-          <strong>Your login isn&apos;t linked to a chair yet.</strong>
+          <strong>{t.scope.noChair}</strong>
           <p>
             Until the business owner links it, {context} will stay empty. Ask them to open
             Settings → Team logins and pick your chair.
@@ -39,9 +40,9 @@ export function ScopeNotice({ me, context }: { me: Me; context: string }) {
   return (
     <p className="scope-notice">
       <Icon name="user" size={14} />
-      Showing your chair only.{" "}
+      {t.scope.showingChair}{" "}
       <Link href="/settings/profile" className="home-link">
-        Your account
+        {t.scope.yourAccount}
       </Link>
     </p>
   );

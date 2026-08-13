@@ -86,7 +86,7 @@ export default function StoresTable({ stores }: { stores: StoreListItemWithMetri
         });
         if (!res.ok) {
           const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
-          throw new Error(json.error?.message || `Update failed (${res.status})`);
+          throw new Error(json.error?.message || format(t.storeStatus.updateFailedStatus, { status: res.status }));
         }
       }),
     );

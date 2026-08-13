@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { t, format } from "@/i18n";
 
 /** Backend base URL. Server-side runtime only — deliberately not NEXT_PUBLIC_. */
 export const BACKEND = process.env.BACKEND_API_BASE_URL ?? "http://localhost:8080/api/v1";
@@ -35,7 +36,7 @@ export function assertSameOrigin(req: NextRequest): NextResponse | null {
   }
 
   return NextResponse.json(
-    { error: { message: "Cross-site request rejected." } },
+    { error: { message: t.http.csrf } },
     { status: 403 },
   );
 }
@@ -47,9 +48,9 @@ export interface BackendError {
 
 /** Uniform 502 when the API itself is unreachable, matching admin-panel's behaviour. */
 export function unreachable(e: unknown): NextResponse {
-  const message = e instanceof Error ? e.message : "Unknown error";
+  const message = e instanceof Error ? e.message : t.http.unknown;
   return NextResponse.json(
-    { error: { message: `Could not reach the API at ${BACKEND}: ${message}` } },
+    { error: { message: format(t.http.unreachable, { base: BACKEND, message }) } },
     { status: 502 },
   );
 }

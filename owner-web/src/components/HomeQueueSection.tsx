@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { t } from "@/i18n";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Icon } from "@/components/Icon";
@@ -65,23 +66,23 @@ export function HomeQueueSection({
 
   return (
     <>
-      <h2 className="home-section-title">Quick actions</h2>
+      <h2 className="home-section-title">{t.dashboard.quickActions}</h2>
       <div className={`home-actions${soloAction ? " home-actions-solo" : ""}`}>
         <button type="button" className="btn home-action-primary" onClick={() => setWalkInOpen(true)}>
           <Icon name="plus" size={18} color="#fff" />
-          Add walk-in
+          {t.dashboard.addWalkIn}
         </button>
         {qrReady ? (
           <StoreBookingQr
             variant="button"
-            label="Contact QR"
+            label={t.dashboard.contactQr}
             cardUrl={cardUrl!}
-            storeName={storeName || "Store"}
+            storeName={storeName || t.dashboard.storeFallback}
           />
         ) : null}
       </div>
 
-      <h2 className="home-section-title">{singleChair ? "Your queue" : "Queue"}</h2>
+      <h2 className="home-section-title">{singleChair ? t.dashboard.yourQueue : t.dashboard.queue}</h2>
       <QueueBoard
         initialSeats={seats}
         staff={staff}

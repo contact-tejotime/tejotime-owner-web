@@ -43,7 +43,7 @@ export default function RevenueTrendChart({ data, currency }: { data: DailyValue
         />
         <Tooltip
           contentStyle={TOOLTIP_STYLE}
-          formatter={(value) => [formatAmount(Number(value), currency), "Revenue"]}
+          formatter={(value) => [formatAmount(Number(value), currency), t.charts.revenueLabel]}
           labelFormatter={(label) => formatDayShort(String(label))}
         />
         <Area

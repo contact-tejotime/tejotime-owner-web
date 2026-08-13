@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { t, format } from "@/i18n";
 
 import { Icon } from "@/components/Icon";
 import { Skeleton, Spinner } from "@/components/Skeleton";
@@ -37,10 +38,10 @@ interface Billing {
 }
 
 const TOASTS: Record<string, string> = {
-  start: "Service started",
-  checkout: "Checked out",
-  "no-show": "Marked as a no-show",
-  reassign: "Moved to another seat",
+  start: t.detail.started,
+  checkout: t.detail.checkedOut,
+  "no-show": t.detail.noShow,
+  reassign: t.detail.movedSeat,
 };
 
 export function QueueDetailSheet({
@@ -97,14 +98,14 @@ export function QueueDetailSheet({
         const json = await res.json().catch(() => ({}));
         if (!alive) return;
         if (!res.ok) {
-          setError(json?.error?.message ?? "Could not load the price for this customer.");
+          setError(json?.error?.message ?? t.detail.errPrice);
           return;
         }
         setBilling(json as Billing);
         // Pre-fill with what the shop would charge today, so the common case is one tap.
         setAmount(rupees(json.suggestedAmount?.amount ?? 0));
       } catch {
-        if (alive) setError("Could not reach the server.");
+        if (alive) setError(t.detail.networkError);
       }
     })();
     return () => {
@@ -112,7 +113,7 @@ export function QueueDetailSheet({
     };
   }, [entryId]);
 
-  async function send(path: string, body?: unknown, fallback = "That didn't work.") {
+  async function send(path: string, body?: unknown, fallback = t.common.thatDidntWork) {
     setBusy(true);
     setError("");
     try {
@@ -128,7 +129,7 @@ export function QueueDetailSheet({
       }
       return true;
     } catch {
-      setError("Could not reach the server.");
+      setError(t.detail.networkError);
       return false;
     } finally {
       setBusy(false);
@@ -138,7 +139,7 @@ export function QueueDetailSheet({
   async function act(action: string, body?: unknown) {
     const ok = await send(`/api/queue/${entryId}/${action}`, body);
     if (ok) {
-      showToast(TOASTS[action] ?? "Done", "success");
+      showToast(TOASTS[action] ?? t.detail.done, "success");
       onChanged();
       onClose();
     }
@@ -172,7 +173,7 @@ export function QueueDetailSheet({
   async function onComplete() {
     const value = Number(amount);
     if (!Number.isFinite(value) || value < 0) {
-      setError("Enter the amount to charge.");
+      setError(t.detail.errAmount);
       return;
     }
     // Rupees in the box, paise on the wire — money crosses the API as an integer minor unit,
@@ -202,7 +203,7 @@ export function QueueDetailSheet({
               {[card.seatName, card.service, card.rightText].filter(Boolean).join(" · ")}
             </p>
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+          <button type="button" className="icon-btn" onClick={onClose} aria-label={t.detail.close}>
             <Icon name="x" size={18} />
           </button>
         </header>
@@ -216,8 +217,8 @@ export function QueueDetailSheet({
         {inService ? (
           <>
             <div className="checkout-block">
-              <h3>Amount to charge</h3>
-              <p className="field-hint">Edit if the final bill is different.</p>
+              <h3>{t.detail.amount}</h3>
+              <p className="field-hint">{t.detail.amountHint}</p>
 
               <div className="amount-row">
                 <span className="amount-prefix">₹</span>
@@ -233,7 +234,7 @@ export function QueueDetailSheet({
                   // Editable only once the suggestion has landed, so a fast typist cannot have
                   // their figure overwritten by the response arriving a moment later.
                   disabled={!billing}
-                  aria-label="Amount to charge"
+                  aria-label={t.detail.amount}
                 />
                 {!billing ? <Spinner size={16} /> : null}
               </div>
@@ -249,8 +250,8 @@ export function QueueDetailSheet({
                     className="addon-chip addon-chip-icon"
                     disabled={busy || !billing}
                     onClick={() => addExtra(a.label, a.minutes)}
-                    title={`${a.label} · +${a.minutes}m`}
-                    aria-label={`Add ${a.label}, +${a.minutes} minutes`}
+                    title={format(t.detail.addonTitle, { label: a.label, minutes: a.minutes })}
+                    aria-label={format(t.detail.addExtra, { label: a.label, minutes: a.minutes })}
                   >
                     <Icon name="plus" size={14} />
                     <Icon name={a.icon} size={15} />
@@ -262,19 +263,19 @@ export function QueueDetailSheet({
               {billing ? (
                 <ul className="amount-breakdown">
                   <li>
-                    <span>{card.service ?? "Service"}</span>
+                    <span>{card.service ?? t.detail.service}</span>
                     <span>{formatMoney(billing.serviceAmount)}</span>
                   </li>
                   {billing.extras.map((x) => (
                     <li key={x.id}>
                       <span>
-                        {x.label} · +{x.minutes}m
+                        {format(t.detail.extraLine, { label: x.label, minutes: x.minutes })}
                       </span>
                       <span>{formatMoney({ ...billing.extrasAmount, amount: x.pricePaise })}</span>
                     </li>
                   ))}
                   <li className="total">
-                    <span>Suggested</span>
+                    <span>{t.detail.suggested}</span>
                     <span>{formatMoney(billing.suggestedAmount)}</span>
                   </li>
                 </ul>
@@ -290,14 +291,14 @@ export function QueueDetailSheet({
             {/* Red, matching the board's End — it is the same action. */}
             <button type="button" className="btn danger block btn-xl" onClick={onComplete} disabled={busy}>
               {busy ? <Spinner size={16} /> : null}
-              Complete &amp; start next
+              {t.detail.completeAndNext}
             </button>
           </>
         ) : (
           <>
             {otherSeats.length > 0 ? (
               <div className="addon-block">
-                <h3>Move to another seat</h3>
+                <h3>{t.detail.moveSeat}</h3>
                 <div className="addon-row">
                   {otherSeats.map((s) => (
                     <button
@@ -321,7 +322,7 @@ export function QueueDetailSheet({
               disabled={busy}
             >
               {busy ? <Spinner size={16} /> : null}
-              Start service
+              {t.detail.startService}
             </button>
           </>
         )}

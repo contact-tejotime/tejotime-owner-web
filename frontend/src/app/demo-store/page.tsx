@@ -3,6 +3,7 @@ import { ApiError, publicApi } from "@/lib/api";
 import MicrositeClient from "@/components/microsite/MicrositeClient";
 import ThemeStyle from "@/theme/ThemeStyle";
 import { micrositeThemeConfig } from "@/theme";
+import { t, format } from "@/i18n";
 
 // Live data — opt out of full-route caching so the server fetch runs per request.
 export const dynamic = "force-dynamic";
@@ -16,11 +17,11 @@ export default async function DemoStorePage() {
     initialSite = await publicApi.getMicrosite("demo-store");
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) notFound(); // demo store not seeded yet
-    const message = e instanceof Error ? e.message : "Failed to load";
+    const message = e instanceof Error ? e.message : t.errorPage.failedToLoad;
     return (
       <div style={{ minHeight: "60vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 32, textAlign: "center" }}>
-        <span style={{ font: "var(--fw-bold) 20px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>Could not load this salon</span>
-        <span style={{ font: "var(--fw-regular) 14px/1.4 var(--font-sans)", color: "var(--text-muted)" }}>{message}. Is the API running?</span>
+        <span style={{ font: "var(--fw-bold) 20px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{t.errorPage.title}</span>
+        <span style={{ font: "var(--fw-regular) 14px/1.4 var(--font-sans)", color: "var(--text-muted)" }}>{format(t.errorPage.apiHint, { message })}</span>
       </div>
     );
   }

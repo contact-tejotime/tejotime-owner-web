@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { t, format, plural } from "@/i18n";
 import { redirect } from "next/navigation";
 
 import { AppointmentActions } from "@/components/AppointmentActions";
@@ -39,7 +40,7 @@ function ymKey(year: number, month: number): string {
   return `${year}-${String(month + 1).padStart(2, "0")}`;
 }
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAYS = t.calendar.days;
 
 /**
  * Month calendar matching the Expo owner app: navigate months, tap a day, see that day's
@@ -116,13 +117,13 @@ export default async function CalendarPage({
   return (
     <div className="page-app">
       <AppPageHeader
-        title="Calendar"
+        title={t.calendar.title}
         subtitle={
-          inMonthCount === 1 ? "1 booking this month" : `${inMonthCount} bookings this month`
+          plural(inMonthCount, t.calendar.bookingsOne, t.calendar.bookings)
         }
       />
 
-      <ScopeNotice me={me} context="your calendar" />
+      <ScopeNotice me={me} context={t.calendar.scopeContext} />
 
       <div className="cal-layout">
         <div className="cal-panel section">
@@ -130,7 +131,7 @@ export default async function CalendarPage({
             <Link
               href={`/calendar?ym=${prevYm}`}
               className="btn secondary btn-sm btn-icon"
-              aria-label="Previous month"
+              aria-label={t.calendar.prevMonth}
             >
               <Icon name="chevronLeft" size={18} />
             </Link>
@@ -138,7 +139,7 @@ export default async function CalendarPage({
             <Link
               href={`/calendar?ym=${nextYm}`}
               className="btn secondary btn-sm btn-icon"
-              aria-label="Next month"
+              aria-label={t.calendar.nextMonth}
             >
               <Icon name="chevronRight" size={18} />
             </Link>
@@ -181,14 +182,14 @@ export default async function CalendarPage({
 
         <div className="cal-agenda">
           <h2 className="home-section-title cal-day-heading">
-            {selectedKey === todayKey ? `Today · ${selectedLabel}` : selectedLabel}
+            {selectedKey === todayKey ? format(t.calendar.todayLabel, { label: selectedLabel }) : selectedLabel}
           </h2>
 
           {selectedItems.length === 0 ? (
             <div className="week-empty">
-              <p className="nm">Nothing booked this day</p>
+              <p className="nm">{t.calendar.empty}</p>
               <p className="sub">
-                Bookings made online or added here will appear on the day they are scheduled.
+                {t.calendar.emptyHint}
               </p>
             </div>
           ) : (
@@ -198,7 +199,7 @@ export default async function CalendarPage({
                   <div className="appt-time">{formatTime(a.scheduledStartAt)}</div>
                   <div className="appt-body">
                     <div className="nm">{a.customerName}</div>
-                    <div className="meta">{a.serviceName ?? "No service selected"}</div>
+                    <div className="meta">{a.serviceName ?? t.calendar.noService}</div>
                     <AppointmentActions id={a.id} status={a.status} />
                   </div>
                   <span className={`chip ${a.status}`}>{a.status.replace("_", " ")}</span>

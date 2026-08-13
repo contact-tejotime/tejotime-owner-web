@@ -286,11 +286,52 @@
   grid-template-columns: 1fr;
   gap: 16px;
 }
-/* ---- Stat cards ---- */
+/* ---- Stat cards ----
+   Values are set here, not inline, because the phone layout has to shrink them: two columns on a
+   360px screen leaves ~110px of content width per card, and a 34px value like "Walk in now" wrapped
+   to three lines and made the tiles taller than the section above them. */
 .ttStatGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
+}
+.ttStatCard {
+  padding: 26px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(22px * var(--radius-scale, 1));
+  box-shadow: var(--shadow-xs);
+}
+.ttStatIcon { display: flex; color: var(--primary); }
+.ttStatValue {
+  margin-top: 22px;
+  font: var(--fw-extrabold) 34px/1 var(--font-sans);
+  letter-spacing: -.035em;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+  /* Long text values ("Walk in now") must break inside the tile, never overflow it. */
+  overflow-wrap: anywhere;
+}
+.ttStatLabel {
+  margin-top: 10px;
+  font: var(--fw-medium) 13px/1.4 var(--font-sans);
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .ttStatGrid { gap: 10px; }
+  .ttStatCard { padding: 14px 15px; border-radius: calc(16px * var(--radius-scale, 1)); }
+  /* The icon carries the <Icon size> prop, so it is scaled down here rather than in JS. */
+  .ttStatIcon svg { width: 15px; height: 15px; }
+  .ttStatValue {
+    margin-top: 10px;
+    font: var(--fw-extrabold) 20px/1.15 var(--font-sans);
+    letter-spacing: -.02em;
+  }
+  .ttStatLabel {
+    margin-top: 4px;
+    font: var(--fw-medium) 12px/1.35 var(--font-sans);
+  }
 }
 /* ---- Reviews ---- */
 .ttReviewGrid {
@@ -298,6 +339,34 @@
   grid-template-columns: 1fr;
   gap: 16px;
 }
+/* ---- Services: dense menu grid ----
+   One row per service read as an invoice once a salon listed more than a handful. A grid keeps
+   30 treatments scannable and 2 treatments still deliberate, because the cards size to content
+   rather than stretching to fill the page. Columns step at the same 641/1120 breakpoints as the
+   other v3 grids, in CSS, so the server render is right at every width. */
+.ttServiceGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.ttServiceCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 18px;
+  text-align: left;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(16px * var(--radius-scale, 1));
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  /* The card is a <button>; these stop the UA sheet from fighting the layout above. */
+  font: inherit;
+  color: inherit;
+  appearance: none;
+}
+
 /* ---- Gallery mosaic ---- */
 .ttMosaic {
   display: grid;
@@ -308,12 +377,30 @@
 }
 .ttMosaic > * { grid-column: span 1; grid-row: span 1; }
 
-/* ---- Service rows collapse to two lines on narrow screens ---- */
-@media (max-width: 560px) {
-  .ttServiceRow { align-items: flex-start; }
+/* ---- Phone: strip the card back to a menu row ----
+   Four stacked lines per service is a lot of chrome on a 360px screen. The index and the "Book"
+   label both go: the card is a full-width <button>, which on a phone reads as tappable on its
+   own, and its aria-label still announces "Book {name}, {price}" so nothing is lost to a screen
+   reader. What is left is what a customer actually scans — name, then duration and price. */
+@media (max-width: 640px) {
+  .ttServiceCard { padding: 13px 15px; gap: 6px; }
+  .ttServiceNum,
+  .ttServiceBook { display: none; }
+}
+
+/* ---- Long menus stay thumb-friendly on a phone ----
+   Every card is rendered (server output is complete and crawlable); the overflow is hidden with
+   CSS on small screens only, and the toggle appears with it. Desktop has the columns to show
+   the lot, so neither rule applies there. The toggle is hidden by default so it can never show
+   up on desktop. */
+.ttServiceMore { display: none; }
+@media (max-width: 640px) {
+  .ttServiceGrid[data-collapsed="true"] > *:nth-child(n + 10) { display: none; }
+  .ttServiceGrid[data-collapsed="true"] + .ttServiceMore { display: inline-flex; }
 }
 
 @media (min-width: 641px) {
+  .ttServiceGrid { grid-template-columns: repeat(2, 1fr); }
   .ttLiveGrid   { grid-template-columns: repeat(auto-fit, minmax(268px, 1fr)); }
   .ttStatGrid   { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
   .ttReviewGrid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
@@ -324,6 +411,10 @@
 
 /* ---- v3's own breakpoints ---- */
 /* Nav links are the first thing to go — they are duplicated in the page anyway. */
+@media (min-width: 1120px) {
+  .ttServiceGrid { grid-template-columns: repeat(3, 1fr); }
+}
+
 @media (max-width: 1120px) { [data-shed] { display: none !important; } }
 /* Below 860 the sticky action bar takes over from the desktop header CTAs. */
 .ttMobileBar { display: none; }

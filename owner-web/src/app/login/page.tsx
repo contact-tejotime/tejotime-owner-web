@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import PhoneField from "@/components/PhoneField";
+import { t } from "@/i18n";
 import { SupportContact } from "@/components/SupportContact";
 import {
   combineToDigits,
@@ -14,14 +15,8 @@ import {
 type AccountType = "owner" | "staff";
 
 const COPY: Record<AccountType, { title: string; sub: string }> = {
-  owner: {
-    title: "Owner sign in",
-    sub: "For the business owner and co-owners. Full access to the shop.",
-  },
-  staff: {
-    title: "Staff sign in",
-    sub: "For team members. You will see your own chair and whatever the owner has shared.",
-  },
+  owner: { title: t.auth.ownerTitle, sub: t.auth.ownerSubtitle },
+  staff: { title: t.auth.staffTitle, sub: t.auth.staffSubtitle },
 };
 
 /**
@@ -60,7 +55,7 @@ export default function LoginPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(json?.error?.message ?? "Could not sign in. Check your number and password.");
+        setError(json?.error?.message ?? t.auth.signInFailed);
         return;
       }
       // Where to land depends on what this account can open — a staff member with no
@@ -69,7 +64,7 @@ export default function LoginPage() {
       // The (app) layout reads the session on the server, so the cache has to be dropped.
       router.refresh();
     } catch {
-      setError("Could not reach the server. Check your connection and try again.");
+      setError(t.auth.networkError);
     } finally {
       setBusy(false);
     }
@@ -80,11 +75,11 @@ export default function LoginPage() {
       <div className="login-card">
         <div className="brand login-brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="brand-logo" src="/logo.png" alt="TejoTime" />
+          <img className="brand-logo" src="/logo.png" alt={t.auth.brandAlt} />
         </div>
 
         <form onSubmit={onSubmit}>
-          <div className="segmented" role="group" aria-label="Account type">
+          <div className="segmented" role="group" aria-label={t.auth.accountTypeLabel}>
             {(["owner", "staff"] as AccountType[]).map((type) => (
               <button
                 key={type}
@@ -96,7 +91,7 @@ export default function LoginPage() {
                   setError("");
                 }}
               >
-                {type === "owner" ? "Owner" : "Staff"}
+                {type === "owner" ? t.auth.owner : t.auth.staff}
               </button>
             ))}
           </div>
@@ -112,8 +107,8 @@ export default function LoginPage() {
 
           <PhoneField
             id="phone"
-            label="Mobile number"
-            placeholder="Phone number"
+            label={t.auth.phoneLabel}
+            placeholder={t.auth.phonePlaceholder}
             autoFocus
             value={{ dialCode: phoneCountry.dialCode, national, iso2: phoneCountry.iso2 }}
             onChange={(v) => {
@@ -123,7 +118,7 @@ export default function LoginPage() {
           />
 
           <div className="field">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t.auth.passwordLabel}</label>
             <div className="password-field">
               <input
                 id="password"
@@ -136,21 +131,20 @@ export default function LoginPage() {
                 type="button"
                 className="password-toggle"
                 onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? t.auth.hidePassword : t.auth.showPassword}
               >
-                {showPassword ? "Hide" : "Show"}
+                {showPassword ? t.auth.hide : t.auth.show}
               </button>
             </div>
           </div>
 
           <button type="submit" className="btn block" disabled={busy}>
-            {busy ? "Signing in…" : "Sign in"}
+            {busy ? t.auth.signingIn : t.auth.signIn}
           </button>
 
           {accountType === "staff" ? (
             <p className="login-foot">
-              Staff logins are created by your business owner. If you do not have one, ask them
-              to add you under Settings → Team logins.
+              {t.auth.staffFoot}
             </p>
           ) : null}
 

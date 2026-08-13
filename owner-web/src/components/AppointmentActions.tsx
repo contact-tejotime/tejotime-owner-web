@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { t } from "@/i18n";
 import { useState, useTransition } from "react";
 
 /**
@@ -28,12 +29,12 @@ export function AppointmentActions({ id, status }: { id: string; status: string 
       const res = await fetch(`/api/appointments/${id}/${action}`, { method: "POST" });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setError(json?.error?.message ?? "That didn't work.");
+        setError(json?.error?.message ?? t.common.thatDidntWork);
         return;
       }
       startTransition(() => router.refresh());
     } catch {
-      setError("Could not reach the server.");
+      setError(t.appointments.networkError);
     } finally {
       setInFlight(false);
     }
@@ -42,7 +43,7 @@ export function AppointmentActions({ id, status }: { id: string; status: string 
   return (
     <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
       <button type="button" className="btn btn-sm" disabled={busy} onClick={() => act("check-in")}>
-        Check in
+        {t.appointments.checkIn}
       </button>
       <button
         type="button"
@@ -50,7 +51,7 @@ export function AppointmentActions({ id, status }: { id: string; status: string 
         disabled={busy}
         onClick={() => act("no-show")}
       >
-        No-show
+        {t.appointments.noShow}
       </button>
       {error ? <span className="hint" role="alert">{error}</span> : null}
     </div>

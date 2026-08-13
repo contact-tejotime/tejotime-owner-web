@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { t } from "@/i18n";
 import { useState, useTransition } from "react";
 import { Spinner } from "@/components/Skeleton";
 
 type Row = { dayOfWeek: number; opensAt: string | null; closesAt: string | null; isClosed: boolean };
 
-const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAYS = t.hours.days;
 
 /** `09:00:00` from Postgres → `09:00` for <input type="time">, and back. */
 const toInput = (t: string | null) => (t ? t.slice(0, 5) : "");
@@ -60,13 +61,13 @@ export function HoursEditor({ hours }: { hours: Row[] }) {
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setError(json?.error?.message ?? "Could not save your hours.");
+        setError(json?.error?.message ?? t.hours.errSave);
         return;
       }
       setSaved(true);
       startTransition(() => router.refresh());
     } catch {
-      setError("Could not reach the server.");
+      setError(t.hours.networkError);
     } finally {
       setInFlight(false);
     }
@@ -84,7 +85,7 @@ export function HoursEditor({ hours }: { hours: Row[] }) {
                 checked={r.isClosed}
                 onChange={(e) => patch(r.dayOfWeek, { isClosed: e.target.checked })}
               />
-              Closed
+              {t.hours.closed}
             </label>
             <input
               type="time"
@@ -92,7 +93,7 @@ export function HoursEditor({ hours }: { hours: Row[] }) {
               disabled={r.isClosed}
               onChange={(e) => patch(r.dayOfWeek, { opensAt: toApi(e.target.value) })}
             />
-            <span>to</span>
+            <span>{t.common.to}</span>
             <input
               type="time"
               value={toInput(r.closesAt)}
@@ -108,16 +109,16 @@ export function HoursEditor({ hours }: { hours: Row[] }) {
           {error}
         </div>
       ) : null}
-      {saved ? <p className="hint">Saved.</p> : null}
+      {saved ? <p className="hint">{t.hours.saved}</p> : null}
 
       <button type="button" className="btn" onClick={save} disabled={busy}>
         {busy ? (
           <>
             <Spinner size={14} />
-            Saving…
+            {t.common.savingEllipsis}
           </>
         ) : (
-          "Save hours"
+          t.hours.save
         )}
       </button>
     </div>

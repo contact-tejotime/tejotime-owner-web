@@ -301,6 +301,8 @@ function assignOptional(target: ThemeConfig, source: Record<string, unknown> | T
   if (hero) target.heroVariant = hero;
   const accent = normalizeHex(raw.accent);
   if (accent) target.accent = accent;
+  const button = normalizeHex(raw.button);
+  if (button) target.button = button;
   const brandInk = pickOptional<BrandInkId>(raw.brandInk, BRAND_INK_IDS);
   if (brandInk) target.brandInk = brandInk;
 }

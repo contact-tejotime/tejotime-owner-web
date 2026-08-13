@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { t } from "@/i18n";
 import { useCallback, useState, useTransition } from "react";
 
 /**
@@ -43,14 +44,14 @@ export function useMutation() {
           const message =
             (data as { error?: { message?: string } })?.error?.message ??
             opts.fallback ??
-            "Something went wrong. Try again.";
+            t.mutation.generic;
           setError(message);
           return { ok: false, data };
         }
         if (opts.refresh !== false) startTransition(() => router.refresh());
         return { ok: true, data };
       } catch {
-        setError("Could not reach the server. Check your connection and try again.");
+        setError(t.mutation.networkError);
         return { ok: false, data: null };
       } finally {
         setInFlight(false);

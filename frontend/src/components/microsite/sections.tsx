@@ -1,5 +1,7 @@
 "use client";
 
+import { t, format } from "@/i18n";
+
 /**
  * Microsite sections — TejoTime Microsite v3.
  *
@@ -18,7 +20,7 @@
  * runs the queue, booking, socket and modal logic untouched.
  */
 
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 
 import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
@@ -37,7 +39,7 @@ const EYEBROW: CSSProperties = {
 };
 
 const H2: CSSProperties = {
-  font: "var(--fw-extrabold) clamp(34px, 4.4vw, 60px)/1.02 var(--font-sans)",
+  font: "var(--fw-extrabold) clamp(26px, 4.4vw, 60px)/1.02 var(--font-sans)",
   letterSpacing: "-.04em",
   color: "var(--text-strong)",
   margin: "18px 0 0",
@@ -71,7 +73,7 @@ export function Section({
           maxWidth: MAX,
           margin: "0 auto",
           padding:
-            "calc(var(--section-y, clamp(44px, 6vw, 84px)) * var(--density-scale, 1)) clamp(18px, 4vw, 30px)",
+            "calc(var(--section-y, clamp(30px, 6vw, 84px)) * var(--density-scale, 1)) clamp(18px, 4vw, 30px)",
           ...style,
         }}
       >
@@ -199,22 +201,22 @@ export function LiveBoard({
   return (
     <>
       <SectionHead
-        eyebrow="Live floor"
+        eyebrow={t.microsite.sections.liveFloor}
         title={heading}
-        note={`Pick who you want. The numbers move as the ${queueWord} moves.`}
+        note={format(t.microsite.sections.liveNote, { queueWord })}
       />
 
       <Reveal>
-        <div className="ttLiveGrid" style={{ marginTop: 44 }}>
+        <div className="ttLiveGrid" style={{ marginTop: "clamp(24px, 3.5vw, 44px)" }}>
           {/* Summary tile — the store's own brand, dark end of its ramp. */}
           <div
             style={{
               borderRadius: "calc(26px * var(--radius-scale, 1))",
-              padding: 34,
+              padding: "clamp(18px, 3vw, 34px)",
               background: "linear-gradient(150deg, var(--primary), var(--brand-900))",
               position: "relative",
               overflow: "hidden",
-              minHeight: 270,
+              minHeight: "clamp(150px, 26vw, 270px)",
               display: "flex",
               flexDirection: "column",
             }}
@@ -224,8 +226,10 @@ export function LiveBoard({
                 position: "absolute",
                 right: -60,
                 top: -60,
-                width: 230,
-                height: 230,
+                // Scales with the tile: a fixed 230px orb swallowed the whole card once the
+                // minimum height came down on a phone.
+                width: "clamp(140px, 20vw, 230px)",
+                height: "clamp(140px, 20vw, 230px)",
                 borderRadius: "50%",
                 background: "rgba(255,255,255,.09)",
               }}
@@ -239,12 +243,12 @@ export function LiveBoard({
                 color: "rgba(255,255,255,.62)",
               }}
             >
-              Wait right now
+              {t.microsite.sections.waitRightNow}
             </div>
             <div
               style={{
                 position: "relative",
-                font: "var(--fw-extrabold) clamp(38px, 4.4vw, 56px)/0.98 var(--font-sans)",
+                font: "var(--fw-extrabold) clamp(28px, 4.4vw, 56px)/0.98 var(--font-sans)",
                 letterSpacing: "-.04em",
                 color: "#fff",
                 marginTop: "auto",
@@ -270,11 +274,11 @@ export function LiveBoard({
               className="ttLiveCard"
               style={{
                 borderRadius: "calc(26px * var(--radius-scale, 1))",
-                padding: 28,
+                padding: "clamp(14px, 2.4vw, 28px)",
                 background: "var(--surface-card)",
                 border: "1px solid var(--border-subtle)",
                 boxShadow: "var(--shadow-sm)",
-                minHeight: 270,
+                minHeight: "clamp(150px, 26vw, 270px)",
                 display: "flex",
                 flexDirection: "column",
               }}
@@ -301,15 +305,15 @@ export function LiveBoard({
                     background: m.busy ? "var(--text-subtle)" : "var(--success)",
                   }}
                 />
-                {m.busy ? "In service" : "Free now"}
+                {m.busy ? t.microsite.sections.inService : t.microsite.sections.freeNow}
               </span>
 
               <div
                 style={{
-                  font: "var(--fw-extrabold) clamp(21px, 1.9vw, 26px)/1.1 var(--font-sans)",
+                  font: "var(--fw-extrabold) clamp(18px, 1.9vw, 26px)/1.1 var(--font-sans)",
                   letterSpacing: "-.03em",
                   color: "var(--text-strong)",
-                  marginTop: 18,
+                  marginTop: "clamp(12px, 1.6vw, 18px)",
                   overflowWrap: "break-word",
                 }}
               >
@@ -319,13 +323,13 @@ export function LiveBoard({
                 style={{
                   font: "var(--fw-medium) 13.5px/1.45 var(--font-sans)",
                   color: "var(--text-muted)",
-                  marginTop: 10,
+                  marginTop: "clamp(6px, 1.2vw, 10px)",
                 }}
               >
                 {m.role}
               </div>
 
-              <div style={{ display: "flex", gap: 26, marginTop: "auto", paddingTop: 26 }}>
+              <div style={{ display: "flex", gap: "clamp(18px, 2vw, 26px)", marginTop: "auto", paddingTop: "clamp(14px, 2vw, 26px)" }}>
                 {[
                   { v: m.wait, l: m.busy ? "wait" : "walk in", c: m.busy ? "var(--text-strong)" : "var(--success)" },
                   { v: String(m.count), l: "in line", c: "var(--text-strong)" },
@@ -333,7 +337,7 @@ export function LiveBoard({
                   <div key={cell.l}>
                     <div
                       style={{
-                        font: "var(--fw-extrabold) 32px/1 var(--font-sans)",
+                        font: "var(--fw-extrabold) clamp(19px, 2.4vw, 32px)/1 var(--font-sans)",
                         letterSpacing: "-.03em",
                         color: cell.c,
                         fontVariantNumeric: "tabular-nums",
@@ -348,7 +352,7 @@ export function LiveBoard({
                         textTransform: "uppercase",
                         whiteSpace: "nowrap",
                         color: "var(--text-subtle)",
-                        marginTop: 9,
+                        marginTop: "clamp(5px, 1vw, 9px)",
                       }}
                     >
                       {cell.l}
@@ -357,7 +361,7 @@ export function LiveBoard({
                 ))}
               </div>
 
-              <div style={{ marginTop: 22 }}>
+              <div style={{ marginTop: "clamp(12px, 2vw, 22px)" }}>
                 <Button variant="outline" fullWidth onClick={() => onJoin(m.id)}>
                   {ctaLabel(m.name)}
                 </Button>
@@ -385,39 +389,14 @@ export function StatCards({ cards }: { cards: StatCard[] }) {
     <Reveal>
       <div className="ttStatGrid" style={{ marginTop: 16 }}>
         {cards.map((c) => (
-          <div
-            key={c.label}
-            style={{
-              borderRadius: "calc(22px * var(--radius-scale, 1))",
-              padding: 26,
-              background: "var(--surface-card)",
-              border: "1px solid var(--border-subtle)",
-              boxShadow: "var(--shadow-xs)",
-            }}
-          >
-            <span style={{ display: "flex", color: "var(--primary)" }}>
+          // Styling lives in salon.css rather than inline: a phone has to shrink the value and
+          // padding, and an inline style cannot be overridden by a media query.
+          <div key={c.label} className="ttStatCard">
+            <span className="ttStatIcon">
               <Icon name={c.icon} size={19} />
             </span>
-            <div
-              style={{
-                font: "var(--fw-extrabold) 34px/1 var(--font-sans)",
-                letterSpacing: "-.035em",
-                color: "var(--text-strong)",
-                marginTop: 22,
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {c.value}
-            </div>
-            <div
-              style={{
-                font: "var(--fw-medium) 13px/1.4 var(--font-sans)",
-                color: "var(--text-muted)",
-                marginTop: 10,
-              }}
-            >
-              {c.label}
-            </div>
+            <div className="ttStatValue">{c.value}</div>
+            <div className="ttStatLabel">{c.label}</div>
           </div>
         ))}
       </div>
@@ -427,6 +406,9 @@ export function StatCards({ cards }: { cards: StatCard[] }) {
 
 /* --------------------------------------------------------------- services */
 
+/** Kept in step with the `nth-child(n + 10)` rule in salon.css that hides the overflow. */
+const MOBILE_SERVICE_LIMIT = 9;
+
 export interface ServiceItem {
   id: string;
   name: string;
@@ -435,9 +417,16 @@ export interface ServiceItem {
 }
 
 /**
- * v3 renders services as a numbered editorial list rather than a card grid — big name, small
- * meta, price hard-right, ghost Book. The category chip in the mock is dropped: the `service`
- * table has no category column, and inventing one client-side would be a lie.
+ * Services as a dense menu grid.
+ *
+ * This was a numbered editorial list — one full-width row per service, name at clamp(19px, 31px).
+ * It reads beautifully for four treatments and like an invoice for thirty, which is what most
+ * salons actually have. The grid keeps a long menu scannable without making a short one look
+ * unfinished: cards size to their content, so two services sit as two deliberate cards rather
+ * than two stretched bands.
+ *
+ * Columns (1 / 2 / 3) are CSS at the shared 641 and 1120 breakpoints — see `.ttServiceGrid` in
+ * salon.css — so the server render is already correct at every width, with no isMobile branch.
  */
 export function ServiceList({
   services,
@@ -454,82 +443,133 @@ export function ServiceList({
   currencySymbol: string;
   onPick: (id: string) => void;
 }) {
+  // Phones get the first 9 with a toggle; the CSS decides when that applies, so this stays a
+  // single server-correct tree. Desktop has the columns to show everything and ignores it.
+  const [expanded, setExpanded] = useState(false);
+  const collapsible = services.length > MOBILE_SERVICE_LIMIT;
+
   return (
     <>
       <SectionHead eyebrow={eyebrow} title={heading} note={note} />
       <Reveal>
-        <div style={{ marginTop: 44, borderTop: "1px solid var(--border-subtle)" }}>
+        <div
+          className="ttServiceGrid"
+          style={{ marginTop: 36 }}
+          data-collapsed={collapsible && !expanded ? "true" : undefined}
+        >
           {services.map((sv, i) => (
-            <div
+            <button
               key={sv.id}
-              className="ttServiceRow"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "clamp(14px, 2vw, 26px)",
-                padding: "clamp(20px, 2.4vw, 28px) 6px",
-                borderBottom: "1px solid var(--border-subtle)",
-              }}
+              type="button"
+              className="ttServiceCard"
+              onClick={() => onPick(sv.id)}
+              // The card is the control, so its name has to say what booking it starts — the
+              // visible label alone would read as a bare "Book" to a screen reader.
+              aria-label={format(t.microsite.sections.bookService, {
+                name: sv.name,
+                price: `${currencySymbol}${sv.price}`,
+              })}
             >
               <span
+                className="ttServiceNum"
                 style={{
-                  font: "var(--fw-bold) 13px/1 var(--font-sans)",
+                  font: "var(--fw-bold) 11px/1 var(--font-sans)",
                   color: "var(--text-subtle)",
                   fontVariantNumeric: "tabular-nums",
-                  width: 30,
-                  flexShrink: 0,
+                  letterSpacing: ".08em",
                 }}
               >
                 {String(i + 1).padStart(2, "0")}
               </span>
 
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
+              {/* One line, ellipsised: a long treatment name must not reflow the card and
+                  break the grid's even rows. minWidth:0 is what lets it shrink inside flex. */}
+              <span
+                style={{
+                  display: "block",
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  font: "var(--fw-semibold) clamp(17px, 1.3vw, 20px)/1.25 var(--font-sans)",
+                  letterSpacing: "-.015em",
+                  color: "var(--text-strong)",
+                }}
+                title={sv.name}
+              >
+                {sv.name}
+              </span>
+
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  marginTop: "auto",
+                }}
+              >
+                <span
                   style={{
-                    font: "var(--fw-extrabold) clamp(19px, 2.2vw, 31px)/1.14 var(--font-sans)",
-                    letterSpacing: "-.03em",
-                    color: "var(--text-strong)",
-                  }}
-                >
-                  {sv.name}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    marginTop: 11,
-                    font: "var(--fw-medium) 13.5px/1 var(--font-sans)",
+                    font: "var(--fw-medium) 13px/1 var(--font-sans)",
                     color: "var(--text-muted)",
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
                   {sv.dur}
-                </div>
-              </div>
-
-              <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div
+                </span>
+                <span
                   style={{
                     whiteSpace: "nowrap",
                     fontVariantNumeric: "tabular-nums",
-                    font: "var(--fw-extrabold) clamp(19px, 2vw, 30px)/1 var(--font-sans)",
-                    letterSpacing: "-.03em",
+                    font: "var(--fw-extrabold) 19px/1 var(--font-sans)",
+                    letterSpacing: "-.02em",
                     color: "var(--text-strong)",
                   }}
                 >
                   {currencySymbol}
                   {sv.price}
-                </div>
-                <div style={{ marginTop: 10 }}>
-                  <Button variant="ghost" size="sm" onClick={() => onPick(sv.id)}>
-                    Book →
-                  </Button>
-                </div>
-              </div>
-            </div>
+                </span>
+              </span>
+
+              {/* Always visible, not hover-revealed: on touch there is no hover, and the
+                  affordance is the whole point of the card. */}
+              <span
+                aria-hidden
+                className="ttServiceBook"
+                style={{
+                  font: "var(--fw-semibold) 13px/1 var(--font-sans)",
+                  color: "var(--primary)",
+                }}
+              >
+                {t.microsite.sections.book}
+              </span>
+            </button>
           ))}
         </div>
+
+        {collapsible && !expanded ? (
+          <button
+            type="button"
+            className="ttServiceMore"
+            onClick={() => setExpanded(true)}
+            style={{
+              alignItems: "center",
+              justifyContent: "center",
+              width: "100%",
+              marginTop: 12,
+              padding: "12px 18px",
+              background: "var(--surface-card)",
+              border: "1px solid var(--border-subtle)",
+              borderRadius: "calc(12px * var(--radius-scale, 1))",
+              font: "var(--fw-semibold) 14px/1 var(--font-sans)",
+              color: "var(--text-strong)",
+              cursor: "pointer",
+            }}
+          >
+            {format(t.microsite.sections.showAllServices, { count: services.length })}
+          </button>
+        ) : null}
       </Reveal>
     </>
   );
@@ -550,18 +590,18 @@ export function GalleryMosaic({
   return (
     <>
       <Reveal>
-        <div style={EYEBROW}>Gallery</div>
+        <div style={EYEBROW}>{t.microsite.sections.gallery}</div>
         <h2 style={H2}>{heading}</h2>
       </Reveal>
       <Reveal>
-        <div className={photos.length >= 3 ? "ttMosaic ttMosaicFeature" : "ttMosaic"} style={{ marginTop: 44 }}>
+        <div className={photos.length >= 3 ? "ttMosaic ttMosaicFeature" : "ttMosaic"} style={{ marginTop: "clamp(24px, 3.5vw, 44px)" }}>
           {photos.map((src, i) => (
             <button
               key={`${src}-${i}`}
               type="button"
               onClick={() => onOpen(i)}
               className="ttBentoCell"
-              aria-label={`Open photo ${i + 1} of ${photos.length}`}
+              aria-label={format(t.microsite.sections.openPhoto, { index: i + 1, total: photos.length })}
               style={{
                 borderRadius: "calc(22px * var(--radius-scale, 1))",
                 border: "1px solid var(--border-subtle)",
@@ -606,13 +646,13 @@ export function ReviewsBlock({
   return (
     <>
       <SectionHead
-        eyebrow="Reviews"
-        title="What people say"
+        eyebrow={t.microsite.sections.reviewsEyebrow}
+        title={t.microsite.sections.reviewsTitle}
         trailing={
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <span
               style={{
-                font: "var(--fw-extrabold) clamp(40px, 5vw, 58px)/1 var(--font-sans)",
+                font: "var(--fw-extrabold) clamp(30px, 5vw, 58px)/1 var(--font-sans)",
                 letterSpacing: "-.045em",
                 color: "var(--text-strong)",
                 fontVariantNumeric: "tabular-nums",
@@ -623,7 +663,7 @@ export function ReviewsBlock({
             <div>
               <div style={{ display: "flex", gap: 3, color: "var(--warning)" }}>
                 {[0, 1, 2, 3, 4].map((i) => (
-                  <Icon key={i} name="star" size={16} />
+                  <Icon key={i} name="star" size={16} fill="currentColor" />
                 ))}
               </div>
               <div
@@ -639,13 +679,13 @@ export function ReviewsBlock({
           </div>
         }
       />
-      <div className="ttReviewGrid" style={{ marginTop: 44 }}>
+      <div className="ttReviewGrid" style={{ marginTop: "clamp(24px, 3.5vw, 44px)" }}>
         {reviews.map((r, i) => (
           <Reveal key={i} index={i}>
             <div
               style={{
                 borderRadius: "calc(24px * var(--radius-scale, 1))",
-                padding: 32,
+                padding: "clamp(18px, 2.8vw, 32px)",
                 background: "var(--surface-page)",
                 display: "flex",
                 flexDirection: "column",
@@ -698,7 +738,7 @@ export function ReviewsBlock({
                     }}
                   >
                     {Array.from({ length: Math.max(0, Math.min(5, r.stars)) }).map((_, s) => (
-                      <Icon key={s} name="star" size={12} />
+                      <Icon key={s} name="star" size={12} fill="currentColor" />
                     ))}
                   </div>
                 </div>
@@ -732,7 +772,7 @@ export function Lightbox({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Photo viewer"
+      aria-label={t.microsite.sections.photoViewer}
       onClick={onClose}
       style={{
         position: "fixed",
@@ -749,7 +789,7 @@ export function Lightbox({
     >
       <button
         type="button"
-        aria-label="Close"
+        aria-label={t.microsite.sections.close}
         onClick={onClose}
         style={{
           position: "absolute",
@@ -775,7 +815,7 @@ export function Lightbox({
           <button
             key={dir}
             type="button"
-            aria-label={dir === "prev" ? "Previous photo" : "Next photo"}
+            aria-label={dir === "prev" ? t.microsite.sections.prevPhoto : t.microsite.sections.nextPhoto}
             onClick={(e) => {
               e.stopPropagation();
               onStep(dir === "prev" ? -1 : 1);
@@ -805,7 +845,7 @@ export function Lightbox({
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
-        alt={`Photo ${index + 1} of ${photos.length}`}
+        alt={format(t.microsite.sections.photoIndex, { index: index + 1, total: photos.length })}
         onClick={(e) => e.stopPropagation()}
         style={{
           maxWidth: "100%",

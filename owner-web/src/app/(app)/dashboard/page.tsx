@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { t } from "@/i18n";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
@@ -67,7 +68,7 @@ export default async function DashboardPage() {
             <div className="home-sub">{waitingLabel}</div>
           </div>
         </div>
-        <Link href="/settings/notifications" className="icon-btn" aria-label="Notifications">
+        <Link href="/settings/notifications" className="icon-btn" aria-label={t.dashboard.notifications}>
           <Icon name="bell" size={20} />
         </Link>
       </header>
@@ -89,9 +90,9 @@ export default async function DashboardPage() {
         </Suspense>
       ) : showQr && cardUrl ? (
         <>
-          <h2 className="home-section-title">Quick actions</h2>
+          <h2 className="home-section-title">{t.dashboard.quickActions}</h2>
           <div className="home-actions home-actions-solo">
-            <StoreBookingQr variant="button" label="Contact QR" cardUrl={cardUrl} storeName={storeName} />
+            <StoreBookingQr variant="button" label={t.dashboard.contactQr} cardUrl={cardUrl} storeName={storeName} />
           </div>
         </>
       ) : null}

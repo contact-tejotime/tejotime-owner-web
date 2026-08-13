@@ -2033,6 +2033,15 @@ a:focus-visible,
 }
 
 /* ---- Brand colour ---- */
+/* Button-colour preview: the live sample plus the engine's contrast verdict, side by side. */
+.ap-button-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
 .ap-swatches {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(34px, 1fr));

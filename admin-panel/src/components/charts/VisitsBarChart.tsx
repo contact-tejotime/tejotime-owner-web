@@ -31,7 +31,7 @@ export default function VisitsBarChart({ data }: { data: DailyValuePoint[] }) {
         <Tooltip
           contentStyle={TOOLTIP_STYLE}
           cursor={{ fill: "rgba(37, 99, 235, 0.06)" }}
-          formatter={(value) => [String(value), "Visits"]}
+          formatter={(value) => [String(value), t.charts.visitsLabel]}
           labelFormatter={(label) => formatDayShort(String(label))}
         />
         <Bar dataKey="value" fill={SERIES_1} radius={[4, 4, 0, 0]} maxBarSize={28} />

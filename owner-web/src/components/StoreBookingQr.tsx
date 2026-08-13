@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { t, format } from "@/i18n";
 
 import { Icon } from "@/components/Icon";
 
@@ -15,7 +16,7 @@ export function StoreBookingQr({
   cardUrl,
   storeName,
   variant = "icon",
-  label = "Contact QR",
+  label = t.qr.label,
 }: {
   cardUrl: string;
   storeName: string;
@@ -56,8 +57,8 @@ export function StoreBookingQr({
           type="button"
           className="qr-icon-btn"
           onClick={() => setOpen(true)}
-          title="Booking QR — scan to book or save contact"
-          aria-label="Booking QR"
+          title={t.qr.buttonTitle}
+          aria-label={t.qr.buttonAria}
         >
           <Icon name="qrCode" size={18} />
         </button>
@@ -72,19 +73,19 @@ export function StoreBookingQr({
             aria-labelledby={titleId}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 id={titleId}>{storeName || "Store"} — booking QR</h3>
+            <h3 id={titleId}>{format(t.qr.heading, { name: storeName || t.qr.storeFallback })}</h3>
             <p className="field-hint" style={{ marginTop: 4, textAlign: "center" }}>
-              Scan to book an appointment, or save this store as a contact.
+              {t.qr.subtitle}
             </p>
             <div className="store-qr-frame">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrSrc} alt="" width={220} height={220} />
             </div>
             <a href={cardUrl} target="_blank" rel="noreferrer" className="btn secondary btn-sm" style={{ width: "100%" }}>
-              Open link
+              {t.qr.openLink}
             </a>
             <button type="button" className="btn secondary btn-sm" style={{ width: "100%", marginTop: 8 }} onClick={() => setOpen(false)}>
-              Close
+              {t.qr.close}
             </button>
           </div>
         </div>

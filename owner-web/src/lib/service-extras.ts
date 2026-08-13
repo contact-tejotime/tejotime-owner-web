@@ -1,4 +1,5 @@
 import type { IconName } from "@/components/Icon";
+import { t } from "@/i18n";
 
 export type ServiceExtraChip = {
   label: string;
@@ -17,43 +18,43 @@ function kindForCategory(category: string | null | undefined): ExtraKind {
 }
 
 const DEFAULT_EXTRAS: ServiceExtraChip[] = [
-  { label: "Shave", minutes: 10, icon: "razor" },
-  { label: "Beard trim", minutes: 15, icon: "clipper" },
-  { label: "Hair wash", minutes: 10, icon: "droplet" },
-  { label: "Hair color", minutes: 30, icon: "paintbrush" },
+  { label: t.serviceExtras.shave, minutes: 10, icon: "razor" },
+  { label: t.serviceExtras.beardTrim, minutes: 15, icon: "clipper" },
+  { label: t.serviceExtras.hairWash, minutes: 10, icon: "droplet" },
+  { label: t.serviceExtras.hairColor, minutes: 30, icon: "paintbrush" },
 ];
 
 const BARBER_EXTRAS: ServiceExtraChip[] = [
-  { label: "Shave", minutes: 10, icon: "straightRazor" },
-  { label: "Beard trim", minutes: 15, icon: "clippers" },
-  { label: "Hair wash", minutes: 10, icon: "sprayBottle" },
-  { label: "Hair color", minutes: 30, icon: "comb" },
-  { label: "Touch-up cut", minutes: 15, icon: "scissorsSolid" },
-  { label: "Mustache trim", minutes: 10, icon: "mustache" },
-  { label: "Blow-dry", minutes: 15, icon: "hairDryer" },
-  { label: "Head massage", minutes: 15, icon: "barberChair" },
+  { label: t.serviceExtras.shave, minutes: 10, icon: "straightRazor" },
+  { label: t.serviceExtras.beardTrim, minutes: 15, icon: "clippers" },
+  { label: t.serviceExtras.hairWash, minutes: 10, icon: "sprayBottle" },
+  { label: t.serviceExtras.hairColor, minutes: 30, icon: "comb" },
+  { label: t.serviceExtras.touchUpCut, minutes: 15, icon: "scissorsSolid" },
+  { label: t.serviceExtras.mustacheTrim, minutes: 10, icon: "mustache" },
+  { label: t.serviceExtras.blowDry, minutes: 15, icon: "hairDryer" },
+  { label: t.serviceExtras.headMassage, minutes: 15, icon: "barberChair" },
 ];
 
 const HOSPITAL_EXTRAS: ServiceExtraChip[] = [
-  { label: "Consultation", minutes: 15, icon: "stethoscope" },
-  { label: "Injection", minutes: 10, icon: "injection" },
-  { label: "Medication", minutes: 5, icon: "pill" },
-  { label: "Check-up", minutes: 10, icon: "thermometer" },
-  { label: "Blood test", minutes: 15, icon: "bloodDrop" },
-  { label: "First aid", minutes: 10, icon: "firstAid" },
-  { label: "Assisted care", minutes: 20, icon: "wheelchair" },
-  { label: "Dental", minutes: 20, icon: "dentalTooth" },
+  { label: t.serviceExtras.consultation, minutes: 15, icon: "stethoscope" },
+  { label: t.serviceExtras.injection, minutes: 10, icon: "injection" },
+  { label: t.serviceExtras.medication, minutes: 5, icon: "pill" },
+  { label: t.serviceExtras.checkUp, minutes: 10, icon: "thermometer" },
+  { label: t.serviceExtras.bloodTest, minutes: 15, icon: "bloodDrop" },
+  { label: t.serviceExtras.firstAid, minutes: 10, icon: "firstAid" },
+  { label: t.serviceExtras.assistedCare, minutes: 20, icon: "wheelchair" },
+  { label: t.serviceExtras.dental, minutes: 20, icon: "dentalTooth" },
 ];
 
 const RESTAURANT_EXTRAS: ServiceExtraChip[] = [
-  { label: "Dine-in", minutes: 30, icon: "forkKnife" },
-  { label: "Burger", minutes: 15, icon: "burger" },
-  { label: "Pizza", minutes: 20, icon: "pizza" },
-  { label: "Coffee", minutes: 10, icon: "coffee" },
-  { label: "Beverage", minutes: 5, icon: "beverage" },
-  { label: "Dessert", minutes: 10, icon: "dessertCake" },
-  { label: "Takeaway", minutes: 10, icon: "takeawayBox" },
-  { label: "Chef special", minutes: 25, icon: "chefHat" },
+  { label: t.serviceExtras.dineIn, minutes: 30, icon: "forkKnife" },
+  { label: t.serviceExtras.burger, minutes: 15, icon: "burger" },
+  { label: t.serviceExtras.pizza, minutes: 20, icon: "pizza" },
+  { label: t.serviceExtras.coffee, minutes: 10, icon: "coffee" },
+  { label: t.serviceExtras.beverage, minutes: 5, icon: "beverage" },
+  { label: t.serviceExtras.dessert, minutes: 10, icon: "dessertCake" },
+  { label: t.serviceExtras.takeaway, minutes: 10, icon: "takeawayBox" },
+  { label: t.serviceExtras.chefSpecial, minutes: 25, icon: "chefHat" },
 ];
 
 /** Checkout add-on chips gated by `business.category`. First keyword match wins. */

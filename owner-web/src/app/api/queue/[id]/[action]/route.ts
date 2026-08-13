@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { t } from "@/i18n";
 
 import { forward } from "@/lib/proxy-route";
 import { TAGS } from "@/lib/server-api";
@@ -17,7 +18,7 @@ export async function POST(
 ) {
   const { id, action } = await params;
   if (!ACTIONS.has(action)) {
-    return NextResponse.json({ error: { message: "Unknown action." } }, { status: 404 });
+    return NextResponse.json({ error: { message: t.api.unknownAction } }, { status: 404 });
   }
   return forward(req, `/queue/${encodeURIComponent(id)}/${action}`, {
     tags: [TAGS.queue, TAGS.dashboard, TAGS.customers],

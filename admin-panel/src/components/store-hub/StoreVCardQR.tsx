@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { Icon } from "@/components/icons";
+import { t, format } from "@/i18n";
 
 /**
  * Store QR for the admin hub. Encodes the customer chooser at `/{phone}/card` (book or save
@@ -46,7 +47,7 @@ export default function StoreVCardQR({
     const cleanup = () => iframe.remove();
     doc.open();
     doc.write(
-      `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(storeName || "Store")} booking QR</title>` +
+      `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(format(t.qr.printTitle, { name: storeName || t.qr.storeFallback }))}</title>` +
         `<style>@page{margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;height:100%}` +
         // height:100vh + justify-content:center centers the card; box-sizing keeps padding
         // inside that height so it stays a single page (no blank overflow page).
@@ -54,8 +55,8 @@ export default function StoreVCardQR({
         `padding:40px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;color:#111}` +
         `h1{font-size:28px;font-weight:700;margin:0 0 8px}p{font-size:15px;color:#555;margin:0 0 36px}` +
         `svg{width:420px;height:420px;max-width:80vw}</style>` +
-        `</head><body><div class="wrap"><h1>${escapeHtml(storeName || "Store")}</h1>` +
-        `<p>Scan to book an appointment, or save this store as a contact.</p>${svg}</div></body></html>`,
+        `</head><body><div class="wrap"><h1>${escapeHtml(storeName || t.qr.storeFallback)}</h1>` +
+        `<p>${escapeHtml(t.qr.subtitle)}</p>${svg}</div></body></html>`,
     );
     doc.close();
     const win = iframe.contentWindow;
@@ -91,8 +92,8 @@ export default function StoreVCardQR({
         type="button"
         className="qr-icon-btn"
         onClick={() => setOpen(true)}
-        title="Booking QR — scan to book or save contact"
-        aria-label="Booking QR"
+        title={t.qr.buttonTitle}
+        aria-label={t.qr.buttonAria}
       >
         <Icon name="qrCode" size={18} strokeWidth={2} />
       </button>
@@ -110,8 +111,8 @@ export default function StoreVCardQR({
               onClick={(e) => e.stopPropagation()}
               style={{ textAlign: "center", maxWidth: 340 }}
             >
-              <h3 id={titleId}>{storeName || "Store"} — booking QR</h3>
-              <p style={{ marginTop: 4 }}>Scan to book an appointment, or save this store as a contact.</p>
+              <h3 id={titleId}>{format(t.qr.heading, { name: storeName || t.qr.storeFallback })}</h3>
+              <p style={{ marginTop: 4 }}>{t.qr.subtitle}</p>
               <div
                 ref={qrRef}
                 style={{
@@ -127,10 +128,10 @@ export default function StoreVCardQR({
               </div>
               <div className="confirm-actions" style={{ justifyContent: "center" }}>
                 <a className="btn-primary" href={vcardUrl} download={`${storeName || "store"}.vcf`}>
-                  Download vCard
+                  {t.qr.downloadVcard}
                 </a>
                 <button type="button" className="btn-ghost" onClick={handlePrint}>
-                  Print
+                  {t.qr.print}
                 </button>
               </div>
             </div>

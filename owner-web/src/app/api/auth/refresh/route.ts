@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { t } from "@/i18n";
 
 import { assertSameOrigin, BACKEND, unreachable } from "@/lib/http";
 import {
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   const refreshToken = await getRefreshToken();
   if (!refreshToken) {
-    return NextResponse.json({ error: { message: "Not authenticated" } }, { status: 401 });
+    return NextResponse.json({ error: { message: t.api.notAuthenticated } }, { status: 401 });
   }
 
   let res: Response;
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
 
   if (!res.ok || !json.accessToken || !json.refreshToken) {
     const dead = NextResponse.json(
-      { error: { message: "Session expired. Please sign in again." } },
+      { error: { message: t.api.sessionExpired } },
       { status: 401 },
     );
     dead.cookies.delete(ACCESS_COOKIE);
