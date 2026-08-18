@@ -1,11 +1,13 @@
 import { unstable_cache, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
-import { getAdminToken } from "./session";
+import { getAdminToken, readSession } from "./session";
 import type {
   AdminCustomer,
   AppointmentsResponse,
   Category,
   CustomersResponse,
+  AdminMe,
+  AdminTeamMember,
   InquiriesResponse,
   PlatformCustomer,
   PlatformOverview,
@@ -53,6 +55,7 @@ export const TAGS = {
   customers: "customers",
   visits: "visits",
   appointments: "appointments",
+  admins: "admins",
   business: (id: string) => `business:${id}`,
 } as const;
 
@@ -69,14 +72,22 @@ export function revalidateTags(...tags: string[]) {
  * Shared read helper. The backend response is stored in the Next Data Cache keyed
  * by `path` and refreshed after `revalidate` seconds (or immediately when one of
  * its `tags` is revalidated). The admin JWT is read *outside* the cached function
- * (unstable_cache forbids cookies() inside it) and passed via closure, so it never
- * becomes part of the cache key — all admins share one platform-wide cache entry.
+ * (unstable_cache forbids cookies() inside it) and passed via closure.
+ *
+ * The cache key includes WHO is asking. Since roles landed, `/admin/businesses` no longer
+ * returns the same rows to everyone — an owner sees the platform, an employee sees only the
+ * stores they created — so a key of `[path]` alone would serve the first caller's response to
+ * every other admin. That is a cross-tenant data leak, not a stale-cache annoyance. Keying by
+ * mobile costs one cache entry per admin, which is nothing next to being wrong.
+ *
+ * Tags are unaffected by the key, so revalidateTag() still clears every admin's copy at once.
  *
  * Failures throw inside the cached fn so they are NOT cached (we retry next time);
  * the outer catch degrades to null and, on 401, redirects to /login.
  */
 async function get<T>(path: string, tags: string[], revalidate: number): Promise<T | null> {
   const token = await getAdminToken();
+  const who = readSession(token)?.mobile ?? "anon";
   const load = unstable_cache(
     async (): Promise<T> => {
       const res = await fetch(`${BACKEND}${path}`, {
@@ -87,7 +98,7 @@ async function get<T>(path: string, tags: string[], revalidate: number): Promise
       if (!res.ok) throw new Error(`status-${res.status}`);
       return (await res.json()) as T;
     },
-    [path], // cache key (token intentionally excluded)
+    [path, who], // cache key — scoped per admin, see above
     { tags, revalidate },
   );
 
@@ -129,6 +140,23 @@ async function getFresh<T>(path: string): Promise<T | null> {
     console.error(`[server-api] GET ${path}: ${msg}`);
     return null;
   }
+}
+
+/**
+ * The signed-in admin, including their role.
+ *
+ * Uncached on purpose. It gates which navigation renders, so a promotion or a deactivation has
+ * to show up on the very next page render — a 5-minute stale window here would leave a demoted
+ * employee looking at Billing and Inquiries links. It is one small request per render.
+ */
+export async function getMe(): Promise<AdminMe | null> {
+  return getFresh<AdminMe>("/admin/me");
+}
+
+/** Owner-only. Returns null for an employee, whose 403 the read helper degrades to null. */
+export async function listAdmins(): Promise<AdminTeamMember[]> {
+  const json = await get<{ data: AdminTeamMember[] }>("/admin/admins", [TAGS.admins], TTL.activity);
+  return json?.data ?? [];
 }
 
 export async function listBusinesses(): Promise<StoreListItem[]> {

@@ -538,3 +538,27 @@ export interface AppointmentsResponse {
   stats: AppointmentStats;
   meta: { shown: number; limit: number };
 }
+
+// ---- Platform admins (multi-admin logins + per-employee store scoping) ----
+
+export type AdminRole = "owner" | "employee";
+
+/** The signed-in admin. `role` drives which navigation renders; the backend enforces the rest. */
+export interface AdminMe {
+  id: string;
+  mobile: string;
+  name: string;
+  role: AdminRole;
+}
+
+/** A row on the owner-only Team page. `password_hash` is never sent by the backend. */
+export interface AdminTeamMember {
+  id: string;
+  mobile: string;
+  name: string;
+  role: AdminRole;
+  isActive: boolean;
+  /** Stores this admin created — what an employee would lose sight of if deactivated. */
+  storesCount: number;
+  createdAt: string;
+}

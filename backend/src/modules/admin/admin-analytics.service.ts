@@ -82,29 +82,74 @@ function ratio(numerator: number, denominator: number): number {
 // Platform overview — GET /admin/analytics/overview
 // ---------------------------------------------------------------------------
 
-export async function getPlatformOverview() {
+/**
+ * An employee who has not created a store yet. Shaped exactly like the real payload so the
+ * dashboard renders its normal zero state instead of erroring on missing keys.
+ */
+function emptyOverview(tz: string) {
+  return {
+    date: todayDate(tz),
+    stores: { total: 0, active: 0, inactive: 0 },
+    totalCustomers: 0,
+    today: { visits: 0, onlineBookings: 0 },
+    storesByCity: [] as { city: string | null; count: number }[],
+    storesByCategory: [] as { category: string | null; count: number }[],
+  };
+}
+
+/**
+ * @param allowedIds `null` = the whole platform (owner). An array restricts every figure to that
+ *   employee's stores. An EMPTY array is meaningful and must not be confused with null — it is a
+ *   brand-new employee, and the honest answer is zeroes, not the platform totals.
+ */
+export async function getPlatformOverview(allowedIds: string[] | null = null) {
   const tz = env.DEFAULT_TIMEZONE;
   const today = businessDayRange(tz);
+
+  if (allowedIds?.length === 0) return emptyOverview(tz);
 
   // No cross-store revenue here: stores can use different currencies, so money
   // aggregates are meaningless platform-wide. Today's window of admin_daily_revenue
   // is queried only for its (demo-excluded) visit count.
+  //
+  // The RPCs are platform-wide by construction: admin_store_metrics() takes no argument and
+  // admin_daily_revenue(null, …) spans every business. Both are therefore narrowed here rather
+  // than trusted — the metrics rows by id, and today's revenue by asking per store, which reuses
+  // the RPC's own definition of a visit instead of re-deriving it in a second query that could
+  // drift from it.
   const [allBusinesses, metricRows, todayRows] = await Promise.all([
-    many('select id, name, slug, city, category, is_active from business'),
+    many(
+      `select id, name, slug, city, category, is_active
+         from business
+        where ($1::uuid[] is null or id = any($1::uuid[]))`,
+      [allowedIds],
+    ),
     callRpc<any[]>('admin_store_metrics', {}),
-    callRpc<DailyRow[]>('admin_daily_revenue', {
-      p_business_id: null,
-      p_tz: tz,
-      p_start: today.startIso,
-      p_end: today.endIso,
-    }),
+    allowedIds === null
+      ? callRpc<DailyRow[]>('admin_daily_revenue', {
+          p_business_id: null,
+          p_tz: tz,
+          p_start: today.startIso,
+          p_end: today.endIso,
+        })
+      : Promise.all(
+          allowedIds.map((id) =>
+            callRpc<DailyRow[]>('admin_daily_revenue', {
+              p_business_id: id,
+              p_tz: tz,
+              p_start: today.startIso,
+              p_end: today.endIso,
+            }),
+          ),
+        ).then((perStore) => perStore.flat()),
   ]);
 
   const demoId = allBusinesses.find((b) => b.slug === DEMO_SLUG)?.id ?? null;
   const businesses = allBusinesses.filter((b) => b.slug !== DEMO_SLUG);
+  const visibleIds = new Set(businesses.map((b) => b.id as string));
 
   // Online bookings today — appointments booked from the microsite, demo excluded.
-  const bookingParams: unknown[] = [today.startIso, today.endIso];
+  const bookingParams: unknown[] = [today.startIso, today.endIso, allowedIds];
   let demoExclusion = '';
   if (demoId) {
     bookingParams.push(demoId);
@@ -114,12 +159,17 @@ export async function getPlatformOverview() {
     `select count(*)::int as count from appointment
       where source = 'online'
         and scheduled_start_at >= $1
-        and scheduled_start_at <= $2${demoExclusion}`,
+        and scheduled_start_at <= $2
+        and ($3::uuid[] is null or business_id = any($3::uuid[]))${demoExclusion}`,
     bookingParams,
   );
   const onlineBookings = bookingsRow?.count ?? 0;
 
-  const metrics = metricRows ?? [];
+  // admin_store_metrics() covers every store on the platform, so drop anything outside the
+  // caller's scope before a single figure is summed. Left untouched for the owner: their totals
+  // have always counted every metrics row, and narrowing it here would quietly restate the
+  // headline numbers on their dashboard.
+  const metrics = allowedIds === null ? (metricRows ?? []) : (metricRows ?? []).filter((m) => visibleIds.has(m.business_id));
   const activeCount = businesses.filter((b) => b.is_active).length;
   const totalCustomers = metrics.reduce((sum, m) => sum + Number(m.customers_count ?? 0), 0);
 

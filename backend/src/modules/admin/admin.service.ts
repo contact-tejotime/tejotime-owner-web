@@ -291,7 +291,11 @@ async function assertPhoneFree(phoneFull: string, exceptId?: string) {
   if (row) throw Errors.conflict('PHONE_IN_USE', `A store already uses the number ${phoneFull}`);
 }
 
-export async function createBusiness(input: CreateBusinessInput) {
+/**
+ * @param createdByAdminId stamped onto the row so the creator keeps seeing it. Owners are
+ *   stamped too — harmless, and it keeps "who provisioned this" answerable for every new store.
+ */
+export async function createBusiness(input: CreateBusinessInput, createdByAdminId: string) {
   const countryCode = input.countryCode.replace(/\D/g, '');
   const phoneNumber = input.phoneNumber.replace(/\D/g, '');
   const phoneFull = countryCode + phoneNumber;
@@ -317,6 +321,7 @@ export async function createBusiness(input: CreateBusinessInput) {
       currency,
       token_prefix: 'A',
       is_active: true,
+      created_by_admin_id: createdByAdminId,
       ...businessColumns(input),
       ...themeColumns(input),
     };
@@ -412,10 +417,54 @@ export async function updateBusiness(id: string, input: UpdateBusinessInput) {
 /** Demo OTP accepted for every admin until the real OTP API is wired up. */
 const DEMO_ADMIN_OTP = '1234';
 
-/** Is this digits-only mobile in the admins allow-list? */
+/** A platform admin as every gated route sees them. Never carries password_hash. */
+export interface AdminIdentity {
+  id: string;
+  mobile: string;
+  name: string;
+  role: 'owner' | 'employee';
+}
+
+/**
+ * The live admin row for a mobile, or null if unknown or deactivated.
+ *
+ * Every gated request goes through this rather than trusting the JWT's claims, so deactivating
+ * someone or changing their role takes effect on their next request instead of when their 12h
+ * token happens to expire.
+ */
+export async function getActiveAdminByMobile(mobile: string): Promise<AdminIdentity | null> {
+  const row = await one('select id, mobile, name, role from admins where mobile = $1 and is_active = true', [mobile]);
+  return row ? { id: row.id, mobile: row.mobile, name: row.name, role: row.role } : null;
+}
+
+/** Is this digits-only mobile an active admin? */
 export async function isKnownAdmin(mobile: string): Promise<boolean> {
-  const row = await one('select mobile from admins where mobile = $1', [mobile]);
+  return Boolean(await getActiveAdminByMobile(mobile));
+}
+
+/**
+ * May this admin touch this store?
+ *
+ * Owners reach everything. An employee reaches only what they created — a store with no creator
+ * pre-dates roles and stays owner-only, which is why this is an equality test and not a
+ * null-tolerant one.
+ */
+export async function adminCanAccessBusiness(admin: AdminIdentity, businessId: string): Promise<boolean> {
+  if (admin.role === 'owner') return true;
+  const row = await one('select 1 from business where id = $1 and created_by_admin_id = $2', [businessId, admin.id]);
   return Boolean(row);
+}
+
+/**
+ * The store ids an admin may see, or `null` for "no restriction" (owner).
+ *
+ * Returning null rather than every id keeps the owner path on the same unfiltered SQL it has
+ * always run, so the common case gains no per-store IN list.
+ */
+export async function allowedBusinessIds(admin: AdminIdentity): Promise<string[] | null> {
+  if (admin.role === 'owner') return null;
+  const rows = await many('select id from business where created_by_admin_id = $1', [admin.id]);
+  return rows.map((r) => r.id as string);
 }
 
 /**
@@ -426,7 +475,9 @@ export async function isKnownAdmin(mobile: string): Promise<boolean> {
  */
 export async function loginAdmin(rawMobile: string, password: string) {
   const mobile = rawMobile.replace(/\D/g, '');
-  const admin = await one('select mobile, password_hash from admins where mobile = $1', [mobile]);
+  // A deactivated admin is treated exactly like an unknown one — same message, so the response
+  // does not reveal that the number was once valid.
+  const admin = await one('select mobile, password_hash from admins where mobile = $1 and is_active = true', [mobile]);
   if (!admin) throw Errors.unauthenticated('Not a registered admin');
   if (!admin.password_hash) throw Errors.invalidCredentials('Incorrect password');
   const ok = await bcrypt.compare(password + env.PASSWORD_PEPPER, admin.password_hash);
@@ -476,12 +527,119 @@ export async function listLookups(type: string) {
   return { data: rows.map((r) => ({ id: r.id, name: r.name })) };
 }
 
-export async function listBusinesses(withMetrics = false) {
+// ---------------------------------------------------------------------------
+// Team — the owner managing platform employees. Owner-only; the routes enforce that.
+// ---------------------------------------------------------------------------
+
+/** Everyone with a login, active or not. `password_hash` is never selected, let alone returned. */
+export async function listAdmins() {
+  const rows = await many(
+    `select a.id, a.mobile, a.name, a.role, a.is_active, a.created_at,
+            (select count(*)::int from business b where b.created_by_admin_id = a.id) as stores_count
+       from admins a
+      order by (a.role = 'owner') desc, a.created_at`,
+  );
+  return {
+    data: rows.map((r) => ({
+      id: r.id,
+      mobile: r.mobile,
+      name: r.name,
+      role: r.role as 'owner' | 'employee',
+      isActive: r.is_active,
+      storesCount: r.stores_count,
+      createdAt: r.created_at,
+    })),
+  };
+}
+
+/**
+ * Add an employee. Role is not a parameter: this is the only way to create an admin and it only
+ * ever mints employees, so a compromised panel session cannot promote anyone to owner. Making a
+ * second owner is a deliberate SQL operation.
+ */
+export async function createEmployeeAdmin(input: { name: string; mobile: string; password: string }) {
+  const mobile = input.mobile.replace(/\D/g, '');
+  const existing = await one('select id from admins where mobile = $1', [mobile]);
+  if (existing) throw Errors.conflict('ADMIN_EXISTS', 'An admin already uses that mobile number');
+
+  const passwordHash = await bcrypt.hash(input.password + env.PASSWORD_PEPPER, 10);
+  const row = await one(
+    `insert into admins (mobile, name, role, password_hash)
+     values ($1, $2, 'employee', $3)
+     returning id, mobile, name, role, is_active, created_at`,
+    [mobile, input.name.trim(), passwordHash],
+  );
+  return {
+    id: row!.id,
+    mobile: row!.mobile,
+    name: row!.name,
+    role: row!.role as 'employee',
+    isActive: row!.is_active,
+    storesCount: 0,
+    createdAt: row!.created_at,
+  };
+}
+
+/**
+ * Rename, reset the password, or deactivate an employee.
+ *
+ * Owners are deliberately untouchable through this path — the panel would otherwise be one
+ * mis-click from locking every operator out, and there is no second channel to recover.
+ * Deactivation rather than deletion keeps `business.created_by_admin_id` pointing at a real row,
+ * so the stores an employee provisioned stay attributed after they leave.
+ */
+export async function updateEmployeeAdmin(
+  id: string,
+  patch: { name?: string; password?: string; isActive?: boolean },
+) {
+  const target = await one('select id, role from admins where id = $1', [id]);
+  if (!target) throw Errors.notFound('Admin not found');
+  if (target.role === 'owner') throw Errors.forbidden('Owner accounts cannot be edited from the panel');
+
+  const sets: string[] = [];
+  const params: unknown[] = [];
+  if (patch.name !== undefined) {
+    params.push(patch.name.trim());
+    sets.push(`name = $${params.length}`);
+  }
+  if (patch.password !== undefined) {
+    params.push(await bcrypt.hash(patch.password + env.PASSWORD_PEPPER, 10));
+    sets.push(`password_hash = $${params.length}`);
+  }
+  if (patch.isActive !== undefined) {
+    params.push(patch.isActive);
+    sets.push(`is_active = $${params.length}`);
+  }
+  if (sets.length === 0) throw Errors.validation('Nothing to update');
+
+  params.push(id);
+  const row = await one(
+    `update admins set ${sets.join(', ')} where id = $${params.length}
+     returning id, mobile, name, role, is_active, created_at`,
+    params,
+  );
+  return {
+    id: row!.id,
+    mobile: row!.mobile,
+    name: row!.name,
+    role: row!.role as 'owner' | 'employee',
+    isActive: row!.is_active,
+    createdAt: row!.created_at,
+  };
+}
+
+/**
+ * @param creatorId `null` lists every store (owner). A uuid restricts to the stores that admin
+ *   created — the `$1::uuid is null` guard keeps both cases on one query and one plan.
+ */
+export async function listBusinesses(withMetrics = false, creatorId: string | null = null) {
   const [data, metricRows, subscriptionRows] = await Promise.all([
     many(
       `select id, name, slug, category, city, country_code, phone_number, is_active, currency, created_at
          from business
+        where ($1::uuid is null or created_by_admin_id = $1)
         order by created_at desc`,
+      [creatorId],
     ),
     withMetrics ? callRpc<any[]>('admin_store_metrics', {}) : Promise.resolve(null),
     withMetrics ? many('select business_id, status from subscription') : Promise.resolve(null),

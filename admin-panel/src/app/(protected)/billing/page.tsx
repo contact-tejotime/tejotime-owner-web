@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import KpiCard from "@/components/KpiCard";
 import { formatAmount, formatCount } from "@/lib/format";
-import { listBusinessesWithMetrics } from "@/lib/server-api";
+import { getMe, listBusinessesWithMetrics } from "@/lib/server-api";
 import { PREMIUM_PLAN_PRICE_INR } from "@/lib/static-data";
 import type { StoreMetrics } from "@/lib/types";
 import { t, format } from "@/i18n";
@@ -21,6 +22,10 @@ const STATUS_BADGE: Record<StoreMetrics["subscriptionStatus"], { label: string; 
  * backend exists.
  */
 export default async function BillingPage() {
+  // Owner-only. Subscriptions are a platform-level concern, not something an employee should see
+  // even for the stores they onboarded — the nav link is hidden for them and this is the gate.
+  if ((await getMe())?.role !== "owner") notFound();
+
   const stores = await listBusinessesWithMetrics();
   const premium = stores.filter((s) => s.plan === "premium");
   const free = stores.filter((s) => s.plan !== "premium");

@@ -22,12 +22,43 @@ async function requireAdminAuth(req: Request, _res: Response, next: NextFunction
   try {
     const claims = verifyAdminToken(header.slice(7).trim());
     if (claims.typ !== 'admin') return next(Errors.unauthenticated());
-    if (!(await admin.isKnownAdmin(claims.sub))) return next(Errors.unauthenticated('Admin no longer authorized'));
-    req.admin = { mobile: claims.sub };
+    // The row, not the token, is the source of truth for role and for still being allowed in:
+    // tokens live 12h, and a demotion or deactivation has to bite on the very next request.
+    const identity = await admin.getActiveAdminByMobile(claims.sub);
+    if (!identity) return next(Errors.unauthenticated('Admin no longer authorized'));
+    req.admin = { id: identity.id, mobile: identity.mobile, role: identity.role };
     next();
   } catch (err: any) {
     if (err?.name === 'TokenExpiredError') return next(Errors.tokenExpired());
     next(Errors.unauthenticated('Invalid token'));
+  }
+}
+
+/** The admin on the request. Only ever called downstream of requireAdminAuth. */
+function currentAdmin(req: Request): admin.AdminIdentity {
+  const a = req.admin!;
+  return { id: a.id, mobile: a.mobile, name: '', role: a.role };
+}
+
+/** Platform-wide surfaces an employee has no business seeing at all. */
+function requireOwner(req: Request, _res: Response, next: NextFunction): void {
+  if (req.admin?.role !== 'owner') return next(Errors.forbidden('Owner access required'));
+  next();
+}
+
+/**
+ * Store-level authorization for every `/businesses/:id*` route.
+ *
+ * Denial is a 404, not a 403: a 403 would confirm that the id names a real store, turning this
+ * endpoint into an oracle an employee could walk to enumerate the platform. "Not found" is the
+ * same answer they get for a uuid that never existed.
+ */
+async function requireStoreAccess(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (await admin.adminCanAccessBusiness(currentAdmin(req), req.params.id)) return next();
+    next(Errors.notFound('Store not found'));
+  } catch (err) {
+    next(err);
   }
 }
 
@@ -184,6 +215,26 @@ const loginSchema = z
   .object({ mobile: z.string().min(6).max(20), password: z.string().min(1).max(200) })
   .strict();
 
+/**
+ * Team management. `role` is absent by design — this endpoint only ever mints employees, so the
+ * panel cannot be used to create a second owner even if the session is stolen.
+ */
+const createAdminSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    mobile: z.string().regex(/^\d{6,20}$/, 'Digits only, including country code'),
+    password: z.string().min(6).max(72),
+  })
+  .strict();
+
+const updateAdminSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80).optional(),
+    password: z.string().min(6).max(72).optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict();
+
 const uploadSignSchema = z
   .object({
     assetType: z.enum(['hero', 'about', 'gallery', 'logo', 'avatar']),
@@ -254,7 +305,54 @@ adminRouter.get(
   limiters.ownerRead,
   validate({ query: z.object({ withMetrics: z.coerce.boolean().optional() }) }),
   asyncHandler(async (req: Request, res: Response) => {
-    res.json(await admin.listBusinesses(Boolean(req.query.withMetrics)));
+    const me = currentAdmin(req);
+    res.json(await admin.listBusinesses(Boolean(req.query.withMetrics), me.role === 'owner' ? null : me.id));
+  }),
+);
+
+/**
+ * Who am I. The panel needs the role to decide which nav to render, and the JWT deliberately
+ * does not carry one — a role baked into a 12h token would keep a demoted employee on the
+ * owner's navigation until it expired.
+ */
+adminRouter.get(
+  '/me',
+  limiters.ownerRead,
+  asyncHandler(async (req: Request, res: Response) => {
+    const me = req.admin!;
+    const identity = await admin.getActiveAdminByMobile(me.mobile);
+    res.json({ id: me.id, mobile: me.mobile, role: me.role, name: identity?.name ?? '' });
+  }),
+);
+
+// ---- Team: the owner managing platform employees. Owner-only, 403 otherwise. ----
+
+adminRouter.get(
+  '/admins',
+  limiters.ownerRead,
+  requireOwner,
+  asyncHandler(async (_req: Request, res: Response) => {
+    res.json(await admin.listAdmins());
+  }),
+);
+
+adminRouter.post(
+  '/admins',
+  limiters.ownerWrite,
+  requireOwner,
+  validate({ body: createAdminSchema }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.status(201).json(await admin.createEmployeeAdmin(req.body));
+  }),
+);
+
+adminRouter.patch(
+  '/admins/:id',
+  limiters.ownerWrite,
+  requireOwner,
+  validate({ params: idParam, body: updateAdminSchema }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await admin.updateEmployeeAdmin(req.params.id, req.body));
   }),
 );
 
@@ -263,16 +361,20 @@ adminRouter.get(
 adminRouter.get(
   '/analytics/overview',
   limiters.ownerRead,
-  asyncHandler(async (_req: Request, res: Response) => {
-    res.json(await analytics.getPlatformOverview());
+  asyncHandler(async (req: Request, res: Response) => {
+    // Owners get null (the whole platform); an employee gets their own store ids, including the
+    // empty array — which the service reads as "zeroes", not "no filter".
+    res.json(await analytics.getPlatformOverview(await admin.allowedBusinessIds(currentAdmin(req))));
   }),
 );
 
 // ---- Inquiries (read-only, platform-wide "Request access" leads) ----
+// Owner-only: leads belong to the platform, not to whoever happens to have onboarded a store.
 
 adminRouter.get(
   '/inquiries',
   limiters.ownerRead,
+  requireOwner,
   validate({ query: dateRangeQuery }),
   asyncHandler(async (req: Request, res: Response) => {
     res.json(await inquiries.listInquiries(req.query.from as string | undefined, req.query.to as string | undefined));
@@ -283,6 +385,7 @@ adminRouter.get(
   '/businesses/:id/analytics',
   limiters.ownerRead,
   validate({ params: idParam, query: z.object({ range: z.enum(['30d', '90d']).default('90d') }) }),
+  requireStoreAccess,
   asyncHandler(async (req: Request, res: Response) => {
     res.json(await analytics.getStoreAnalytics(req.params.id, req.query.range as '30d' | '90d'));
   }),
@@ -298,6 +401,7 @@ adminRouter.get(
       limit: z.coerce.number().int().min(1).max(500).default(200),
     }),
   }),
+  requireStoreAccess,
   asyncHandler(async (req: Request, res: Response) => {
     res.json(
       await analytics.listStoreCustomers(
@@ -313,6 +417,7 @@ adminRouter.get(
   '/businesses/:id/customers/:customerId/visits',
   limiters.ownerRead,
   validate({ params: customerVisitsParams }),
+  requireStoreAccess,
   asyncHandler(async (req: Request, res: Response) => {
     res.json(await analytics.listCustomerVisits(req.params.id, req.params.customerId));
   }),
@@ -322,6 +427,7 @@ adminRouter.get(
   '/businesses/:id/visits',
   limiters.ownerRead,
   validate({ params: idParam, query: dateRangeQuery }),
+  requireStoreAccess,
   asyncHandler(async (req: Request, res: Response) => {
     res.json(
       await analytics.listStoreVisits(
@@ -342,6 +448,7 @@ adminRouter.get(
       status: z.enum(['pending', 'confirmed', 'checked_in', 'completed', 'cancelled', 'no_show']).optional(),
     }),
   }),
+  requireStoreAccess,
   asyncHandler(async (req: Request, res: Response) => {
     res.json(
       await analytics.listStoreAppointments(req.params.id, {
@@ -357,6 +464,7 @@ adminRouter.get(
   '/businesses/:id',
   limiters.ownerRead,
   validate({ params: idParam }),
+  requireStoreAccess,
   asyncHandler(async (req: Request, res: Response) => {
     res.json(await admin.getBusinessDetail(req.params.id));
   }),
@@ -367,7 +475,8 @@ adminRouter.post(
   limiters.ownerWrite,
   validate({ body: createSchema }),
   asyncHandler(async (req: Request, res: Response) => {
-    res.status(201).json(await admin.createBusiness(req.body));
+    // Stamped with the creator, which is what makes it visible to an employee afterwards.
+    res.status(201).json(await admin.createBusiness(req.body, currentAdmin(req).id));
   }),
 );
 
@@ -375,6 +484,7 @@ adminRouter.put(
   '/businesses/:id',
   limiters.ownerWrite,
   validate({ params: idParam, body: updateSchema }),
+  requireStoreAccess,
   asyncHandler(async (req: Request, res: Response) => {
     res.json(await admin.updateBusiness(req.params.id, req.body));
   }),
