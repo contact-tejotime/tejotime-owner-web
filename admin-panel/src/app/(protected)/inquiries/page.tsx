@@ -1,7 +1,8 @@
+import { notFound } from "next/navigation";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import { formatDateTime } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
-import { listInquiries } from "@/lib/server-api";
+import { getMe, listInquiries } from "@/lib/server-api";
 import { t } from "@/i18n";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,10 @@ export default async function InquiriesPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
+  // Owner-only, matching the backend: /admin/inquiries 403s for an employee, and rendering an
+  // empty list off that would look like "no leads" rather than "not yours".
+  if ((await getMe())?.role !== "owner") notFound();
+
   const sp = await searchParams;
   let from = clean(sp.from) ?? "";
   let to = clean(sp.to) ?? "";

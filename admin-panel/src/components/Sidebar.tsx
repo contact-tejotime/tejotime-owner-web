@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { StoreListItem } from "@/lib/types";
+import type { AdminRole, StoreListItem } from "@/lib/types";
 import { frontendUrl } from "@/lib/frontend-url";
 import { t, format } from "@/i18n";
 import { Icon } from "@/components/icons";
@@ -13,7 +13,13 @@ const FRONTEND_URL = frontendUrl();
 
 const NAV_ICON = 18;
 
-export function Sidebar({ stores }: { stores: StoreListItem[] }) {
+/**
+ * @param role hides the platform-wide sections an employee has no access to. This is UX only —
+ *   the backend 403s those endpoints regardless, so a hand-typed /billing URL still gets an
+ *   empty page rather than someone else's data.
+ */
+export function Sidebar({ stores, role }: { stores: StoreListItem[]; role: AdminRole }) {
+  const isOwner = role === "owner";
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -79,21 +85,25 @@ export function Sidebar({ stores }: { stores: StoreListItem[] }) {
           <Icon name="users" size={NAV_ICON} className="nav-ic" /> {t.nav.customers}
         </Link>
 
-        <Link
-          href="/inquiries"
-          className={`nav-link ${pathname === "/inquiries" ? "active" : ""}`}
-          aria-current={pathname === "/inquiries" ? "page" : undefined}
-        >
-          <Icon name="list" size={NAV_ICON} className="nav-ic" /> {t.nav.inquiries}
-        </Link>
+        {isOwner && (
+          <>
+            <Link
+              href="/inquiries"
+              className={`nav-link ${pathname === "/inquiries" ? "active" : ""}`}
+              aria-current={pathname === "/inquiries" ? "page" : undefined}
+            >
+              <Icon name="list" size={NAV_ICON} className="nav-ic" /> {t.nav.inquiries}
+            </Link>
 
-        <Link
-          href="/billing"
-          className={`nav-link ${pathname === "/billing" ? "active" : ""}`}
-          aria-current={pathname === "/billing" ? "page" : undefined}
-        >
-          <Icon name="creditCard" size={NAV_ICON} className="nav-ic" /> {t.nav.billing}
-        </Link>
+            <Link
+              href="/billing"
+              className={`nav-link ${pathname === "/billing" ? "active" : ""}`}
+              aria-current={pathname === "/billing" ? "page" : undefined}
+            >
+              <Icon name="creditCard" size={NAV_ICON} className="nav-ic" /> {t.nav.billing}
+            </Link>
+          </>
+        )}
 
         <Link
           href="/reports"
@@ -103,8 +113,18 @@ export function Sidebar({ stores }: { stores: StoreListItem[] }) {
           <Icon name="trendingUp" size={NAV_ICON} className="nav-ic" /> {t.nav.reports}
         </Link>
 
-        {/* Broadcasts and Team & roles are parked in (protected)/_broadcasts and _team
-            (private folders, not routed) until their backends exist. */}
+        {isOwner && (
+          <Link
+            href="/team"
+            className={`nav-link ${pathname === "/team" ? "active" : ""}`}
+            aria-current={pathname === "/team" ? "page" : undefined}
+          >
+            <Icon name="users" size={NAV_ICON} className="nav-ic" /> {t.nav.team}
+          </Link>
+        )}
+
+        {/* Broadcasts is still parked in (protected)/_broadcasts (a private folder, not
+            routed) until its backend exists. */}
 
         <div className="side-label">{format(t.nav.storesGroup, { count: stores.length })}</div>
         {stores.length === 0 && <div className="side-empty">{t.nav.noStoresYet}</div>}
