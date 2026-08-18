@@ -63,7 +63,8 @@
     "storesGroup": "Stores ({count})",
     "noStoresYet": "No stores yet",
     "logout": "Log out",
-    "loggingOut": "Logging out…"
+    "loggingOut": "Logging out…",
+    "team": "Team"
   },
   "login": {
     "brand": "TejoTime Admin",
@@ -370,45 +371,41 @@
     "dunningNote": "Dunning (planned): remind on day 1 / 3 / 7 past due → downgrade to Free on day 14. Row actions: Retry charge · Send reminder."
   },
   "team": {
-    "title": "Team & roles",
-    "subtitle": "Admins, permissions and the audit trail · sample content until multi-admin lands",
-    "inviteAdmin": "+ Invite admin",
+    "title": "Team",
+    "subtitle": "Platform logins. Employees see only the stores they create.",
+    "addEmployee": "Add employee",
     "colName": "Name",
+    "colMobile": "Mobile",
     "colRole": "Role",
-    "colLastActive": "Last active",
-    "auditLog": "Audit log",
-    "rolesNote": "Roles: Owner = everything · Support = stores + customers, no billing · Analyst = read-only + reports.",
-    "staticMembers": [
-      {
-        "name": "Ravi (you)",
-        "role": "Owner",
-        "lastActive": "now"
-      },
-      {
-        "name": "Sneha",
-        "role": "Support",
-        "lastActive": "2h ago"
-      },
-      {
-        "name": "Karan",
-        "role": "Analyst",
-        "lastActive": "1d ago"
-      }
-    ],
-    "staticAudit": [
-      {
-        "time": "10:41",
-        "text": "Sneha edited Glow & Go services"
-      },
-      {
-        "time": "09:12",
-        "text": "Ravi deactivated Style Studio"
-      },
-      {
-        "time": "Yesterday",
-        "text": "Karan exported stores.csv"
-      }
-    ]
+    "colStores": "Stores",
+    "colStatus": "Status",
+    "colActions": "Actions",
+    "roleOwner": "Owner",
+    "roleEmployee": "Employee",
+    "statusActive": "Active",
+    "statusInactive": "Deactivated",
+    "empty": "No employees yet. Add one to share the store workload.",
+    "formTitle": "Add an employee",
+    "formHint": "They sign in on this same page with their mobile and password, and start with no stores.",
+    "fieldName": "Full name",
+    "fieldNamePlaceholder": "e.g. Sneha Rao",
+    "fieldMobile": "Mobile",
+    "fieldPassword": "Password",
+    "fieldPasswordHint": "At least 6 characters. Share it with them directly — it is never shown again.",
+    "submit": "Add employee",
+    "submitting": "Adding…",
+    "cancel": "Cancel",
+    "added": "{name} can now sign in.",
+    "deactivate": "Deactivate",
+    "reactivate": "Reactivate",
+    "resetPassword": "Reset password",
+    "resetPasswordPrompt": "New password for {name}",
+    "resetPasswordDone": "Password updated for {name}.",
+    "deactivateConfirm": "Deactivate {name}? They lose access immediately. The {count} store(s) they created stay put.",
+    "deactivated": "{name} can no longer sign in.",
+    "reactivated": "{name} can sign in again.",
+    "ownerLocked": "The owner account is managed outside the panel.",
+    "errGeneric": "Could not save. Try again."
   },
   "broadcasts": {
     "title": "Broadcasts",
