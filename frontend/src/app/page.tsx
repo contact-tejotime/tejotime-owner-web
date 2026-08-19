@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Icon } from "@/components/landing/Icon";
 import { Logo } from "@/components/landing/Logo";
 import { Button, Input } from "@/components/landing/ui";
@@ -816,7 +817,17 @@ export default function Home() {
         <div style={{ borderTop: "1px solid var(--border-subtle)" }}>
           <div style={{ maxWidth: MAX, margin: "0 auto", padding: "18px 28px", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-subtle)" }}>
             <span>{t.landing.footer.copyright}</span>
-            <span>{t.landing.footer.legal}</span>
+            <span style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <Link href="/privacy" style={{ color: "inherit" }}>
+                {t.landing.footer.privacy}
+              </Link>
+              <span aria-hidden="true">·</span>
+              <span>{t.landing.footer.terms}</span>
+              <span aria-hidden="true">·</span>
+              <a href={t.landing.footer.contactMailto} style={{ color: "inherit" }}>
+                {t.landing.footer.contact}
+              </a>
+            </span>
           </div>
         </div>
       </div>
@@ -934,7 +945,10 @@ export default function Home() {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginTop: 14 }}>
                     <span style={{ color: "var(--text-subtle)", display: "flex" }}><Icon name="checkCircle" size={14} /></span>
                     <p style={{ font: "var(--fw-regular) var(--fs-body-sm)/1.4 var(--font-sans)", color: "var(--text-subtle)", margin: 0 }}>
-                      {t.landing.inquiry.privacyNote}
+                      {t.landing.inquiry.privacyNote}{" "}
+                      <Link href="/privacy" style={{ color: "var(--primary)" }}>
+                        {t.landing.inquiry.privacyPolicy}
+                      </Link>
                     </p>
                   </div>
                 </>

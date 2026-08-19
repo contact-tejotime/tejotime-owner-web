@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import type { Socket } from "socket.io-client";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/Button";
@@ -1557,7 +1558,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           {/* The store's own profiles sit between the TejoTime credit and the legal links —
               the footer is where people look for "where else can I find this shop". */}
           <SocialLinks socials={site.socials} />
-          <span style={{ font: "var(--fw-regular) 12px/1 var(--font-sans)", color: "var(--text-subtle)" }}>{t.brand.termsPrivacy}</span>
+          <span style={{ font: "var(--fw-regular) 12px/1 var(--font-sans)", color: "var(--text-subtle)" }}>
+            {t.brand.terms}
+            {" · "}
+            <Link href="/privacy" style={{ color: "inherit" }}>
+              {t.brand.privacy}
+            </Link>
+          </span>
         </div>
       </div>
 
