@@ -16,6 +16,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.tejotime.tejotimemobile",
+      "versionCode": 1,
       "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
