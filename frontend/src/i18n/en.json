@@ -15,7 +15,8 @@
     "nameFirst": "Tejo",
     "nameSecond": "Time",
     "poweredBy": "Powered by",
-    "termsPrivacy": "Terms · Privacy"
+    "terms": "Terms",
+    "privacy": "Privacy"
   },
   "notFound": {
     "title": "We couldn’t find that salon",
@@ -106,7 +107,10 @@
     "footer": {
       "blurb": "Enterprise technology. Small business pricing. Your business, your brand, your customers.",
       "copyright": "© 2026 TejoTime · Easy appointments for small business",
-      "legal": "Privacy · Terms · Contact"
+      "privacy": "Privacy",
+      "terms": "Terms",
+      "contact": "Contact",
+      "contactMailto": "mailto:support@tejotime.com"
     },
     "inquiry": {
       "title": "Request access",
@@ -120,6 +124,7 @@
       "submit": "Submit inquiry",
       "submitting": "Submitting…",
       "privacyNote": "We’ll never share your details. Reply within one business day.",
+      "privacyPolicy": "Privacy policy",
       "invalid": "Please fill in all fields with a valid phone number.",
       "failed": "Something went wrong. Please try again.",
       "successTitle": "Inquiry received!",
@@ -560,5 +565,79 @@
       "ctaHeading": "Reserve your slot",
       "ctaSub": "See how busy the floor is before you head over"
     }
+  },
+  "privacy": {
+    "metaTitle": "Privacy Policy — TejoTime",
+    "metaDescription": "How TejoTime collects and uses information in the owner app and related services.",
+    "title": "Privacy Policy",
+    "lastUpdated": "Last updated: 19 August 2026",
+    "home": "Back to home",
+    "contactEmail": "support@tejotime.com",
+    "sections": [
+      {
+        "heading": "1. Who this app is for",
+        "paragraphs": [
+          "TejoTime is a business tool for shop owners and staff (salons, barbershops, spas and similar). It is not directed at children under 13."
+        ]
+      },
+      {
+        "heading": "2. Information we collect",
+        "paragraphs": [
+          "Account: owner or staff phone number and password; name, role, and store details you enter.",
+          "Business content you add: store name, address, hours, services, prices, photos, staff names and photos; customer names, phone numbers, visit and appointment history you or your customers provide when they book or join the queue.",
+          "Device and technical: login tokens stored securely on the device; app version and basic device or network information needed to run the service; photos you choose to upload (staff or store images). We only access the photo library when you pick an image. We do not take photos in the background.",
+          "We do not collect precise GPS location, contacts, SMS, or payment card numbers in this app. Customers pay at the shop."
+        ]
+      },
+      {
+        "heading": "3. How we use information",
+        "paragraphs": [
+          "We use this information to create and sign in to your account; run your queue, appointments, calendar and customer list; show your public booking page; send operational updates related to your store (for example queue or booking status); and to secure the service, prevent abuse, and provide support."
+        ]
+      },
+      {
+        "heading": "4. Sharing",
+        "paragraphs": [
+          "We do not sell personal information. We share it only with hosting and storage providers that run our servers and image storage, under contract; when required by law; and with people you invite (staff logins) for that store.",
+          "Your public booking page may show the store name, address, services, prices and photos you publish."
+        ]
+      },
+      {
+        "heading": "5. Retention",
+        "paragraphs": [
+          "We keep account and store data while the store is active. You may ask us to delete a store or account by emailing support@tejotime.com. Some records may be kept if the law requires it."
+        ]
+      },
+      {
+        "heading": "6. Security",
+        "paragraphs": [
+          "Passwords are stored hashed. Session tokens are kept in the device secure store. No method is 100% secure."
+        ]
+      },
+      {
+        "heading": "7. Your choices",
+        "paragraphs": [
+          "You can update store and customer data in the app. You can sign out. You can request access, correction or deletion of your account data at support@tejotime.com."
+        ]
+      },
+      {
+        "heading": "8. Children’s privacy",
+        "paragraphs": [
+          "The app is for business users, not children. We do not knowingly collect data from children under 13."
+        ]
+      },
+      {
+        "heading": "9. Changes",
+        "paragraphs": [
+          "We may update this policy. The “Last updated” date will change. Continued use means you accept the updated policy."
+        ]
+      },
+      {
+        "heading": "10. Contact",
+        "paragraphs": [
+          "TejoTime. Email: support@tejotime.com. Website: https://www.tejotime.com"
+        ]
+      }
+    ]
   }
 }
