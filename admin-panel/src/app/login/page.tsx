@@ -7,6 +7,7 @@ import { combineToDigits, DEFAULT_DIAL_CODE, DEFAULT_ISO2 } from "@/lib/phone";
 import { t } from "@/i18n";
 import Spinner from "@/components/ui/Spinner";
 import { Icon } from "@/components/icons";
+import { SUPPORT } from "@/lib/support";
 
 /** Pull a human-readable message out of the backend's { error: { message } } envelope. */
 async function errorMessage(res: Response, fallback: string): Promise<string> {
@@ -108,6 +109,18 @@ export default function LoginPage() {
             {busy ? t.login.signingIn : t.login.continue}
           </button>
         </form>
+      </div>
+      <div className="login-support">
+        <p className="login-support-label">{t.login.needHelp}</p>
+        <div className="login-support-links">
+          <a href={`mailto:${SUPPORT.email}`} aria-label={t.login.supportEmail}>
+            {SUPPORT.email}
+          </a>
+          <span aria-hidden="true">·</span>
+          <a href={`tel:${SUPPORT.phoneTel}`} aria-label={t.login.supportCall}>
+            {SUPPORT.phoneDisplay}
+          </a>
+        </div>
       </div>
     </div>
   );

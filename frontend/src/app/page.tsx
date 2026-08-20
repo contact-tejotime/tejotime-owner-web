@@ -827,6 +827,10 @@ export default function Home() {
               <a href={t.landing.footer.contactMailto} style={{ color: "inherit" }}>
                 {t.landing.footer.contact}
               </a>
+              <span aria-hidden="true">·</span>
+              <a href={t.landing.footer.contactTel} style={{ color: "inherit" }}>
+                {t.landing.footer.contactPhone}
+              </a>
             </span>
           </div>
         </div>

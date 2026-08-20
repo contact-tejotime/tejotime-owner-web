@@ -110,7 +110,9 @@
       "privacy": "Privacy",
       "terms": "Terms",
       "contact": "Contact",
-      "contactMailto": "mailto:support@tejotime.com"
+      "contactMailto": "mailto:support@tejotime.com",
+      "contactPhone": "+91 79907 17045",
+      "contactTel": "tel:+917990717045"
     },
     "inquiry": {
       "title": "Request access",
@@ -573,6 +575,8 @@
     "lastUpdated": "Last updated: 19 August 2026",
     "home": "Back to home",
     "contactEmail": "support@tejotime.com",
+    "contactPhone": "+91 79907 17045",
+    "contactTel": "tel:+917990717045",
     "sections": [
       {
         "heading": "1. Who this app is for",
@@ -635,7 +639,7 @@
       {
         "heading": "10. Contact",
         "paragraphs": [
-          "TejoTime. Email: support@tejotime.com. Website: https://www.tejotime.com"
+          "TejoTime. Email: support@tejotime.com. Phone: +91 79907 17045. Website: https://www.tejotime.com"
         ]
       }
     ]

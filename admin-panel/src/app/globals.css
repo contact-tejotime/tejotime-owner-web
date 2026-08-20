@@ -611,6 +611,7 @@ button {
 .login-shell {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 24px;
@@ -640,6 +641,33 @@ button {
 .login-btn {
   width: 100%;
   margin-top: 16px;
+}
+.login-support {
+  width: 100%;
+  max-width: 400px;
+  margin-top: 16px;
+  text-align: center;
+}
+.login-support-label {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.login-support-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.login-support-links a {
+  color: var(--primary);
+  text-decoration: none;
+}
+.login-support-links a:hover {
+  text-decoration: underline;
 }
 .password-label {
   margin-top: 14px;

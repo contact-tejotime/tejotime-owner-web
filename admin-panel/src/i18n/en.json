@@ -92,7 +92,10 @@
     "loginError": "Sign in failed. Check your number and password.",
     "otpSendError": "Could not send OTP. Try again.",
     "otpVerifyError": "Incorrect OTP. Try again.",
-    "networkError": "Network error. Is the backend running?"
+    "networkError": "Network error. Is the backend running?",
+    "needHelp": "Need help? Contact TejoTime support",
+    "supportEmail": "Email support",
+    "supportCall": "Call support"
   },
   "error": {
     "title": "Something went wrong",
