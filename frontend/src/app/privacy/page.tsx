@@ -97,9 +97,12 @@ export default function PrivacyPage() {
           </section>
         ))}
 
-        <p style={{ margin: "32px 0 0", font: "var(--fw-regular) 15px/1.65 var(--font-sans)" }}>
+        <p style={{ margin: "32px 0 0", font: "var(--fw-regular) 15px/1.65 var(--font-sans)", display: "flex", flexWrap: "wrap", gap: 12 }}>
           <a href={`mailto:${t.privacy.contactEmail}`} style={{ color: "var(--primary)" }}>
             {t.privacy.contactEmail}
+          </a>
+          <a href={t.privacy.contactTel} style={{ color: "var(--primary)" }}>
+            {t.privacy.contactPhone}
           </a>
         </p>
       </article>
