@@ -683,7 +683,7 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
             <div className="grid">
               <div className="field">
                 <label htmlFor="sf-ownerPhoneReadonly">{t.storeForm.ownerPhone}</label>
-                <input id="sf-ownerPhoneReadonly" value={form.ownerPhone || "—"} readOnly />
+                <input id="sf-ownerPhoneReadonly" value={form.ownerPhone || t.common.dash} readOnly />
               </div>
               <div className="field">
                 <label htmlFor="sf-newOwnerPassword">{t.storeForm.newPassword}</label>
@@ -692,6 +692,7 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
                     id="sf-newOwnerPassword"
                     type={showOwnerPassword ? "text" : "password"}
                     autoComplete="new-password"
+                    placeholder={t.storeForm.newPasswordPlaceholder}
                     value={newOwnerPassword}
                     onChange={(e) => setNewOwnerPassword(e.target.value)}
                     minLength={6}
@@ -707,6 +708,7 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
                     <Icon name={showOwnerPassword ? "eyeOff" : "eye"} size={18} />
                   </button>
                 </div>
+                <p className="hint">{t.storeForm.newPasswordHint}</p>
               </div>
             </div>
             <button
@@ -717,7 +719,7 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
               onClick={() => void resetOwnerPassword()}
             >
               {resettingOwnerPassword && <Spinner className="btn-spinner" />}
-              {t.storeForm.resetOwnerPassword}
+              {resettingOwnerPassword ? t.storeForm.resetOwnerPasswordBusy : t.storeForm.resetOwnerPassword}
             </button>
           </section>
         )}
