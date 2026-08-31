@@ -67,6 +67,11 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
   const [savedTheme, setSavedTheme] = useState<ThemeConfig>(form.theme);
   // Once the admin picks a preset by hand, changing the category must not overwrite it.
   const presetTouched = useRef(false);
+  const [newOwnerPassword, setNewOwnerPassword] = useState("");
+  const [showOwnerPassword, setShowOwnerPassword] = useState(false);
+  const [resettingOwnerPassword, setResettingOwnerPassword] = useState(false);
+  const [ownerResetError, setOwnerResetError] = useState("");
+  const [ownerResetNotice, setOwnerResetNotice] = useState("");
 
   const set = <K extends keyof StoreFormState>(key: K, value: StoreFormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -109,6 +114,35 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
     setForm((f) => ({ ...f, hours: f.hours.map((h, idx) => (idx === i ? { ...h, ...patch } : h)) }));
 
   const removeAt = <T,>(arr: T[], i: number) => arr.filter((_, idx) => idx !== i);
+
+  async function resetOwnerPassword() {
+    if (!storeId || resettingOwnerPassword) return;
+    setOwnerResetError("");
+    setOwnerResetNotice("");
+    if (newOwnerPassword.length < 6) {
+      setOwnerResetError(t.storeForm.resetOwnerPasswordTooShort);
+      return;
+    }
+    setResettingOwnerPassword(true);
+    try {
+      const res = await fetch(`/api/stores/${storeId}/owner/password`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password: newOwnerPassword }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setOwnerResetError(json?.error?.message ?? t.storeForm.resetOwnerPasswordErr);
+        return;
+      }
+      setNewOwnerPassword("");
+      setOwnerResetNotice(t.storeForm.resetOwnerPasswordDone);
+    } catch {
+      setOwnerResetError(t.storeForm.resetOwnerPasswordErr);
+    } finally {
+      setResettingOwnerPassword(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -628,6 +662,63 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
                 <input id="sf-ownerPassword" type="text" value={form.ownerPassword} onChange={(e) => set("ownerPassword", e.target.value)} minLength={6} required />
               </div>
             </div>
+          </section>
+        )}
+
+        {/* Owner login reset (edit only) -------------------------------- */}
+        {mode === "edit" && (
+          <section className="section">
+            <h2>{t.storeForm.ownerLogin}</h2>
+            <p className="hint">{t.storeForm.ownerLoginResetHint}</p>
+            {ownerResetError ? (
+              <div className="alert err" role="alert">
+                {ownerResetError}
+              </div>
+            ) : null}
+            {ownerResetNotice ? (
+              <div className="alert ok" role="status">
+                {ownerResetNotice}
+              </div>
+            ) : null}
+            <div className="grid">
+              <div className="field">
+                <label htmlFor="sf-ownerPhoneReadonly">{t.storeForm.ownerPhone}</label>
+                <input id="sf-ownerPhoneReadonly" value={form.ownerPhone || "—"} readOnly />
+              </div>
+              <div className="field">
+                <label htmlFor="sf-newOwnerPassword">{t.storeForm.newPassword}</label>
+                <div className="password-field">
+                  <input
+                    id="sf-newOwnerPassword"
+                    type={showOwnerPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={newOwnerPassword}
+                    onChange={(e) => setNewOwnerPassword(e.target.value)}
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowOwnerPassword((s) => !s)}
+                    aria-label={showOwnerPassword ? t.login.hidePassword : t.login.showPassword}
+                    aria-pressed={showOwnerPassword}
+                    tabIndex={-1}
+                  >
+                    <Icon name={showOwnerPassword ? "eyeOff" : "eye"} size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={resettingOwnerPassword || !newOwnerPassword.trim()}
+              aria-busy={resettingOwnerPassword || undefined}
+              onClick={() => void resetOwnerPassword()}
+            >
+              {resettingOwnerPassword && <Spinner className="btn-spinner" />}
+              {t.storeForm.resetOwnerPassword}
+            </button>
           </section>
         )}
 

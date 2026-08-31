@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import type { PoolClient } from 'pg';
-import { many, one, transaction } from '../../db/pool';
+import { exec, many, one, transaction } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
 import { Errors } from '../../domain/errors';
@@ -402,6 +402,28 @@ export async function updateBusiness(id: string, input: UpdateBusinessInput) {
   return { id, phoneFull, micrositePath: `/${phoneFull}` };
 }
 
+/** Admin support action: set a new password for the store's super owner and sign them out everywhere. */
+export async function resetBusinessOwnerPassword(businessId: string, password: string) {
+  const owner = await one(
+    'select id from app_user where business_id = $1 and is_super_owner = true limit 1',
+    [businessId],
+  );
+  if (!owner) throw Errors.notFound('Owner not found');
+
+  const passwordHash = await bcrypt.hash(password + env.PASSWORD_PEPPER, 10);
+  const now = new Date().toISOString();
+  await one('update app_user set password_hash = $1, updated_at = $2 where id = $3 returning id', [
+    passwordHash,
+    now,
+    owner.id,
+  ]);
+  await exec('update auth_session set revoked_at = $1 where user_id = $2 and revoked_at is null', [
+    now,
+    owner.id,
+  ]);
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // Admin-panel login (mobile + OTP).
 //
@@ -685,12 +707,13 @@ export async function getBusinessDetail(id: string) {
   const b = await one('select * from business where id = $1', [id]);
   if (!b) throw Errors.notFound('Store not found');
 
-  const [hours, amenities, gallery, services, staff] = await Promise.all([
+  const [hours, amenities, gallery, services, staff, owner] = await Promise.all([
     many('select * from business_hour where business_id = $1 order by day_of_week', [id]),
     many('select * from amenity where business_id = $1 order by position', [id]),
     many('select * from gallery_image where business_id = $1 order by position', [id]),
     many('select * from service where business_id = $1 and is_active = true order by position', [id]),
     many('select * from staff where business_id = $1 and is_active = true order by position', [id]),
+    one('select phone from app_user where business_id = $1 and is_super_owner = true limit 1', [id]),
   ]);
 
   const hhmm = (t: string | null) => (t ? t.slice(0, 5) : '');
@@ -730,6 +753,7 @@ export async function getBusinessDetail(id: string) {
     countryCode: b.country_code ?? '',
     phoneNumber: b.phone_number ?? '',
     phoneFull: `${b.country_code ?? ''}${b.phone_number ?? ''}`,
+    ownerPhone: (owner?.phone as string | undefined) ?? '',
     hours: hours.map((h) => ({
       dayOfWeek: h.day_of_week,
       opensAt: hhmm(h.opens_at),

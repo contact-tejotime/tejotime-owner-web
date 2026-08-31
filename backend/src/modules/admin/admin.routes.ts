@@ -203,6 +203,7 @@ const createSchema = storeFieldsSchema
   .superRefine(requireServicesStaff);
 
 const updateSchema = storeFieldsSchema.strict().superRefine(requireServicesStaff);
+const resetOwnerPasswordSchema = z.object({ password: z.string().min(6).max(72) }).strict();
 const idParam = z.object({ id: z.string().uuid() });
 const customerVisitsParams = z.object({ id: z.string().uuid(), customerId: z.string().uuid() });
 
@@ -487,5 +488,15 @@ adminRouter.put(
   requireStoreAccess,
   asyncHandler(async (req: Request, res: Response) => {
     res.json(await admin.updateBusiness(req.params.id, req.body));
+  }),
+);
+
+adminRouter.post(
+  '/businesses/:id/owner/password',
+  limiters.ownerWrite,
+  validate({ params: idParam, body: resetOwnerPasswordSchema }),
+  requireStoreAccess,
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await admin.resetBusinessOwnerPassword(req.params.id, req.body.password));
   }),
 );

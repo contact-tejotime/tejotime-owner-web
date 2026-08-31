@@ -208,6 +208,8 @@ export interface StoreDetail {
   countryCode: string;
   phoneNumber: string;
   phoneFull: string;
+  /** Super owner's login phone — read-only on the edit form. */
+  ownerPhone: string;
   hours: HourRow[];
   amenities: string[];
   gallery: GalleryRow[];
@@ -268,7 +270,7 @@ export function fromDetail(d: StoreDetail): StoreForm {
     staff: d.staff.length ? d.staff : EMPTY_FORM.staff,
     faqs: d.faqs,
     reviews: d.reviews ?? [],
-    ownerPhone: "",
+    ownerPhone: d.ownerPhone ?? "",
     ownerPassword: "",
   };
 }
