@@ -1,4 +1,5 @@
 # Railway service config for the admin panel (Next.js).
+# deploy-bump: 2026-08-31 — rebuild tejotime-admin (owner password reset proxy + UI).
 # Set the service's Root Directory to `admin-panel` in the Railway dashboard.
 #
 # BACKEND_API_BASE_URL is read server-side at runtime — a normal service

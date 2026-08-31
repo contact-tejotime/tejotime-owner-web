@@ -1,4 +1,5 @@
 # Railway service config for the API (Express + Socket.IO + node-cron).
+# deploy-bump: 2026-08-31 — rebuild tejotime-api (owner password reset route on main).
 # Set the service's Root Directory to `backend` in the Railway dashboard; the
 # rest is versioned here. Env vars stay in the dashboard — see .env.example.
 #

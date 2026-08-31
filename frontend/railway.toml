@@ -1,4 +1,5 @@
 # Railway service config for the customer-facing Next.js microsite.
+# deploy-bump: 2026-08-31 — rebuild tejotime-web (sync production deploy with main).
 # Set the service's Root Directory to `frontend` in the Railway dashboard.
 #
 # NEXT_PUBLIC_* vars are baked in at BUILD time — Dockerfile declares them as
