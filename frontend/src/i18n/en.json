@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "TejoTime — Run your queue, bookings & customers in one place",
-    "description": "The digital OS for small business. TejoTime gives any appointment-based business online booking, a live queue, reminders and customer management — without a developer or IT team."
+    "title": "TejoTime — Your clients book. You run the day.",
+    "description": "Booking and client management for salons, barbershops, spas, and studios. Clients pick a time from your page, walk-ins get a place in line, and your whole day sits in one dashboard you can run from your phone."
   },
   "common": {
     "close": "Close",
@@ -39,259 +39,510 @@
   },
   "landing": {
     "nav": {
-      "features": "Features",
       "industries": "Industries",
-      "vision": "Vision",
-      "getStarted": "Get started"
+      "features": "Features",
+      "walkins": "Walk-ins",
+      "pricing": "Pricing",
+      "signIn": "Sign in",
+      "menu": "Main menu"
+    },
+    "cta": {
+      "pilot": "Join the pilot",
+      "selfServe": "Start free",
+      "talkToUs": "Talk to us",
+      "bookDemo": "Book a demo",
+      "seeHow": "See how it works"
     },
     "hero": {
-      "eyebrow": "The digital OS for small business",
-      "titleLead": "Run your queue, bookings & customers —",
-      "titleAccent": "all in one place.",
-      "body": "More than online appointments. TejoTime gives any appointment-based business the tools big companies use — without the developer, the IT team, or the price tag.",
-      "getStarted": "Get started",
-      "requestDemo": "Request a demo",
-      "lovedByLine1": "Loved by barber shops, salons, clinics",
-      "lovedByLine2": "& service centers across India"
+      "eyebrow": "For salons, barbershops, spas & studios",
+      "title": "Your clients book. You run the day.",
+      "body": "They pick a time from your page. Walk-ins get a place in line. Your whole day sits in one dashboard you can run from your phone.",
+      "microPilot": "Free during our U.S. pilot — and we’ll set your shop up with you.",
+      "microSelfServe": "Set up in minutes. No credit card required. Cancel anytime.",
+      "proofLine": "Built for independent beauty, wellness, therapy, tattoo, and pet-care businesses."
     },
-    "mock": {
-      "liveQueue": "Live queue",
-      "storeToday": "Sharp Cuts · today",
-      "open": "Open",
-      "addWalkIn": "Add walk-in",
-      "newBooking": "New booking",
-      "newBookingSub": "Asha · 4:30 PM",
-      "waitValue": "~25 min",
-      "waitLabel": "est. wait to clear"
+    "socialProof": {
+      "line": "Built for independent beauty, wellness, therapy, tattoo, and pet-care businesses."
+    },
+    "calendar": {
+      "shopName": "Harbor & Main Barbers",
+      "shopMeta": "Barbershop · Sep 8 · 4 barbers on the floor",
+      "openNow": "Open now",
+      "day": "Day"
+    },
+    "industriesSection": {
+      "title": "Built around the way service businesses work",
+      "body": "Whether your business runs on scheduled appointments, walk-ins, or a mix of both, TejoTime keeps booking, providers, and clients organized without adding complicated software."
     },
     "features": {
-      "eyebrow": "Everything you need",
-      "title": "One platform to run the whole business",
-      "body": "No web designer. No IT consultant. No expensive software. Just the tools to look professional and stay organised."
+      "title": "Everything you need to run a smoother day",
+      "body": "Give clients an easy way to book, keep appointments and optional walk-ins in one place, and stay on top of the day from your phone."
     },
     "booking": {
       "eyebrow": "Online booking",
-      "title": "Let customers book 24/7",
-      "body": "Your own page at tejotime.com/yourbusiness. No missed calls, no WhatsApp confusion — just bookings that land straight in your queue.",
-      "storeName": "Sharp Cuts",
-      "storeMeta": "· Barber · 0.4 km",
-      "storeRating": "4.9",
-      "open": "Open",
-      "serviceName": "Haircut + beard",
-      "serviceDuration": "45 min",
-      "servicePrice": "₹250",
-      "selectDate": "Select a date",
-      "chooseTime": "Choose a time",
-      "confirm": "Confirm booking"
+      "title": "Let clients book without the back-and-forth",
+      "body": "Your TejoTime booking page is open 24/7. Clients can pick a service, choose a provider, and reserve an available time in just a few taps. No phone tag. No back-and-forth DMs.",
+      "pickATime": "Pick a time",
+      "confirm": "Confirm booking",
+      "yourSchedule": "Your schedule",
+      "justBooked": "Just booked"
     },
-    "ownerApp": {
-      "eyebrow": "Owner app",
-      "title": "Run your day from your phone",
-      "body": "Queue, walk-ins, appointments, staff and customers — one dashboard that updates live. See exactly what’s happening, wherever you are."
+    "walkins": {
+      "eyebrow": "Walk-ins",
+      "title": "Appointments and walk-ins, together",
+      "body": "Scheduled appointments and the walk-in waitlist live in one view. Add a walk-in, start a service, and everyone sees an honest estimated wait.",
+      "boardTitle": "Walk-in waitlist",
+      "estimatedWait": "Estimated wait",
+      "addWalkIn": "+ Add walk-in",
+      "addedToast": "Sam O. added — place 27, about 48 minutes"
     },
-    "industries": {
-      "eyebrow": "Built for every business",
-      "title": "If you book it or queue it, TejoTime runs it"
+    "clients": {
+      "eyebrow": "Client management",
+      "title": "Know your clients before they arrive",
+      "body": "Visit history and notes stay with the client, not with whoever happened to serve them. Reminders go out on their own, and rebooking happens at the chair.",
+      "rebook": "Rebook",
+      "viewHistory": "View history"
     },
-    "vision": {
-      "eyebrow": "Our goal",
-      "titleLead": "From your first customer to your thousandth,",
-      "titleAccent": "TejoTime grows with you.",
-      "body": "Every small business deserves the technology large companies use. We make enterprise-grade tools affordable for every entrepreneur — and we add more every month."
+    "steps": {
+      "title": "Get started in three steps"
     },
-    "cta": {
-      "title": "Ready to grow with TejoTime?",
-      "body": "Tell us about your business — we’ll set everything up and walk you through it. No tech skills needed.",
-      "button": "Send an inquiry"
+    "pricing": {
+      "title": "Simple pricing for growing businesses",
+      "note": "Placeholder figures until pricing is set. The free tier is real.",
+      "mostPopular": "Most popular"
+    },
+    "faq": {
+      "title": "Questions, answered"
+    },
+    "gallery": {
+      "title": "Inside the shops that use it",
+      "body": "Real floors, real chairs, real queues. Photography to be shot with our pilot partners.",
+      "placeholder": "Placeholder"
+    },
+    "close": {
+      "title": "Ready for a smoother day in your business?",
+      "body": "Create your booking page and start managing appointments, providers, clients, and walk-ins in one place.",
+      "micro": "Questions? Email support@tejotime.com. Add a real U.S. support number before launch."
     },
     "footer": {
-      "blurb": "Enterprise technology. Small business pricing. Your business, your brand, your customers.",
-      "copyright": "© 2026 TejoTime · Easy appointments for small business",
-      "privacy": "Privacy",
-      "terms": "Terms",
-      "contact": "Contact",
-      "contactMailto": "mailto:support@tejotime.com",
-      "contactPhone": "+91 79907 17045",
-      "contactTel": "tel:+917990717045"
+      "note": "© 2026 TejoTime · Confirm the legal entity name and U.S. mailing address before launch."
+    },
+    "toast": {
+      "booking": "Booking flow opens here",
+      "history": "Client history opens here"
     },
     "inquiry": {
-      "title": "Request access",
-      "subtitle": "We’ll set you up — no tech skills needed.",
+      "title": "Join the U.S. pilot",
+      "subtitle": "Tell us about your business and we’ll set it up with you — no tech skills needed.",
       "businessNameLabel": "Business name",
-      "businessNamePlaceholder": "e.g. Sharp Cuts",
+      "businessNamePlaceholder": "e.g. Harbor & Main Barbers",
       "addressLabel": "Address",
-      "addressPlaceholder": "Shop / clinic address",
+      "addressPlaceholder": "Shop / studio address",
       "phoneLabel": "Phone number",
-      "phonePlaceholder": "00000 00000",
-      "submit": "Submit inquiry",
+      "phonePlaceholder": "(000) 000-0000",
+      "submit": "Request access",
       "submitting": "Submitting…",
       "privacyNote": "We’ll never share your details. Reply within one business day.",
       "privacyPolicy": "Privacy policy",
       "invalid": "Please fill in all fields with a valid phone number.",
       "failed": "Something went wrong. Please try again.",
-      "successTitle": "Inquiry received!",
-      "successBody": "Our team will reach out within one business day to get you set up.",
+      "successTitle": "Request received",
+      "successBody": "Our team will reach out within one business day to get your booking page set up.",
       "successDone": "Done"
     }
   },
   "landingData": {
-    "queueMock": [
-      {
-        "name": "Rahul M.",
-        "service": "Haircut + beard",
-        "status": "In service"
-      },
-      {
-        "name": "Imran K.",
-        "service": "Haircut",
-        "status": "Waiting"
-      },
-      {
-        "name": "Vikram S.",
-        "service": "Shave",
-        "status": "Waiting"
-      }
+    "proofSignals": [
+      { "name": "Online booking", "score": "24/7" },
+      { "name": "Walk-in waitlist", "score": "Live" },
+      { "name": "Mobile dashboard", "score": "Floor" },
+      { "name": "Hands-on setup", "score": "With you" }
     ],
-    "marquee": [
-      "Barber shops",
-      "Salons",
-      "Clinics",
-      "Dentists",
-      "Hospitals",
-      "Service centers",
-      "Consultants",
-      "Car wash",
-      "Spas",
-      "Fitness studios",
-      "Tutors",
-      "Pet groomers"
+    "proofStats": [
+      { "value": "9+", "label": "Service industries" },
+      { "value": "Free", "label": "During the U.S. pilot" },
+      { "value": "24/7", "label": "Client booking page" },
+      { "value": "1", "label": "View for the whole day" }
     ],
-    "features": {
-      "businessPage": {
-        "title": "Professional business page",
-        "desc": "A beautiful page at tejotime.com/yourbusiness with services, pricing, photos and reviews. No coding."
-      },
-      "appointments": {
-        "title": "Online appointments",
-        "desc": "Customers book 24/7. Pick a service, choose a time, confirm — it lands straight in your queue."
-      },
-      "queue": {
-        "title": "Live queue & tokens",
-        "desc": "Walk-ins and bookings in one line. Tokens, wait times and status update in real time."
-      },
-      "reminders": {
-        "title": "Automated reminders",
-        "desc": "Confirmations and reminders cut no-shows automatically — no manual WhatsApp or calls."
-      },
-      "customers": {
-        "title": "Customer management",
-        "desc": "Every customer, visit and history in one place. Know your regulars and bring them back."
-      },
-      "grow": {
-        "title": "Grow your business",
-        "desc": "Build presence, increase bookings and improve retention with technology that works for you."
-      }
-    },
-    "bookingBullets": [
-      "Service → time → confirm in seconds",
-      "Share via WhatsApp, Instagram or a QR code",
-      "Fewer no-shows with auto reminders"
-    ],
-    "ownerBullets": [
-      "One live dashboard for the whole day",
-      "Add walk-ins and start service in a tap",
-      "Manage staff, services and working hours"
-    ],
-    "bookingDays": [
-      "Mon",
-      "Tue",
-      "Wed",
-      "Thu",
-      "Fri"
-    ],
-    "kpis": {
-      "inQueue": "In queue",
-      "todaysBookings": "Today's bookings",
+    "status": {
+      "waiting": "Waiting",
+      "upcoming": "Upcoming",
+      "in-service": "In service",
+      "serving": "In service",
       "completed": "Completed",
-      "revenueToday": "Revenue today"
+      "cancelled": "Cancelled",
+      "no-show": "No-show",
+      "confirmed": "Confirmed"
     },
-    "stats": {
-      "businesses": "Businesses onboard",
-      "appointments": "Appointments booked",
-      "industries": "Industries served",
-      "rating": "Average owner rating"
-    },
+    "waitMinutes": "~{minutes} min",
+    "waitHoursMinutes": "~{hours}h {minutes}m",
+    "waitApprox": "~{minutes} min wait",
     "industries": [
-      "Barber shops",
-      "Beauty salons",
-      "Nail studios",
-      "Spas & wellness",
-      "Doctors",
-      "Dentists",
-      "Clinics",
-      "Hospitals",
-      "Fitness trainers",
-      "Yoga studios",
-      "Tutors",
-      "Driving schools",
-      "Consultants",
-      "Lawyers",
-      "Photographers",
-      "Pet groomers",
-      "Car wash",
-      "Service centers",
-      "Tattoo artists",
-      "And many more"
-    ],
-    "testimonials": [
       {
-        "quote": "Walk-ins used to be chaos. Now everyone gets a token and I can actually focus on cutting hair.",
-        "name": "Suresh",
-        "role": "Sharp Cuts · Barber"
+        "name": "Hair salons",
+        "detail": "Stylist selection, color add-ons, rebooking"
       },
       {
-        "quote": "My patients book online and get reminders. No-shows dropped and my front desk is calmer.",
-        "name": "Dr. Anjali",
-        "role": "Smile Care · Dental clinic"
+        "name": "Barbershops",
+        "detail": "Appointments plus walk-ins, estimated wait"
       },
       {
-        "quote": "Setup took ten minutes and I didn't need a developer. It just works on my phone.",
-        "name": "Faisal",
-        "role": "AutoShine · Car wash"
+        "name": "Nail studios",
+        "detail": "Technician selection, service combinations"
+      },
+      {
+        "name": "Spas",
+        "detail": "Provider and room availability, packages"
+      },
+      {
+        "name": "Med spas",
+        "detail": "Consultation-first booking, follow-up"
+      },
+      {
+        "name": "Massage therapy",
+        "detail": "Therapist selection, session length"
+      },
+      {
+        "name": "Physical therapy",
+        "detail": "Evaluation visits, recurring plans of care"
+      },
+      {
+        "name": "Tattoo studios",
+        "detail": "Artist portfolios, long-session scheduling"
+      },
+      {
+        "name": "Pet grooming",
+        "detail": "Pet profiles, coat details, drop-off windows"
       }
     ],
-    "inquiryPerks": [
-      "No setup fee",
-      "Live in minutes",
-      "Cancel anytime"
+    "features": [
+      {
+        "head": "Branded booking page",
+        "body": "Give your business a professional page with services, prices, photos, hours, providers, and reviews — no website builder needed."
+      },
+      {
+        "head": "Online booking, 24/7",
+        "body": "Let clients choose a service, provider, and available time without calling or sending a DM."
+      },
+      {
+        "head": "Scheduling and walk-ins",
+        "body": "Manage provider availability and scheduled appointments, with an optional live waitlist for businesses that also accept walk-ins."
+      },
+      {
+        "head": "Automatic reminders",
+        "body": "Send booking confirmations and reminders to reduce missed appointments."
+      },
+      {
+        "head": "Client profiles",
+        "body": "Keep visit history and notes in one place so your team can deliver a more personal experience."
+      },
+      {
+        "head": "Mobile dashboard",
+        "body": "See today’s schedule, team, clients, and optional waitlist from your phone — at the front desk or away from the shop."
+      }
+    ],
+    "bookingBullets": [
+      "Add your booking link to Google, Instagram, and your website",
+      "Share it by text or with an in-shop QR code",
+      "Send confirmations and reminders automatically"
+    ],
+    "walkBullets": [
+      "View today’s schedule and walk-in waitlist in one place",
+      "Add a walk-in or start a service in a few taps",
+      "Manage providers, services, hours, and time off"
+    ],
+    "clientBullets": [
+      "Visit history and notes travel with the client",
+      "Confirmations and reminders send themselves",
+      "Rebook the next visit before they leave the chair"
+    ],
+    "client": {
+      "name": "Marcus T.",
+      "meta": "14 visits · client since 2024 · Fort Myers, FL",
+      "rows": [
+        {
+          "k": "Last visit",
+          "v": "Aug 22, 2026"
+        },
+        {
+          "k": "Usual service",
+          "v": "Classic haircut · $35"
+        },
+        {
+          "k": "Preferred barber",
+          "v": "Devin"
+        },
+        {
+          "k": "Notes",
+          "v": "Scissors on top, #2 on the sides"
+        },
+        {
+          "k": "Next appointment",
+          "v": "Sep 19, 2026 · 10:00 AM"
+        }
+      ]
+    },
+    "steps": [
+      {
+        "head": "Create your business page",
+        "body": "Add your services, prices, hours, photos, and team."
+      },
+      {
+        "head": "Share your booking link",
+        "body": "Put it on Google, Instagram, your website, or a QR code in the shop."
+      },
+      {
+        "head": "Run your day",
+        "body": "Manage appointments and walk-ins from one dashboard."
+      }
+    ],
+    "plans": [
+      {
+        "name": "Starter",
+        "price": "Free",
+        "per": "",
+        "who": "A single chair or one provider getting started.",
+        "feats": [
+          "Branded booking page",
+          "Walk-in waitlist",
+          "One provider",
+          "Client records"
+        ]
+      },
+      {
+        "name": "Business",
+        "price": "$XX",
+        "per": "/month",
+        "who": "A team sharing a calendar and a front desk.",
+        "feats": [
+          "Everything in Starter",
+          "Up to 10 providers",
+          "Automatic reminders",
+          "Client history and rebooking",
+          "Mobile dashboard"
+        ]
+      },
+      {
+        "name": "Business+",
+        "price": "$XX",
+        "per": "/month",
+        "who": "More than one location, or a large team.",
+        "feats": [
+          "Everything in Business",
+          "Unlimited providers",
+          "Multiple locations",
+          "Priority support"
+        ]
+      }
+    ],
+    "faqs": [
+      {
+        "q": "What is TejoTime?",
+        "a": "A booking and client-management system for service businesses. Clients book a time or join the walk-in waitlist from your page; you run the day from one dashboard on your phone or a desktop."
+      },
+      {
+        "q": "Who is TejoTime for?",
+        "a": "Independent and small multi-provider businesses in beauty, wellness, therapy, body art, and pet care — salons, barbershops, nail studios, spas, med spas, massage, physical therapy, tattoo studios, and pet groomers."
+      },
+      {
+        "q": "Can clients book online?",
+        "a": "Yes. They open your booking page, pick a service, choose a provider, and reserve an available time. No app download and no account to create."
+      },
+      {
+        "q": "Can I manage walk-ins?",
+        "a": "Yes. Scheduled appointments and walk-ins share one view, with a place in line and an estimated wait for each person."
+      },
+      {
+        "q": "Can I manage multiple providers?",
+        "a": "Yes. Each provider has their own availability, and clients can pick a specific person or take whoever is available first."
+      },
+      {
+        "q": "Does TejoTime send reminders?",
+        "a": "Booking confirmations and reminders are part of the paid plans. We will only list the channels that are actually enabled for your business."
+      },
+      {
+        "q": "Can I run it from my phone?",
+        "a": "Yes. The mobile dashboard covers the day’s schedule, the waitlist, your team, and your clients."
+      },
+      {
+        "q": "Can I cancel?",
+        "a": "Yes, at any time, and you can export your client list and appointment history when you go."
+      }
+    ],
+    "gallery": [
+      {
+        "title": "The floor at open",
+        "caption": "Harbor & Main Barbers · Fort Myers, FL"
+      },
+      {
+        "title": "A walk-in taking a place in line",
+        "caption": "Front desk, mid-morning"
+      },
+      {
+        "title": "Rebooking at the chair",
+        "caption": "Client history on the phone"
+      }
     ],
     "footerCols": [
       {
-        "title": "Product",
+        "head": "Product",
         "links": [
-          "Features",
-          "Booking page",
-          "Owner app",
+          "Online booking",
+          "Walk-in waitlist",
+          "Client management",
           "Pricing"
         ]
       },
       {
-        "title": "Industries",
+        "head": "Industries",
         "links": [
           "Salons",
-          "Clinics",
-          "Fitness",
-          "Consultants"
+          "Barbershops",
+          "Nails",
+          "Spas",
+          "Massage",
+          "Tattoo",
+          "Pet grooming"
         ]
       },
       {
-        "title": "Company",
+        "head": "Company",
         "links": [
           "About",
-          "Vision",
-          "Careers",
-          "Contact"
+          "Contact",
+          "Help center",
+          "System status"
         ]
+      },
+      {
+        "head": "Legal",
+        "links": [
+          "Privacy policy",
+          "Terms of service",
+          "Accessibility"
+        ]
+      }
+    ],
+    "inquiryPerks": [
+      "Free setup",
+      "No card",
+      "Cancel anytime"
+    ],
+    "hours": [
+      "8:00 am",
+      "9:00 am",
+      "10:00 am",
+      "11:00 am",
+      "12:00 pm",
+      "1:00 pm",
+      "2:00 pm"
+    ],
+    "providers": [
+      "Devin R.",
+      "Rosa M.",
+      "Amina K.",
+      "Theo B."
+    ],
+    "slots": [
+      "10:00 AM",
+      "10:30 AM",
+      "11:00 AM",
+      "11:30 AM"
+    ],
+    "appointments": [
+      {
+        "client": "Marcus T.",
+        "service": "Classic haircut"
+      },
+      {
+        "client": "Ruben C.",
+        "service": "Line-up"
+      },
+      {
+        "client": "Dana W.",
+        "service": "Kids’ cut"
+      },
+      {
+        "client": "Jordan R.",
+        "service": "Haircut + beard"
+      },
+      {
+        "client": "Priya N.",
+        "service": "Line-up"
+      },
+      {
+        "client": "Taylor S.",
+        "service": "Classic haircut"
+      },
+      {
+        "client": "Devon K.",
+        "service": "Haircut + beard"
+      },
+      {
+        "client": "Sam O.",
+        "service": "Line-up"
+      },
+      {
+        "client": "Casey M.",
+        "service": "Beard trim"
+      },
+      {
+        "client": "Alex M.",
+        "service": "Beard grooming"
+      },
+      {
+        "client": "Nina B.",
+        "service": "Line-up"
+      }
+    ],
+    "phoneAppointments": [
+      {
+        "client": "Marcus T.",
+        "service": "Classic haircut"
+      },
+      {
+        "client": "Priya N.",
+        "service": "Haircut + beard trim"
+      },
+      {
+        "client": "Devon K.",
+        "service": "Beard trim"
+      }
+    ],
+    "phoneProvider": "Devin R.",
+    "waitBoard": [
+      {
+        "name": "Ruben C.",
+        "service": "Classic haircut"
+      },
+      {
+        "name": "Priya N.",
+        "service": "Line-up"
+      },
+      {
+        "name": "Devon K.",
+        "service": "Haircut + beard"
+      },
+      {
+        "name": "Sam O.",
+        "service": "Kids’ cut"
+      }
+    ],
+    "scheduleRows": [
+      {
+        "name": "Jordan R.",
+        "service": "Haircut + beard trim",
+        "time": "10:30 AM"
+      },
+      {
+        "name": "Alex M.",
+        "service": "Line-up",
+        "time": "11:00 AM"
+      },
+      {
+        "name": "Available",
+        "service": "No booking yet",
+        "time": "11:30 AM"
       }
     ]
   },
