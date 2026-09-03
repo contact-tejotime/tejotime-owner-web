@@ -3,8 +3,8 @@
 import { useState, type ChangeEvent, type CSSProperties, type ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
 
-type ButtonVariant = "primary" | "secondary" | "outline";
-type ButtonSize = "md" | "lg";
+type ButtonVariant = "primary" | "secondary" | "outline" | "ghost";
+type ButtonSize = "sm" | "md" | "lg";
 
 export function Button({
   children,
@@ -32,10 +32,14 @@ export function Button({
   const [hover, setHover] = useState(false);
   const [down, setDown] = useState(false);
 
+  // Heights come from the design system's control tokens so buttons line up
+  // with inputs and every other control on the page.
   const sizing: CSSProperties =
     size === "lg"
-      ? { height: 48, padding: "0 22px", fontSize: 15.5 }
-      : { height: 40, padding: "0 16px", fontSize: 14.5 };
+      ? { height: "var(--control-h-lg)", padding: "0 22px", fontSize: "var(--fs-body-lg)" }
+      : size === "sm"
+        ? { height: "var(--control-h-sm)", padding: "0 14px", fontSize: "var(--fs-body-sm)" }
+        : { height: "var(--control-h-md)", padding: "0 18px", fontSize: "var(--fs-body-md)" };
 
   let look: CSSProperties;
   if (variant === "primary") {
@@ -50,6 +54,12 @@ export function Button({
       color: "#fff",
       border: "1px solid transparent",
     };
+  } else if (variant === "ghost") {
+    look = {
+      background: hover ? "var(--surface-hover)" : "transparent",
+      color: onDark ? "var(--text-on-brand)" : "var(--text-body)",
+      border: "1px solid transparent",
+    };
   } else if (onDark) {
     look = {
       background: hover ? "rgba(255,255,255,.14)" : "transparent",
@@ -58,13 +68,13 @@ export function Button({
     };
   } else {
     look = {
-      background: hover ? "var(--surface-hover)" : "transparent",
+      background: hover ? "var(--surface-hover)" : "var(--surface-card)",
       color: "var(--text-strong)",
-      border: "1.5px solid var(--border-default)",
+      border: "1px solid var(--border-default)",
     };
   }
 
-  const iconSize = 18;
+  const iconSize = size === "sm" ? 16 : 18;
 
   return (
     <button

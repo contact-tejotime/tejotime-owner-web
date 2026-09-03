@@ -1,33 +1,259 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/landing/Icon";
 import { Logo } from "@/components/landing/Logo";
 import { Button, Input } from "@/components/landing/ui";
+import { AppointmentCard, Avatar, Badge, WaitTimeWidget } from "@/components/landing/ds";
 import PhoneField from "@/components/ui/PhoneField";
 import { t } from "@/i18n";
 import { publicApi } from "@/lib/api";
+import { OWNER_ORIGIN } from "@/lib/config";
 import { combineToE164, DEFAULT_DIAL_CODE, DEFAULT_ISO2, isValidNational } from "@/lib/phone";
 import {
   bookingBullets,
-  bookingDays,
+  calCols,
+  calHours,
+  client,
+  clientBullets,
+  faqs,
   features,
   footerCols,
+  gallery,
   industries,
   inquiryPerks,
-  kpis,
-  marquee,
-  ownerBullets,
-  queueMock,
+  nav,
+  phoneDay,
+  phoneNav,
+  plans,
+  scheduleRows,
   slots,
-  stats,
-  testimonials,
+  steps,
+  proofSignals,
+  proofStats,
+  waitBoard,
+  walkBullets,
+  WAIT_MINUTES,
 } from "@/components/landing/landingData";
 
-const MAX = 1200;
+const MAX = 1240;
+const PAD = "0 40px";
+
+/**
+ * Self-serve signup isn't live yet, so the page runs in "pilot" mode: the CTA
+ * asks people to join the U.S. pilot rather than to start an account they
+ * can't finish creating. Flip this when signup ships.
+ */
+const OFFER_MODE: "pilot" | "selfServe" = "pilot";
+const isPilot = OFFER_MODE === "pilot";
+
+const ctaPrimary = isPilot ? t.landing.cta.pilot : t.landing.cta.selfServe;
+const heroMicro = isPilot ? t.landing.hero.microPilot : t.landing.hero.microSelfServe;
+
+/* ------------------------------------------------------------ typography -- */
+
+const h2Style: React.CSSProperties = {
+  font: "var(--fw-extrabold) clamp(28px,3.4cqw,42px)/1.12 var(--font-sans)",
+  letterSpacing: "-.03em",
+  color: "var(--text-strong)",
+  margin: 0,
+};
+const h2SplitStyle: React.CSSProperties = {
+  ...h2Style,
+  font: "var(--fw-extrabold) clamp(26px,3.2cqw,38px)/1.14 var(--font-sans)",
+  margin: "18px 0 0",
+  maxWidth: "22ch",
+};
+const leadStyle: React.CSSProperties = {
+  font: "var(--fw-regular) 16.5px/1.65 var(--font-sans)",
+  color: "var(--text-muted)",
+  textWrap: "pretty",
+};
+const eyebrowStyle: React.CSSProperties = {
+  font: "var(--fw-bold) 11px/1 var(--font-sans)",
+  letterSpacing: ".12em",
+  textTransform: "uppercase",
+  color: "var(--text-muted)",
+};
+const bulletStyle: React.CSSProperties = {
+  font: "var(--fw-medium) 15.5px/1.5 var(--font-sans)",
+  color: "var(--text-body)",
+};
+
+/** Five solid stars for the social-proof strip (decorative). */
+function ProofStars() {
+  return (
+    <span style={{ display: "inline-flex", gap: 2, color: "var(--brand-accent)" }} aria-hidden="true">
+      {Array.from({ length: 5 }, (_, i) => (
+        <Icon key={i} name="star" size={12} fill="currentColor" strokeWidth={1.5} />
+      ))}
+    </span>
+  );
+}
+
+function shell(extra?: React.CSSProperties): React.CSSProperties {
+  return { maxWidth: MAX, margin: "0 auto", padding: PAD, ...extra };
+}
+
+/** A checked bullet; the tick takes the colour of the section it belongs to. */
+function Bullet({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <span style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+      <span style={{ color, flexShrink: 0, paddingTop: 2, display: "flex" }}>
+        <Icon name="check" size={17} />
+      </span>
+      <span style={bulletStyle}>{children}</span>
+    </span>
+  );
+}
+
+/**
+ * Industry / gallery photo tile. Pass `image` when photography is ready; without
+ * it the soft gradient + big number still read as designed rather than broken.
+ * Caption sits under the media (not overlaid) so 2-up mobile grids never clip type.
+ * `delayMs` staggers the scroll-reveal so a row of cards cascades in.
+ */
+function PhotoWell({
+  n,
+  title,
+  caption,
+  numberSize,
+  gradient,
+  image,
+  delayMs = 0,
+}: {
+  n: string;
+  title: string;
+  caption: string;
+  numberSize: number;
+  gradient: string;
+  image?: string;
+  delayMs?: number;
+}) {
+  return (
+    <div
+      data-reveal="1"
+      className="tj-photo-well"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        borderRadius: "var(--radius-lg)",
+        overflow: "hidden",
+        border: "1px solid var(--border-subtle)",
+        background: "var(--surface-card)",
+        animationDelay: `${delayMs}ms`,
+        transitionDelay: `${delayMs}ms`,
+        height: "100%",
+      }}
+    >
+      <span
+        aria-hidden="true"
+        className="tj-photo-media"
+        style={{
+          position: "relative",
+          display: "block",
+          aspectRatio: "5 / 4",
+          background: gradient,
+          overflow: "hidden",
+          flexShrink: 0,
+        }}
+      >
+        {image ? (
+          // eslint-disable-next-line @next/next/no-img-element -- static public assets for the marketing grid
+          <img
+            src={image}
+            alt=""
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        ) : (
+          <>
+            <span
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                font: `var(--fw-extrabold) ${numberSize}px/1 var(--font-sans)`,
+                letterSpacing: "-.06em",
+                color: "var(--brand-ink)",
+                opacity: 0.13,
+              }}
+            >
+              {n}
+            </span>
+            <span
+              style={{
+                position: "absolute",
+                left: 10,
+                top: 10,
+                font: "var(--fw-semibold) 9px/1 var(--font-sans)",
+                letterSpacing: ".1em",
+                textTransform: "uppercase",
+                color: "var(--brand-ink)",
+                background: "rgba(255,255,255,.82)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-pill)",
+                padding: "5px 8px",
+              }}
+            >
+              {t.landing.gallery.placeholder}
+            </span>
+          </>
+        )}
+      </span>
+      <span
+        className="tj-photo-caption"
+        style={{
+          padding: "12px 14px 14px",
+          background: "var(--brand-ink)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          flex: 1,
+        }}
+      >
+        <span
+          className="tj-photo-title"
+          style={{
+            font: "var(--fw-bold) 15px/1.25 var(--font-sans)",
+            color: "var(--text-on-brand)",
+            letterSpacing: "-.01em",
+          }}
+        >
+          {title}
+        </span>
+        <span
+          className="tj-photo-body"
+          style={{
+            font: "var(--fw-medium) 12px/1.4 var(--font-sans)",
+            color: "var(--text-on-brand)",
+            opacity: 0.82,
+          }}
+        >
+          {caption}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ page -- */
 
 export default function Home() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [faqOpen, setFaqOpen] = useState<number | null>(0);
+  const [walkInAdded, setWalkInAdded] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
   const [showInquiry, setShowInquiry] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [businessName, setBusinessName] = useState("");
@@ -40,6 +266,36 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
+
+  // Scroll-reveal for every [data-reveal] — works in all browsers (IO), not only
+  // those with CSS scroll-driven animations.
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof IntersectionObserver === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.querySelectorAll<HTMLElement>("[data-reveal]").forEach((el) => el.classList.add("is-in"));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          (e.target as HTMLElement).classList.add("is-in");
+          io.unobserve(e.target);
+        }
+      },
+      { rootMargin: "0px 0px -8% 0px", threshold: 0.12 },
+    );
+    document.querySelectorAll<HTMLElement>("[data-reveal]").forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
+  const showToast = (message: string) => {
+    setToast(message);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2400);
+  };
+
   const openInquiry = () => {
     setSubmitted(false);
     setBusinessName("");
@@ -47,6 +303,7 @@ export default function Home() {
     setPhoneCountry({ dialCode: DEFAULT_DIAL_CODE, iso2: DEFAULT_ISO2 });
     setNational("");
     setFormError("");
+    setMenuOpen(false);
     setShowInquiry(true);
   };
   const closeInquiry = () => setShowInquiry(false);
@@ -73,811 +330,1862 @@ export default function Home() {
     }
   };
 
-  // Lock scroll while the modal is open.
+  // Lock scroll while the inquiry modal or mobile menu is open.
   useEffect(() => {
-    document.body.style.overflow = showInquiry ? "hidden" : "";
+    document.body.style.overflow = showInquiry || menuOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [showInquiry]);
+  }, [showInquiry, menuOpen]);
 
-  // Scroll reveal, count-up, feature tilt and the custom site cursor.
+  // Close the mobile menu on Escape or when the layout returns to desktop.
   useEffect(() => {
-    const reduce =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) {
-            e.target.classList.add("in");
-            io.unobserve(e.target);
-          }
-        });
-      },
-      { threshold: 0.14, rootMargin: "0px 0px -6% 0px" }
-    );
-    document.querySelectorAll<HTMLElement>(".reveal").forEach((el, i) => {
-      el.style.transitionDelay = (i % 4) * 70 + "ms";
-      io.observe(el);
-    });
-
-    const cio = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (!e.isIntersecting) return;
-          const el = e.target as HTMLElement;
-          cio.unobserve(el);
-          const to = parseFloat(el.getAttribute("data-count") || "0") || 0;
-          const dur = 1400;
-          const start = performance.now();
-          const tick = (now: number) => {
-            const p = Math.min((now - start) / dur, 1);
-            const eased = 1 - Math.pow(1 - p, 3);
-            const v = to * eased;
-            el.textContent =
-              to >= 100 ? Math.round(v).toLocaleString("en-IN") : v.toFixed(1);
-            if (p < 1) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-        });
-      },
-      { threshold: 0.5 }
-    );
-    document
-      .querySelectorAll<HTMLElement>("[data-count]")
-      .forEach((el) => cio.observe(el));
-
-    // Feature cards: cursor spotlight + subtle 3D tilt.
-    const featCleanups: (() => void)[] = [];
-    document.querySelectorAll<HTMLElement>(".tt-feat").forEach((el) => {
-      const onMove = (e: MouseEvent) => {
-        const r = el.getBoundingClientRect();
-        const x = e.clientX - r.left;
-        const y = e.clientY - r.top;
-        el.style.setProperty("--mx", x + "px");
-        el.style.setProperty("--my", y + "px");
-        if (reduce) return;
-        const rx = (0.5 - y / r.height) * 7;
-        const ry = (x / r.width - 0.5) * 9;
-        el.style.transform = `perspective(820px) rotateX(${rx.toFixed(
-          2
-        )}deg) rotateY(${ry.toFixed(2)}deg) translateY(-6px)`;
-      };
-      const onLeave = () => {
-        el.style.transform = "";
-      };
-      el.addEventListener("mousemove", onMove);
-      el.addEventListener("mouseleave", onLeave);
-      featCleanups.push(() => {
-        el.removeEventListener("mousemove", onMove);
-        el.removeEventListener("mouseleave", onLeave);
-      });
-    });
-
-    // Custom site cursor: arrow + trailing ring (fine pointers only).
-    let cursorCleanup: (() => void) | undefined;
-    if (!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) {
-      const ring = document.createElement("div");
-      ring.id = "tt-cur-ring";
-      const arrow = document.createElement("div");
-      arrow.id = "tt-cur-arrow";
-      arrow.innerHTML =
-        '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"><path d="M3 2 L3 18.5 L7.4 14.4 L10.3 20.8 L13 19.6 L10.1 13.4 L16 13.2 Z"/></svg>';
-      document.body.appendChild(ring);
-      document.body.appendChild(arrow);
-      document.documentElement.classList.add("tt-cursor-on");
-
-      let mx = window.innerWidth / 2;
-      let my = window.innerHeight / 2;
-      let rx = mx;
-      let ry = my;
-      let raf = 0;
-      const hovSel =
-        "a,button,[role=button],.tt-feat,.tt-chip,input,label,img";
-
-      const onMove = (e: MouseEvent) => {
-        mx = e.clientX;
-        my = e.clientY;
-        arrow.style.transform = `translate(${mx}px,${my}px)`;
-        const t = e.target as HTMLElement;
-        const hit = !!(t.closest && t.closest(hovSel));
-        ring.classList.toggle("is-hover", hit);
-        arrow.classList.toggle("is-hover", hit);
-      };
-      const onDown = () => ring.classList.add("is-down");
-      const onUp = () => ring.classList.remove("is-down");
-      const onLeave = () => {
-        ring.style.opacity = "0";
-        arrow.style.opacity = "0";
-      };
-      const onEnter = () => {
-        ring.style.opacity = "1";
-        arrow.style.opacity = "1";
-      };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mousedown", onDown);
-      window.addEventListener("mouseup", onUp);
-      document.addEventListener("mouseleave", onLeave);
-      document.addEventListener("mouseenter", onEnter);
-
-      const loop = () => {
-        rx += (mx - rx) * 0.2;
-        ry += (my - ry) * 0.2;
-        ring.style.transform = `translate(${rx}px,${ry}px) translate(-50%,-50%)`;
-        raf = requestAnimationFrame(loop);
-      };
-      loop();
-
-      cursorCleanup = () => {
-        cancelAnimationFrame(raf);
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mousedown", onDown);
-        window.removeEventListener("mouseup", onUp);
-        document.removeEventListener("mouseleave", onLeave);
-        document.removeEventListener("mouseenter", onEnter);
-        document.documentElement.classList.remove("tt-cursor-on");
-        ring.remove();
-        arrow.remove();
-      };
-    }
-
-    return () => {
-      io.disconnect();
-      cio.disconnect();
-      featCleanups.forEach((fn) => fn());
-      cursorCleanup?.();
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
     };
-  }, []);
+    const onResize = () => {
+      if (window.matchMedia("(min-width: 1081px)").matches) setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [menuOpen]);
+
+  const addWalkIn = () => {
+    setWalkInAdded(true);
+    showToast(t.landing.walkins.addedToast);
+  };
+
+  const waitRows = waitBoard.slice(0, walkInAdded ? 4 : 3);
+  const waitMinutes = walkInAdded ? WAIT_MINUTES.afterAdd : WAIT_MINUTES.base;
 
   return (
-    <div style={{ overflowX: "hidden" }}>
-      {/* ===================== NAV ===================== */}
-      <div
+    <div
+      id="top"
+      data-t="page"
+      style={{
+        containerType: "inline-size",
+        containerName: "page",
+        background: "var(--surface-card)",
+        fontFamily: "var(--font-sans)",
+        color: "var(--text-body)",
+        overflowX: "clip",
+      }}
+    >
+      {/* ------------------------------------------------------- header -- */}
+      <header
         style={{
           position: "sticky",
           top: 0,
-          zIndex: 40,
-          backdropFilter: "saturate(1.4) blur(10px)",
-          background: "rgba(255,255,255,.82)",
+          zIndex: 60,
+          background: "var(--surface-card)",
           borderBottom: "1px solid var(--border-subtle)",
         }}
       >
         <div
-          style={{
-            maxWidth: MAX,
-            margin: "0 auto",
-            height: 68,
-            padding: "0 28px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
+          data-t="pad"
+          data-t2="hdrow"
+          style={shell({ padding: PAD, height: 72, display: "flex", alignItems: "center", gap: 34 })}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 42 }}>
-            <Logo height={48} />
-            <div
-              className="tt-nav-links"
-              style={{ display: "flex", gap: 28, alignItems: "center" }}
-            >
-              <a href="#features" className="tt-nav-link">{t.landing.nav.features}</a>
-              <a href="#industries" className="tt-nav-link">{t.landing.nav.industries}</a>
-              <a href="#vision" className="tt-nav-link">{t.landing.nav.vision}</a>
-            </div>
-          </div>
-          <Button variant="primary" trailingIcon="arrowRight" onClick={openInquiry}>
-            {t.landing.nav.getStarted}
-          </Button>
-        </div>
-      </div>
-
-      {/* ===================== HERO ===================== */}
-      <div style={{ position: "relative", overflow: "hidden", background: "var(--surface-card)" }}>
-        <div
-          className="tt-blob"
-          style={{
-            position: "absolute",
-            top: -120,
-            right: -80,
-            width: 520,
-            height: 520,
-            borderRadius: "50%",
-            background: "radial-gradient(circle at 30% 30%,var(--blue-100),transparent 70%)",
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          className="tt-blob"
-          style={{
-            position: "absolute",
-            bottom: -160,
-            left: -120,
-            width: 480,
-            height: 480,
-            borderRadius: "50%",
-            background: "radial-gradient(circle at 60% 40%,var(--teal-100),transparent 70%)",
-            pointerEvents: "none",
-            animationDelay: "-6s",
-          }}
-        />
-
-        <div
-          className="tt-hero-grid"
-          style={{
-            position: "relative",
-            maxWidth: MAX,
-            margin: "0 auto",
-            padding: "72px 28px 84px",
-            display: "grid",
-            gridTemplateColumns: "1.05fr .95fr",
-            gap: 56,
-            alignItems: "center",
-          }}
-        >
-          <div>
-            <div
-              className="tt-row"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "6px 14px",
-                borderRadius: 999,
-                background: "var(--primary-soft)",
-                border: "1px solid var(--blue-200)",
-                marginBottom: 22,
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--secondary)" }} />
-              <span
+          <a
+            href="#top"
+            data-t2="logo"
+            className="tj-logo-link"
+            aria-label={t.brand.logoAlt}
+            onClick={(e) => {
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            style={{ display: "flex", flexShrink: 0, cursor: "pointer" }}
+          >
+            <Logo height={34} />
+          </a>
+          <nav data-only="desk" style={{ display: "flex", alignItems: "center", gap: 26 }}>
+            {nav.map((n) => (
+              <a
+                key={n.href}
+                href={n.href}
+                className="tj-navlink"
                 style={{
-                  font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)",
-                  color: "var(--primary-soft-fg)",
-                  letterSpacing: ".01em",
+                  font: "var(--fw-medium) 14.5px/1 var(--font-sans)",
+                  color: "var(--text-body)",
+                  whiteSpace: "nowrap",
+                  cursor: "pointer",
                 }}
               >
-                {t.landing.hero.eyebrow}
-              </span>
-            </div>
-            <h1
-              className="tt-hero-h1"
+                {n.label}
+              </a>
+            ))}
+          </nav>
+          <span style={{ flex: 1 }} />
+          <a data-only="desk" href={OWNER_ORIGIN} style={{ display: "flex" }}>
+            <Button variant="ghost">{t.landing.nav.signIn}</Button>
+          </a>
+          <span data-t="hdr-cta" style={{ display: "flex", flexShrink: 1, minWidth: 0 }}>
+            <Button variant="primary" onClick={openInquiry}>
+              {ctaPrimary}
+            </Button>
+          </span>
+          <button
+            type="button"
+            data-only="hamb"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-expanded={menuOpen}
+            aria-controls="tj-mobile-menu"
+            aria-label={t.landing.nav.menu}
+            style={{
+              display: "none",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 44,
+              height: 44,
+              flexShrink: 0,
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border-default)",
+              background: "transparent",
+              color: "var(--text-strong)",
+              cursor: "pointer",
+              font: "var(--fw-semibold) 16px/1 var(--font-sans)",
+            }}
+          >
+            ≡
+          </button>
+        </div>
+      </header>
+
+      {menuOpen && (
+        <div
+          id="tj-mobile-menu"
+          className="tj-mobile-menu"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t.landing.nav.menu}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 80,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "stretch",
+          }}
+        >
+          <button
+            type="button"
+            className="tj-mobile-menu-backdrop"
+            aria-label={t.common.close}
+            onClick={() => setMenuOpen(false)}
+            style={{
+              position: "absolute",
+              inset: 0,
+              border: 0,
+              padding: 0,
+              cursor: "pointer",
+              background: "rgba(15, 23, 42, 0.42)",
+            }}
+          />
+          <div
+            className="tj-mobile-menu-panel"
+            style={{
+              position: "relative",
+              zIndex: 1,
+              width: "100%",
+              background: "var(--surface-card)",
+              boxShadow: "var(--shadow-xl)",
+              display: "flex",
+              flexDirection: "column",
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
+              textAlign: "left",
+              borderRadius: "0 0 20px 20px",
+            }}
+          >
+            <div
               style={{
-                font: "var(--fw-extrabold) 54px/1.04 var(--font-sans)",
-                letterSpacing: "-.03em",
-                color: "var(--text-strong)",
-                margin: "0 0 20px",
+                height: 64,
+                padding: "0 20px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                borderBottom: "1px solid var(--border-subtle)",
+                flexShrink: 0,
               }}
             >
-              {t.landing.hero.titleLead}{" "}
-              <span className="tt-grad-text">{t.landing.hero.titleAccent}</span>
+              <a
+                href="#top"
+                className="tj-logo-link"
+                aria-label={t.brand.logoAlt}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setMenuOpen(false);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                style={{ display: "flex", flexShrink: 0, cursor: "pointer" }}
+              >
+                <Logo height={28} />
+              </a>
+              <span style={{ flex: 1 }} />
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                aria-label={t.common.close}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 40,
+                  height: 40,
+                  flexShrink: 0,
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-default)",
+                  background: "transparent",
+                  color: "var(--text-strong)",
+                  cursor: "pointer",
+                }}
+              >
+                <Icon name="x" size={18} />
+              </button>
+            </div>
+
+            <nav
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                padding: "8px 12px 4px",
+                alignItems: "stretch",
+              }}
+            >
+              {nav.map((n) => (
+                <a
+                  key={n.href}
+                  href={n.href}
+                  onClick={() => setMenuOpen(false)}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    font: "var(--fw-semibold) 17px/1.2 var(--font-sans)",
+                    color: "var(--text-strong)",
+                    padding: "16px 12px",
+                    borderRadius: "var(--radius-md)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  {n.label}
+                </a>
+              ))}
+            </nav>
+
+            <div
+              style={{
+                padding: "12px 20px 24px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+                borderTop: "1px solid var(--border-subtle)",
+              }}
+            >
+              <a href={OWNER_ORIGIN} style={{ display: "flex", width: "100%" }}>
+                <Button variant="outline" size="lg" fullWidth>
+                  {t.landing.nav.signIn}
+                </Button>
+              </a>
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                onClick={() => {
+                  setMenuOpen(false);
+                  openInquiry();
+                }}
+              >
+                {ctaPrimary}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --------------------------------------------- hero (on gradient) -- */}
+      <div
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "linear-gradient(180deg,var(--surface-card) 0%,var(--surface-card) 38%,var(--blue-800) 74%,var(--brand-ink) 100%)",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          className="tj-hero-orb"
+          style={{
+            position: "absolute",
+            left: "-8%",
+            right: "-8%",
+            top: "30%",
+            bottom: 0,
+            pointerEvents: "none",
+            filter: "blur(72px)",
+            background:
+              "radial-gradient(40% 46% at 13% 32%,rgba(37,99,235,.9),transparent 66%),radial-gradient(34% 40% at 89% 14%,rgba(20,184,166,.55),transparent 68%),radial-gradient(46% 42% at 74% 60%,rgba(37,99,235,.6),transparent 70%),radial-gradient(38% 36% at 30% 78%,rgba(20,184,166,.28),transparent 70%)",
+            WebkitMaskImage: "linear-gradient(180deg,transparent 0%,black 22%,black 100%)",
+            maskImage: "linear-gradient(180deg,transparent 0%,black 22%,black 100%)",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="tj-hero-orb-alt"
+          style={{
+            position: "absolute",
+            width: 280,
+            height: 280,
+            right: "8%",
+            top: "18%",
+            borderRadius: "50%",
+            pointerEvents: "none",
+            background: "radial-gradient(circle,rgba(20,184,166,.22),transparent 70%)",
+            filter: "blur(40px)",
+          }}
+        />
+
+        <section data-t="sect" style={{ position: "relative", padding: "76px 0 0", textAlign: "center" }}>
+          <div data-t="pad" style={shell({ position: "relative" })}>
+            <span data-anim="hero" data-d="1" style={{ display: "inline-flex" }}>
+              <Badge tone="primary">{t.landing.hero.eyebrow}</Badge>
+            </span>
+            <h1
+              data-anim="hero"
+              data-d="2"
+              style={{
+                font: "var(--fw-extrabold) clamp(38px,5cqw,66px)/1.06 var(--font-sans)",
+                letterSpacing: "-.035em",
+                color: "var(--text-strong)",
+                margin: "22px auto 0",
+                maxWidth: "18ch",
+                textWrap: "balance",
+              }}
+            >
+              {t.landing.hero.title}
             </h1>
             <p
+              data-anim="hero"
+              data-d="3"
               style={{
-                font: "var(--fw-regular) var(--fs-body-lg)/1.55 var(--font-sans)",
-                color: "var(--text-body)",
-                maxWidth: 520,
-                margin: "0 0 16px",
+                font: "var(--fw-regular) 18px/1.6 var(--font-sans)",
+                color: "var(--text-muted)",
+                margin: "22px auto 0",
+                maxWidth: "62ch",
+                textWrap: "pretty",
               }}
             >
               {t.landing.hero.body}
             </p>
-            <div style={{ display: "flex", gap: 14, marginTop: 26, flexWrap: "wrap" }}>
-              <span className="tt-cta-pulse" style={{ display: "inline-flex", borderRadius: "var(--radius-md)" }}>
-                <Button variant="primary" size="lg" trailingIcon="arrowRight" onClick={openInquiry}>
-                  {t.landing.hero.getStarted}
-                </Button>
-              </span>
-              <Button variant="outline" size="lg" onClick={openInquiry}>
-                {t.landing.hero.requestDemo}
-              </Button>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 28 }}>
-              <div style={{ display: "flex" }}>
-                <span style={avatarStyle("var(--blue-200)", "var(--blue-700)", 0)}>SC</span>
-                <span style={avatarStyle("var(--teal-200)", "var(--teal-700)", -10)}>DR</span>
-                <span style={avatarStyle("var(--amber-200)", "var(--amber-700)", -10)}>CW</span>
-              </div>
-              <div
-                style={{
-                  font: "var(--fw-medium) var(--fs-body-sm)/1.4 var(--font-sans)",
-                  color: "var(--text-muted)",
-                }}
-              >
-                {t.landing.hero.lovedByLine1}
-                <br />{t.landing.hero.lovedByLine2}
-              </div>
-            </div>
-          </div>
-
-          {/* animated product mock */}
-          <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
             <div
-              className="tt-float"
+              data-anim="hero"
+              data-d="4"
+              data-t="hero-ctas"
               style={{
-                width: 340,
-                background: "var(--surface-card)",
-                border: "1px solid var(--border-subtle)",
-                borderRadius: "var(--radius-xl)",
-                boxShadow: "var(--shadow-xl)",
-                padding: 18,
+                display: "flex",
+                gap: 12,
+                justifyContent: "center",
+                flexWrap: "wrap",
+                marginTop: 32,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <div>
-                  <div style={{ font: "var(--fw-bold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>
-                    {t.landing.mock.liveQueue}
-                  </div>
-                  <div style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 4 }}>
-                    {t.landing.mock.storeToday}
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 11px", borderRadius: 999, background: "var(--success-soft)" }}>
-                  <span className="tt-pulse-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--success)" }} />
-                  <span style={{ font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--success-soft-fg)" }}>{t.landing.mock.open}</span>
-                </div>
-              </div>
-              {queueMock.map((q) => (
+              <Button variant="primary" size="lg" trailingIcon="arrowRight" onClick={openInquiry}>
+                {ctaPrimary}
+              </Button>
+              <a href="#product" style={{ display: "flex" }}>
+                <Button variant="outline" size="lg">
+                  {t.landing.cta.seeHow}
+                </Button>
+              </a>
+            </div>
+            <p
+              data-anim="hero"
+              data-d="5"
+              style={{
+                font: "var(--fw-medium) 13.5px/1.6 var(--font-sans)",
+                color: "var(--text-muted)",
+                margin: "18px auto 0",
+              }}
+            >
+              {heroMicro}
+            </p>
+
+            {/* ------------------------------- day calendar + phone mock -- */}
+            <div
+              data-anim="hero"
+              data-d="6"
+              className="tj-hero-cal"
+              style={{ position: "relative", margin: "40px auto 0", maxWidth: 980, width: "100%" }}
+            >
+              <div
+                className="tj-hero-cal-scale"
+                style={{
+                  position: "relative",
+                  width: "100%",
+                  transform: "scale(0.88)",
+                  transformOrigin: "top center",
+                  marginBottom: "-8%",
+                }}
+              >
+              <div data-t="calwrap" style={{ position: "relative", display: "flex", paddingRight: 158 }}>
                 <div
-                  key={q.token}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "11px 12px",
-                    borderRadius: "var(--radius-md)",
-                    background: q.bg,
-                    border: `1px solid ${q.border}`,
-                    marginBottom: 9,
+                    flex: 1,
+                    minWidth: 0,
+                    background: "var(--surface-card)",
+                    border: "1px solid var(--border-default)",
+                    borderRadius: "var(--radius-xl) var(--radius-xl) 0 0",
+                    boxShadow: "var(--shadow-xl)",
+                    overflow: "hidden",
+                    textAlign: "left",
                   }}
                 >
                   <div
                     style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 10,
-                      background: q.tokBg,
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)",
-                      color: q.tokFg,
+                      gap: 12,
+                      padding: "14px 18px",
+                      borderBottom: "1px solid var(--border-subtle)",
+                      background: "var(--surface-page)",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+                      <span
+                        style={{
+                          font: "var(--fw-bold) 14.5px/1.2 var(--font-sans)",
+                          color: "var(--text-strong)",
+                        }}
+                      >
+                        {t.landing.calendar.shopName}
+                      </span>
+                      <span
+                        style={{
+                          font: "var(--fw-medium) 11.5px/1 var(--font-sans)",
+                          color: "var(--text-muted)",
+                        }}
+                      >
+                        {t.landing.calendar.shopMeta}
+                      </span>
+                    </span>
+                    <span style={{ flex: 1 }} />
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "6px 11px",
+                        borderRadius: "var(--radius-pill)",
+                        background: "var(--success-soft)",
+                        color: "var(--success-soft-fg)",
+                      }}
+                    >
+                      <span style={{ position: "relative", width: 6, height: 6, flexShrink: 0 }}>
+                        <span
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            borderRadius: "50%",
+                            background: "var(--success)",
+                          }}
+                        />
+                        <span
+                          data-anim="1"
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            borderRadius: "50%",
+                            background: "var(--success)",
+                            animation: "tjPulse 2.6s ease-out infinite",
+                          }}
+                        />
+                      </span>
+                      <span style={{ font: "var(--fw-semibold) 11.5px/1 var(--font-sans)" }}>
+                        {t.landing.calendar.openNow}
+                      </span>
+                    </span>
+                    <Badge tone="neutral" size="sm">
+                      {t.landing.calendar.day}
+                    </Badge>
+                  </div>
+
+                  <div data-t="cal-scroll-x" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                    <div data-t="cal-scroll" style={{ minWidth: 600, paddingBottom: 12 }}>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "58px repeat(4,1fr)",
+                          borderBottom: "1px solid var(--border-subtle)",
+                        }}
+                      >
+                        <span />
+                        {calCols.map((p) => (
+                          <span
+                            key={p.name}
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: 6,
+                              padding: "12px 6px",
+                              borderLeft: "1px solid var(--border-subtle)",
+                            }}
+                          >
+                            <Avatar name={p.name} size="sm" />
+                            <span
+                              style={{
+                                font: "var(--fw-semibold) 12px/1 var(--font-sans)",
+                                color: "var(--text-body)",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {p.name}
+                            </span>
+                          </span>
+                        ))}
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "58px repeat(4,1fr)" }}>
+                        <div style={{ position: "relative", height: 624 }}>
+                          {calHours.map((h) => (
+                            <span
+                              key={h.label}
+                              style={{
+                                position: "absolute",
+                                right: 8,
+                                top: h.top,
+                                transform: "translateY(-6px)",
+                                font: "var(--fw-medium) 10.5px/1.15 var(--font-sans)",
+                                color: "var(--text-muted)",
+                                textAlign: "right",
+                                fontVariantNumeric: "tabular-nums",
+                              }}
+                            >
+                              {h.label}
+                            </span>
+                          ))}
+                        </div>
+                        {calCols.map((p) => (
+                          <div
+                            key={p.name}
+                            style={{
+                              position: "relative",
+                              height: 624,
+                              borderLeft: "1px solid var(--border-subtle)",
+                              background:
+                                "repeating-linear-gradient(180deg,var(--border-subtle) 0 1px,transparent 1px 104px)",
+                            }}
+                          >
+                            {p.appts.map((a) => (
+                              <span
+                                key={`${a.client}-${a.top}`}
+                                style={{
+                                  position: "absolute",
+                                  left: 4,
+                                  right: 4,
+                                  top: a.top,
+                                  height: a.height,
+                                  borderRadius: "var(--radius-sm)",
+                                  background: a.bg,
+                                  color: a.fg,
+                                  padding: "7px 9px",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 2,
+                                  overflow: "hidden",
+                                  animation: `tjUp .6s var(--ease-standard) ${a.delay} both`,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    font: "var(--fw-medium) 10.5px/1.1 var(--font-sans)",
+                                    fontVariantNumeric: "tabular-nums",
+                                  }}
+                                >
+                                  {a.time}
+                                </span>
+                                <span
+                                  style={{
+                                    font: "var(--fw-bold) 12.5px/1.2 var(--font-sans)",
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                  }}
+                                >
+                                  {a.client}
+                                </span>
+                                <span
+                                  style={{
+                                    font: "var(--fw-medium) 11px/1.15 var(--font-sans)",
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                  }}
+                                >
+                                  {a.service}
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  data-t="calphone"
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: 44,
+                    width: 214,
+                    background: "var(--surface-card)",
+                    border: "1px solid var(--border-default)",
+                    borderRadius: 22,
+                    boxShadow: "var(--shadow-xl)",
+                    padding: 10,
+                    textAlign: "left",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "8px 0 12px",
+                    }}
+                  >
+                    <Avatar name={phoneDay.name} size="md" />
+                    <span
+                      style={{
+                        font: "var(--fw-semibold) 12.5px/1 var(--font-sans)",
+                        color: "var(--text-strong)",
+                      }}
+                    >
+                      {phoneDay.name}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "40px 1fr",
+                      borderTop: "1px solid var(--border-subtle)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div style={{ position: "relative", height: 352 }}>
+                      {phoneDay.hours.map((ph) => (
+                        <span
+                          key={ph.label}
+                          style={{
+                            position: "absolute",
+                            right: 6,
+                            top: ph.top,
+                            transform: "translateY(-5px)",
+                            font: "var(--fw-medium) 9.5px/1.15 var(--font-sans)",
+                            color: "var(--text-muted)",
+                            textAlign: "right",
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
+                          {ph.label}
+                        </span>
+                      ))}
+                    </div>
+                    <div
+                      style={{
+                        position: "relative",
+                        height: 352,
+                        borderLeft: "1px solid var(--border-subtle)",
+                        background:
+                          "repeating-linear-gradient(180deg,var(--border-subtle) 0 1px,transparent 1px 64px)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {phoneDay.appts.map((pa) => (
+                        <span
+                          key={pa.client}
+                          style={{
+                            position: "absolute",
+                            left: 4,
+                            right: 4,
+                            top: pa.top,
+                            height: pa.height,
+                            borderRadius: "var(--radius-sm)",
+                            background: pa.bg,
+                            color: pa.fg,
+                            padding: "6px 8px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 1,
+                            overflow: "hidden",
+                          }}
+                        >
+                          <span
+                            style={{
+                              font: "var(--fw-medium) 10px/1.1 var(--font-sans)",
+                              fontVariantNumeric: "tabular-nums",
+                            }}
+                          >
+                            {pa.time}
+                          </span>
+                          <span
+                            style={{
+                              font: "var(--fw-bold) 11.5px/1.2 var(--font-sans)",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {pa.client}
+                          </span>
+                          <span
+                            style={{
+                              font: "var(--fw-medium) 10.5px/1.15 var(--font-sans)",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {pa.service}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 6,
+                      padding: "12px 10px 6px",
+                      borderTop: "1px solid var(--border-subtle)",
+                      marginTop: 8,
+                    }}
+                  >
+                    {phoneNav.map((pn, i) => (
+                      <span
+                        key={`${pn.icon}-${i}`}
+                        style={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: "var(--radius-pill)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: pn.bg,
+                          color: pn.fg,
+                        }}
+                      >
+                        <Icon name={pn.icon} size={15} />
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section data-t="sect" style={{ position: "relative", padding: "56px 0 88px", textAlign: "center" }}>
+          <div data-t="pad" style={shell()}>
+            <p
+              data-reveal="1"
+              style={{
+                font: "var(--fw-semibold) 16.5px/1.6 var(--font-sans)",
+                color: "var(--text-on-brand)",
+                margin: "0 auto",
+                maxWidth: "56ch",
+              }}
+            >
+              {t.landing.socialProof.line}
+            </p>
+
+            <div
+              data-t="proof-signals"
+              data-reveal="1"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                gap: "28px 20px",
+                marginTop: 44,
+                alignItems: "start",
+              }}
+            >
+              {proofSignals.map((s) => (
+                <div
+                  key={s.name}
+                  className="tj-proof-signal"
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <span
+                    style={{
+                      font: "var(--fw-semibold) 14px/1.2 var(--font-sans)",
+                      color: "rgba(255,255,255,.92)",
+                      letterSpacing: ".01em",
+                    }}
+                  >
+                    {s.name}
+                  </span>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <span
+                      style={{
+                        font: "var(--fw-bold) 15px/1 var(--font-sans)",
+                        color: "var(--text-on-brand)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {s.score}
+                    </span>
+                    <ProofStars />
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div
+              data-t="proof-stats"
+              data-reveal="1"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                gap: "32px 24px",
+                marginTop: 56,
+                paddingTop: 40,
+                borderTop: "1px solid rgba(255,255,255,.18)",
+              }}
+            >
+              {proofStats.map((st) => (
+                <div
+                  key={st.label}
+                  className="tj-proof-stat"
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <span
+                    style={{
+                      font: "var(--fw-extrabold) clamp(32px,4.2cqw,48px)/1 var(--font-sans)",
+                      letterSpacing: "-.03em",
+                      color: "var(--text-on-brand)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
-                    {q.token}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ font: "var(--fw-semibold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>{q.name}</div>
-                    <div style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 3 }}>{q.service}</div>
-                  </div>
-                  <div style={{ font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)", color: q.statusFg, whiteSpace: "nowrap" }}>{q.status}</div>
+                    {st.value}
+                  </span>
+                  <span
+                    style={{
+                      font: "var(--fw-medium) 14px/1.35 var(--font-sans)",
+                      color: "rgba(255,255,255,.78)",
+                      maxWidth: "16ch",
+                    }}
+                  >
+                    {st.label}
+                  </span>
                 </div>
               ))}
-              <Button variant="secondary" fullWidth leadingIcon="plus" onClick={openInquiry}>
-                {t.landing.mock.addWalkIn}
-              </Button>
-            </div>
-
-            {/* floating toast */}
-            <div
-              className="tt-float2"
-              style={{
-                position: "absolute",
-                top: -30,
-                left: -44,
-                background: "var(--surface-card)",
-                border: "1px solid var(--border-subtle)",
-                borderRadius: "var(--radius-lg)",
-                boxShadow: "var(--shadow-lg)",
-                padding: "12px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                animationDelay: "-2s",
-                zIndex: 2,
-              }}
-            >
-              <span style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--success-soft)", color: "var(--success)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Icon name="checkCircle" size={18} />
-              </span>
-              <div>
-                <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)" }}>{t.landing.mock.newBooking}</div>
-                <div style={{ font: "var(--fw-regular) 11px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 3 }}>{t.landing.mock.newBookingSub}</div>
-              </div>
-            </div>
-
-            {/* floating stat */}
-            <div
-              className="tt-float2"
-              style={{
-                position: "absolute",
-                bottom: -20,
-                right: -22,
-                background: "var(--brand-ink)",
-                borderRadius: "var(--radius-lg)",
-                boxShadow: "var(--shadow-lg)",
-                padding: "13px 16px",
-                animationDelay: "-3.5s",
-              }}
-            >
-              <div style={{ font: "var(--fw-extrabold) 22px/1 var(--font-sans)", color: "#fff", fontVariantNumeric: "tabular-nums" }}>{t.landing.mock.waitValue}</div>
-              <div style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--blue-200)", marginTop: 5 }}>{t.landing.mock.waitLabel}</div>
             </div>
           </div>
-        </div>
+        </section>
+      </div>
 
-        {/* trust marquee */}
-        <div
-          style={{
-            position: "relative",
-            borderTop: "1px solid var(--border-subtle)",
-            padding: "18px 0",
-            overflow: "hidden",
-            WebkitMaskImage: "linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)",
-            maskImage: "linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)",
-          }}
-        >
-          <div className="tt-marquee-track">
-            {marquee.map((m, i) => (
-              <span
-                key={i}
-                style={{
-                  font: "var(--fw-semibold) var(--fs-body-md)/1 var(--font-sans)",
-                  color: "var(--text-subtle)",
-                  whiteSpace: "nowrap",
-                  padding: "0 28px",
-                }}
-              >
-                {m}
-              </span>
+      {/* --------------------------------------------------- industries -- */}
+      <section id="industries" data-t="sect" style={{ padding: "88px 0", background: "var(--surface-card)" }}>
+        <div data-t="pad" style={shell({ textAlign: "center" })}>
+          <h2 data-reveal="1" style={{ ...h2Style, margin: "0 auto", maxWidth: "24ch" }}>
+            {t.landing.industriesSection.title}
+          </h2>
+          <p data-reveal="1" style={{ ...leadStyle, margin: "16px auto 0", maxWidth: "64ch" }}>
+            {t.landing.industriesSection.body}
+          </p>
+          <div
+            data-t="ind"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3,1fr)",
+              gap: 16,
+              marginTop: 40,
+              textAlign: "left",
+            }}
+          >
+            {industries.map((i, idx) => (
+              <PhotoWell
+                key={i.name}
+                n={i.n}
+                title={i.name}
+                caption={i.detail}
+                numberSize={108}
+                gradient="linear-gradient(140deg,var(--blue-100) 0%,var(--blue-50) 46%,var(--teal-100) 100%)"
+                image={i.image}
+                delayMs={(idx % 3) * 70}
+              />
             ))}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ===================== FEATURES ===================== */}
-      <div id="features" style={{ maxWidth: MAX, margin: "0 auto", padding: "84px 28px 40px" }}>
-        <div className="reveal" style={{ textAlign: "center", maxWidth: 680, margin: "0 auto 48px" }}>
-          <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>
-            {t.landing.features.eyebrow}
+      {/* ------------------------------------------------------ features -- */}
+      <section
+        id="product"
+        data-t="sect"
+        style={{ padding: "88px 0", background: "var(--surface-page)", borderTop: "1px solid var(--border-subtle)" }}
+      >
+        <div data-t="pad" style={shell()}>
+          <div style={{ textAlign: "center", maxWidth: "52ch", margin: "0 auto 48px" }}>
+            <h2 data-reveal="1" style={h2Style}>{t.landing.features.title}</h2>
+            <p data-reveal="1" style={{ ...leadStyle, margin: "16px 0 0" }}>{t.landing.features.body}</p>
           </div>
-          <h2 style={{ font: "var(--fw-extrabold) 38px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", margin: "0 0 14px" }}>
-            {t.landing.features.title}
-          </h2>
-          <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.55 var(--font-sans)", color: "var(--text-body)", margin: 0 }}>
-            {t.landing.features.body}
-          </p>
-        </div>
-        <div className="tt-features-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }}>
-          {features.map((f) => (
-            <div
-              key={f.title}
-              className="reveal tt-feat"
-              style={{
-                background: "var(--surface-card)",
-                border: "1px solid var(--border-subtle)",
-                borderRadius: "var(--radius-lg)",
-                boxShadow: "var(--shadow-xs)",
-                padding: "26px 24px",
-              }}
-            >
-              <span className="tt-feat-arrow">
-                <Icon name="arrowRight" size={18} />
-              </span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }} data-t="three">
+            {features.map((f) => (
               <div
-                className="tt-feat-icon"
+                key={f.head}
+                data-reveal="1"
+                className="tj-feat"
                 style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 13,
-                  background: f.iconBg,
-                  color: f.iconFg,
+                  background: "var(--surface-card)",
+                  border: "1px solid var(--border-subtle)",
+                  borderRadius: "var(--radius-lg)",
+                  boxShadow: "var(--shadow-xs)",
+                  padding: 26,
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: 18,
+                  flexDirection: "column",
+                  gap: 13,
                 }}
               >
-                <Icon name={f.icon} size={24} />
+                <span
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: "var(--radius-md)",
+                    background: "var(--primary-soft)",
+                    color: "var(--primary)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Icon name={f.icon} size={21} />
+                </span>
+                <span
+                  style={{
+                    font: "var(--fw-bold) 17.5px/1.3 var(--font-sans)",
+                    color: "var(--text-strong)",
+                    letterSpacing: "-.01em",
+                  }}
+                >
+                  {f.head}
+                </span>
+                <span
+                  style={{ font: "var(--fw-regular) 14.5px/1.6 var(--font-sans)", color: "var(--text-muted)" }}
+                >
+                  {f.body}
+                </span>
               </div>
-              <h3 style={{ font: "var(--fw-bold) var(--fs-h5)/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 9px" }}>{f.title}</h3>
-              <p style={{ font: "var(--fw-regular) var(--fs-body-md)/1.55 var(--font-sans)", color: "var(--text-body)", margin: 0 }}>{f.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ===================== DETAIL ROWS ===================== */}
-      <div style={{ maxWidth: MAX, margin: "0 auto", padding: "50px 28px" }}>
-        {/* Online booking */}
-        <div className="reveal tt-detail-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center", marginBottom: 60 }}>
-          <div>
-            <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--secondary)", marginBottom: 12 }}>
-              {t.landing.booking.eyebrow}
-            </div>
-            <h3 style={{ font: "var(--fw-extrabold) 30px/1.15 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>
-              {t.landing.booking.title}
-            </h3>
-            <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.55 var(--font-sans)", color: "var(--text-body)", margin: "0 0 20px" }}>
-              {t.landing.booking.body}
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {bookingBullets.map((b) => (
-                <div key={b} style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                  <span style={bulletIconStyle("var(--success-soft)", "var(--success)")}>
-                    <Icon name="check" size={15} />
-                  </span>
-                  <span style={{ font: "var(--fw-medium) var(--fs-body-md)/1.4 var(--font-sans)", color: "var(--text-body)" }}>{b}</span>
-                </div>
-              ))}
-            </div>
+            ))}
           </div>
-          <div className="tt-panel" style={{ background: "linear-gradient(160deg,var(--blue-50),var(--teal-50))", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-xl)", padding: 26, boxShadow: "var(--shadow-sm)" }}>
-            <div style={{ background: "var(--surface-card)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-xs)", padding: 18, display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 13, background: "linear-gradient(135deg,var(--brand-ink),var(--primary))", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", font: "var(--fw-extrabold) var(--fs-body-md)/1 var(--font-sans)", flexShrink: 0 }}>SC</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ font: "var(--fw-bold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>{t.landing.booking.storeName}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6 }}>
-                    <span style={{ color: "var(--amber-500)", display: "flex" }}><Icon name="star" size={13} fill="currentColor" /></span>
-                    <span style={{ font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-body)" }}>{t.landing.booking.storeRating}</span>
-                    <span style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)" }}>{t.landing.booking.storeMeta}</span>
-                  </div>
-                </div>
-                <span style={{ padding: "5px 11px", borderRadius: 999, background: "var(--success-soft)", color: "var(--success-soft-fg)", font: "var(--fw-semibold) 11px/1 var(--font-sans)" }}>{t.landing.booking.open}</span>
-              </div>
+        </div>
+      </section>
 
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 14px", borderRadius: "var(--radius-md)", border: "1.5px solid var(--primary)", background: "var(--primary-soft)" }}>
-                <div>
-                  <div style={{ font: "var(--fw-semibold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>{t.landing.booking.serviceName}</div>
-                  <div style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{t.landing.booking.serviceDuration}</div>
-                </div>
-                <div style={{ font: "var(--fw-extrabold) var(--fs-body-lg)/1 var(--font-sans)", color: "var(--primary)", fontVariantNumeric: "tabular-nums" }}>{t.landing.booking.servicePrice}</div>
+      {/* ------------------------------------------------------- booking -- */}
+      <section
+        id="booking"
+        data-t="sect"
+        style={{ padding: "88px 0", background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}
+      >
+        <div data-t="pad" style={shell()}>
+          <div
+            data-t="two"
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center" }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <span style={{ display: "inline-flex" }}>
+                <Badge tone="primary">{t.landing.booking.eyebrow}</Badge>
+              </span>
+              <h2 style={h2SplitStyle}>{t.landing.booking.title}</h2>
+              <p style={{ ...leadStyle, margin: "16px 0 0", maxWidth: "46ch" }}>{t.landing.booking.body}</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 26 }}>
+                {bookingBullets.map((b) => (
+                  <Bullet key={b} color="var(--success)">
+                    {b}
+                  </Bullet>
+                ))}
               </div>
+            </div>
 
-              <div>
-                <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)", marginBottom: 10 }}>{t.landing.booking.selectDate}</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 7 }}>
-                  {bookingDays.map((d) => (
-                    <div key={d.d} style={{ textAlign: "center", padding: "9px 0", borderRadius: "var(--radius-md)", border: `1px solid ${d.border}`, background: d.bg }}>
-                      <div style={{ font: "var(--fw-semibold) 10px/1 var(--font-sans)", color: d.subFg, textTransform: "uppercase", letterSpacing: ".04em" }}>{d.d}</div>
-                      <div style={{ font: "var(--fw-bold) var(--fs-body-md)/1 var(--font-sans)", color: d.fg, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>{d.n}</div>
-                    </div>
-                  ))}
-                </div>
+            <div
+              className="tj-demo-card"
+              style={{
+                minWidth: 0,
+                background: "var(--surface-page)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-xl)",
+                padding: 24,
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              <span style={eyebrowStyle}>{t.landing.booking.pickATime}</span>
+              <div className="tj-slot-row" style={{ display: "flex", flexWrap: "wrap", gap: 10, margin: "16px 0 20px" }}>
+                {slots.map((s) => (
+                  <span
+                    key={s.time}
+                    className="tj-slot-chip"
+                    style={{
+                      font: "var(--fw-semibold) 14.5px/1 var(--font-sans)",
+                      fontVariantNumeric: "tabular-nums",
+                      padding: "13px 18px",
+                      borderRadius: "var(--radius-md)",
+                      border: `1px solid ${s.border}`,
+                      background: s.bg,
+                      color: s.fg,
+                    }}
+                  >
+                    {s.time}
+                  </span>
+                ))}
               </div>
-
-              <div>
-                <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)", marginBottom: 10 }}>{t.landing.booking.chooseTime}</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 9 }}>
-                  {slots.map((s) => (
-                    <div key={s.t} style={{ textAlign: "center", padding: "10px 0", borderRadius: "var(--radius-md)", border: `1px solid ${s.border}`, background: s.bg, color: s.fg, font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)", fontVariantNumeric: "tabular-nums" }}>{s.t}</div>
-                  ))}
-                </div>
-              </div>
-
-              <Button variant="primary" size="lg" fullWidth onClick={openInquiry}>
+              <Button variant="primary" fullWidth onClick={() => showToast(t.landing.toast.booking)}>
                 {t.landing.booking.confirm}
               </Button>
+              <div className="tj-demo-schedule" style={{ marginTop: 22, paddingTop: 18, borderTop: "1px solid var(--border-subtle)" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    marginBottom: 12,
+                  }}
+                >
+                  <span style={eyebrowStyle}>{t.landing.booking.yourSchedule}</span>
+                  <Badge tone="success" dot size="sm">
+                    {t.landing.booking.justBooked}
+                  </Badge>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {scheduleRows.map((c) => (
+                    <AppointmentCard
+                      key={c.name}
+                      name={c.name}
+                      service={c.service}
+                      time={c.time}
+                      status={c.status}
+                      style={c.style}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* Owner app */}
-        <div className="reveal tt-detail-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center" }}>
-          <div className="tt-panel" style={{ order: 1, background: "linear-gradient(160deg,var(--teal-50),var(--blue-50))", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-xl)", padding: 26, boxShadow: "var(--shadow-sm)" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {kpis.map((k) => (
-                <div key={k.label} style={{ background: "var(--surface-card)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-xs)", padding: 16 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 9, background: k.bg, color: k.fg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 11 }}>
-                    <Icon name={k.icon} size={18} />
-                  </div>
-                  <div style={{ font: "var(--fw-extrabold) var(--fs-h4)/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{k.value}</div>
-                  <div style={{ font: "var(--fw-medium) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{k.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ order: 2 }}>
-            <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>
-              {t.landing.ownerApp.eyebrow}
-            </div>
-            <h3 style={{ font: "var(--fw-extrabold) 30px/1.15 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>
-              {t.landing.ownerApp.title}
-            </h3>
-            <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.55 var(--font-sans)", color: "var(--text-body)", margin: "0 0 20px" }}>
-              {t.landing.ownerApp.body}
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {ownerBullets.map((b) => (
-                <div key={b} style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                  <span style={bulletIconStyle("var(--primary-soft)", "var(--primary)")}>
-                    <Icon name="check" size={15} />
+      {/* ------------------------------------------------------ walk-ins -- */}
+      <section
+        id="walkins"
+        data-t="sect"
+        style={{ padding: "88px 0", background: "var(--surface-page)", borderTop: "1px solid var(--border-subtle)" }}
+      >
+        <div data-t="pad" style={shell()}>
+          <div
+            data-t="two"
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center" }}
+          >
+            <div data-reveal="1" className="tj-wait-copy" style={{ minWidth: 0, order: 2 }}>
+              <span style={{ display: "inline-flex" }}>
+                <Badge tone="secondary">{t.landing.walkins.eyebrow}</Badge>
+              </span>
+              <h2 style={h2SplitStyle}>{t.landing.walkins.title}</h2>
+              <p style={{ ...leadStyle, margin: "16px 0 0", maxWidth: "46ch" }}>{t.landing.walkins.body}</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 26 }}>
+                {walkBullets.map((w) => (
+                  <span key={w} className="tj-wait-bullet">
+                    <Bullet color="var(--secondary)">
+                      {w}
+                    </Bullet>
                   </span>
-                  <span style={{ font: "var(--fw-medium) var(--fs-body-md)/1.4 var(--font-sans)", color: "var(--text-body)" }}>{b}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ===================== STATS BAND ===================== */}
-      <div className="tt-hero-grad" style={{ margin: "40px 0", padding: "64px 28px" }}>
-        <div className="tt-stats-grid" style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 30, textAlign: "center" }}>
-          {stats.map((st) => (
-            <div key={st.label} className="reveal">
-              <div style={{ font: "var(--fw-extrabold) 46px/1 var(--font-sans)", color: "#fff", fontVariantNumeric: "tabular-nums", letterSpacing: "-.02em" }}>
-                <span data-count={st.to}>0</span>
-                {st.suffix}
-              </div>
-              <div style={{ font: "var(--fw-medium) var(--fs-body-md)/1.3 var(--font-sans)", color: "rgba(255,255,255,.85)", marginTop: 10 }}>{st.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ===================== INDUSTRIES ===================== */}
-      <div id="industries" style={{ maxWidth: 1100, margin: "0 auto", padding: "64px 28px", textAlign: "center" }}>
-        <div className="reveal" style={{ marginBottom: 38 }}>
-          <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>
-            {t.landing.industries.eyebrow}
-          </div>
-          <h2 style={{ font: "var(--fw-extrabold) 38px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", margin: 0 }}>
-            {t.landing.industries.title}
-          </h2>
-        </div>
-        <div className="reveal" style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center" }}>
-          {industries.map((ind) => (
-            <span key={ind} className="tt-chip" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", borderRadius: 999, border: "1px solid var(--border-subtle)", background: "var(--surface-card)", font: "var(--fw-semibold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-body)", boxShadow: "var(--shadow-xs)" }}>{ind}</span>
-          ))}
-        </div>
-      </div>
-
-      {/* ===================== VISION ===================== */}
-      <div id="vision" style={{ maxWidth: 900, margin: "0 auto", padding: "64px 28px", textAlign: "center" }}>
-        <div className="reveal">
-          <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--secondary)", marginBottom: 18 }}>
-            {t.landing.vision.eyebrow}
-          </div>
-          <h2 style={{ font: "var(--fw-extrabold) 44px/1.18 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", margin: "0 0 22px" }}>
-            {t.landing.vision.titleLead}{" "}
-            <span className="tt-grad-text">{t.landing.vision.titleAccent}</span>
-          </h2>
-          <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.6 var(--font-sans)", color: "var(--text-body)", margin: "0 auto", maxWidth: 640 }}>
-            {t.landing.vision.body}
-          </p>
-        </div>
-      </div>
-
-      {/* ===================== TESTIMONIALS ===================== */}
-      <div style={{ maxWidth: MAX, margin: "0 auto", padding: "30px 28px 64px" }}>
-        <div className="tt-testimonials-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }}>
-          {testimonials.map((t) => (
-            <div key={t.name} className="reveal tt-lift" style={{ position: "relative", display: "flex", flexDirection: "column", background: "var(--surface-card)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-xs)", padding: "30px 28px 26px", overflow: "hidden" }}>
-              <span aria-hidden="true" style={{ position: "absolute", top: 6, right: 20, font: "var(--fw-extrabold) 96px/1 Georgia,serif", color: "var(--primary)", opacity: 0.08, pointerEvents: "none" }}>&rdquo;</span>
-              <div style={{ display: "flex", gap: 3, color: "var(--amber-500)", marginBottom: 16 }}>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Icon key={i} name="star" size={16} fill="currentColor" />
                 ))}
               </div>
-              <p style={{ flex: 1, font: "var(--fw-medium) var(--fs-body-md)/1.65 var(--font-sans)", color: "var(--text-body)", margin: "0 0 22px", position: "relative" }}>{t.quote}</p>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 18, borderTop: "1px solid var(--border-subtle)" }}>
-                <span style={{ width: 44, height: 44, borderRadius: "50%", background: t.avBg, color: t.avFg, display: "flex", alignItems: "center", justifyContent: "center", font: "var(--fw-bold) var(--fs-body-sm) var(--font-sans)", flexShrink: 0 }}>{t.initials}</span>
-                <div>
-                  <div style={{ font: "var(--fw-bold) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-strong)" }}>{t.name}</div>
-                  <div style={{ font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{t.role}</div>
-                </div>
-              </div>
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* ===================== CTA BAND ===================== */}
-      <div style={{ maxWidth: MAX, margin: "0 auto", padding: "0 28px 70px" }}>
-        <div className="reveal tt-hero-grad" style={{ borderRadius: "var(--radius-xl)", padding: "60px 40px", textAlign: "center", position: "relative", overflow: "hidden", boxShadow: "var(--shadow-lg)" }}>
-          <h2 style={{ font: "var(--fw-extrabold) 40px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "#fff", margin: "0 0 14px" }}>
-            {t.landing.cta.title}
-          </h2>
-          <p style={{ font: "var(--fw-regular) var(--fs-body-lg)/1.5 var(--font-sans)", color: "rgba(255,255,255,.9)", margin: "0 auto 28px", maxWidth: 520 }}>
-            {t.landing.cta.body}
-          </p>
-          <div style={{ display: "inline-flex" }}>
-            <Button variant="outline" size="lg" onDark trailingIcon="arrowRight" onClick={openInquiry}>
-              {t.landing.cta.button}
-            </Button>
+            <div
+              data-reveal="1"
+              className="tj-wait-board tj-demo-card"
+              style={{
+                minWidth: 0,
+                order: 1,
+                background: "var(--surface-card)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-xl)",
+                padding: 24,
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              <div
+                className="tj-wait-head"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  paddingBottom: 16,
+                  borderBottom: "1px solid var(--border-subtle)",
+                }}
+              >
+                <span
+                  className="tj-wait-title"
+                  style={{ font: "var(--fw-bold) 16px/1.2 var(--font-sans)", color: "var(--text-strong)" }}
+                >
+                  {t.landing.walkins.boardTitle}
+                </span>
+                <span className="tj-wait-eta">
+                  <WaitTimeWidget
+                    minutes={waitMinutes}
+                    label={t.landing.walkins.estimatedWait}
+                    tone="primary"
+                  />
+                </span>
+              </div>
+              <div className="tj-wait-list" style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
+                {waitRows.map((w, idx) => (
+                  <div
+                    key={w.name}
+                    className={`tj-wait-row${walkInAdded && idx === waitRows.length - 1 ? " tj-wait-row-new" : ""}`}
+                  >
+                    <AppointmentCard
+                      name={w.name}
+                      service={w.service}
+                      status={w.status}
+                      position={w.position}
+                      waitMinutes={w.waitMinutes}
+                    />
+                  </div>
+                ))}
+              </div>
+              <span style={{ display: "block", marginTop: 16 }}>
+                <Button variant="outline" fullWidth onClick={addWalkIn} disabled={walkInAdded}>
+                  {t.landing.walkins.addWalkIn}
+                </Button>
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ===================== FOOTER ===================== */}
-      <div style={{ borderTop: "1px solid var(--border-subtle)", background: "var(--surface-card)" }}>
-        <div className="tt-footer-grid" style={{ maxWidth: MAX, margin: "0 auto", padding: "48px 28px 28px", display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr 1fr", gap: 40 }}>
-          <div>
-            <div style={{ marginBottom: 14 }}>
-              <Logo height={48} />
+      {/* ------------------------------------------------------- clients -- */}
+      <section
+        data-t="sect"
+        style={{ padding: "88px 0", background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}
+      >
+        <div data-t="pad" style={shell()}>
+          <div
+            data-t="two"
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center" }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <span style={{ display: "inline-flex" }}>
+                <Badge tone="primary">{t.landing.clients.eyebrow}</Badge>
+              </span>
+              <h2 style={h2SplitStyle}>{t.landing.clients.title}</h2>
+              <p style={{ ...leadStyle, margin: "16px 0 0", maxWidth: "46ch" }}>{t.landing.clients.body}</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 26 }}>
+                {clientBullets.map((c) => (
+                  <Bullet key={c} color="var(--primary)">
+                    {c}
+                  </Bullet>
+                ))}
+              </div>
             </div>
-            <p style={{ font: "var(--fw-regular) var(--fs-body-md)/1.5 var(--font-sans)", color: "var(--text-muted)", margin: 0, maxWidth: 260 }}>
-              {t.landing.footer.blurb}
+
+            <div
+              className="tj-demo-card tj-client-card"
+              style={{
+                minWidth: 0,
+                background: "var(--surface-page)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-xl)",
+                padding: 26,
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              <div
+                className="tj-client-head"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  paddingBottom: 20,
+                  borderBottom: "1px solid var(--border-subtle)",
+                }}
+              >
+                <Avatar name={client.name} size="lg" className="tj-client-avatar" />
+                <span style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                  <span
+                    className="tj-client-name"
+                    style={{ font: "var(--fw-bold) 18px/1.2 var(--font-sans)", color: "var(--text-strong)" }}
+                  >
+                    {client.name}
+                  </span>
+                  <span
+                    className="tj-client-meta"
+                    style={{ font: "var(--fw-medium) 13px/1.35 var(--font-sans)", color: "var(--text-muted)" }}
+                  >
+                    {client.meta}
+                  </span>
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {client.rows.map((r) => (
+                  <span
+                    key={r.k}
+                    className="tj-client-row"
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      justifyContent: "space-between",
+                      gap: 16,
+                      padding: "13px 0",
+                      borderBottom: "1px solid var(--border-subtle)",
+                    }}
+                  >
+                    <span
+                      className="tj-client-k"
+                      style={{ font: "var(--fw-medium) 13.5px/1 var(--font-sans)", color: "var(--text-muted)" }}
+                    >
+                      {r.k}
+                    </span>
+                    <span
+                      className="tj-client-v"
+                      style={{
+                        font: "var(--fw-semibold) 14.5px/1.35 var(--font-sans)",
+                        color: "var(--text-strong)",
+                        textAlign: "right",
+                      }}
+                    >
+                      {r.v}
+                    </span>
+                  </span>
+                ))}
+              </div>
+              <div className="tj-client-actions" style={{ display: "flex", gap: 10, marginTop: 20, flexWrap: "wrap" }}>
+                <Button variant="primary" size="sm" onClick={() => showToast(t.landing.toast.booking)}>
+                  {t.landing.clients.rebook}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => showToast(t.landing.toast.history)}>
+                  {t.landing.clients.viewHistory}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* --------------------------------------------------------- steps -- */}
+      <section
+        data-t="sect"
+        style={{ padding: "88px 0", background: "var(--surface-page)", borderTop: "1px solid var(--border-subtle)" }}
+      >
+        <div data-t="pad" style={shell({ textAlign: "center" })}>
+          <h2 data-reveal="1" style={{ ...h2Style, margin: "0 0 44px" }}>{t.landing.steps.title}</h2>
+          <div
+            data-t="steps"
+            style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 24, textAlign: "left" }}
+          >
+            {steps.map((s, idx) => (
+              <div
+                key={s.n}
+                data-reveal="1"
+                className="tj-step"
+                style={{ display: "flex", flexDirection: "column", gap: 12, transitionDelay: `${idx * 80}ms` }}
+              >
+                <span
+                  className="tj-step-num"
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: "var(--radius-pill)",
+                    background: "var(--brand-ink)",
+                    color: "var(--text-on-brand)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    font: "var(--fw-bold) 15px/1 var(--font-sans)",
+                  }}
+                >
+                  {s.n}
+                </span>
+                <span
+                  style={{
+                    font: "var(--fw-bold) 19px/1.25 var(--font-sans)",
+                    color: "var(--text-strong)",
+                    letterSpacing: "-.01em",
+                    marginTop: 4,
+                  }}
+                >
+                  {s.head}
+                </span>
+                <span style={{ font: "var(--fw-regular) 15px/1.6 var(--font-sans)", color: "var(--text-muted)" }}>
+                  {s.body}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------- pricing -- */}
+      <section
+        id="pricing"
+        data-t="sect"
+        style={{ padding: "88px 0", background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}
+      >
+        <div data-t="pad" style={shell()}>
+          <div style={{ textAlign: "center", maxWidth: "50ch", margin: "0 auto 40px" }}>
+            <h2 data-reveal="1" style={h2Style}>{t.landing.pricing.title}</h2>
+            <p
+              data-reveal="1"
+              style={{
+                font: "var(--fw-regular) 16px/1.6 var(--font-sans)",
+                color: "var(--text-muted)",
+                margin: "14px 0 0",
+              }}
+            >
+              {t.landing.pricing.note}
             </p>
           </div>
-          {footerCols.map((col) => (
-            <div key={col.title}>
-              <div style={{ font: "var(--fw-bold) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-strong)", marginBottom: 14, textTransform: "uppercase", letterSpacing: ".05em" }}>{col.title}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {col.links.map((lk) => (
-                  <span key={lk} style={{ font: "var(--fw-regular) var(--fs-body-md)/1 var(--font-sans)", color: "var(--text-muted)", cursor: "pointer" }}>{lk}</span>
+          <div
+            data-t="price"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3,1fr)",
+              gap: 20,
+              maxWidth: 1020,
+              margin: "0 auto",
+            }}
+          >
+            {plans.map((p, idx) => (
+              <div
+                key={p.name}
+                data-reveal="1"
+                className={`tj-plan${p.featured ? " tj-plan-featured" : ""}`}
+                style={{
+                  background: "var(--surface-card)",
+                  border: p.border,
+                  borderRadius: "var(--radius-xl)",
+                  boxShadow: p.shadow,
+                  padding: 28,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                  transitionDelay: `${idx * 100}ms`,
+                }}
+              >
+                <span
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}
+                >
+                  <span style={eyebrowStyle}>{p.name}</span>
+                  {p.featured && (
+                    <span className="tj-plan-badge">
+                      <Badge tone="primary" size="sm">
+                        {t.landing.pricing.mostPopular}
+                      </Badge>
+                    </span>
+                  )}
+                </span>
+                <span className="tj-plan-price">
+                  <span
+                    style={{
+                      font: "var(--fw-extrabold) 38px/1 var(--font-sans)",
+                      letterSpacing: "-.035em",
+                      color: "var(--text-strong)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {p.price}
+                  </span>
+                  <span style={{ font: "var(--fw-medium) 14px/1 var(--font-sans)", color: "var(--text-muted)" }}>
+                    {p.per}
+                  </span>
+                </span>
+                <span
+                  style={{ font: "var(--fw-regular) 14.5px/1.5 var(--font-sans)", color: "var(--text-muted)" }}
+                >
+                  {p.who}
+                </span>
+                <span style={{ height: 1, background: "var(--border-subtle)" }} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+                  {p.feats.map((ft) => (
+                    <span key={ft} className="tj-plan-feat" style={{ display: "flex", alignItems: "flex-start", gap: 9 }}>
+                      <span style={{ color: "var(--success)", flexShrink: 0, paddingTop: 1, display: "flex" }}>
+                        <Icon name="check" size={15} />
+                      </span>
+                      <span
+                        style={{ font: "var(--fw-regular) 14px/1.45 var(--font-sans)", color: "var(--text-body)" }}
+                      >
+                        {ft}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+                <div className="tj-plan-cta">
+                  <Button variant={p.variant} fullWidth onClick={openInquiry}>
+                    {p.isContact ? t.landing.cta.talkToUs : ctaPrimary}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ----------------------------------------------------------- faq -- */}
+      <section
+        id="faq"
+        data-t="sect"
+        style={{ padding: "88px 0", background: "var(--surface-page)", borderTop: "1px solid var(--border-subtle)" }}
+      >
+        <div data-t="pad" style={{ maxWidth: 820, margin: "0 auto", padding: PAD }}>
+          <h2 data-reveal="1" style={{ ...h2Style, margin: "0 0 28px" }}>{t.landing.faq.title}</h2>
+          <div
+            style={{
+              background: "var(--surface-card)",
+              border: "1px solid var(--border-subtle)",
+              borderRadius: "var(--radius-lg)",
+              boxShadow: "var(--shadow-xs)",
+              overflow: "hidden",
+            }}
+          >
+            {faqs.map((q, i) => {
+              const open = faqOpen === i;
+              return (
+                <div key={q.q} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                  <button
+                    type="button"
+                    onClick={() => setFaqOpen(open ? null : i)}
+                    aria-expanded={open}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 16,
+                      padding: "20px 24px",
+                      background: "transparent",
+                      border: 0,
+                      cursor: "pointer",
+                      textAlign: "left",
+                      font: "var(--fw-semibold) 16px/1.4 var(--font-sans)",
+                      color: "var(--text-strong)",
+                    }}
+                  >
+                    {q.q}
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        color: "var(--text-muted)",
+                        display: "flex",
+                        transform: open ? "rotate(45deg)" : "rotate(0deg)",
+                        transition: "transform var(--dur-base) var(--ease-standard)",
+                      }}
+                    >
+                      <Icon name="plus" size={19} />
+                    </span>
+                  </button>
+                  {open && (
+                    <p
+                      className="tj-faq-answer"
+                      style={{
+                        margin: 0,
+                        padding: "0 24px 22px",
+                        font: "var(--fw-regular) 15.5px/1.65 var(--font-sans)",
+                        color: "var(--text-muted)",
+                        maxWidth: "64ch",
+                        textWrap: "pretty",
+                      }}
+                    >
+                      {q.a}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------- gallery -- */}
+      <section
+        data-t="sect"
+        style={{ padding: "88px 0", background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}
+      >
+        <div data-t="pad" style={shell()}>
+          <div style={{ textAlign: "center", maxWidth: "50ch", margin: "0 auto 40px" }}>
+            <h2 data-reveal="1" style={h2Style}>{t.landing.gallery.title}</h2>
+            <p data-reveal="1" style={{ ...leadStyle, margin: "14px 0 0" }}>{t.landing.gallery.body}</p>
+          </div>
+          <div data-t="gal" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }}>
+            {gallery.map((g, idx) => (
+              <PhotoWell
+                key={g.title}
+                n={g.n}
+                title={g.title}
+                caption={g.caption}
+                numberSize={132}
+                gradient="linear-gradient(150deg,var(--teal-100) 0%,var(--blue-50) 48%,var(--blue-100) 100%)"
+                image={g.image}
+                delayMs={idx * 90}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ----------------------------------------------------- close CTA -- */}
+      <section data-t="sect" style={{ padding: 0, background: "var(--surface-page)" }}>
+        <div
+          style={{
+            background:
+              "linear-gradient(135deg,var(--brand-ink) 0%,var(--blue-900) 58%,var(--blue-800) 100%)",
+            padding: "88px 0",
+          }}
+        >
+          <div data-t="pad" style={shell({ textAlign: "center" })}>
+            <h2
+              style={{
+                font: "var(--fw-extrabold) clamp(30px,3.8cqw,50px)/1.08 var(--font-sans)",
+                letterSpacing: "-.035em",
+                color: "var(--text-on-brand)",
+                margin: "0 auto",
+                maxWidth: "22ch",
+              }}
+            >
+              {t.landing.close.title}
+            </h2>
+            <p
+              style={{
+                font: "var(--fw-regular) 17px/1.6 var(--font-sans)",
+                color: "var(--text-on-brand)",
+                margin: "20px auto 0",
+                maxWidth: "52ch",
+              }}
+            >
+              {t.landing.close.body}
+            </p>
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                justifyContent: "center",
+                flexWrap: "wrap",
+                marginTop: 32,
+              }}
+              data-t="hero-ctas"
+            >
+              <button
+                type="button"
+                className="tj-cta-light"
+                onClick={openInquiry}
+                style={{
+                  border: 0,
+                  cursor: "pointer",
+                  background: "var(--text-on-brand)",
+                  color: "var(--brand-ink)",
+                  font: "var(--fw-semibold) 16px/1 var(--font-sans)",
+                  padding: "0 26px",
+                  height: 48,
+                  borderRadius: "var(--radius-md)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 9,
+                  transition: "opacity var(--dur-fast) var(--ease-standard)",
+                }}
+              >
+                {ctaPrimary}
+                <span style={{ display: "flex" }}>
+                  <Icon name="arrowRight" size={17} />
+                </span>
+              </button>
+              <button
+                type="button"
+                className="tj-cta-outline"
+                onClick={openInquiry}
+                style={{
+                  cursor: "pointer",
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,.34)",
+                  color: "var(--text-on-brand)",
+                  font: "var(--fw-medium) 16px/1 var(--font-sans)",
+                  padding: "0 24px",
+                  height: 48,
+                  borderRadius: "var(--radius-md)",
+                  transition:
+                    "border-color var(--dur-base) var(--ease-standard),background var(--dur-base) var(--ease-standard)",
+                }}
+              >
+                {t.landing.cta.bookDemo}
+              </button>
+            </div>
+            <p
+              style={{
+                font: "var(--fw-medium) 13.5px/1.6 var(--font-sans)",
+                color: "var(--text-on-brand)",
+                margin: "22px auto 0",
+              }}
+            >
+              {t.landing.close.micro}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* -------------------------------------------------------- footer -- */}
+      <footer
+        className="tj-footer"
+        style={{
+          background: "var(--surface-card)",
+          borderTop: "1px solid var(--border-subtle)",
+          padding: "56px 0 40px",
+        }}
+      >
+        <div data-t="pad" style={shell()}>
+          <div
+            data-t="foot"
+            className="tj-foot-grid"
+            style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 32 }}
+          >
+            {footerCols.map((fc) => (
+              <div key={fc.head} className="tj-foot-col" style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+                <span className="tj-foot-head" style={eyebrowStyle}>{fc.head}</span>
+                {fc.links.map((fl) => (
+                  <a
+                    key={fl}
+                    href="#"
+                    className="tj-footlink"
+                    style={{
+                      font: "var(--fw-medium) 14px/1.35 var(--font-sans)",
+                      color: "var(--text-body)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {fl}
+                  </a>
                 ))}
               </div>
-            </div>
-          ))}
-        </div>
-        <div style={{ borderTop: "1px solid var(--border-subtle)" }}>
-          <div style={{ maxWidth: MAX, margin: "0 auto", padding: "18px 28px", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, font: "var(--fw-regular) var(--fs-body-sm)/1 var(--font-sans)", color: "var(--text-subtle)" }}>
-            <span>{t.landing.footer.copyright}</span>
-            <span style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              <Link href="/privacy" style={{ color: "inherit" }}>
-                {t.landing.footer.privacy}
-              </Link>
-              <span aria-hidden="true">·</span>
-              <span>{t.landing.footer.terms}</span>
-              <span aria-hidden="true">·</span>
-              <a href={t.landing.footer.contactMailto} style={{ color: "inherit" }}>
-                {t.landing.footer.contact}
-              </a>
-              <span aria-hidden="true">·</span>
-              <a href={t.landing.footer.contactTel} style={{ color: "inherit" }}>
-                {t.landing.footer.contactPhone}
-              </a>
+            ))}
+          </div>
+          <div
+            className="tj-foot-bottom"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 20,
+              flexWrap: "wrap",
+              marginTop: 44,
+              paddingTop: 24,
+              borderTop: "1px solid var(--border-subtle)",
+            }}
+          >
+            <a
+              href="#top"
+              className="tj-logo-link"
+              aria-label={t.brand.logoAlt}
+              onClick={(e) => {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              style={{ display: "flex", cursor: "pointer" }}
+            >
+              <Logo height={40} />
+            </a>
+            <span
+              style={{ font: "var(--fw-medium) 12.5px/1.5 var(--font-sans)", color: "var(--text-muted)" }}
+            >
+              {t.landing.footer.note}
             </span>
           </div>
         </div>
-      </div>
+      </footer>
 
-      {/* ===================== INQUIRY MODAL ===================== */}
-      {showInquiry && (
+      {/* --------------------------------------------------------- toast -- */}
+      {toast && (
         <div
-          onClick={closeInquiry}
-          className="tt-modal-backdrop"
-          style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,23,42,.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+          style={{
+            position: "sticky",
+            bottom: 28,
+            zIndex: 90,
+            height: 0,
+            display: "flex",
+            justifyContent: "center",
+            pointerEvents: "none",
+          }}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="tt-modal-card"
-            style={{ width: 480, maxWidth: "100%", background: "var(--surface-card)", borderRadius: "var(--radius-xl)", boxShadow: "var(--shadow-xl)", overflow: "hidden", maxHeight: "92vh", display: "flex", flexDirection: "column" }}
+            role="status"
+            style={{
+              transform: "translateY(-100%)",
+              padding: "13px 22px",
+              borderRadius: "var(--radius-pill)",
+              background: "var(--surface-inverse)",
+              color: "var(--text-on-brand)",
+              boxShadow: "var(--shadow-xl)",
+              font: "var(--fw-semibold) 14px/1.35 var(--font-sans)",
+              whiteSpace: "normal",
+              maxWidth: "min(420px, calc(100vw - 40px))",
+              textAlign: "center",
+            }}
           >
-            {/* gradient header */}
-            <div className="tt-mhead-grad" style={{ position: "relative", padding: "26px 28px 22px", overflow: "hidden", flexShrink: 0 }}>
-              <div className="tt-blob" style={{ position: "absolute", top: -46, right: -34, width: 170, height: 170, borderRadius: "50%", background: "rgba(255,255,255,.1)" }} />
-              <div className="tt-blob" style={{ position: "absolute", bottom: -50, left: -20, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,.07)", animationDelay: "-4s" }} />
-              <div onClick={closeInquiry} className="tt-close-btn" style={{ position: "absolute", top: 18, right: 18, width: 34, height: 34, borderRadius: "50%", background: "rgba(255,255,255,.18)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", zIndex: 2 }}>
-                <Icon name="x" size={18} />
+            {toast}
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------- inquiry modal -- */}
+      {showInquiry && (
+        <div
+          className="tt-modal-backdrop"
+          onClick={closeInquiry}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            background: "rgba(15,23,42,.55)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+            overflowY: "auto",
+          }}
+        >
+          <div
+            className="tt-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t.landing.inquiry.title}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 460,
+              background: "var(--surface-card)",
+              borderRadius: "var(--radius-xl)",
+              boxShadow: "var(--shadow-xl)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: 16,
+                padding: "26px 26px 0",
+              }}
+            >
+              <div>
+                <h3
+                  style={{
+                    font: "var(--fw-extrabold) 22px/1.2 var(--font-sans)",
+                    letterSpacing: "-.02em",
+                    color: "var(--text-strong)",
+                    margin: 0,
+                  }}
+                >
+                  {t.landing.inquiry.title}
+                </h3>
+                <p
+                  style={{
+                    font: "var(--fw-regular) var(--fs-body-sm)/1.5 var(--font-sans)",
+                    color: "var(--text-muted)",
+                    margin: "8px 0 0",
+                  }}
+                >
+                  {t.landing.inquiry.subtitle}
+                </p>
               </div>
-              <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 13 }}>
-                <div className="tt-float" style={{ width: 46, height: 46, borderRadius: 13, background: "rgba(255,255,255,.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0 }}>
-                  <Icon name="calendar" size={24} />
-                </div>
-                <div>
-                  <h3 style={{ font: "var(--fw-extrabold) var(--fs-h4)/1.1 var(--font-sans)", color: "#fff", margin: 0, letterSpacing: "-.02em" }}>{t.landing.inquiry.title}</h3>
-                  <p style={{ font: "var(--fw-regular) var(--fs-body-sm)/1.35 var(--font-sans)", color: "rgba(255,255,255,.85)", margin: "5px 0 0" }}>{t.landing.inquiry.subtitle}</p>
-                </div>
-              </div>
+              <button
+                type="button"
+                className="tt-close-btn"
+                onClick={closeInquiry}
+                aria-label={t.common.close}
+                style={{
+                  flexShrink: 0,
+                  width: 34,
+                  height: 34,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "var(--radius-pill)",
+                  border: "1px solid var(--border-subtle)",
+                  background: "transparent",
+                  color: "var(--text-muted)",
+                  cursor: "pointer",
+                }}
+              >
+                <Icon name="x" size={16} />
+              </button>
             </div>
 
-            <div style={{ padding: "22px 28px 26px", overflow: "auto" }}>
+            <div style={{ padding: 26 }}>
               {submitted ? (
-                <div style={{ textAlign: "center", padding: "18px 0 6px" }}>
-                  <div style={{ position: "relative", width: 72, height: 72, margin: "0 auto 18px" }}>
-                    <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "2px solid var(--success)", animation: "ttRingPop 1.1s ease-out infinite" }} />
-                    <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "2px solid var(--success)", animation: "ttRingPop 1.1s ease-out .4s infinite" }} />
-                    <div style={{ position: "relative", width: 72, height: 72, borderRadius: "50%", background: "var(--success-soft)", color: "var(--success)", display: "flex", alignItems: "center", justifyContent: "center", animation: "ttPopBadge .5s cubic-bezier(.34,1.5,.5,1) both" }}>
-                      <Icon name="checkCircle" size={36} />
-                    </div>
+                <div style={{ textAlign: "center", paddingTop: 6 }}>
+                  <div
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: "var(--radius-pill)",
+                      background: "var(--success-soft)",
+                      color: "var(--success)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      margin: "0 auto 16px",
+                    }}
+                  >
+                    <Icon name="checkCircle" size={28} />
                   </div>
-                  <h3 style={{ font: "var(--fw-bold) var(--fs-h5)/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 8px" }}>{t.landing.inquiry.successTitle}</h3>
-                  <p style={{ font: "var(--fw-regular) var(--fs-body-md)/1.5 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 22px" }}>
+                  <h4
+                    style={{
+                      font: "var(--fw-bold) 19px/1.25 var(--font-sans)",
+                      color: "var(--text-strong)",
+                      margin: "0 0 8px",
+                    }}
+                  >
+                    {t.landing.inquiry.successTitle}
+                  </h4>
+                  <p
+                    style={{
+                      font: "var(--fw-regular) var(--fs-body-md)/1.5 var(--font-sans)",
+                      color: "var(--text-muted)",
+                      margin: "0 0 22px",
+                    }}
+                  >
                     {t.landing.inquiry.successBody}
                   </p>
                   <Button variant="primary" fullWidth onClick={closeInquiry}>
@@ -886,69 +2194,112 @@ export default function Home() {
                 </div>
               ) : (
                 <>
-                  <div className="tt-stagger" style={{ display: "flex", flexDirection: "column" }}>
-                    <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-                      {inquiryPerks.map((p) => (
-                        <div key={p} style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, padding: "8px 9px", borderRadius: "var(--radius-md)", background: "var(--surface-page)", border: "1px solid var(--border-subtle)" }}>
-                          <span style={{ color: "var(--success)", display: "flex", flexShrink: 0 }}><Icon name="check" size={14} /></span>
-                          <span style={{ font: "var(--fw-semibold) 11.5px/1.2 var(--font-sans)", color: "var(--text-body)" }}>{p}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ marginBottom: 15 }}>
-                      <Input
-                        label={t.landing.inquiry.businessNameLabel}
-                        placeholder={t.landing.inquiry.businessNamePlaceholder}
-                        leadingIcon="building"
-                        value={businessName}
-                        onChange={(e) => setBusinessName(e.target.value)}
-                      />
-                    </div>
-                    <div style={{ marginBottom: 15 }}>
-                      <Input
-                        label={t.landing.inquiry.addressLabel}
-                        placeholder={t.landing.inquiry.addressPlaceholder}
-                        leadingIcon="mapPin"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: "block" }}>
-                        <span
-                          style={{
-                            display: "block",
-                            font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)",
-                            color: "var(--text-body)",
-                            marginBottom: 8,
-                          }}
-                        >
-                          {t.landing.inquiry.phoneLabel}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+                    {inquiryPerks.map((p) => (
+                      <div
+                        key={p}
+                        style={{
+                          flex: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "8px 9px",
+                          borderRadius: "var(--radius-md)",
+                          background: "var(--surface-page)",
+                          border: "1px solid var(--border-subtle)",
+                        }}
+                      >
+                        <span style={{ color: "var(--success)", display: "flex", flexShrink: 0 }}>
+                          <Icon name="check" size={14} />
                         </span>
-                        <PhoneField
-                          country={phoneCountry}
-                          national={national}
-                          onCountryChange={setPhoneCountry}
-                          onNationalChange={setNational}
-                          placeholder={t.landing.inquiry.phonePlaceholder}
-                          marginBottom={0}
-                        />
-                      </label>
-                    </div>
+                        <span
+                          style={{ font: "var(--fw-semibold) 11.5px/1.2 var(--font-sans)", color: "var(--text-body)" }}
+                        >
+                          {p}
+                        </span>
+                      </div>
+                    ))}
                   </div>
+                  <div style={{ marginBottom: 15 }}>
+                    <Input
+                      label={t.landing.inquiry.businessNameLabel}
+                      placeholder={t.landing.inquiry.businessNamePlaceholder}
+                      leadingIcon="building"
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ marginBottom: 15 }}>
+                    <Input
+                      label={t.landing.inquiry.addressLabel}
+                      placeholder={t.landing.inquiry.addressPlaceholder}
+                      leadingIcon="mapPin"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                    />
+                  </div>
+                  <label style={{ display: "block" }}>
+                    <span
+                      style={{
+                        display: "block",
+                        font: "var(--fw-semibold) var(--fs-body-sm)/1 var(--font-sans)",
+                        color: "var(--text-body)",
+                        marginBottom: 8,
+                      }}
+                    >
+                      {t.landing.inquiry.phoneLabel}
+                    </span>
+                    <PhoneField
+                      country={phoneCountry}
+                      national={national}
+                      onCountryChange={setPhoneCountry}
+                      onNationalChange={setNational}
+                      placeholder={t.landing.inquiry.phonePlaceholder}
+                      marginBottom={0}
+                    />
+                  </label>
+
                   {formError && (
-                    <div style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--error)", marginTop: 14 }}>
+                    <div
+                      style={{
+                        font: "var(--fw-medium) 13px/1.3 var(--font-sans)",
+                        color: "var(--error)",
+                        marginTop: 14,
+                      }}
+                    >
                       {formError}
                     </div>
                   )}
                   <div style={{ marginTop: 22 }}>
-                    <Button variant="primary" fullWidth trailingIcon="arrowRight" onClick={submitInquiry} disabled={submitting}>
+                    <Button
+                      variant="primary"
+                      fullWidth
+                      trailingIcon="arrowRight"
+                      onClick={submitInquiry}
+                      disabled={submitting}
+                    >
                       {submitting ? t.landing.inquiry.submitting : t.landing.inquiry.submit}
                     </Button>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginTop: 14 }}>
-                    <span style={{ color: "var(--text-subtle)", display: "flex" }}><Icon name="checkCircle" size={14} /></span>
-                    <p style={{ font: "var(--fw-regular) var(--fs-body-sm)/1.4 var(--font-sans)", color: "var(--text-subtle)", margin: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 7,
+                      marginTop: 14,
+                    }}
+                  >
+                    <span style={{ color: "var(--text-subtle)", display: "flex" }}>
+                      <Icon name="checkCircle" size={14} />
+                    </span>
+                    <p
+                      style={{
+                        font: "var(--fw-regular) var(--fs-body-sm)/1.4 var(--font-sans)",
+                        color: "var(--text-subtle)",
+                        margin: 0,
+                      }}
+                    >
                       {t.landing.inquiry.privacyNote}{" "}
                       <Link href="/privacy" style={{ color: "var(--primary)" }}>
                         {t.landing.inquiry.privacyPolicy}
@@ -963,34 +2314,4 @@ export default function Home() {
       )}
     </div>
   );
-}
-
-function avatarStyle(bg: string, fg: string, ml: number): React.CSSProperties {
-  return {
-    width: 34,
-    height: 34,
-    borderRadius: "50%",
-    background: bg,
-    border: "2px solid #fff",
-    marginLeft: ml,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    font: "var(--fw-bold) 12px var(--font-sans)",
-    color: fg,
-  };
-}
-
-function bulletIconStyle(bg: string, fg: string): React.CSSProperties {
-  return {
-    width: 24,
-    height: 24,
-    borderRadius: "50%",
-    background: bg,
-    color: fg,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  };
 }

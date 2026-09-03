@@ -114,6 +114,7 @@
 
   /* ---- Motion ---- */
   --dur-fast: 120ms;
+  --dur-base: 200ms;
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ---- Typography ---- */
@@ -157,6 +158,26 @@ body {
 a {
   color: inherit;
   text-decoration: none;
+  cursor: pointer;
+}
+.tj-logo-link {
+  cursor: pointer;
+}
+.tj-navlink,
+.tj-footlink {
+  cursor: pointer;
+}
+/* Footer links are stacked block targets, not inline prose, so they get a real
+   24px+ target height. The matching negative margin keeps the column's visual
+   rhythm exactly as designed. */
+.tj-footlink {
+  padding: 6px 0;
+  margin: -6px 0;
+}
+/* Header nav links sit on a 72px row, so the padding costs no layout and
+   lifts the 15px text box to a 27px target. */
+.tj-navlink {
+  padding: 6px 0;
 }
 
 .tt-grad-text {
@@ -299,81 +320,676 @@ a {
   --scale-hover: 1.01;
 }
 
-/* ---- Scroll reveal ---- */
-.reveal {
-  opacity: 0;
-  transform: translateY(30px);
-  transition:
-    opacity 0.7s cubic-bezier(0.16, 0.84, 0.44, 1),
-    transform 0.7s cubic-bezier(0.16, 0.84, 0.44, 1);
+/* ============================================================
+   Landing page (TejoTime Homepage v2).
+
+   The page is a container query context (`container-name: page`),
+   so every breakpoint below keys off the page element's own width
+   rather than the viewport. That keeps the layout correct inside
+   an embed or a preview pane, not just at top level.
+   ============================================================ */
+
+@keyframes tjUp {
+  from { opacity: 0; transform: translateY(26px); }
+  to { opacity: 1; transform: none; }
 }
-.reveal.in {
+@keyframes tjFadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes tjPulse {
+  0% { transform: scale(1); opacity: 0.55; }
+  70% { transform: scale(2.8); opacity: 0; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+@keyframes tjPhotoDrift {
+  0% { transform: scale(1.02) translate(0, 0); }
+  50% { transform: scale(1.08) translate(-1.2%, -0.8%); }
+  100% { transform: scale(1.02) translate(0, 0); }
+}
+@keyframes tjFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(2%, -3%) scale(1.04); }
+}
+@keyframes tjFloatAlt {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-3%, 2%) scale(1.06); }
+}
+@keyframes tjHeroIn {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- Hero load cascade ---- */
+[data-anim="hero"] {
+  opacity: 0;
+  animation: tjHeroIn 0.7s var(--ease-standard) both;
+}
+[data-anim="hero"][data-d="1"] { animation-delay: 0.05s; }
+[data-anim="hero"][data-d="2"] { animation-delay: 0.16s; }
+[data-anim="hero"][data-d="3"] { animation-delay: 0.28s; }
+[data-anim="hero"][data-d="4"] { animation-delay: 0.4s; }
+[data-anim="hero"][data-d="5"] { animation-delay: 0.52s; }
+[data-anim="hero"][data-d="6"] { animation-delay: 0.68s; }
+
+.tj-hero-orb {
+  animation: tjFloat 12s ease-in-out infinite;
+}
+.tj-hero-orb-alt {
+  animation: tjFloatAlt 16s ease-in-out infinite;
+}
+
+/* Industry / gallery photo tiles — scroll reveal + hover lift + soft image drift. */
+.tj-photo-well {
+  transition:
+    transform 280ms var(--ease-standard),
+    box-shadow 280ms ease,
+    border-color 280ms ease;
+}
+.tj-photo-well:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-default);
+}
+.tj-photo-well img {
+  transform-origin: center center;
+  animation: tjPhotoDrift 14s ease-in-out infinite;
+  transition: transform 480ms var(--ease-standard);
+  will-change: transform;
+}
+.tj-photo-well:hover img {
+  animation-play-state: paused;
+  transform: scale(1.1);
+}
+.tj-photo-well .tj-photo-caption {
+  transition: background 280ms ease;
+}
+.tj-photo-well:hover .tj-photo-caption {
+  background: rgba(15, 23, 42, 0.97);
+}
+
+/* Pricing cards — entrance stagger, featured glow, feature cascade, hover lift */
+.tj-plan {
+  position: relative;
+  transition:
+    transform 320ms var(--ease-standard),
+    box-shadow 320ms ease,
+    border-color 320ms ease;
+}
+.tj-plan:hover {
+  transform: translateY(-8px) scale(1.015);
+  box-shadow: var(--shadow-lg);
+}
+.tj-plan-featured {
+  z-index: 1;
+}
+.tj-plan-featured.is-in {
+  animation: tjPlanPop 0.65s var(--ease-standard) both;
+}
+@keyframes tjPlanPop {
+  0% { opacity: 0; transform: translateY(28px) scale(0.96); }
+  70% { transform: translateY(-4px) scale(1.02); }
+  100% { opacity: 1; transform: none; }
+}
+.tj-plan-featured::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.35);
+  animation: tjPlanGlow 2.8s ease-in-out infinite;
+  opacity: 0;
+}
+.tj-plan-featured.is-in::after {
+  opacity: 1;
+}
+@keyframes tjPlanGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.28); }
+  50% { box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
+}
+.tj-plan-badge {
+  display: inline-flex;
+  animation: tjBadgeIn 0.5s 0.25s var(--ease-standard) both;
+}
+@keyframes tjBadgeIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+.tj-plan-price {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.tj-plan.is-in .tj-plan-price {
+  animation: tjFadeUp 0.45s 0.12s var(--ease-standard) both;
+}
+.tj-plan-feat {
+  opacity: 0;
+  transform: translateX(-8px);
+}
+.tj-plan.is-in .tj-plan-feat {
+  animation: tjFeatIn 0.4s var(--ease-standard) both;
+}
+@keyframes tjFeatIn {
+  to { opacity: 1; transform: none; }
+}
+.tj-plan.is-in .tj-plan-feat:nth-child(1) { animation-delay: 0.18s; }
+.tj-plan.is-in .tj-plan-feat:nth-child(2) { animation-delay: 0.26s; }
+.tj-plan.is-in .tj-plan-feat:nth-child(3) { animation-delay: 0.34s; }
+.tj-plan.is-in .tj-plan-feat:nth-child(4) { animation-delay: 0.42s; }
+.tj-plan.is-in .tj-plan-feat:nth-child(5) { animation-delay: 0.5s; }
+.tj-plan.is-in .tj-plan-feat:nth-child(6) { animation-delay: 0.58s; }
+.tj-plan-cta {
+  transition: transform 220ms var(--ease-standard);
+}
+.tj-plan:hover .tj-plan-cta {
+  transform: translateY(-2px);
+}
+
+/* Walk-in waitlist demo board */
+.tj-wait-board {
+  transition:
+    transform 320ms var(--ease-standard),
+    box-shadow 320ms ease;
+}
+.tj-wait-board:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+.tj-wait-row {
+  opacity: 0;
+  transform: translateX(-12px);
+}
+.tj-wait-board.is-in .tj-wait-row {
+  animation: tjFeatIn 0.4s var(--ease-standard) both;
+}
+.tj-wait-board.is-in .tj-wait-row:nth-child(1) { animation-delay: 0.12s; }
+.tj-wait-board.is-in .tj-wait-row:nth-child(2) { animation-delay: 0.22s; }
+.tj-wait-board.is-in .tj-wait-row:nth-child(3) { animation-delay: 0.32s; }
+.tj-wait-board.is-in .tj-wait-row:nth-child(4) { animation-delay: 0.42s; }
+.tj-wait-row-new {
+  animation: tjWaitPop 0.5s var(--ease-standard) both !important;
+}
+@keyframes tjWaitPop {
+  0% { opacity: 0; transform: translateY(10px) scale(0.96); }
+  100% { opacity: 1; transform: none; }
+}
+.tj-wait-eta {
+  display: inline-flex;
+}
+.tj-wait-board.is-in .tj-wait-eta {
+  animation: tjBadgeIn 0.45s 0.08s var(--ease-standard) both;
+}
+.tj-wait-bullet {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.tj-wait-copy.is-in .tj-wait-bullet {
+  animation: tjFeatIn 0.4s var(--ease-standard) both;
+}
+.tj-wait-copy.is-in .tj-wait-bullet:nth-child(1) { animation-delay: 0.16s; }
+.tj-wait-copy.is-in .tj-wait-bullet:nth-child(2) { animation-delay: 0.26s; }
+.tj-wait-copy.is-in .tj-wait-bullet:nth-child(3) { animation-delay: 0.36s; }
+
+.tj-step {
+  transition:
+    transform 260ms var(--ease-standard),
+    box-shadow 260ms ease,
+    border-color 260ms ease;
+}
+.tj-step:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+.tj-step .tj-step-num {
+  transition: transform 280ms var(--ease-standard);
+}
+.tj-step:hover .tj-step-num {
+  transform: scale(1.08);
+}
+
+/* FAQ answer open */
+.tj-faq-answer {
+  animation: tjFadeUp 0.28s var(--ease-standard) both;
+}
+
+/* Scroll reveals — IO adds .is-in (works in all browsers). Also keep
+   view() timeline as a progressive enhancement where supported. */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.55s var(--ease-standard),
+    transform 0.55s var(--ease-standard);
+}
+[data-reveal].is-in {
   opacity: 1;
   transform: none;
 }
-
-/* ---- Hover lift / chips ---- */
-.tt-lift {
-  transition:
-    transform 0.22s cubic-bezier(0.16, 0.84, 0.44, 1),
-    box-shadow 0.22s ease,
-    border-color 0.22s ease;
-}
-.tt-lift:hover {
-  transform: translateY(-6px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--blue-200);
-}
-.tt-chip {
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
-    color 0.16s ease,
-    background 0.16s ease;
-}
-.tt-chip:hover {
-  transform: translateY(-3px);
-  border-color: var(--primary);
-  color: var(--primary);
-  background: var(--primary-soft);
+@supports (animation-timeline: view()) {
+  [data-reveal]:not(.is-in) {
+    animation: tjUp linear both;
+    animation-timeline: view();
+    animation-range: entry 2% cover 22%;
+  }
 }
 
-/* ---- Keyframes ---- */
-@keyframes ttGrad {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal],
+  [data-anim],
+  [data-anim="hero"] {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .tj-photo-well,
+  .tj-photo-well:hover,
+  .tj-photo-well img,
+  .tj-photo-well:hover img,
+  .tj-plan:hover,
+  .tj-plan-featured.is-in,
+  .tj-plan-featured::after,
+  .tj-plan-badge,
+  .tj-plan.is-in .tj-plan-price,
+  .tj-plan.is-in .tj-plan-feat,
+  .tj-plan:hover .tj-plan-cta,
+  .tj-wait-board:hover,
+  .tj-wait-board.is-in .tj-wait-row,
+  .tj-wait-row-new,
+  .tj-wait-board.is-in .tj-wait-eta,
+  .tj-wait-copy.is-in .tj-wait-bullet,
+  .tj-step:hover,
+  .tj-hero-orb,
+  .tj-hero-orb-alt,
+  .tj-proof-signal,
+  .tj-proof-stat {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+  * { transition-duration: 1ms !important; }
 }
-@keyframes ttFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-12px); }
+
+/* ---- Hover states that inline styles can't express ---- */
+.tj-navlink:hover { color: var(--primary); }
+.tj-footlink:hover { color: var(--primary); }
+.tj-feat {
+  transition:
+    transform 200ms var(--ease-standard),
+    box-shadow 200ms ease;
 }
-@keyframes ttFloat2 {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(10px); }
+.tj-feat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
-@keyframes ttPulse {
-  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
-  70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+.tj-cta-light:hover { opacity: 0.9; }
+.tj-cta-outline:hover {
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.1);
 }
-@keyframes ttCta {
-  0%, 100% { box-shadow: 0 8px 24px -8px rgba(37, 99, 235, 0.5); }
-  50% { box-shadow: 0 12px 34px -6px rgba(37, 99, 235, 0.85); }
+
+.tj-proof-signal,
+.tj-proof-stat {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 520ms var(--ease-standard),
+    transform 520ms var(--ease-standard);
 }
-@keyframes ttMarquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+[data-reveal].is-in .tj-proof-signal,
+[data-reveal].is-in .tj-proof-stat {
+  opacity: 1;
+  transform: translateY(0);
 }
-@keyframes ttBlob {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(30px, -20px) scale(1.1); }
-  66% { transform: translate(-20px, 20px) scale(0.95); }
+.tj-proof-signal:nth-child(2),
+.tj-proof-stat:nth-child(2) { transition-delay: 60ms; }
+.tj-proof-signal:nth-child(3),
+.tj-proof-stat:nth-child(3) { transition-delay: 120ms; }
+.tj-proof-signal:nth-child(4),
+.tj-proof-stat:nth-child(4) { transition-delay: 180ms; }
+
+/* Hero calendar — contain scale bleed; scroll on smaller containers. */
+.tj-hero-cal {
+  max-width: 100%;
+  overflow: hidden;
 }
-@keyframes ttRise {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: none; }
+.tj-hero-cal-scale {
+  will-change: transform;
 }
+
+/* ---- Container breakpoints ---- */
+@container page (max-width: 1080px) {
+  [data-t="two"] {
+    grid-template-columns: 1fr !important;
+    gap: 36px !important;
+  }
+  /* The desktop-only card-on-the-left swap must not survive the collapse,
+     or the visual precedes the heading that introduces it. */
+  [data-t="two"] > * { order: 0 !important; }
+  [data-t="ind"] { grid-template-columns: repeat(2, 1fr) !important; }
+  [data-t="gal"] { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Cards keep a second column on tablets — one full-width card per row reads
+     as a stretched stripe at 768–1080 and wastes the whole right half. */
+  [data-t="three"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  [data-t="price"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  /* Three plans in two columns orphan the last one. Span it and hold it to a
+     single column's width so it centres under the pair instead of leaving a
+     dead half-row. (gap is 20px, so one column is 50% - 10px.) */
+  [data-t="price"] > :last-child {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    max-width: calc(50% - 10px) !important;
+    justify-self: center !important;
+  }
+  /* Steps are a number plus one line, so three still fit comfortably. */
+  [data-t="steps"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 20px !important;
+  }
+  [data-t="foot"] { grid-template-columns: repeat(2, 1fr) !important; }
+  [data-t="proof-signals"],
+  [data-t="proof-stats"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 28px 16px !important;
+  }
+  [data-t="calphone"] { display: none !important; }
+  [data-t="calwrap"] { padding-right: 0 !important; }
+  [data-only="desk"] { display: none !important; }
+  [data-only="hamb"] { display: flex !important; }
+
+  /* Drop the desktop shrink so the grid can scroll cleanly inside the card. */
+  .tj-hero-cal {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  .tj-hero-cal-scale {
+    transform: none !important;
+    margin-bottom: 0 !important;
+  }
+  [data-t="cal-scroll"] { min-width: 560px !important; }
+
+  [data-t="hdr-cta"] button {
+    height: var(--control-h-sm) !important;
+    padding: 0 14px !important;
+    font-size: var(--fs-body-sm) !important;
+  }
+}
+
+@container page (max-width: 680px) {
+  [data-t="pad"] {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+  /* The header row never wraps, so its gap has to come down or the hamburger
+     — the only shrinkable item — absorbs the deficit and leaves the viewport. */
+  [data-t2="hdrow"] {
+    gap: 8px !important;
+    height: 64px !important;
+  }
+  [data-t2="logo"] { height: 26px !important; }
+  [data-t="sect"] {
+    padding-top: 56px !important;
+    padding-bottom: 56px !important;
+  }
+  /* Industry + feature tiles stay two-up on phones — a single column makes
+     each card stretch full-bleed and reads as a long vertical strip. */
+  [data-t="ind"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+  /* Odd last tile (9 industries) spans the row so it doesn't sit alone tiny. */
+  [data-t="ind"] > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    max-width: calc(50% - 6px);
+    justify-self: start;
+  }
+  [data-t="gal"] { grid-template-columns: 1fr !important; }
+  [data-t="three"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+  [data-t="price"],
+  [data-t="steps"] {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  [data-t="price"] > :last-child {
+    max-width: none !important;
+    justify-self: stretch !important;
+  }
+  [data-t="foot"] {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 22px 16px !important;
+  }
+  .tj-footer {
+    padding: 40px 0 28px !important;
+  }
+  .tj-foot-col {
+    gap: 8px !important;
+  }
+  .tj-foot-head {
+    font-size: 10px !important;
+    margin-bottom: 2px;
+  }
+  .tj-footlink {
+    font-size: 13px !important;
+    line-height: 1.3 !important;
+  }
+  .tj-foot-bottom {
+    margin-top: 28px !important;
+    padding-top: 18px !important;
+    gap: 12px !important;
+  }
+  .tj-foot-bottom img {
+    height: 28px !important;
+    width: auto !important;
+  }
+
+  .tj-feat {
+    padding: 16px !important;
+    gap: 10px !important;
+  }
+  .tj-photo-caption {
+    padding: 10px 12px 12px !important;
+  }
+  .tj-photo-title {
+    font-size: 13.5px !important;
+  }
+  .tj-photo-body {
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .tj-photo-media {
+    aspect-ratio: 1 / 1 !important;
+  }
+
+
+  [data-t="proof-signals"],
+  [data-t="proof-stats"] {
+    margin-top: 32px !important;
+    gap: 22px 12px !important;
+  }
+  [data-t="proof-stats"] {
+    padding-top: 28px !important;
+  }
+  .tj-proof-stat > span:first-child {
+    font-size: clamp(28px, 9cqw, 40px) !important;
+  }
+
+  .tj-hero-cal {
+    margin-inline: -20px;
+    width: calc(100% + 40px);
+    padding-inline: 20px;
+    margin-top: 28px !important;
+  }
+  [data-t="cal-scroll"] { min-width: 520px !important; }
+
+  [data-t="hero-ctas"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  [data-t="hero-ctas"] > a,
+  [data-t="hero-ctas"] > button,
+  [data-t="hero-ctas"] > span {
+    width: 100% !important;
+    display: flex !important;
+  }
+  [data-t="hero-ctas"] button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Keep the header CTA from colliding with the hamburger on narrow phones. */
+  [data-t="hdr-cta"] {
+    display: none !important;
+  }
+
+  /* Demo cards (booking / waitlist / client) — compact on phones. */
+  .tj-demo-card {
+    padding: 14px !important;
+    border-radius: var(--radius-lg) !important;
+  }
+  .tj-slot-row {
+    gap: 8px !important;
+    margin: 12px 0 14px !important;
+  }
+  .tj-slot-chip {
+    padding: 9px 12px !important;
+    font-size: 12.5px !important;
+  }
+  .tj-demo-schedule {
+    margin-top: 14px !important;
+    padding-top: 12px !important;
+  }
+  .tj-appt-card {
+    padding: 8px 10px !important;
+    gap: 8px !important;
+    border-radius: var(--radius-md) !important;
+  }
+  .tj-appt-pos {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 12px !important;
+  }
+  .tj-appt-avatar > span,
+  .tj-appt-avatar > img {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 11px !important;
+  }
+  .tj-appt-name {
+    font-size: 13px !important;
+  }
+  .tj-appt-service,
+  .tj-appt-wait {
+    font-size: 11.5px !important;
+  }
+  .tj-appt-status > span {
+    padding: 3px 7px !important;
+    font-size: 10.5px !important;
+    gap: 4px !important;
+  }
+  .tj-wait-head {
+    padding-bottom: 10px !important;
+    gap: 8px !important;
+  }
+  .tj-wait-title {
+    font-size: 14px !important;
+  }
+  .tj-wait-list {
+    gap: 6px !important;
+    margin-top: 10px !important;
+  }
+  .tj-wait-widget {
+    padding: 6px 8px !important;
+    gap: 6px !important;
+    border-radius: var(--radius-md) !important;
+  }
+  .tj-wait-widget > span:first-child {
+    width: 28px !important;
+    height: 28px !important;
+  }
+  .tj-wait-widget > span:first-child svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  .tj-wait-widget > div > div:first-child {
+    font-size: 10px !important;
+  }
+  .tj-wait-widget > div > div:last-child {
+    font-size: 14px !important;
+    margin-top: 2px !important;
+  }
+  .tj-client-head {
+    gap: 10px !important;
+    padding-bottom: 12px !important;
+  }
+  .tj-client-avatar > span,
+  .tj-client-avatar > img {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 14px !important;
+  }
+  .tj-client-name {
+    font-size: 15px !important;
+  }
+  .tj-client-meta {
+    font-size: 11.5px !important;
+  }
+  .tj-client-row {
+    padding: 9px 0 !important;
+    gap: 10px !important;
+  }
+  .tj-client-k {
+    font-size: 12px !important;
+  }
+  .tj-client-v {
+    font-size: 12.5px !important;
+  }
+  .tj-client-actions {
+    margin-top: 12px !important;
+    gap: 8px !important;
+  }
+}
+
+/* Touch targets without blowing out vertical rhythm in the footer. */
+@media (pointer: coarse) {
+  .tj-footlink {
+    padding: 6px 0;
+    margin: -2px 0;
+  }
+}
+
+@container page (max-width: 420px) {
+  [data-t="proof-signals"] {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  /* Keep footer as a compact 2×2 — a single column becomes a long scroll. */
+  [data-t="foot"] {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 20px 14px !important;
+  }
+  .tj-feat {
+    padding: 14px !important;
+  }
+  .tj-feat > span:nth-child(2) {
+    font-size: 15px !important;
+  }
+  .tj-feat > span:nth-child(3) {
+    font-size: 13px !important;
+  }
+}
+
+/* ---- Inquiry modal ---- */
 @keyframes ttModalIn {
   0% { opacity: 0; transform: translateY(28px) scale(0.94); }
   60% { opacity: 1; transform: translateY(-4px) scale(1.01); }
@@ -383,326 +999,59 @@ a {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-@keyframes ttStagger {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes ttPopBadge {
-  0% { opacity: 0; transform: scale(0.4); }
-  55% { opacity: 1; transform: scale(1.18); }
-  100% { transform: scale(1); }
-}
-@keyframes ttRingPop {
-  0% { opacity: 0.6; transform: scale(0.7); }
-  100% { opacity: 0; transform: scale(1.9); }
-}
-@keyframes ttShimmer {
-  0% { background-position: -180% 0; }
-  100% { background-position: 180% 0; }
-}
-
-.tt-modal-card {
-  animation: ttModalIn 0.42s cubic-bezier(0.34, 1.4, 0.5, 1) both;
-}
-.tt-modal-backdrop {
-  animation: ttBackdropIn 0.22s ease both;
-}
-.tt-stagger > * {
-  animation: ttStagger 0.5s cubic-bezier(0.16, 0.84, 0.44, 1) both;
-}
-.tt-stagger > *:nth-child(1) { animation-delay: 0.06s; }
-.tt-stagger > *:nth-child(2) { animation-delay: 0.13s; }
-.tt-stagger > *:nth-child(3) { animation-delay: 0.2s; }
-.tt-stagger > *:nth-child(4) { animation-delay: 0.27s; }
-.tt-stagger > *:nth-child(5) { animation-delay: 0.34s; }
-
-.tt-mhead-grad {
-  background: linear-gradient(
-    125deg,
-    var(--brand-ink),
-    var(--primary),
-    var(--secondary),
-    var(--primary)
-  );
-  background-size: 280% 280%;
-  animation: ttGrad 9s ease infinite;
-}
-.tt-hero-grad {
-  background: linear-gradient(
-    120deg,
-    var(--brand-ink),
-    var(--primary),
-    var(--secondary),
-    var(--primary)
-  );
-  background-size: 300% 300%;
-  animation: ttGrad 14s ease infinite;
-}
-.tt-float {
-  animation: ttFloat 6s ease-in-out infinite;
-}
-.tt-float2 {
-  animation: ttFloat2 5s ease-in-out infinite;
-}
-.tt-pulse-dot {
-  animation: ttPulse 2s infinite;
-}
-.tt-cta-pulse {
-  animation: ttCta 2.6s ease-in-out infinite;
-}
-.tt-blob {
-  animation: ttBlob 18s ease-in-out infinite;
-}
-.tt-close-btn {
-  transition: background 0.18s ease, transform 0.18s ease;
-}
+.tt-modal-card { animation: ttModalIn 0.42s cubic-bezier(0.34, 1.4, 0.5, 1) both; }
+.tt-modal-backdrop { animation: ttBackdropIn 0.22s ease both; }
+.tt-close-btn { transition: background 0.18s ease, transform 0.18s ease; }
 .tt-close-btn:hover {
-  background: rgba(255, 255, 255, 0.32) !important;
+  background: var(--surface-hover) !important;
   transform: rotate(90deg);
 }
-.tt-marquee-track {
-  display: flex;
-  width: max-content;
-  animation: ttMarquee 32s linear infinite;
+
+@keyframes tjMenuBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes tjMenuPanelIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: none; }
+}
+.tj-mobile-menu-backdrop {
+  animation: tjMenuBackdropIn 0.22s ease both;
+}
+.tj-mobile-menu-panel {
+  animation: tjMenuPanelIn 0.28s var(--ease-standard) both;
+  max-height: min(100%, 100dvh);
+}
+.tj-mobile-menu-panel nav a:hover {
+  background: var(--surface-hover);
 }
 
-/* ---- Nav links ---- */
-.tt-nav-link {
-  position: relative;
-  color: var(--text-body);
-  text-decoration: none;
-  font: var(--fw-medium) var(--fs-body-md) / 1 var(--font-sans);
+/* Tablet+: side drawer instead of a top sheet. */
+@container page (min-width: 681px) {
+  .tj-mobile-menu {
+    align-items: stretch;
+  }
+  .tj-mobile-menu-panel {
+    width: min(380px, 100%) !important;
+    margin-left: auto;
+    min-height: 100%;
+    max-height: 100%;
+    border-radius: 0 !important;
+    animation-name: tjMenuPanelSlide;
+  }
 }
-.tt-nav-link::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -6px;
-  height: 2px;
-  background: var(--primary);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.2s ease;
-}
-.tt-nav-link:hover::after {
-  transform: scaleX(1);
-}
-.tt-row {
-  animation: ttRise 0.5s ease both;
+@keyframes tjMenuPanelSlide {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: none; }
 }
 
-/* ---- Feature cards: spotlight + ring + 3D tilt ---- */
-.tt-feat {
-  position: relative;
-  overflow: hidden;
-  transform-style: preserve-3d;
-  transition:
-    transform 0.3s cubic-bezier(0.16, 0.84, 0.44, 1),
-    box-shadow 0.3s ease,
-    border-color 0.3s ease;
-  will-change: transform;
-}
-.tt-feat::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    280px circle at var(--mx, 50%) var(--my, 50%),
-    var(--glow, rgba(37, 99, 235, 0.22)),
-    transparent 60%
-  );
-  opacity: 0;
-  transition: opacity 0.35s ease;
-  pointer-events: none;
-  z-index: 1;
-}
-.tt-feat:hover::before {
-  opacity: 1;
-}
-.tt-feat::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: radial-gradient(
-    220px circle at var(--mx, 50%) var(--my, 50%),
-    var(--ring-c, rgba(37, 99, 235, 0.85)),
-    transparent 55%
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.35s ease;
-  pointer-events: none;
-  z-index: 3;
-}
-.tt-feat:hover::after {
-  opacity: 1;
-}
-.tt-feat:hover {
-  box-shadow: var(--shadow-lg);
-}
-.tt-feat > * {
-  position: relative;
-  z-index: 2;
-}
-.tt-feat:nth-child(1) { --glow: rgba(37, 99, 235, 0.22); --ring-c: rgba(37, 99, 235, 0.9); }
-.tt-feat:nth-child(2) { --glow: rgba(20, 184, 166, 0.24); --ring-c: rgba(20, 184, 166, 0.9); }
-.tt-feat:nth-child(3) { --glow: rgba(34, 197, 94, 0.24); --ring-c: rgba(34, 197, 94, 0.9); }
-.tt-feat:nth-child(4) { --glow: rgba(245, 158, 11, 0.26); --ring-c: rgba(245, 158, 11, 0.95); }
-.tt-feat:nth-child(5) { --glow: rgba(37, 99, 235, 0.22); --ring-c: rgba(37, 99, 235, 0.9); }
-.tt-feat:nth-child(6) { --glow: rgba(20, 184, 166, 0.24); --ring-c: rgba(20, 184, 166, 0.9); }
-.tt-feat .tt-feat-icon {
-  transition: transform 0.3s cubic-bezier(0.16, 0.84, 0.44, 1);
-}
-.tt-feat:hover .tt-feat-icon {
-  transform: translateZ(34px) scale(1.08);
-}
-.tt-feat .tt-feat-arrow {
-  position: absolute;
-  top: 24px;
-  right: 24px;
-  opacity: 0;
-  transform: translate(-6px, 6px);
-  transition: opacity 0.3s ease, transform 0.3s ease;
-  color: var(--text-subtle);
-  z-index: 2;
-}
-.tt-feat:hover .tt-feat-arrow {
-  opacity: 1;
-  transform: translate(0, 0);
-}
-
-/* ---- Gradient detail panels ---- */
-.tt-panel {
-  position: relative;
-  transition:
-    transform 0.35s cubic-bezier(0.16, 0.84, 0.44, 1),
-    box-shadow 0.35s ease;
-}
-.tt-panel:hover {
-  transform: translateY(-5px) scale(1.012);
-  box-shadow: var(--shadow-lg);
-}
-.tt-panel::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1.5px;
-  background: linear-gradient(
-    120deg,
-    var(--primary),
-    var(--secondary),
-    transparent 70%
-  );
-  background-size: 200% 200%;
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.35s ease;
-  animation: ttGrad 6s ease infinite;
-  pointer-events: none;
-}
-.tt-panel:hover::after {
-  opacity: 0.8;
-}
-
-/* ---- Custom site cursor ---- */
-.tt-cursor-on,
-.tt-cursor-on * {
-  cursor: none !important;
-}
-#tt-cur-ring {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 36px;
-  height: 36px;
-  border: 1.6px solid var(--primary);
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 99998;
-  transform: translate(-50%, -50%);
-  transition:
-    width 0.22s ease,
-    height 0.22s ease,
-    background 0.22s ease,
-    border-color 0.22s ease,
-    opacity 0.25s ease;
-  will-change: transform;
-}
-#tt-cur-ring.is-hover {
-  width: 56px;
-  height: 56px;
-  background: rgba(37, 99, 235, 0.08);
-  border-color: var(--secondary);
-}
-#tt-cur-ring.is-down {
-  width: 28px;
-  height: 28px;
-  background: rgba(37, 99, 235, 0.16);
-}
-#tt-cur-arrow {
-  position: fixed;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  z-index: 99999;
-  color: var(--primary);
-  will-change: transform;
-  transition: opacity 0.25s ease;
-  filter: drop-shadow(0 1px 2px rgba(37, 99, 235, 0.35));
-}
-#tt-cur-arrow.is-hover {
-  color: var(--secondary);
+@media (min-width: 1081px) {
+  .tj-mobile-menu { display: none !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tt-panel::after { animation: none; }
-  .reveal { opacity: 1; transform: none; transition: none; }
-  .tt-float,
-  .tt-float2,
-  .tt-blob,
-  .tt-cta-pulse,
-  .tt-hero-grad,
-  .tt-marquee-track,
-  .tt-pulse-dot { animation: none; }
-}
-
-/* ---- Responsive ---- */
-@media (max-width: 920px) {
-  .tt-hero-grid,
-  .tt-detail-grid {
-    grid-template-columns: 1fr !important;
-  }
-  .tt-features-grid,
-  .tt-testimonials-grid {
-    grid-template-columns: 1fr !important;
-  }
-  .tt-stats-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
-  .tt-footer-grid {
-    grid-template-columns: 1fr 1fr !important;
-  }
-  .tt-nav-links {
-    display: none !important;
-  }
-  .tt-hero-h1 {
-    font-size: 38px !important;
-  }
-}
-@media (max-width: 560px) {
-  .tt-features-grid {
-    grid-template-columns: 1fr !important;
-  }
-  .tt-footer-grid {
-    grid-template-columns: 1fr !important;
+  .tj-mobile-menu-backdrop,
+  .tj-mobile-menu-panel {
+    animation: none !important;
   }
 }
