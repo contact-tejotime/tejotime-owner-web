@@ -248,6 +248,7 @@ export default function LoginPage() {
                   <span>{SUPPORT.phoneDisplay}</span>
                 </a>
               </div>
+              <address className="login-help-address">{SUPPORT.address}</address>
             </div>
           </form>
         </div>

@@ -13,10 +13,10 @@ import type { IconName } from "./Icon";
 /* ------------------------------------------------------------- sections -- */
 
 export const nav = [
-  { label: t.landing.nav.industries, href: "#industries" },
-  { label: t.landing.nav.features, href: "#product" },
-  { label: t.landing.nav.walkins, href: "#walkins" },
-  { label: t.landing.nav.pricing, href: "#pricing" },
+  { label: t.landing.nav.features, href: "/#product" },
+  { label: t.landing.nav.industries, href: "/#industries" },
+  { label: t.landing.nav.pricing, href: "/#pricing" },
+  { label: t.landing.nav.resources, href: "/resources" },
 ];
 
 /** Trust strip under the hero calendar — product truths, not fabricated review scores. */
@@ -32,24 +32,57 @@ export const features = t.landingData.features.map((f, i) => ({
 }));
 
 /** Stock placeholders for the industries grid — replace with pilot photography when ready. */
-const INDUSTRY_IMAGES = [
-  "/landing/industries/hair-salons.jpg",
-  "/landing/industries/barbershops.jpg",
-  "/landing/industries/nail-studios.jpg",
-  "/landing/industries/spas.jpg",
-  "/landing/industries/med-spas.jpg",
-  "/landing/industries/massage-therapy.jpg",
-  "/landing/industries/physical-therapy.jpg",
-  "/landing/industries/tattoo-studios.jpg",
-  "/landing/industries/pet-grooming.jpg",
+export const INDUSTRY_SLUGS = [
+  "hair-salons",
+  "barbershops",
+  "nail-studios",
+  "spas",
+  "med-spas",
+  "massage-therapy",
+  "physical-therapy",
+  "tattoo-studios",
+  "pet-grooming",
 ] as const;
 
-export const industries = t.landingData.industries.map((i, n) => ({
-  name: i.name,
-  detail: i.detail,
-  n: String(n + 1).padStart(2, "0"),
-  image: INDUSTRY_IMAGES[n],
-}));
+export type IndustrySlug = (typeof INDUSTRY_SLUGS)[number];
+
+const INDUSTRY_IMAGES: Record<IndustrySlug, string> = {
+  "hair-salons": "/landing/industries/hair-salons.jpg",
+  barbershops: "/landing/industries/barbershops.jpg",
+  "nail-studios": "/landing/industries/nail-studios.jpg",
+  spas: "/landing/industries/spas.jpg",
+  "med-spas": "/landing/industries/med-spas.jpg",
+  "massage-therapy": "/landing/industries/massage-therapy.jpg",
+  "physical-therapy": "/landing/industries/physical-therapy.jpg",
+  "tattoo-studios": "/landing/industries/tattoo-studios.jpg",
+  "pet-grooming": "/landing/industries/pet-grooming.jpg",
+};
+
+export const industries = INDUSTRY_SLUGS.map((slug, n) => {
+  const i = t.landingData.industries[n];
+  return {
+    slug,
+    href: `/industries/${slug}`,
+    name: i.name,
+    detail: i.detail,
+    n: String(n + 1).padStart(2, "0"),
+    image: INDUSTRY_IMAGES[slug],
+  };
+});
+
+export const industryPages = INDUSTRY_SLUGS.map((slug) => {
+  const page = t.landingData.industryPages[slug];
+  return {
+    slug,
+    href: `/industries/${slug}`,
+    image: INDUSTRY_IMAGES[slug],
+    ...page,
+  };
+});
+
+export function getIndustryPage(slug: string) {
+  return industryPages.find((p) => p.slug === slug) ?? null;
+}
 
 /** Stock placeholders for the “Inside the shops” gallery — replace with pilot photography when ready. */
 const GALLERY_IMAGES = [
@@ -75,7 +108,6 @@ export const plans = t.landingData.plans.map((p, i) => ({
   ...p,
   featured: i === 1,
   variant: (i === 1 ? "primary" : "outline") as "primary" | "outline",
-  isContact: i === 2,
   border: i === 1 ? "2px solid var(--primary)" : "1px solid var(--border-subtle)",
   shadow: i === 1 ? "var(--shadow-lg)" : "var(--shadow-xs)",
 }));
