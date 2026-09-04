@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "TejoTime — Your clients book. You run the day.",
-    "description": "Booking and client management for salons, barbershops, spas, and studios. Clients pick a time from your page, walk-ins get a place in line, and your whole day sits in one dashboard you can run from your phone."
+    "title": "TejoTime | Online Booking and Scheduling for Service Businesses",
+    "description": "TejoTime is an online booking, scheduling, and client-management platform for appointment-based businesses. Clients book online while you manage appointments, schedules, reminders, client details, and optional walk-ins from one dashboard."
   },
   "common": {
     "close": "Close",
@@ -40,29 +40,29 @@
   "landing": {
     "nav": {
       "industries": "Industries",
-      "features": "Features",
-      "walkins": "Walk-ins",
+      "features": "Product",
       "pricing": "Pricing",
-      "signIn": "Sign in",
+      "resources": "Resources",
+      "signIn": "Sign In",
       "menu": "Main menu"
     },
     "cta": {
-      "pilot": "Join the pilot",
-      "selfServe": "Start free",
-      "talkToUs": "Talk to us",
-      "bookDemo": "Book a demo",
-      "seeHow": "See how it works"
+      "pilot": "Start Free",
+      "selfServe": "Start Free",
+      "bookDemo": "Book a Demo",
+      "seeHow": "See How It Works",
+      "joinPilot": "Join the Pilot"
     },
     "hero": {
-      "eyebrow": "For salons, barbershops, spas & studios",
-      "title": "Your clients book. You run the day.",
-      "body": "They pick a time from your page. Walk-ins get a place in line. Your whole day sits in one dashboard you can run from your phone.",
-      "microPilot": "Free during our U.S. pilot — and we’ll set your shop up with you.",
+      "eyebrow": "Built for appointment-based businesses",
+      "title": "Booking made simple. Business made easier.",
+      "body": "Give clients an easy way to book while you manage appointments, schedules, reminders, client details, and optional walk-ins from one simple platform.",
+      "microPilot": "Free during our U.S. pilot. We’ll personally help you set up your services, schedule, and booking page.",
       "microSelfServe": "Set up in minutes. No credit card required. Cancel anytime.",
-      "proofLine": "Built for independent beauty, wellness, therapy, tattoo, and pet-care businesses."
+      "proofLine": "Built for independent appointment-based businesses."
     },
     "socialProof": {
-      "line": "Built for independent beauty, wellness, therapy, tattoo, and pet-care businesses."
+      "line": "Built for independent appointment-based businesses."
     },
     "calendar": {
       "shopName": "Harbor & Main Barbers",
@@ -71,26 +71,26 @@
       "day": "Day"
     },
     "industriesSection": {
-      "title": "Built around the way service businesses work",
-      "body": "Whether your business runs on scheduled appointments, walk-ins, or a mix of both, TejoTime keeps booking, providers, and clients organized without adding complicated software."
+      "title": "Made for the way your business works",
+      "body": "Every service business schedules differently. TejoTime gives you flexible online booking, provider schedules, client details, reminders, and optional walk-in management — all in one place."
     },
     "features": {
-      "title": "Everything you need to run a smoother day",
-      "body": "Give clients an easy way to book, keep appointments and optional walk-ins in one place, and stay on top of the day from your phone."
+      "title": "Everything you need to stay booked and organized",
+      "body": "Make booking easier for clients and manage your schedule, team, reminders, and client information from one simple dashboard."
     },
     "booking": {
       "eyebrow": "Online booking",
-      "title": "Let clients book without the back-and-forth",
-      "body": "Your TejoTime booking page is open 24/7. Clients can pick a service, choose a provider, and reserve an available time in just a few taps. No phone tag. No back-and-forth DMs.",
+      "title": "Let clients book anytime — from anywhere",
+      "body": "Your TejoTime booking page works around the clock. Clients can choose a service, select a provider, and reserve an available time without calling your business.",
       "pickATime": "Pick a time",
       "confirm": "Confirm booking",
       "yourSchedule": "Your schedule",
       "justBooked": "Just booked"
     },
     "walkins": {
-      "eyebrow": "Walk-ins",
-      "title": "Appointments and walk-ins, together",
-      "body": "Scheduled appointments and the walk-in waitlist live in one view. Add a walk-in, start a service, and everyone sees an honest estimated wait.",
+      "eyebrow": "Optional walk-in waitlist",
+      "title": "Keep appointments and walk-ins in one view",
+      "body": "For businesses that accept walk-ins, TejoTime keeps scheduled appointments and the live waitlist together. Add a walk-in, update their status, and share an estimated wait time.",
       "boardTitle": "Walk-in waitlist",
       "estimatedWait": "Estimated wait",
       "addWalkIn": "+ Add walk-in",
@@ -98,34 +98,65 @@
     },
     "clients": {
       "eyebrow": "Client management",
-      "title": "Know your clients before they arrive",
-      "body": "Visit history and notes stay with the client, not with whoever happened to serve them. Reminders go out on their own, and rebooking happens at the chair.",
+      "title": "Deliver a more personal client experience",
+      "body": "Keep each client’s contact information, appointment history, preferences, and notes in one place so your team can provide consistent, personalized service.",
       "rebook": "Rebook",
       "viewHistory": "View history"
     },
     "steps": {
-      "title": "Get started in three steps"
+      "title": "Start accepting bookings in three simple steps"
     },
     "pricing": {
-      "title": "Simple pricing for growing businesses",
-      "note": "Placeholder figures until pricing is set. The free tier is real.",
+      "title": "Simple plans that grow with your business",
       "mostPopular": "Most popular"
     },
     "faq": {
-      "title": "Questions, answered"
+      "title": "Frequently asked questions"
     },
     "gallery": {
-      "title": "Inside the shops that use it",
-      "body": "Real floors, real chairs, real queues. Photography to be shot with our pilot partners.",
+      "title": "Built with independent service businesses",
+      "body": "TejoTime is designed with independent salons, barbershops, studios, clinics, and groomers — the businesses that book by appointment every day.",
       "placeholder": "Placeholder"
     },
+    "tour": {
+      "title": "How TejoTime works",
+      "body": "See the three flows that keep you booked and organized — online booking, an optional walk-in waitlist, and client management.",
+      "tabs": {
+        "booking": "Online booking",
+        "walkins": "Walk-in waitlist",
+        "clients": "Client management"
+      }
+    },
+    "resources": {
+      "metaTitle": "Resources · TejoTime",
+      "metaDescription": "How TejoTime works, frequently asked questions, and how to reach support.",
+      "title": "Resources",
+      "body": "Quick links to how TejoTime works, answers to common questions, and how to get help.",
+      "howTitle": "How TejoTime works",
+      "howBody": "A short product tour of online booking, optional walk-ins, and client management.",
+      "howCta": "See how it works",
+      "faqTitle": "FAQ",
+      "faqBody": "Pilot pricing, reminders, mobile access, and more — answered on the homepage.",
+      "faqCta": "Read the FAQ",
+      "supportTitle": "Support",
+      "supportBody": "Questions about setup, your pilot, or the product? Email us and we’ll help.",
+      "supportEmail": "support@tejotime.com",
+      "supportPhone": "+1 (239) 506-1324"
+    },
+    "industryPage": {
+      "metaTitleSuffix": "· TejoTime",
+      "whyTitle": "Why TejoTime",
+      "whyBody": "One place for online booking, provider schedules, reminders, client details, and optional walk-ins — without bolting on another tool for each job.",
+      "otherTitle": "Explore other industries",
+      "backHome": "Back to home"
+    },
     "close": {
-      "title": "Ready for a smoother day in your business?",
-      "body": "Create your booking page and start managing appointments, providers, clients, and walk-ins in one place.",
-      "micro": "Questions? Email support@tejotime.com. Add a real U.S. support number before launch."
+      "title": "Ready to make booking easier?",
+      "body": "Create your TejoTime booking page and manage appointments, schedules, clients, reminders, and optional walk-ins from one place.",
+      "micro": "Questions? Email support@tejotime.com or call +1 (239) 506-1324."
     },
     "footer": {
-      "note": "© 2026 TejoTime · Confirm the legal entity name and U.S. mailing address before launch."
+      "note": "© 2026 TejoTime. All rights reserved."
     },
     "toast": {
       "booking": "Booking flow opens here",
@@ -154,12 +185,12 @@
   "landingData": {
     "proofSignals": [
       { "name": "Online booking", "score": "24/7" },
-      { "name": "Walk-in waitlist", "score": "Live" },
-      { "name": "Mobile dashboard", "score": "Floor" },
-      { "name": "Hands-on setup", "score": "With you" }
+      { "name": "Optional walk-in waitlist", "score": "Live" },
+      { "name": "Mobile-friendly dashboard", "score": "Any device" },
+      { "name": "Personal pilot setup", "score": "Included" }
     ],
     "proofStats": [
-      { "value": "9+", "label": "Service industries" },
+      { "value": "9", "label": "Service industries" },
       { "value": "Free", "label": "During the U.S. pilot" },
       { "value": "24/7", "label": "Client booking page" },
       { "value": "1", "label": "View for the whole day" }
@@ -180,81 +211,81 @@
     "industries": [
       {
         "name": "Hair salons",
-        "detail": "Stylist selection, color add-ons, rebooking"
+        "detail": "Manage stylist schedules, service add-ons, client preferences, and rebooking."
       },
       {
         "name": "Barbershops",
-        "detail": "Appointments plus walk-ins, estimated wait"
+        "detail": "Keep appointments and walk-ins together, with barber selection and estimated wait times."
       },
       {
         "name": "Nail studios",
-        "detail": "Technician selection, service combinations"
+        "detail": "Let clients choose a nail technician, combine services, and add upgrades."
       },
       {
         "name": "Spas",
-        "detail": "Provider and room availability, packages"
+        "detail": "Coordinate providers, treatment rooms, service packages, and client intake."
       },
       {
         "name": "Med spas",
-        "detail": "Consultation-first booking, follow-up"
+        "detail": "Schedule consultations, treatments, and follow-up visits with the right provider."
       },
       {
         "name": "Massage therapy",
-        "detail": "Therapist selection, session length"
+        "detail": "Offer therapist selection, session lengths, recurring visits, and room availability."
       },
       {
         "name": "Physical therapy",
-        "detail": "Evaluation visits, recurring plans of care"
+        "detail": "Schedule evaluations and follow-up visits while managing therapist availability."
       },
       {
         "name": "Tattoo studios",
-        "detail": "Artist portfolios, long-session scheduling"
+        "detail": "Connect artist portfolios with consultations, deposits, and longer appointment blocks."
       },
       {
         "name": "Pet grooming",
-        "detail": "Pet profiles, coat details, drop-off windows"
+        "detail": "Manage pet profiles, service packages, special notes, and drop-off windows."
       }
     ],
     "features": [
       {
         "head": "Branded booking page",
-        "body": "Give your business a professional page with services, prices, photos, hours, providers, and reviews — no website builder needed."
+        "body": "Create a professional booking page with your services, prices, photos, hours, team members, and reviews — no website required."
       },
       {
-        "head": "Online booking, 24/7",
-        "body": "Let clients choose a service, provider, and available time without calling or sending a DM."
+        "head": "Online booking",
+        "body": "Let clients book a service, choose a provider, and select an available time 24/7."
       },
       {
         "head": "Scheduling and walk-ins",
-        "body": "Manage provider availability and scheduled appointments, with an optional live waitlist for businesses that also accept walk-ins."
+        "body": "Manage provider schedules and appointments in one place. Turn on the live waitlist if your business accepts walk-ins."
       },
       {
         "head": "Automatic reminders",
-        "body": "Send booking confirmations and reminders to reduce missed appointments."
+        "body": "Automatically send booking confirmations and appointment reminders to help reduce no-shows."
       },
       {
         "head": "Client profiles",
-        "body": "Keep visit history and notes in one place so your team can deliver a more personal experience."
+        "body": "Keep client contact details, visit history, preferences, and notes together for more personalized service."
       },
       {
         "head": "Mobile dashboard",
-        "body": "See today’s schedule, team, clients, and optional waitlist from your phone — at the front desk or away from the shop."
+        "body": "View today’s appointments, team availability, client information, and optional waitlist from your phone or computer."
       }
     ],
     "bookingBullets": [
-      "Add your booking link to Google, Instagram, and your website",
-      "Share it by text or with an in-shop QR code",
+      "Share your booking link on Google, Instagram, your website, or by text",
+      "Let clients book from any phone, tablet, or computer",
       "Send confirmations and reminders automatically"
     ],
     "walkBullets": [
-      "View today’s schedule and walk-in waitlist in one place",
-      "Add a walk-in or start a service in a few taps",
-      "Manage providers, services, hours, and time off"
+      "See scheduled appointments and walk-ins together",
+      "Add clients to the waitlist and update their status",
+      "Manage providers, services, business hours, and time off"
     ],
     "clientBullets": [
-      "Visit history and notes travel with the client",
-      "Confirmations and reminders send themselves",
-      "Rebook the next visit before they leave the chair"
+      "Review visit history and client preferences",
+      "Keep helpful notes available to authorized team members",
+      "Rebook the next appointment before the client leaves"
     ],
     "client": {
       "name": "Marcus T.",
@@ -284,73 +315,75 @@
     },
     "steps": [
       {
-        "head": "Create your business page",
-        "body": "Add your services, prices, hours, photos, and team."
+        "head": "Create your booking page",
+        "body": "Add your business details, services, prices, hours, photos, and team members."
       },
       {
-        "head": "Share your booking link",
-        "body": "Put it on Google, Instagram, your website, or a QR code in the shop."
+        "head": "Share your link",
+        "body": "Add it to Google, social media, your website, texts, emails, or an in-store QR code."
       },
       {
-        "head": "Run your day",
-        "body": "Manage appointments and walk-ins from one dashboard."
+        "head": "Manage your day",
+        "body": "View appointments, update schedules, communicate with clients, and manage optional walk-ins."
       }
     ],
     "plans": [
       {
         "name": "Starter",
         "price": "Free",
-        "per": "",
-        "who": "A single chair or one provider getting started.",
+        "per": "during the U.S. pilot",
+        "who": "Best for independent providers.",
+        "cta": "Start Free",
         "feats": [
           "Branded booking page",
-          "Walk-in waitlist",
-          "One provider",
-          "Client records"
+          "One provider schedule",
+          "Client profiles",
+          "Optional walk-in waitlist"
         ]
       },
       {
         "name": "Business",
-        "price": "$XX",
-        "per": "/month",
-        "who": "A team sharing a calendar and a front desk.",
+        "price": "Coming soon",
+        "per": "",
+        "who": "Best for growing teams.",
+        "cta": "Join the Pilot",
         "feats": [
           "Everything in Starter",
-          "Up to 10 providers",
-          "Automatic reminders",
-          "Client history and rebooking",
-          "Mobile dashboard"
+          "Multiple provider schedules",
+          "Automated reminders",
+          "Client history",
+          "Shared dashboard"
         ]
       },
       {
-        "name": "Business+",
-        "price": "$XX",
-        "per": "/month",
-        "who": "More than one location, or a large team.",
+        "name": "Multi-location",
+        "price": "Contact us",
+        "per": "",
+        "who": "Best for businesses managing multiple locations.",
+        "cta": "Contact Sales",
         "feats": [
-          "Everything in Business",
-          "Unlimited providers",
-          "Multiple locations",
-          "Priority support"
+          "Centralized scheduling",
+          "Location management",
+          "Priority onboarding"
         ]
       }
     ],
     "faqs": [
       {
         "q": "What is TejoTime?",
-        "a": "A booking and client-management system for service businesses. Clients book a time or join the walk-in waitlist from your page; you run the day from one dashboard on your phone or a desktop."
+        "a": "TejoTime is an online booking, scheduling, and client-management platform for appointment-based businesses. Clients can book online, and businesses can manage schedules, providers, reminders, client details, and optional walk-ins from one dashboard."
       },
       {
         "q": "Who is TejoTime for?",
-        "a": "Independent and small multi-provider businesses in beauty, wellness, therapy, body art, and pet care — salons, barbershops, nail studios, spas, med spas, massage, physical therapy, tattoo studios, and pet groomers."
+        "a": "TejoTime is built for salons, barbershops, nail studios, spas, med spas, massage practices, physical therapy clinics, tattoo studios, and pet-grooming businesses."
       },
       {
         "q": "Can clients book online?",
-        "a": "Yes. They open your booking page, pick a service, choose a provider, and reserve an available time. No app download and no account to create."
+        "a": "Yes. Your booking page is available 24/7, allowing clients to choose a service, provider, and available appointment time."
       },
       {
         "q": "Can I manage walk-ins?",
-        "a": "Yes. Scheduled appointments and walk-ins share one view, with a place in line and an estimated wait for each person."
+        "a": "Yes. Businesses that accept walk-ins can use the optional live waitlist alongside scheduled appointments."
       },
       {
         "q": "Can I manage multiple providers?",
@@ -366,63 +399,184 @@
       },
       {
         "q": "Can I cancel?",
-        "a": "Yes, at any time, and you can export your client list and appointment history when you go."
+        "a": "Yes. You can cancel your TejoTime subscription according to the terms shown for your selected plan."
       }
     ],
     "gallery": [
       {
-        "title": "The floor at open",
-        "caption": "Harbor & Main Barbers · Fort Myers, FL"
+        "title": "Barbershops",
+        "caption": "Appointments and optional walk-ins in one view"
       },
       {
-        "title": "A walk-in taking a place in line",
-        "caption": "Front desk, mid-morning"
+        "title": "Hair salons",
+        "caption": "Stylist schedules, add-ons, and rebooking"
       },
       {
-        "title": "Rebooking at the chair",
-        "caption": "Client history on the phone"
+        "title": "Nail studios",
+        "caption": "Technician selection and service combinations"
       }
     ],
     "footerCols": [
       {
         "head": "Product",
         "links": [
-          "Online booking",
-          "Walk-in waitlist",
-          "Client management",
-          "Pricing"
+          { "label": "Online booking", "href": "/#booking" },
+          { "label": "Optional walk-in waitlist", "href": "/#walkins" },
+          { "label": "Client management", "href": "/#tour" },
+          { "label": "Pricing", "href": "/#pricing" }
         ]
       },
       {
         "head": "Industries",
         "links": [
-          "Salons",
-          "Barbershops",
-          "Nails",
-          "Spas",
-          "Massage",
-          "Tattoo",
-          "Pet grooming"
+          { "label": "Hair salons", "href": "/industries/hair-salons" },
+          { "label": "Barbershops", "href": "/industries/barbershops" },
+          { "label": "Nail studios", "href": "/industries/nail-studios" },
+          { "label": "Spas", "href": "/industries/spas" },
+          { "label": "Med spas", "href": "/industries/med-spas" },
+          { "label": "Massage therapy", "href": "/industries/massage-therapy" },
+          { "label": "Physical therapy", "href": "/industries/physical-therapy" },
+          { "label": "Tattoo studios", "href": "/industries/tattoo-studios" },
+          { "label": "Pet grooming", "href": "/industries/pet-grooming" }
         ]
       },
       {
-        "head": "Company",
+        "head": "Resources",
         "links": [
-          "About",
-          "Contact",
-          "Help center",
-          "System status"
+          { "label": "How it works", "href": "/#tour" },
+          { "label": "FAQ", "href": "/#faq" },
+          { "label": "Support", "href": "mailto:support@tejotime.com" },
+          { "label": "Resources hub", "href": "/resources" }
         ]
       },
       {
         "head": "Legal",
         "links": [
-          "Privacy policy",
-          "Terms of service",
-          "Accessibility"
+          { "label": "Privacy Policy", "href": "/privacy" },
+          { "label": "Terms of Service", "href": "/terms" },
+          { "label": "Accessibility", "href": "/accessibility" }
         ]
       }
     ],
+    "industryPages": {
+      "hair-salons": {
+        "name": "Hair salons",
+        "eyebrow": "For hair salons",
+        "title": "Booking and schedules built for stylists",
+        "body": "Give clients an easy way to book a stylist while you manage services, add-ons, preferences, and rebooking from one place.",
+        "bullets": [
+          "Online booking with stylist selection and service add-ons",
+          "Provider schedules that match how your floor actually runs",
+          "Client preferences and notes that travel with every visit",
+          "Reminders that help cut no-shows and last-minute gaps",
+          "Optional walk-in waitlist when you still take walk-ins"
+        ]
+      },
+      "barbershops": {
+        "name": "Barbershops",
+        "eyebrow": "For barbershops",
+        "title": "Appointments and walk-ins in one view",
+        "body": "Let clients book a chair online while you keep the live waitlist, barber selection, and estimated wait times together.",
+        "bullets": [
+          "Barber selection and service-based booking windows",
+          "Appointments and walk-ins on the same board",
+          "Estimated wait times clients can trust",
+          "Client history for regulars and first-timers",
+          "Reminders for booked appointments"
+        ]
+      },
+      "nail-studios": {
+        "name": "Nail studios",
+        "eyebrow": "For nail studios",
+        "title": "Technician schedules without the phone tag",
+        "body": "Clients choose a nail technician, combine services, and add upgrades — while your team stays on one shared schedule.",
+        "bullets": [
+          "Technician selection with multi-service bookings",
+          "Clear upgrade and add-on options on the booking page",
+          "Schedules that respect chair time and turnaround",
+          "Client notes for preferences and allergies",
+          "Reminders that keep chairs filled"
+        ]
+      },
+      "spas": {
+        "name": "Spas",
+        "eyebrow": "For spas",
+        "title": "Coordinate providers, rooms, and packages",
+        "body": "Book treatments, packages, and follow-ups while keeping provider schedules and client intake in one simple platform.",
+        "bullets": [
+          "Online booking for services and packages",
+          "Provider and room-friendly scheduling",
+          "Client intake details in one profile",
+          "Reminders for appointments and follow-ups",
+          "Optional walk-in flow when you need it"
+        ]
+      },
+      "med-spas": {
+        "name": "Med spas",
+        "eyebrow": "For med spas",
+        "title": "Consults, treatments, and follow-ups — organized",
+        "body": "Schedule consultations, treatments, and follow-up visits with the right provider, without juggling separate tools.",
+        "bullets": [
+          "Provider-aware booking for consults and treatments",
+          "Follow-up visits on the same client timeline",
+          "Clear service menus clients can book online",
+          "Reminders that reduce missed appointments",
+          "Client details and notes for consistent care"
+        ]
+      },
+      "massage-therapy": {
+        "name": "Massage therapy",
+        "eyebrow": "For massage therapy",
+        "title": "Therapist selection and recurring visits, simplified",
+        "body": "Offer therapist choice, session lengths, and room availability while clients book online on their own time.",
+        "bullets": [
+          "Therapist selection and session-length options",
+          "Schedules that respect room availability",
+          "Support for recurring visits and regulars",
+          "Client preferences and pressure notes",
+          "Reminders that protect your day"
+        ]
+      },
+      "physical-therapy": {
+        "name": "Physical therapy",
+        "eyebrow": "For physical therapy",
+        "title": "Evaluations and follow-ups on one schedule",
+        "body": "Book evaluations and follow-up visits while managing therapist availability from a single dashboard.",
+        "bullets": [
+          "Therapist availability for evals and follow-ups",
+          "Online booking that fits your visit types",
+          "Client history in one place for the care team",
+          "Reminders for upcoming sessions",
+          "A simple mobile view for the day’s board"
+        ]
+      },
+      "tattoo-studios": {
+        "name": "Tattoo studios",
+        "eyebrow": "For tattoo studios",
+        "title": "Consults, deposits, and longer blocks — handled",
+        "body": "Connect artist availability with consultations and longer appointment blocks so clients book the right session the first time.",
+        "bullets": [
+          "Artist-aware booking and consult scheduling",
+          "Longer appointment blocks without calendar chaos",
+          "Client notes for designs, sessions, and preferences",
+          "Reminders for consults and follow-up sessions",
+          "A branded booking page for your studio"
+        ]
+      },
+      "pet-grooming": {
+        "name": "Pet grooming",
+        "eyebrow": "For pet grooming",
+        "title": "Pet profiles, packages, and drop-off windows",
+        "body": "Manage pet profiles, service packages, special notes, and drop-off windows while pet parents book online.",
+        "bullets": [
+          "Pet profiles with special notes and preferences",
+          "Service packages and add-ons on the booking page",
+          "Drop-off and pickup windows that fit your floor",
+          "Reminders for upcoming grooms",
+          "Client history for returning pets and owners"
+        ]
+      }
+    },
     "inquiryPerks": [
       "Free setup",
       "No card",
@@ -819,79 +973,438 @@
       "ctaSub": "See how busy the floor is before you head over"
     }
   },
+  "legal": {
+    "entity": "TejoTime",
+    "address": "4213 Lee Blvd, Lehigh Acres, FL 33971",
+    "supportEmail": "support@tejotime.com",
+    "supportPhone": "+1 (239) 506-1324",
+    "governingState": "the State of Florida",
+    "website": "https://www.tejotime.com",
+    "home": "Back to home",
+    "eyebrow": "Legal",
+    "onThisPage": "On this page",
+    "docNav": [
+      {
+        "label": "Privacy Policy",
+        "href": "/privacy"
+      },
+      {
+        "label": "Terms of Service",
+        "href": "/terms"
+      },
+      {
+        "label": "Accessibility",
+        "href": "/accessibility"
+      }
+    ],
+    "contactHeading": "Contact us",
+    "emailLabel": "Email",
+    "phoneLabel": "Phone",
+    "addressLabel": "Mailing address",
+    "fields": {
+      "entity": "legal entity name",
+      "address": "U.S. mailing address",
+      "state": "governing state",
+      "phone": "U.S. support phone number"
+    },
+    "pendingSuffix": "to be confirmed before launch"
+  },
   "privacy": {
     "metaTitle": "Privacy Policy — TejoTime",
-    "metaDescription": "How TejoTime collects and uses information in the owner app and related services.",
+    "metaDescription": "How TejoTime collects, uses, shares, and protects information across our website, booking pages, and owner app.",
     "title": "Privacy Policy",
-    "lastUpdated": "Last updated: 19 August 2026",
-    "home": "Back to home",
-    "contactEmail": "support@tejotime.com",
-    "contactPhone": "+91 79907 17045",
-    "contactTel": "tel:+917990717045",
+    "lastUpdated": "Last updated: September 4, 2026",
+    "intro": "This Privacy Policy explains how {entity} (“TejoTime,” “we,” “us”) collects, uses, shares, and protects information when you use our website, our owner and staff apps, and the public booking pages we host for businesses. Please read it alongside our Terms of Service.",
     "sections": [
       {
-        "heading": "1. Who this app is for",
+        "heading": "1. Who uses TejoTime, and who controls your data",
         "paragraphs": [
-          "TejoTime is a business tool for shop owners and staff (salons, barbershops, spas and similar). It is not directed at children under 13."
-        ]
+          "TejoTime serves two groups of people, and the role we play is different for each.",
+          "Business users are the salons, barbershops, nail studios, spas, med spas, massage practices, physical therapy clinics, tattoo studios, and pet-grooming businesses that sign up for an account. For information about a business user’s own account, we act as the controller of that information and this policy applies directly.",
+          "Clients of those businesses are the people who book an appointment or join a walk-in waitlist through a business’s TejoTime booking page. For that information, the business is the controller and TejoTime acts as a service provider processing information on that business’s instructions. If you are a client and want your information corrected or deleted, contact the business you booked with first; we will support that business in responding.",
+          "TejoTime is a tool for businesses. It is not directed at children under 13."
+        ],
+        "bullets": []
       },
       {
         "heading": "2. Information we collect",
         "paragraphs": [
-          "Account: owner or staff phone number and password; name, role, and store details you enter.",
-          "Business content you add: store name, address, hours, services, prices, photos, staff names and photos; customer names, phone numbers, visit and appointment history you or your customers provide when they book or join the queue.",
-          "Device and technical: login tokens stored securely on the device; app version and basic device or network information needed to run the service; photos you choose to upload (staff or store images). We only access the photo library when you pick an image. We do not take photos in the background.",
-          "We do not collect precise GPS location, contacts, SMS, or payment card numbers in this app. Customers pay at the shop."
+          "We collect the following categories of information:"
+        ],
+        "bullets": [
+          "Account information — the phone number and password used to sign in, plus the name, role, and business details you enter when you create or join a business account.",
+          "Business content — your business name, address, hours, services, prices, photos, staff names and photos, and anything else you publish to your booking page.",
+          "Client records you add — client names, phone numbers, appointment and visit history, preferences, and any notes you or your team choose to record.",
+          "Booking information from clients — the name, phone number, service, and appointment or waitlist details a client provides when they book through a business’s booking page.",
+          "Device and technical information — sign-in tokens stored securely on your device, app or browser version, and the basic device and network information needed to operate and secure the service.",
+          "Photos you choose to upload — we access your photo library only at the moment you pick an image. We never access your camera or photo library in the background.",
+          "Support communications — the contents of emails and messages you send us."
         ]
       },
       {
-        "heading": "3. How we use information",
+        "heading": "3. What we do not collect",
         "paragraphs": [
-          "We use this information to create and sign in to your account; run your queue, appointments, calendar and customer list; show your public booking page; send operational updates related to your store (for example queue or booking status); and to secure the service, prevent abuse, and provide support."
+          "We do not collect precise GPS location, your device contacts, or your SMS messages.",
+          "We do not collect or store payment card numbers. TejoTime does not process payments for appointments; clients pay the business directly. If we introduce paid subscription billing, payment details will be handled by a third-party payment processor and this policy will be updated before that happens."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "4. How we use information",
+        "paragraphs": [
+          "We use the information described above to:"
+        ],
+        "bullets": [
+          "Create your account and sign you in securely.",
+          "Operate your calendar, appointments, optional walk-in waitlist, and client records.",
+          "Publish and serve your public booking page.",
+          "Send booking confirmations, appointment reminders, and operational messages about your business or booking.",
+          "Provide customer support and help set up your account during the U.S. pilot.",
+          "Maintain, troubleshoot, secure, and improve the service, and prevent fraud and abuse.",
+          "Comply with legal obligations and enforce our Terms of Service."
         ]
       },
       {
-        "heading": "4. Sharing",
+        "heading": "5. Text messages and email",
         "paragraphs": [
-          "We do not sell personal information. We share it only with hosting and storage providers that run our servers and image storage, under contract; when required by law; and with people you invite (staff logins) for that store.",
-          "Your public booking page may show the store name, address, services, prices and photos you publish."
+          "Where enabled for a business, TejoTime sends transactional messages such as booking confirmations, appointment reminders, and waitlist updates. These relate to a specific booking and are not marketing messages.",
+          "Message and data rates may apply. Clients can stop appointment messages by replying STOP where that option is offered, or by asking the business to remove them. Businesses are responsible for having an appropriate basis to contact their own clients."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "6. How we share information",
+        "paragraphs": [
+          "We do not sell personal information, and we do not share personal information for cross-context behavioral advertising. We share information only in these situations:"
+        ],
+        "bullets": [
+          "Service providers — hosting, database, file storage, email, and messaging providers that operate the service on our behalf under written contracts limiting their use of the information.",
+          "People you invite — staff and providers you add to your business account can see the business content and client records their role allows.",
+          "Your published booking page — the business name, address, hours, services, prices, photos, and staff you choose to publish are public by design.",
+          "Legal reasons — when required by law, subpoena, or to protect the rights, safety, or property of TejoTime, our users, or the public.",
+          "Business transfers — if TejoTime is involved in a merger, acquisition, or sale of assets, information may transfer as part of that transaction; we will notify you before your information becomes subject to a different policy."
         ]
       },
       {
-        "heading": "5. Retention",
+        "heading": "7. How long we keep information",
         "paragraphs": [
-          "We keep account and store data while the store is active. You may ask us to delete a store or account by emailing support@tejotime.com. Some records may be kept if the law requires it."
+          "We keep account and business data for as long as the account is active. You can ask us to delete a business account or your personal account by emailing {email}.",
+          "After a deletion request we remove or de-identify the data within a reasonable period, except where we must keep records to comply with law, resolve disputes, or enforce our agreements. Backups are purged on a rolling schedule."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "8. Security",
+        "paragraphs": [
+          "Passwords are stored using one-way hashing. Session tokens are held in the device secure store. Data is transmitted over encrypted connections, and access to production systems is limited to personnel who need it.",
+          "No method of transmission or storage is completely secure, and we cannot guarantee absolute security. If we become aware of a breach affecting your information, we will notify you as required by applicable law."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "9. Your privacy rights",
+        "paragraphs": [
+          "Depending on where you live, you may have the right to request access to the personal information we hold about you, request that we correct it, request that we delete it, request a portable copy, and appeal a decision we make about your request. Residents of California, Colorado, Connecticut, Virginia, and other states with comprehensive privacy laws have these rights under those laws.",
+          "Because we do not sell personal information or share it for cross-context behavioral advertising, there is nothing to opt out of in those categories.",
+          "To exercise a right, email {email} from the address or phone number associated with your account. We will verify your request before acting on it, and we will not discriminate against you for making one. If you are a client of a business that uses TejoTime, send your request to that business and we will assist them."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "10. Responsibilities of businesses using TejoTime",
+        "paragraphs": [
+          "If you use TejoTime to run your business, you are responsible for the client information you enter and for having an appropriate basis to collect and store it. That includes client notes and any photographs you upload.",
+          "TejoTime is a scheduling and client-management tool. It is not designed or offered as a system for storing medical records, insurance information, or other regulated health data, and it should not be used for that purpose."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "11. Children’s privacy",
+        "paragraphs": [
+          "TejoTime is intended for business users and their adult clients. We do not knowingly collect personal information from children under 13. If you believe a child has provided us information, email {email} and we will delete it.",
+          "Where a business books appointments for a minor, the business is responsible for obtaining any consent required from a parent or guardian."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "12. Where your information is processed",
+        "paragraphs": [
+          "TejoTime is operated for the United States market, and information may be stored and processed in the United States and in other countries where our service providers operate. Those countries may have different data protection rules than your own. We use contractual protections with our providers to safeguard information wherever it is processed."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "13. Changes to this policy",
+        "paragraphs": [
+          "We may update this policy from time to time. When we do, we will revise the “Last updated” date above, and we will provide additional notice for material changes. Continuing to use TejoTime after an update means you accept the revised policy."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "14. Contact us",
+        "paragraphs": [
+          "Questions about this policy or about how your information is handled? Contact us using the details below and we will respond within a reasonable period."
+        ],
+        "bullets": []
+      }
+    ]
+  },
+  "terms": {
+    "metaTitle": "Terms of Service — TejoTime",
+    "metaDescription": "The terms that govern your use of TejoTime’s online booking, scheduling, and client-management service.",
+    "title": "Terms of Service",
+    "lastUpdated": "Last updated: September 4, 2026",
+    "intro": "These Terms of Service (“Terms”) are an agreement between you and {entity} (“TejoTime,” “we,” “us”). They govern your use of our website, our owner and staff apps, and the booking pages we host. By creating an account or using TejoTime, you agree to these Terms. If you do not agree, do not use the service.",
+    "sections": [
+      {
+        "heading": "1. Who may use TejoTime",
+        "paragraphs": [
+          "You must be at least 18 years old to create an account. If you are accepting these Terms for a business, you represent that you have authority to bind that business, and “you” refers to both you and that business.",
+          "TejoTime is offered for business use in the United States. You are responsible for complying with the laws and licensing requirements that apply to your business."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "2. Your account",
+        "paragraphs": [
+          "You sign in with a phone number and a password. You are responsible for keeping your credentials confidential and for all activity under your account.",
+          "You may invite staff and providers to your business account. You are responsible for the access you grant them, for removing access when someone leaves, and for their use of the service. Notify us at {email} promptly if you believe your account has been compromised."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "3. The U.S. pilot",
+        "paragraphs": [
+          "TejoTime is currently offered through a United States pilot program. During the pilot, the Starter plan is free and we help you set up your services, schedule, and booking page.",
+          "Pilot features may change, and the pilot may end. We will give you reasonable advance notice before the pilot ends or before any plan you are on begins to be charged. Pilot participation does not guarantee any particular future price."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "4. Plans, pricing, and billing",
+        "paragraphs": [
+          "Pricing for paid plans will be published on our website before those plans become chargeable. We will not charge you for a paid plan without your express agreement to the price and billing terms in effect at that time.",
+          "When paid plans launch, subscription fees will be billed in advance for the applicable term, fees are exclusive of taxes, and you authorize us and our payment processor to charge your selected payment method. Unless a plan states otherwise, subscriptions renew automatically until cancelled.",
+          "You may cancel your subscription at any time in accordance with the terms shown for your plan. Cancellation takes effect at the end of your current billing period, and you keep access until then. Except where required by law, fees already paid are not refundable."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "5. What TejoTime does and does not do",
+        "paragraphs": [
+          "TejoTime provides scheduling, booking, reminder, and client-management software. We are not a party to the appointments you book or the services you provide, and we do not process payments for those services — your clients pay you directly.",
+          "You set your own services, prices, hours, deposits, cancellation rules, and no-show policies, and you are responsible for honoring and enforcing them. Estimated wait times shown on a walk-in waitlist are estimates only and are not a guarantee to you or to your clients.",
+          "TejoTime is not a medical records system. Do not use it to store medical records, insurance information, or other regulated health information."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "6. Your content",
+        "paragraphs": [
+          "You keep ownership of the business information, photos, client records, and other content you put into TejoTime (“Your Content”).",
+          "You grant us a worldwide, non-exclusive, royalty-free license to host, store, reproduce, adapt for display, and transmit Your Content solely to operate and support the service — for example, to render your booking page, resize an uploaded photo, or back up your data. This license ends when you delete the content or close your account, except for backups pending their normal deletion cycle.",
+          "You represent that you have the rights necessary to provide Your Content and that it does not infringe anyone’s rights."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "7. Your responsibilities",
+        "paragraphs": [
+          "When you use TejoTime, you agree to:"
+        ],
+        "bullets": [
+          "Keep your business information, services, prices, and hours accurate and current.",
+          "Have an appropriate basis to collect, store, and message your clients, including for reminders and confirmations.",
+          "Obtain consent before uploading photographs of staff or clients.",
+          "Provide the services your clients book, and handle their complaints and refunds directly.",
+          "Use the service in compliance with applicable law, including consumer protection, advertising, accessibility, and messaging rules."
         ]
       },
       {
-        "heading": "6. Security",
+        "heading": "8. Acceptable use",
         "paragraphs": [
-          "Passwords are stored hashed. Session tokens are kept in the device secure store. No method is 100% secure."
+          "You may not:"
+        ],
+        "bullets": [
+          "Use TejoTime for anything unlawful, deceptive, harassing, or harmful.",
+          "Publish content that is fraudulent, infringing, obscene, or that misrepresents your business or its reviews.",
+          "Send unsolicited marketing through the service or upload contacts you have no basis to message.",
+          "Interfere with, overload, or disrupt the service, or attempt to access accounts or data that are not yours.",
+          "Reverse engineer, scrape, resell, or copy the service except as permitted by law.",
+          "Use the service to build a competing product, or misrepresent your relationship with TejoTime."
         ]
       },
       {
-        "heading": "7. Your choices",
+        "heading": "9. Third-party services",
         "paragraphs": [
-          "You can update store and customer data in the app. You can sign out. You can request access, correction or deletion of your account data at support@tejotime.com."
+          "TejoTime links to and works with third-party services — for example when you share your booking link on Google, a social platform, or your own website, or when our hosting and messaging providers deliver the service. Those services have their own terms and privacy practices, and we are not responsible for them."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "10. Our intellectual property",
+        "paragraphs": [
+          "TejoTime, our software, design, and brand are owned by us and our licensors and are protected by intellectual property laws. We grant you a limited, non-exclusive, non-transferable, revocable right to use the service under these Terms. All rights not expressly granted are reserved.",
+          "If you send us feedback or suggestions, you grant us the right to use them without restriction or obligation to you."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "11. Suspension and termination",
+        "paragraphs": [
+          "You may stop using TejoTime and close your account at any time by contacting {email}.",
+          "We may suspend or terminate your access if you breach these Terms, if your use creates risk or legal exposure for us or other users, or if we discontinue the service. Except where a breach requires immediate action, we will give you reasonable notice.",
+          "On termination, your right to use the service ends. We will make a reasonable effort to let you export your business and client data before deletion. Sections that by their nature should survive termination — including content licenses for backups, disclaimers, limitation of liability, indemnification, and governing law — will survive."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "12. Disclaimers",
+        "paragraphs": [
+          "The service is provided “as is” and “as available.” To the fullest extent permitted by law, we disclaim all warranties, express or implied, including merchantability, fitness for a particular purpose, title, and non-infringement.",
+          "We do not warrant that the service will be uninterrupted, timely, secure, or error-free, that reminders or notifications will always be delivered, or that estimated wait times will be accurate. You are responsible for maintaining your own records of your appointments and clients."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "13. Limitation of liability",
+        "paragraphs": [
+          "To the fullest extent permitted by law, TejoTime will not be liable for any indirect, incidental, special, consequential, exemplary, or punitive damages, or for lost profits, lost revenue, lost bookings, lost data, or business interruption, even if we have been advised of the possibility.",
+          "Our total liability for all claims relating to the service will not exceed the greater of the amount you paid us in the twelve months before the event giving rise to the claim, or one hundred U.S. dollars ($100).",
+          "Some jurisdictions do not allow certain limitations, so parts of this section may not apply to you."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "14. Indemnification",
+        "paragraphs": [
+          "You agree to defend, indemnify, and hold harmless TejoTime and its officers, employees, and agents from any claims, damages, liabilities, and reasonable legal fees arising out of Your Content, your use of the service, your services to your clients, or your breach of these Terms or of applicable law."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "15. Changes to the service and these Terms",
+        "paragraphs": [
+          "We are actively developing TejoTime and may add, change, or remove features. We may also update these Terms. When we make a material change, we will update the “Last updated” date and give you reasonable notice before the change takes effect.",
+          "If you continue to use TejoTime after a change takes effect, you accept the updated Terms. If you do not agree, stop using the service and close your account."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "16. Governing law and disputes",
+        "paragraphs": [
+          "These Terms are governed by the laws of {state}, without regard to its conflict-of-laws rules. The state and federal courts located in {state} will have exclusive jurisdiction over any dispute that is not otherwise resolved, and both parties consent to that jurisdiction.",
+          "Before filing a claim, you agree to contact us at {email} and to try in good faith to resolve the dispute informally for at least thirty days."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "17. General",
+        "paragraphs": [
+          "These Terms, together with our Privacy Policy, are the entire agreement between you and TejoTime about the service. If any provision is found unenforceable, the rest remains in effect. Our failure to enforce a provision is not a waiver of it.",
+          "You may not assign these Terms without our written consent; we may assign them in connection with a merger, acquisition, or sale of assets. Notices to you may be sent to the phone number or email on your account; notices to us should go to {email}."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "18. Contact us",
+        "paragraphs": [
+          "Questions about these Terms? Reach us using the details below."
+        ],
+        "bullets": []
+      }
+    ]
+  },
+  "accessibility": {
+    "metaTitle": "Accessibility — TejoTime",
+    "metaDescription": "TejoTime’s accessibility commitment, current conformance status, known limitations, and how to report a barrier.",
+    "title": "Accessibility Statement",
+    "lastUpdated": "Last updated: September 4, 2026",
+    "intro": "{entity} is committed to making TejoTime usable by as many people as possible, including people who use screen readers, keyboard navigation, magnification, or other assistive technology. This statement describes where we stand today, what we know is not finished, and how to tell us when something does not work.",
+    "sections": [
+      {
+        "heading": "1. Our commitment",
+        "paragraphs": [
+          "Booking an appointment should not depend on being able to see a screen, use a mouse, or read small text. We treat accessibility as part of building the product rather than as a later cleanup, and we take reported barriers seriously.",
+          "This commitment covers our marketing website, the public booking pages we host for businesses, and our owner and staff apps."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "2. Conformance status",
+        "paragraphs": [
+          "We are working toward conformance with the Web Content Accessibility Guidelines (WCAG) 2.1 at Level AA.",
+          "TejoTime is currently partially conformant with WCAG 2.1 Level AA. “Partially conformant” means that some parts of the content do not yet fully meet the standard. We have listed the gaps we know about in section 4 rather than claiming a level we have not verified."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "3. What we have implemented",
+        "paragraphs": [
+          "The following are in place across our public pages today:"
+        ],
+        "bullets": [
+          "A declared page language, semantic headings, and landmark regions so screen readers can navigate structure.",
+          "Text that scales with browser and device settings — we do not lock zoom or set a maximum scale on mobile.",
+          "Reduced-motion support: animations and transitions are suppressed when your system requests reduced motion.",
+          "Accessible names on navigation, menu buttons, and interactive controls, including expanded and controlled-element state on the mobile menu.",
+          "Tab semantics on the product tour so it can be operated and announced as a tab set.",
+          "Decorative images marked so assistive technology can skip them.",
+          "Layouts built to reflow on small screens and at high zoom without horizontal scrolling."
         ]
       },
       {
-        "heading": "8. Children’s privacy",
+        "heading": "4. Known limitations",
         "paragraphs": [
-          "The app is for business users, not children. We do not knowingly collect data from children under 13."
+          "We are aware of the following and are working on them:"
+        ],
+        "bullets": [
+          "Visible focus indicators are not yet styled consistently across every custom control, which makes keyboard position harder to track in places.",
+          "There is no “skip to main content” link yet on the marketing pages.",
+          "Photographs, service descriptions, and business names are uploaded by the businesses that use TejoTime. We cannot guarantee that business-supplied images carry meaningful alternative text, and we are adding guidance and prompts to help owners provide it.",
+          "Some product demonstration areas on the homepage are illustrative and are being reviewed for full screen-reader parity with the underlying product.",
+          "Colour contrast is being audited across every theme variation rather than only the default one."
         ]
       },
       {
-        "heading": "9. Changes",
+        "heading": "5. Compatibility",
         "paragraphs": [
-          "We may update this policy. The “Last updated” date will change. Continued use means you accept the updated policy."
-        ]
+          "TejoTime is designed to work with current versions of major browsers — Chrome, Safari, Edge, and Firefox — on desktop and mobile, used together with the assistive technology available on those platforms.",
+          "The site relies on JavaScript for some interactive areas. If you encounter a page that does not work with your setup, tell us and we will help you complete what you were trying to do."
+        ],
+        "bullets": []
       },
       {
-        "heading": "10. Contact",
+        "heading": "6. Technical specifications",
         "paragraphs": [
-          "TejoTime. Email: support@tejotime.com. Phone: +91 79907 17045. Website: https://www.tejotime.com"
-        ]
+          "Accessibility of TejoTime relies on HTML, CSS, JavaScript, and WAI-ARIA, and on the combination of those technologies with the browser and assistive technology installed on your device."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "7. How we assess accessibility",
+        "paragraphs": [
+          "Our current assessment is a self-evaluation carried out by our own team using automated checks and manual keyboard and screen-reader testing.",
+          "We have not yet commissioned an independent third-party audit. When we do, we will update this statement with the date and scope of that review."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "8. Feedback and requests",
+        "paragraphs": [
+          "If you run into a barrier on any TejoTime page, we want to know. Email {email} and, where you can, include the page address, what you were trying to do, and the browser and assistive technology you were using.",
+          "We aim to acknowledge accessibility reports within five business days. If a fix will take longer, we will tell you what we are doing and offer another way to complete your task in the meantime.",
+          "If you need to book an appointment and the booking page is not working for you, contact the business directly — their phone number and address are listed on their TejoTime page."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "9. Escalation",
+        "paragraphs": [
+          "If you are not satisfied with our response, reply to our email and ask for the report to be escalated. We will review it again and respond with our conclusion.",
+          "This statement will be reviewed and updated as we address the limitations listed above."
+        ],
+        "bullets": []
       }
     ]
   }

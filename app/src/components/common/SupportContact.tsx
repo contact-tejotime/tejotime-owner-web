@@ -92,6 +92,13 @@ export function SupportContact({ variant = 'block' }: { variant?: Variant }) {
           </TText>
         </Pressable>
       </View>
+      <View style={s.address}>
+        {SUPPORT.addressLines.map((line) => (
+          <TText key={line} variant="caption" color="textMuted">
+            {line}
+          </TText>
+        ))}
+      </View>
     </View>
   );
 }
@@ -128,5 +135,8 @@ const createSupportStyles = ({ colors }: ThemeStyleProps) =>
     links: {
       gap: moderateScale(6),
       marginTop: moderateScale(4),
+    },
+    address: {
+      marginTop: moderateScale(8),
     },
   });
