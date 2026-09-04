@@ -6,6 +6,7 @@ import { Icon } from "@/components/landing/Icon";
 import { Logo } from "@/components/landing/Logo";
 import { Button, Input } from "@/components/landing/ui";
 import { AppointmentCard, Avatar, Badge, WaitTimeWidget } from "@/components/landing/ds";
+import { ProductTour } from "@/components/landing/ProductTour";
 import PhoneField from "@/components/ui/PhoneField";
 import { t } from "@/i18n";
 import { publicApi } from "@/lib/api";
@@ -20,7 +21,6 @@ import {
   faqs,
   features,
   footerCols,
-  gallery,
   industries,
   inquiryPerks,
   nav,
@@ -82,16 +82,6 @@ const bulletStyle: React.CSSProperties = {
 };
 
 /** Five solid stars for the social-proof strip (decorative). */
-function ProofStars() {
-  return (
-    <span style={{ display: "inline-flex", gap: 2, color: "var(--brand-accent)" }} aria-hidden="true">
-      {Array.from({ length: 5 }, (_, i) => (
-        <Icon key={i} name="star" size={12} fill="currentColor" strokeWidth={1.5} />
-      ))}
-    </span>
-  );
-}
-
 function shell(extra?: React.CSSProperties): React.CSSProperties {
   return { maxWidth: MAX, margin: "0 auto", padding: PAD, ...extra };
 }
@@ -121,6 +111,7 @@ function PhotoWell({
   numberSize,
   gradient,
   image,
+  href,
   delayMs = 0,
 }: {
   n: string;
@@ -129,24 +120,25 @@ function PhotoWell({
   numberSize: number;
   gradient: string;
   image?: string;
+  href?: string;
   delayMs?: number;
 }) {
-  return (
-    <div
-      data-reveal="1"
-      className="tj-photo-well"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        borderRadius: "var(--radius-lg)",
-        overflow: "hidden",
-        border: "1px solid var(--border-subtle)",
-        background: "var(--surface-card)",
-        animationDelay: `${delayMs}ms`,
-        transitionDelay: `${delayMs}ms`,
-        height: "100%",
-      }}
-    >
+  const style: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    borderRadius: "var(--radius-lg)",
+    overflow: "hidden",
+    border: "1px solid var(--border-subtle)",
+    background: "var(--surface-card)",
+    animationDelay: `${delayMs}ms`,
+    transitionDelay: `${delayMs}ms`,
+    height: "100%",
+    textDecoration: "none",
+    color: "inherit",
+  };
+
+  const body = (
+    <>
       <span
         aria-hidden="true"
         className="tj-photo-media"
@@ -241,6 +233,20 @@ function PhotoWell({
           {caption}
         </span>
       </span>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link data-reveal="1" href={href} className="tj-photo-well" style={style}>
+        {body}
+      </Link>
+    );
+  }
+
+  return (
+    <div data-reveal="1" className="tj-photo-well" style={style}>
+      {body}
     </div>
   );
 }
@@ -307,6 +313,14 @@ export default function Home() {
     setShowInquiry(true);
   };
   const closeInquiry = () => setShowInquiry(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("join") !== "1") return;
+    window.history.replaceState({}, "", window.location.pathname + window.location.hash);
+    const id = window.setTimeout(() => openInquiry(), 0);
+    return () => window.clearTimeout(id);
+  }, []);
 
   const submitInquiry = async () => {
     if (submitting) return;
@@ -699,7 +713,7 @@ export default function Home() {
               <Button variant="primary" size="lg" trailingIcon="arrowRight" onClick={openInquiry}>
                 {ctaPrimary}
               </Button>
-              <a href="#product" style={{ display: "flex" }}>
+              <a href="#tour" style={{ display: "flex" }}>
                 <Button variant="outline" size="lg">
                   {t.landing.cta.seeHow}
                 </Button>
@@ -1161,7 +1175,6 @@ export default function Home() {
                     >
                       {s.score}
                     </span>
-                    <ProofStars />
                   </span>
                 </div>
               ))}
@@ -1244,6 +1257,7 @@ export default function Home() {
                 numberSize={108}
                 gradient="linear-gradient(140deg,var(--blue-100) 0%,var(--blue-50) 46%,var(--teal-100) 100%)"
                 image={i.image}
+                href={i.href}
                 delayMs={(idx % 3) * 70}
               />
             ))}
@@ -1668,16 +1682,6 @@ export default function Home() {
         <div data-t="pad" style={shell()}>
           <div style={{ textAlign: "center", maxWidth: "50ch", margin: "0 auto 40px" }}>
             <h2 data-reveal="1" style={h2Style}>{t.landing.pricing.title}</h2>
-            <p
-              data-reveal="1"
-              style={{
-                font: "var(--fw-regular) 16px/1.6 var(--font-sans)",
-                color: "var(--text-muted)",
-                margin: "14px 0 0",
-              }}
-            >
-              {t.landing.pricing.note}
-            </p>
           </div>
           <div
             data-t="price"
@@ -1755,7 +1759,7 @@ export default function Home() {
                 </div>
                 <div className="tj-plan-cta">
                   <Button variant={p.variant} fullWidth onClick={openInquiry}>
-                    {p.isContact ? t.landing.cta.talkToUs : ctaPrimary}
+                    {p.cta}
                   </Button>
                 </div>
               </div>
@@ -1839,29 +1843,19 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ------------------------------------------------------- gallery -- */}
+      {/* -------------------------------------------------- product tour -- */}
       <section
+        id="tour"
         data-t="sect"
         style={{ padding: "88px 0", background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}
       >
         <div data-t="pad" style={shell()}>
-          <div style={{ textAlign: "center", maxWidth: "50ch", margin: "0 auto 40px" }}>
-            <h2 data-reveal="1" style={h2Style}>{t.landing.gallery.title}</h2>
-            <p data-reveal="1" style={{ ...leadStyle, margin: "14px 0 0" }}>{t.landing.gallery.body}</p>
+          <div style={{ textAlign: "center", maxWidth: "52ch", margin: "0 auto 36px" }}>
+            <h2 data-reveal="1" style={h2Style}>{t.landing.tour.title}</h2>
+            <p data-reveal="1" style={{ ...leadStyle, margin: "14px 0 0" }}>{t.landing.tour.body}</p>
           </div>
-          <div data-t="gal" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }}>
-            {gallery.map((g, idx) => (
-              <PhotoWell
-                key={g.title}
-                n={g.n}
-                title={g.title}
-                caption={g.caption}
-                numberSize={132}
-                gradient="linear-gradient(150deg,var(--teal-100) 0%,var(--blue-50) 48%,var(--blue-100) 100%)"
-                image={g.image}
-                delayMs={idx * 90}
-              />
-            ))}
+          <div data-reveal="1" style={{ maxWidth: 520, margin: "0 auto" }}>
+            <ProductTour onToast={showToast} />
           </div>
         </div>
       </section>
@@ -1984,8 +1978,8 @@ export default function Home() {
                 <span className="tj-foot-head" style={eyebrowStyle}>{fc.head}</span>
                 {fc.links.map((fl) => (
                   <a
-                    key={fl}
-                    href="#"
+                    key={fl.href + fl.label}
+                    href={fl.href}
                     className="tj-footlink"
                     style={{
                       font: "var(--fw-medium) 14px/1.35 var(--font-sans)",
@@ -1993,7 +1987,7 @@ export default function Home() {
                       cursor: "pointer",
                     }}
                   >
-                    {fl}
+                    {fl.label}
                   </a>
                 ))}
               </div>
@@ -2037,19 +2031,23 @@ export default function Home() {
       {toast && (
         <div
           style={{
-            position: "sticky",
-            bottom: 28,
+            // Fixed, not sticky: a sticky toast resolves to its flow position
+            // once the page is scrolled to the end, which landed the pill on top
+            // of the closing CTA buttons instead of above them.
+            position: "fixed",
+            left: 0,
+            right: 0,
+            bottom: "calc(28px + env(safe-area-inset-bottom, 0px))",
             zIndex: 90,
-            height: 0,
             display: "flex",
             justifyContent: "center",
+            padding: "0 20px",
             pointerEvents: "none",
           }}
         >
           <div
             role="status"
             style={{
-              transform: "translateY(-100%)",
               padding: "13px 22px",
               borderRadius: "var(--radius-pill)",
               background: "var(--surface-inverse)",

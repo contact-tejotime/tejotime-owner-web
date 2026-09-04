@@ -39,6 +39,11 @@ export function SupportContact({ variant = "sidebar" }: { variant?: Variant }) {
           {SUPPORT.phoneDisplay}
         </a>
       </div>
+      <address className="support-contact-address">
+        {SUPPORT.addressLines.map((line) => (
+          <span key={line}>{line}</span>
+        ))}
+      </address>
     </div>
   );
 }
