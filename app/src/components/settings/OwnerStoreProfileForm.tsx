@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { TButton, TInput, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
 import { t } from '@/i18n';
+import { DEFAULT_DIAL_CODE } from '@/lib/phone';
 import { showToast } from '@/lib/toast';
 import { pickAndUploadImage, type UploadAssetType } from '@/lib/upload';
 import { useAppState } from '@/state/store';
@@ -160,7 +161,7 @@ export function OwnerStoreProfileForm() {
         <TInput label={t.profile.cityLabel} value={city} onChangeText={setCity} />
         <TInput
           label={t.profile.phoneLabel}
-          prefix={`+${biz?.countryCode ?? '91'}`}
+          prefix={`+${biz?.countryCode ?? DEFAULT_DIAL_CODE}`}
           value={biz?.phoneNumber ?? ''}
           disabled
           hint={t.profile.phoneLockedHint}

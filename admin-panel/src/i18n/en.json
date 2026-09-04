@@ -71,7 +71,7 @@
     "signIn": "Sign in",
     "mobilePrompt": "Enter your registered mobile number and password.",
     "mobileLabel": "Mobile number",
-    "mobilePlaceholder": "e.g. 9399385943",
+    "mobilePlaceholder": "(555) 123-4567",
     "passwordLabel": "Password",
     "passwordPlaceholder": "Enter password",
     "showPassword": "Show password",
@@ -94,6 +94,49 @@
     "otpVerifyError": "Incorrect OTP. Try again.",
     "networkError": "Network error. Is the backend running?",
     "needHelp": "Need help? Contact TejoTime support",
+    "helpTitle": "Need help signing in?",
+    "title": "Admin sign in",
+    "subtitle": "For the TejoTime team. Full access to stores, billing and reports.",
+    "brandFoot": "Internal console — TejoTime team only",
+    "slideDot": "Show slide {n} of {total}",
+    "slides": [
+      {
+        "badge": "Platform, live",
+        "headline": "Every store on TejoTime, in one console.",
+        "sub": "Onboard a shop, change a plan, sort out a booking — all from one desk.",
+        "card": "All stores",
+        "meta": "128 active",
+        "rows": [
+          { "name": "Glow Salon & Spa", "line": "Austin, TX · Pro plan", "badge": "Active", "tone": "success" },
+          { "name": "Sharp Cuts Barbers", "line": "Portland, OR · Starter plan", "badge": "Active", "tone": "success" },
+          { "name": "Serene Wellness", "line": "Denver, CO · trial ends in 4 days", "badge": "Trial", "tone": "warning" }
+        ]
+      },
+      {
+        "badge": "New this week",
+        "headline": "See who asked for a demo.",
+        "sub": "Inquiries land here the moment a shop signs up, ready to turn into a store.",
+        "card": "Inquiries",
+        "meta": "6 new",
+        "rows": [
+          { "name": "Urban Fade Studio", "line": "Inquiry · 2 hours ago", "badge": "New", "tone": "primary" },
+          { "name": "Bloom Skin Clinic", "line": "Inquiry · yesterday", "badge": "New", "tone": "primary" },
+          { "name": "The Nail Bar", "line": "Contacted · demo booked", "badge": "In progress", "tone": "warning" }
+        ]
+      },
+      {
+        "badge": "Reports, not guesswork",
+        "headline": "Know how the platform is doing.",
+        "sub": "Bookings, renewals and store-by-store activity, reported the same way every day.",
+        "card": "Last 7 days",
+        "meta": "Updated today",
+        "rows": [
+          { "name": "Bookings", "line": "Across every live store", "badge": "3,412", "tone": "primary" },
+          { "name": "Renewals", "line": "Plans renewed this week", "badge": "48", "tone": "success" },
+          { "name": "Needs attention", "line": "Trials ending in 7 days", "badge": "5", "tone": "warning" }
+        ]
+      }
+    ],
     "supportEmail": "Email support",
     "supportCall": "Call support"
   },
@@ -477,7 +520,7 @@
     "working": "Working…"
   },
   "phoneField": {
-    "defaultPlaceholder": "Phone number",
+    "defaultPlaceholder": "(555) 123-4567",
     "selectCountryCode": "Select country code",
     "searchPlaceholder": "Search country or code…",
     "noMatches": "No matches",

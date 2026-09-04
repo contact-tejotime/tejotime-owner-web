@@ -7,6 +7,7 @@ import { OwnerStoreProfileForm } from '@/components/settings/OwnerStoreProfileFo
 import { SettingsPageShell } from '@/components/settings';
 import { t } from '@/i18n';
 import { isOwnerRole } from '@/lib/permissions';
+import { DEFAULT_DIAL_CODE } from '@/lib/phone';
 import { useAppState } from '@/state/store';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
@@ -57,7 +58,7 @@ function StaffProfileForm() {
             <TInput label={t.profile.nameLabel} value={name} onChangeText={setName} />
             <TInput
               label={t.profile.phoneLabel}
-              prefix={`+${biz?.countryCode ?? '91'}`}
+              prefix={`+${biz?.countryCode ?? DEFAULT_DIAL_CODE}`}
               value={biz?.phoneNumber ?? ''}
               disabled
             />

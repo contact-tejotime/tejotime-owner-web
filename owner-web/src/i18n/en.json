@@ -319,10 +319,11 @@
     "ownerTitle": "Owner sign in",
     "ownerSubtitle": "For the business owner and co-owners. Full access to the shop.",
     "staffTitle": "Staff sign in",
-    "staffSubtitle": "For team members. You will see your own chair and whatever the owner has shared.",
+    "staffSubtitle": "For stylists and front-desk staff. Access to the queue and today’s schedule.",
     "phoneLabel": "Mobile number",
-    "phonePlaceholder": "Phone number",
+    "phonePlaceholder": "(555) 123-4567",
     "passwordLabel": "Password",
+    "passwordPlaceholder": "Enter your password",
     "hidePassword": "Hide password",
     "showPassword": "Show password",
     "hide": "Hide",
@@ -331,7 +332,46 @@
     "signingIn": "Signing in…",
     "signInFailed": "Could not sign in. Check your number and password.",
     "networkError": "Could not reach the server. Check your connection and try again.",
-    "staffFoot": "Staff logins are created by your business owner. If you do not have one, ask them to add you under Settings → Team logins."
+    "staffFoot": "Staff logins are created by your business owner. If you do not have one, ask them to add you under Settings → Team logins.",
+    "helpTitle": "Need help signing in?",
+    "brandFoot": "Built for salons, clinics, spas and studios",
+    "slideDot": "Show slide {n} of {total}",
+    "slideStore": "Test Store123",
+    "slides": [
+      {
+        "badge": "Live queue, right now",
+        "headline": "Run the day without it running you.",
+        "sub": "Every appointment, walk-in and stylist status on one screen — no back office, no spreadsheets.",
+        "meta": "0 waiting",
+        "rows": [
+          { "name": "User 1", "line": "Available · ready for walk-in", "badge": "Free", "tone": "success" },
+          { "name": "User 2", "line": "Available · ready for walk-in", "badge": "Free", "tone": "success" },
+          { "name": "User 3", "line": "Available · ready for walk-in", "badge": "Free", "tone": "success" }
+        ]
+      },
+      {
+        "badge": "Today’s appointments",
+        "headline": "Every booking, right where you can see it.",
+        "sub": "Clients book from your page and it lands straight on your calendar — no calls, no back-and-forth.",
+        "meta": "3 today",
+        "rows": [
+          { "name": "Sarah Johnson", "line": "10:00 AM · Haircut", "badge": "Confirmed", "tone": "primary" },
+          { "name": "Marcus Lee", "line": "10:30 AM · Beard trim", "badge": "Confirmed", "tone": "primary" },
+          { "name": "Emma Wilson", "line": "11:00 AM · Colour", "badge": "Confirmed", "tone": "primary" }
+        ]
+      },
+      {
+        "badge": "Walk-ins welcome",
+        "headline": "Add a walk-in in one tap.",
+        "sub": "Front desk adds a name, the queue updates for everyone, and clients see their wait before they sit down.",
+        "meta": "1 waiting",
+        "rows": [
+          { "name": "Rohit V.", "line": "Beard trim · walked in", "badge": "Waiting", "tone": "warning" },
+          { "name": "User 1", "line": "Available · ready for walk-in", "badge": "Free", "tone": "success" },
+          { "name": "User 2", "line": "Available · ready for walk-in", "badge": "Free", "tone": "success" }
+        ]
+      }
+    ]
   },
   "settings": {
     "title": "Settings",
@@ -406,7 +446,7 @@
     "addTitle": "Add a login",
     "nameLabel": "Name",
     "phoneLabel": "Mobile number",
-    "phonePlaceholder": "Phone number",
+    "phonePlaceholder": "(555) 123-4567",
     "phoneHint": "This is what they sign in with.",
     "passwordLabel": "Temporary password",
     "passwordHint": "At least 8 characters. They can change it once signed in.",
@@ -591,7 +631,7 @@
     "nameLabel": "Customer name",
     "namePlaceholder": "Full name",
     "phoneLabel": "Phone",
-    "phonePlaceholder": "Phone number",
+    "phonePlaceholder": "(555) 123-4567",
     "service": "Service",
     "assignSeat": "Assign to seat",
     "anySeat": "Any seat",
@@ -835,7 +875,7 @@
     "counter": "{index} of {total}"
   },
   "phoneField": {
-    "placeholder": "Phone number",
+    "placeholder": "(555) 123-4567",
     "selectCountryCode": "Select country code",
     "countries": "Countries",
     "searchPlaceholder": "Search country or code…",

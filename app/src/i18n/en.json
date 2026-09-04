@@ -54,7 +54,7 @@
     "welcomeBack": "Welcome back",
     "subtitle": "Sign in to manage your queue",
     "phoneLabel": "Phone number",
-    "phonePlaceholder": "9399385943",
+    "phonePlaceholder": "(555) 123-4567",
     "passwordLabel": "Password",
     "passwordPlaceholder": "Enter your password",
     "hidePassword": "Hide password",
@@ -440,7 +440,7 @@
     "nameLabel": "Customer name",
     "namePlaceholder": "Full name",
     "phoneLabel": "Phone",
-    "phonePlaceholder": "98xxx xxxxx",
+    "phonePlaceholder": "(555) 123-4567",
     "service": "Service",
     "visitorType": "Visitor type",
     "assignSeat": "Assign to seat",
@@ -549,7 +549,7 @@
     "uploadFailed": "Upload failed ({status})"
   },
   "phone": {
-    "placeholder": "Phone number",
+    "placeholder": "(555) 123-4567",
     "selectCode": "Select country code",
     "selectCountry": "Select country",
     "searchPlaceholder": "Search country or code…",

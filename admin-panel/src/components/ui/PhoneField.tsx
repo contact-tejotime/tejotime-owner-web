@@ -75,7 +75,7 @@ export default function PhoneField({
   }
 
   return (
-    <div className="field phone-field" ref={wrapRef}>
+    <div className={"field phone-field" + (open ? " is-open" : "")} ref={wrapRef}>
       {label && (
         <label htmlFor={id}>
           {label}

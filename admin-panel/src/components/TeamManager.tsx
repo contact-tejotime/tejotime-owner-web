@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AdminTeamMember } from "@/lib/types";
-import { formatPhone } from "@/lib/phone";
+import { DEFAULT_DIAL_CODE, DEFAULT_ISO2, formatPhone } from "@/lib/phone";
 import { t, format } from "@/i18n";
 import PhoneField, { type PhoneValue } from "@/components/ui/PhoneField";
 import Spinner from "@/components/ui/Spinner";
@@ -27,7 +27,7 @@ export default function TeamManager({ initialMembers }: { initialMembers: AdminT
   const [notice, setNotice] = useState("");
 
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState<PhoneValue>({ dialCode: "91", national: "", iso2: "IN" });
+  const [phone, setPhone] = useState<PhoneValue>({ dialCode: DEFAULT_DIAL_CODE, national: "", iso2: DEFAULT_ISO2 });
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -35,7 +35,7 @@ export default function TeamManager({ initialMembers }: { initialMembers: AdminT
 
   function resetForm() {
     setName("");
-    setPhone({ dialCode: "91", national: "", iso2: "IN" });
+    setPhone({ dialCode: DEFAULT_DIAL_CODE, national: "", iso2: DEFAULT_ISO2 });
     setPassword("");
   }
 
