@@ -5,9 +5,9 @@ import { COUNTRIES, type Country } from './countries';
 export { COUNTRIES };
 export type { Country };
 
-/** Default country for new inputs (India). */
-export const DEFAULT_ISO2 = 'IN';
-export const DEFAULT_DIAL_CODE = '91';
+/** Default country for new inputs (United States). */
+export const DEFAULT_ISO2 = 'US';
+export const DEFAULT_DIAL_CODE = '1';
 
 /** Emoji flag from an ISO 3166-1 alpha-2 code, computed at runtime (no data). */
 export function flagEmoji(iso2: string): string {
@@ -24,11 +24,12 @@ export function countryByIso(iso2: string): Country | undefined {
 
 /**
  * Best country match for a dial code. Several countries share a calling code
- * (e.g. +1); this returns the first match, used only to seed the picker's flag.
+ * (e.g. +1); prefer the US for +1, otherwise the first list match.
  * The stored value is always the dial code itself, never the ISO.
  */
 export function countryByDial(dialCode: string): Country | undefined {
   const d = onlyDigits(dialCode);
+  if (d === '1') return COUNTRIES.find((c) => c.iso2 === 'US') ?? COUNTRIES.find((c) => c.dialCode === d);
   return COUNTRIES.find((c) => c.dialCode === d);
 }
 

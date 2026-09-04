@@ -75,14 +75,14 @@ export default function PhoneField({
   }
 
   return (
-    <div className="field phone-field" ref={wrapRef}>
+    <div className={"field phone-field" + (open ? " is-open" : "")} ref={wrapRef}>
       {label && (
         <label htmlFor={id}>
           {label}
           {required ? " *" : ""}
         </label>
       )}
-      <div className="phone-row">
+      <div className={"phone-row" + (open ? " is-open" : "")}>
         <button
           ref={triggerRef}
           type="button"

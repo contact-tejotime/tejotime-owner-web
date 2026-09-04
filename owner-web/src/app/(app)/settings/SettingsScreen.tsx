@@ -201,7 +201,6 @@ export function SettingsScreen({
       </div>
 
       </section>
-      </div>
 
       <section className="settings-group">
         <p className="settings-group-label">{t.settings.groupSupport}</p>
@@ -221,15 +220,14 @@ export function SettingsScreen({
         </div>
       </section>
 
-      <div className="settings-card" style={{ marginTop: 16 }}>
-        <div className="settings-row settings-row-stack">
-          {/* The demo role picker that lived here is gone: a user cannot choose their own role.
-              It comes from the server with the session. */}
-          <button type="button" className="btn secondary block" onClick={onLogout}>
-            <Icon name="logOut" size={16} />
-            {t.settings.logout}
-          </button>
-        </div>
+      <section className="settings-group settings-logout">
+        {/* The demo role picker that lived here is gone: a user cannot choose their own role.
+            It comes from the server with the session. */}
+        <button type="button" className="btn secondary block" onClick={onLogout}>
+          <Icon name="logOut" size={16} />
+          {t.settings.logout}
+        </button>
+      </section>
       </div>
     </div>
   );
