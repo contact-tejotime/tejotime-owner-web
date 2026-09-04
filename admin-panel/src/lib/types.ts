@@ -156,7 +156,7 @@ export const EMPTY_FORM: StoreForm = {
    * suggestion for NEW stores only, never applied to a store that already exists.
    */
   theme: { ...LEGACY_THEME_CONFIG },
-  countryCode: "91",
+  countryCode: "1",
   phoneNumber: "",
   hours: blankHours(),
   amenities: [],

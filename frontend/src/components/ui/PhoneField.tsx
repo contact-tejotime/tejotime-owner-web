@@ -40,7 +40,7 @@ export default function PhoneField({
   national,
   onCountryChange,
   onNationalChange,
-  placeholder = "00000 00000",
+  placeholder = "(555) 123-4567",
   marginBottom = 16,
 }: Props) {
   const [open, setOpen] = useState(false);
