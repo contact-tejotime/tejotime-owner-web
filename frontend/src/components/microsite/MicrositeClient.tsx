@@ -8,7 +8,7 @@ import { Icon } from "@/components/Icon";
 import { Button } from "@/components/Button";
 import PhoneField from "@/components/ui/PhoneField";
 import { ApiError, publicApi, type Microsite, type MicrositeStaff, type Slot, type Ticket } from "@/lib/api";
-import { t, format } from "@/i18n";
+import { t, format, plural } from "@/i18n";
 import { currencySymbol } from "@/lib/currencies";
 import { combineToE164, DEFAULT_DIAL_CODE, DEFAULT_ISO2, formatPhone, splitPhone } from "@/lib/phone";
 import type { CustomerAuth } from "@/lib/socket";
@@ -142,9 +142,12 @@ function LiveStatusNum({ children, onDark }: { children: ReactNode; onDark?: boo
 }
 
 /**
- * Structured live status — same four cases as the old plain `liveSub` string, with the
- * free-count / ahead-count pulled forward so "All 4 free" and waiting numbers attract the eye.
- * Used by the mobile bottom bar and LiveBoard dark tile (compact one-liners).
+ * Structured live status — the free-count / ahead-count pulled forward so the numbers attract
+ * the eye. Used by the mobile bottom bar and the LiveBoard dark tile (compact one-liners).
+ *
+ * This line used to say "All 4 free" and "Lisa free", in hardcoded English. "Free" reads as
+ * *no charge* on a page that also prints prices, which is the single ambiguity the copy review
+ * called out first — it now says "available", and every fragment comes from `t`.
  */
 function LiveStatusLine({
   membersLength,
@@ -152,22 +155,31 @@ function LiveStatusLine({
   freeName,
   freeCount,
   onDark,
+  closed = false,
+  closedLabel,
 }: {
   membersLength: number;
   liveCount: number;
   freeName: string | null;
   freeCount: number;
   onDark?: boolean;
+  closed?: boolean;
+  closedLabel?: string;
 }) {
   const muted = onDark ? "rgba(255,255,255,.7)" : "var(--text-muted)";
   const body = onDark ? "rgba(255,255,255,.92)" : "var(--text-body)";
   const freePhrase = onDark ? "rgba(255,255,255,.95)" : "var(--success)";
 
-  if (membersLength === 0) {
+  // Outside business hours an idle floor is not an invitation. Anyone already queued is still
+  // reported, because their place is real; an empty closed floor just says so.
+  if (closed && liveCount === 0) {
+    return <span style={{ color: muted }}>{closedLabel ?? t.microsite.wait.liveClosed}</span>;
+  }
+  if (membersLength === 0 || closed) {
     return (
       <span style={{ color: body }}>
         <LiveStatusNum onDark={onDark}>{liveCount}</LiveStatusNum>
-        <span style={{ color: muted }}> in the queue right now</span>
+        <span style={{ color: muted }}>{t.microsite.wait.liveOnWaitlist}</span>
       </span>
     );
   }
@@ -175,19 +187,23 @@ function LiveStatusLine({
     return (
       <span style={{ color: body }}>
         <span style={{ font: "var(--fw-bold) 1em/1.35 var(--font-sans)", color: freePhrase }}>
-          All <LiveStatusNum onDark={onDark}>{membersLength}</LiveStatusNum> free
+          {t.microsite.wait.liveAllPrefix}
+          <LiveStatusNum onDark={onDark}>{membersLength}</LiveStatusNum>
+          {t.microsite.wait.liveAllSuffix}
         </span>
-        <span style={{ color: muted }}> · no wait</span>
+        <span style={{ color: muted }}>{t.microsite.wait.liveNoWait}</span>
       </span>
     );
   }
   if (freeName) {
     return (
       <span style={{ color: body }}>
-        <span style={{ font: "var(--fw-semibold) 1em/1.35 var(--font-sans)", color: body }}>{freeName} free</span>
-        <span style={{ color: muted }}> · </span>
+        <span style={{ font: "var(--fw-semibold) 1em/1.35 var(--font-sans)", color: body }}>
+          {format(t.microsite.wait.liveNameAvailable, { name: freeName })}
+        </span>
+        <span style={{ color: muted }}>{t.microsite.wait.liveSeparator}</span>
         <LiveStatusNum onDark={onDark}>{liveCount}</LiveStatusNum>
-        <span style={{ color: muted }}> waiting</span>
+        <span style={{ color: muted }}>{t.microsite.wait.liveWaiting}</span>
       </span>
     );
   }
@@ -221,24 +237,32 @@ function QueueWaitSummary({
   liveCount,
   members,
   waitHeadline,
+  walkInsClosed = false,
 }: {
   liveCount: number;
   members: QueueStaffMember[];
   waitHeadline: string;
+  walkInsClosed?: boolean;
 }) {
   const freeCount = members.filter((m) => !m.busy).length;
   const assignedWaiting = members.reduce((n, m) => n + m.count, 0);
   const unassignedWaiting = Math.max(0, liveCount - assignedWaiting);
   const shown = members.slice(0, QUEUE_STAFF_PREVIEW);
   const overflow = members.length - shown.length;
-  const isClear = liveCount === 0 && (members.length === 0 || freeCount > 0);
+  // A closed shop is never "clear": the old green "0 min wait" read as an invitation to walk in
+  // while the badge two lines above said CLOSED TODAY. Anyone still queued is shown as waiting.
+  const isClear = !walkInsClosed && liveCount === 0 && (members.length === 0 || freeCount > 0);
 
   const headline =
-    members.length === 0 ? (
+    walkInsClosed && liveCount === 0 ? (
+      <span className="ttWaitCountLabel" style={{ font: "var(--fw-bold) 0.62em/1.1 var(--font-sans)", color: "var(--text-muted)" }}>
+        {t.microsite.wait.closed}
+      </span>
+    ) : members.length === 0 ? (
       <>
         <span className="ttWaitCountNum" style={{ fontVariantNumeric: "tabular-nums" }}>{liveCount}</span>
         <span className="ttWaitCountLabel" style={{ font: "var(--fw-bold) 0.55em/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-muted)", marginLeft: "0.28em" }}>
-          in queue
+          {t.microsite.sections.waitingLabel}
         </span>
       </>
     ) : isClear ? (
@@ -256,7 +280,7 @@ function QueueWaitSummary({
         <span>
           <span className="ttWaitCountNum" style={{ fontVariantNumeric: "tabular-nums" }}>0</span>
           <span className="ttWaitCountLabel" style={{ font: "var(--fw-bold) 0.55em/1.1 var(--font-sans)", letterSpacing: "-.02em", marginLeft: "0.28em" }}>
-            min wait
+            {t.microsite.sections.minWaitLabel}
           </span>
         </span>
       </span>
@@ -264,7 +288,7 @@ function QueueWaitSummary({
       <>
         <span className="ttWaitCountNum" style={{ fontVariantNumeric: "tabular-nums" }}>{liveCount}</span>
         <span className="ttWaitCountLabel" style={{ font: "var(--fw-bold) 0.55em/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-muted)", marginLeft: "0.28em" }}>
-          waiting
+          {t.microsite.sections.waitingLabel}
         </span>
       </>
     );
@@ -305,7 +329,7 @@ function QueueWaitSummary({
         style={{
           font: "var(--fw-extrabold) clamp(24px, 3.4vw, 38px)/1.02 var(--font-sans)",
           letterSpacing: "-.035em",
-          color: isClear ? "var(--success)" : "var(--text-strong)",
+          color: isClear ? "var(--success)" : walkInsClosed ? "var(--text-muted)" : "var(--text-strong)",
         }}
       >
         {headline}
@@ -320,7 +344,9 @@ function QueueWaitSummary({
       >
         {waitHeadline}
       </div>
-      {members.length > 0 && (
+      {/* The breakdown says "Available" against every idle seat — true of the floor, false as an
+          invitation once the doors are shut. Hidden while closed unless someone is still queued. */}
+      {members.length > 0 && !(walkInsClosed && liveCount === 0) && (
         <ul
           style={{
             listStyle: "none",
@@ -349,7 +375,7 @@ function QueueWaitSummary({
 }
 
 function staffWaitLabel(waitMinutes: number): string {
-  return waitMinutes > 0 ? format(t.microsite.wait.minShort, { min: waitMinutes }) : t.microsite.wait.free;
+  return waitMinutes > 0 ? format(t.microsite.wait.minShort, { min: waitMinutes }) : t.microsite.sections.noWaitCell;
 }
 
 type View = "flow" | "already" | "blocked" | "left" | "track";
@@ -659,12 +685,25 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
   // ---- derived data ----
   const curSym = currencySymbol(site.currency);
+  // A zero price is how the product stores "not priced yet" — every store that has not filled in
+  // its menu was telling customers each service cost $0, i.e. that it was free. The label is
+  // built once, here, so no call site can reintroduce a bare `${curSym}${number}`.
+  const priceLabelFor = (amountPaise: number) =>
+    amountPaise > 0 ? `${curSym}${Math.round(amountPaise / 100)}` : t.microsite.sections.priceVaries;
   const services = (site.services ?? []).map((s) => ({
     id: s.id,
     name: s.name,
     dur: `${s.durationMinutes} min`,
-    price: Math.round(s.price.amount / 100),
+    priceLabel: priceLabelFor(s.price.amount),
   }));
+
+  // ---- open / closed ----
+  // Business hours are the only open/closed signal the API has, so a store that never configured
+  // them reports isOpen:false forever. Treat "no hours" as unknown and leave the walk-in flow
+  // live — gating on the raw flag alone would silently switch check-in off for every such store.
+  const hasHours = site.hours.length > 0;
+  const walkInsClosed = hasHours && !site.openStatus.isOpen;
+  const nextOpenLabel = site.openStatus.nextOpenLabel ?? null;
   // Which screens the join/book modal shows, in order — computed per-business so the
   // progress bar and navigation stay correct regardless of which optional screens apply.
   const isHospital = site.category === "Hospital";
@@ -719,23 +758,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const showAbout = hasAboutText || hasAboutImage || isDemo;
   const rating = site.rating ?? 0;
   const reviewCount = site.reviewCount ?? 0;
-  const establishedYear = site.establishedYear ?? 2014;
-  const yearsOpen = Math.max(1, new Date().getFullYear() - establishedYear);
-
-  // Trust stats — only surface cells with real data (no "in town" / "0 team members" / "★ 0"
-  // placeholders). Rendered as a row at the bottom of the About section.
-  const trustCells = [
-    site.establishedYear != null && site.area
-      ? [format(t.microsite.ticker.yearsOpen, { years: yearsOpen }), format(t.microsite.ticker.inArea, { area: site.area })]
-      : null,
-    members.length > 0
-      ? [format(t.microsite.ticker.membersCount, { count: members.length }), t.microsite.ticker.expertTeam]
-      : null,
-    site.statValue && site.statLabel ? [site.statValue, site.statLabel] : null,
-    reviewCount > 0
-      ? [format(t.microsite.ticker.ratingStars, { rating }), format(t.microsite.ticker.reviewsCount, { count: reviewCount })]
-      : null,
-  ].filter(Boolean) as [string, string][];
 
   // ---- modal control ----
   const openJoin = (m: "queue" | "book", preselectMember = "any") => {
@@ -775,9 +797,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setJoinOpen(true);
     if (firstScreen === "details" && m === "book") fetchSlotsForToday(null);
   };
-  const openQueue = () => openJoin("queue");
+  // Every walk-in control is disabled or re-pointed while the shop is closed; these two are the
+  // backstop for a page left open past closing time, so a stale render cannot mint a token that
+  // nobody is there to serve.
+  const openQueue = () => openJoin(walkInsClosed ? "book" : "queue");
   const openBook = () => openJoin("book");
-  const openWith = (memberId: string) => openJoin("queue", memberId);
+  // The provider survives the switch: openJoin seeds `member`, so "Book with Sneha" on a closed
+  // store opens the appointment flow with Sneha already selected rather than dropping the choice.
+  const openWith = (memberId: string) => openJoin(walkInsClosed ? "book" : "queue", memberId);
 
   // ---- Save contact ----
   // The sheet now opens on every device rather than handheld jumping straight to the chooser.
@@ -859,7 +886,8 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // From the Track "no active booking" screen: carry the phone + known name into a
   // fresh Join; only service selection is left.
   const joinAfterTrack = () => {
-    setMode("queue");
+    // Same gate as every other walk-in entry point: a closed store gets the booking flow.
+    setMode(walkInsClosed ? "book" : "queue");
     setView("flow");
     setScreen(flowScreens[0]);
     setCart(null);
@@ -873,6 +901,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setConfirmLeave(false);
     setSlots([]);
     setSelectedSlot(null);
+  };
+
+  // Booking → waitlist without losing the form. Only reachable when the store is open and the
+  // day has no slots left; `mode` drives validation and submission, so nothing else has to move.
+  const switchToWaitlist = () => {
+    setMode("queue");
+    setSelectedSlot(null);
+    setFormError("");
   };
 
   const closeJoin = () => {
@@ -1052,7 +1088,23 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // Shop-wide "soonest free chair" wait. A 0 means a chair is open right now, so read
   // it as an invitation ("Walk in now") rather than the nonsensical "~0 min wait".
   const displayLiveWait = displayStaffWaitMinutes(liveWait, liveAsOf, nowTs);
-  const waitHeadline = displayLiveWait > 0 ? format(t.microsite.wait.minWait, { min: displayLiveWait }) : t.microsite.wait.walkInNow;
+  // Outside business hours the shop-wide wait is meaningless — a 0 there used to render as an
+  // invitation ("Walk in now") directly beneath the CLOSED badge.
+  //
+  // Two values, because they land in different slots: `waitHeadline` is a compact display value
+  // (the live-board tile at up to 56px, the stat tile, the mobile bar), while `waitDetail` is the
+  // supporting line under it. Closed, that reads "Closed" over "Opens Monday at 10:00 AM" rather
+  // than the same sentence three times in one card.
+  const waitHeadline = walkInsClosed
+    ? t.microsite.wait.closed
+    : displayLiveWait > 0
+      ? format(t.microsite.wait.minWait, { min: displayLiveWait })
+      : t.microsite.wait.walkInNow;
+  const waitDetail = walkInsClosed
+    ? nextOpenLabel
+      ? format(t.microsite.wait.opensAt, { when: nextOpenLabel })
+      : t.microsite.wait.walkInsClosed
+    : waitHeadline;
   // Join-form summary wait, member-aware: a specific member shows their own chair's
   // clear time; "Any" falls back to the shop-wide soonest value.
   const selMember = members.find((b) => b.id === member);
@@ -1092,10 +1144,11 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // two never drift. Each is shown only when its section actually renders.
   const navLinks = (
     [
-      [showAbout, t.microsite.nav.about, "#about"],
-      [gallery.length > 0 || isDemo, t.microsite.nav.gallery, "#gallery"],
       [services.length > 0, t.microsite.nav.services, "#services"],
       [members.length > 0, t.microsite.nav.team, "#team"],
+      [gallery.length > 0 || isDemo, t.microsite.nav.gallery, "#gallery"],
+      [reviews.length > 0, t.microsite.nav.reviews, "#reviews"],
+      [showAbout, t.microsite.nav.about, "#about"],
       [Boolean(site.address || site.area || site.hours.length > 0), t.microsite.nav.visitUs, "#visit"],
     ] as [boolean, string, string][]
   ).filter(([show]) => show);
@@ -1116,6 +1169,15 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
   const cantConfirm = !name.trim() || phone.replace(/\D/g, "").length < 4 || (mode === "book" && !selectedSlot);
 
+  // Pre-confirmation summary parts. Booking shows the chosen slot's own label rather than a bare
+  // "time selected", so the customer can check the time without scrolling back up to the chips.
+  const summaryWhen =
+    mode === "book"
+      ? slots.find((x) => x.startAt === selectedSlot)?.label ??
+        (selectedSlot ? t.microsite.join.timeSelected : t.microsite.join.chooseTimeAbove)
+      : joinWaitText;
+  const summaryProvider = member === "any" ? t.microsite.join.memberAny : selMember?.name ?? null;
+
   // Theming root. The colour tokens themselves are server-rendered by <ThemeStyle/> into a
   // <style> block keyed on [data-tt-theme]; this element only carries the two attributes that
   // select which of its light/dark blocks applies. useThemePreview is a no-op unless the URL
@@ -1134,6 +1196,8 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       liveCount={liveCount}
       freeCount={freeMembers.length}
       freeName={freeMembers[0]?.name ?? null}
+      closed={walkInsClosed}
+      closedLabel={nextOpenLabel ? format(t.microsite.wait.opensAt, { when: nextOpenLabel }) : undefined}
     />
   );
   const liveStatusDark = (
@@ -1142,28 +1206,47 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       liveCount={liveCount}
       freeCount={freeMembers.length}
       freeName={freeMembers[0]?.name ?? null}
+      closed={walkInsClosed}
+      closedLabel={nextOpenLabel ? format(t.microsite.wait.opensAt, { when: nextOpenLabel }) : undefined}
       onDark
     />
   );
+  // A closed store's provider cards offer the one action that still works, with that provider
+  // carried into the booking flow — rather than a disabled button that reads as a broken page.
+  const liveCtaLabel = walkInsClosed
+    ? (name: string) => format(t.microsite.sections.bookWith, { name })
+    : domain.liveCta;
   // v3's four icon cards. Built from the same guarded data as the old trust row, so a store
   // without an established year or reviews simply shows fewer cards rather than zeroes.
   // v3's accent marquee: what the store offers, then where and how well rated.
   const tickerItems = [
-    ...services.map((sv) => `${sv.name} · ${curSym}${sv.price}`),
+    ...services.map((sv) => `${sv.name} · ${sv.priceLabel}`),
     site.area ?? null,
     site.establishedYear != null ? format(t.microsite.hero.since, { year: site.establishedYear }) : null,
     reviewCount > 0 ? format(t.microsite.ticker.ratingReviews, { rating, reviewCount }) : null,
   ].filter(Boolean) as string[];
   const statCards = [
     site.establishedYear != null && site.area
-      ? { icon: "calendar" as const, value: format(t.microsite.ticker.yearsServing, { years: yearsOpen }), label: format(t.microsite.ticker.servingArea, { area: site.area }) }
+      ? { icon: "calendar" as const, value: format(t.microsite.ticker.sinceYear, { year: site.establishedYear }), label: format(t.microsite.ticker.servingArea, { area: site.area }) }
       : null,
     reviewCount > 0
-      ? { icon: "star" as const, value: String(rating), label: format(t.microsite.ticker.verifiedReviews, { count: reviewCount }) }
+      ? { icon: "star" as const, value: rating.toFixed(1), label: format(t.microsite.ticker.reviewsLabel, { count: reviewCount }) }
       : null,
-    { icon: "hourglass" as const, value: waitHeadline, label: liveCount === 0 ? "walk in right now" : "shortest wait now" },
+    {
+      icon: "hourglass" as const,
+      value: waitHeadline,
+      label: walkInsClosed
+        ? t.microsite.ticker.walkInsClosed
+        : liveCount === 0
+          ? t.microsite.ticker.walkInRightNow
+          : t.microsite.ticker.shortestWaitNow,
+    },
     members.length > 0
-      ? { icon: "users" as const, value: String(members.length), label: "on the floor" }
+      ? {
+          icon: "users" as const,
+          value: String(members.length),
+          label: plural(members.length, t.microsite.ticker.teamAvailableOne, t.microsite.ticker.teamAvailableMany),
+        }
       : null,
   ].filter(Boolean) as { icon: "calendar" | "star" | "hourglass" | "users"; value: string; label: string }[];
   const galleryPhotos = gallery.length > 0 ? gallery : [];
@@ -1184,23 +1267,27 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lightbox, galleryPhotos.length]);
 
-  // Tapping a service card opens the join flow with that service already chosen. openJoin
+  // Tapping a service card opens the booking flow with that service already chosen. openJoin
   // clears the cart, so the selection is applied after it — both run in one batched handler.
+  //
+  // This is the appointment entry point, not the walk-in one: the card says "Book Appointment",
+  // and it used to open the live-queue flow instead. Walk-ins have their own four entry points
+  // (header, hero, the per-provider cards, the sticky bar), all of which say "waitlist".
   const openServiceBooking = (serviceId: string) => {
-    openJoin("queue");
+    openJoin("book");
     setCart(serviceId);
   };
 
   /* Sections whose position varies by domain are built here and placed by the order map in
      the return. Their internals are unchanged apart from the trust row, which is now a
      the live floor as v3 stat cards. */
-  const aboutSection = (showAbout || trustCells.length > 0) ? (
+  const aboutSection = showAbout ? (
       
         <div id="about" style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(28px, 7vw, 72px) clamp(16px, 4vw, 32px) 40px" }}>
           <div style={{ ...revealStyle, display: "flex", gap: "clamp(20px, 4vw, 48px)", alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
             {hasAboutText && (
               <div style={{ flex: 1, minWidth: 300 }}>
-                <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>{t.microsite.about.eyebrow}</div>
+                <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>{site.name ? format(t.microsite.about.eyebrowNamed, { name: site.name }) : t.microsite.about.eyebrow}</div>
                 {hasHeading && (
                   <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 4vw, 34px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>{site.aboutHeading}</h2>
                 )}
@@ -1242,7 +1329,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   ) : null;
 
   const reviewsSection = reviews.length > 0 ? (
-    <Section>
+    <Section id="reviews">
       <ReviewsBlock reviews={reviews} rating={rating} reviewCount={reviewCount} avatarColors={AVATAR_COLORS} />
     </Section>
   ) : null;
@@ -1313,7 +1400,15 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             <Button variant="outline" onClick={openTrack}>{t.microsite.header.trackMyTurn}</Button>
           </span>
           <span data-desk="1">
-            <Button variant="primary" onClick={openQueue}>{domain.id === "clinic" ? t.microsite.header.takeToken : t.microsite.header.checkIn} →</Button>
+            {/* Closed shops get the booking action here rather than a disabled control: the one
+                thing a visitor can still do outside business hours is reserve a time. */}
+            <Button variant="primary" onClick={walkInsClosed ? openBook : openQueue}>
+              {walkInsClosed
+                ? t.microsite.hero.bookSlot
+                : domain.id === "clinic"
+                  ? t.microsite.header.takeToken
+                  : t.microsite.header.checkIn}
+            </Button>
           </span>
 
           <button
@@ -1359,8 +1454,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               {reviewCount > 0 && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 7, font: "var(--fw-bold) 15px/1 var(--font-sans)", color: "var(--text-strong)" }}>
                   <span style={{ color: "var(--warning)", display: "flex" }}><Icon name="star" size={17} fill="currentColor" /></span>
-                  <span style={{ fontVariantNumeric: "tabular-nums" }}>{rating}</span>
-                  <span style={{ font: "var(--fw-medium) 15px/1 var(--font-sans)", color: "var(--text-subtle)" }}>({reviewCount})</span>
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>{rating.toFixed(1)}</span>
+                  <span style={{ font: "var(--fw-medium) 15px/1 var(--font-sans)", color: "var(--text-subtle)" }}>
+                    {format(t.microsite.sections.reviewsCount, { count: reviewCount })}
+                  </span>
                 </span>
               )}
               {site.area && <span style={{ font: "var(--fw-medium) 15px/1 var(--font-sans)", color: "var(--text-muted)" }}>{site.area}</span>}
@@ -1371,11 +1468,25 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             <div className="ttWaitCard" style={{ maxWidth: 430, marginTop: "clamp(20px, 3vw, 32px)", borderRadius: "calc(26px * var(--radius-scale, 1))", padding: "clamp(18px, 2.4vw, 26px)", background: "var(--surface-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 26px 60px rgba(15,23,42,.16)" }}>
               <div style={{ font: "var(--fw-bold) 10.5px/1 var(--font-sans)", letterSpacing: ".16em", textTransform: "uppercase", color: "var(--primary)" }}>{t.microsite.hero.rightNow}</div>
               <div style={{ marginTop: 14 }}>
-                <QueueWaitSummary liveCount={liveCount} members={members} waitHeadline={waitHeadline} />
+                <QueueWaitSummary liveCount={liveCount} members={members} waitHeadline={waitDetail} walkInsClosed={walkInsClosed} />
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
-                <Button size="lg" fullWidth onClick={openQueue}>{domain.id === "clinic" ? t.microsite.hero.takeAToken : t.microsite.hero.checkIn} →</Button>
-                <Button size="lg" variant="outline" fullWidth onClick={openBook}>{t.microsite.hero.bookSlot}</Button>
+                {/* Closed: booking is promoted to the primary action and the walk-in button is
+                    dropped rather than shown disabled — an inert button reads as a broken page. */}
+                {walkInsClosed ? (
+                  <>
+                    <Button size="lg" fullWidth onClick={openBook}>{t.microsite.hero.bookSlot}</Button>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 9, font: "var(--fw-medium) 12.5px/1.4 var(--font-sans)", color: "var(--text-muted)" }}>
+                      <span style={{ display: "flex", flexShrink: 0, marginTop: 1 }}><Icon name="clock" size={14} /></span>
+                      <span>{t.microsite.wait.walkInsClosed}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Button size="lg" fullWidth onClick={openQueue}>{domain.id === "clinic" ? t.microsite.hero.takeAToken : t.microsite.hero.checkIn}</Button>
+                    <Button size="lg" variant="outline" fullWidth onClick={openBook}>{t.microsite.hero.bookSlot}</Button>
+                  </>
+                )}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 16, font: "var(--fw-medium) 12.5px/1.4 var(--font-sans)", color: "var(--text-subtle)" }}>
                 <Icon name="check" size={14} />
@@ -1411,8 +1522,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                 queueWord={queueWord}
                 liveHeadline={waitHeadline}
                 liveSub={liveStatusDark}
-                ctaLabel={domain.liveCta}
+                ctaLabel={liveCtaLabel}
                 onJoin={openWith}
+                walkInsClosed={walkInsClosed}
               />
               <StatCards cards={statCards} />
             </Section>
@@ -1426,7 +1538,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                 eyebrow={svcEyebrow}
                 heading={domain.servicesHeading}
                 note={domain.servicesNote}
-                currencySymbol={curSym}
                 onPick={openServiceBooking}
               />
             </Section>
@@ -1487,11 +1598,24 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           <div style={{ flex: 1, minWidth: 300, padding: "calc(clamp(28px, 7vw, 56px) * var(--density-scale, 1)) clamp(16px, 4vw, 32px)" }}>
             <div style={eyebrow}>{t.microsite.visit.eyebrow}</div>
             {site.address && (
-              <div style={{ display: "flex", alignItems: "center", gap: 9, font: "var(--fw-medium) 15px/1.4 var(--font-sans)", color: "var(--text-body)", marginBottom: 22 }}>
-                <span style={{ color: "var(--primary)", display: "flex" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 9, font: "var(--fw-medium) 15px/1.4 var(--font-sans)", color: "var(--text-body)", marginBottom: 22 }}>
+                <span style={{ color: "var(--primary)", display: "flex", flexShrink: 0, marginTop: 1 }}>
                   <Icon name="building" size={18} />
                 </span>
-                {site.address}
+                <span>
+                  {site.address}
+                  {/* The map iframe beside this only *shows* the place; a customer on a phone
+                      wants the address handed to their own maps app. */}
+                  {" · "}
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(site.address)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: "var(--primary)", font: "var(--fw-semibold) 15px/1.4 var(--font-sans)", textDecoration: "none", whiteSpace: "nowrap" }}
+                  >
+                    {t.microsite.visit.getDirections}
+                  </a>
+                </span>
               </div>
             )}
             {/* Save contact lives here. The v3 design has no slot for it, and Visit is where it
@@ -1534,13 +1658,21 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         <div style={{ position: "absolute", top: -60, right: -30, width: 240, height: 240, borderRadius: "50%", background: "rgba(255,255,255,.08)", animation: "ttFloat 8s ease-in-out infinite" }} />
         <div style={{ position: "absolute", bottom: -70, left: "6%", width: 170, height: 170, borderRadius: "50%", background: "rgba(255,255,255,.06)", animation: "ttFloat 10s ease-in-out infinite" }} />
         <div style={{ position: "relative", maxWidth: 1180, margin: "0 auto", padding: "calc(var(--section-y, clamp(24px, 4.4vw, 52px)) * var(--density-scale, 1)) clamp(16px, 4vw, 32px)", textAlign: "center" }}>
-          <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 5.2vw, 42px)/1.08 var(--font-display, var(--font-sans))", letterSpacing: "-.025em", color: "var(--on-hero)", margin: "0 0 10px" }}>{domain.ctaHeading}</h2>
-          <p style={{ font: "var(--fw-medium) 16px/1.5 var(--font-sans)", color: "rgba(255,255,255,.85)", margin: "0 0 26px" }}>{format(t.microsite.cta.sub, { count: liveCount, wait: waitHeadline })}</p>
+          <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 5.2vw, 42px)/1.08 var(--font-display, var(--font-sans))", letterSpacing: "-.025em", color: "var(--on-hero)", margin: "0 0 10px" }}>
+            {walkInsClosed ? t.microsite.cta.headingClosed : domain.ctaHeading}
+          </h2>
+          <p style={{ font: "var(--fw-medium) 16px/1.5 var(--font-sans)", color: "rgba(255,255,255,.85)", margin: "0 0 26px" }}>
+            {walkInsClosed
+              ? format(t.microsite.cta.subClosed, { when: nextOpenLabel ? format(t.microsite.wait.opensAt, { when: nextOpenLabel }) : "" }).trim()
+              : liveCount === 0
+                ? t.microsite.cta.subEmpty
+                : format(t.microsite.cta.subWaiting, { count: liveCount, wait: waitHeadline })}
+          </p>
           {domain.urgentLabel && (
             <p style={{ font: "var(--fw-semibold) 13px/1.4 var(--font-sans)", color: "rgba(255,255,255,.72)", margin: "-14px 0 22px" }}>{domain.urgentLabel}</p>
           )}
-          <div onClick={openQueue} className="salonCtaBtn" style={{ display: "inline-block", cursor: "pointer", background: "#fff", color: "var(--primary)", font: "var(--fw-bold) 17px/1 var(--font-sans)", padding: "16px 32px", borderRadius: "calc(12px * var(--radius-scale, 1))", boxShadow: "var(--shadow-lg)" }}>
-            {t.microsite.cta.button}
+          <div onClick={walkInsClosed ? openBook : openQueue} className="salonCtaBtn" style={{ display: "inline-block", cursor: "pointer", background: "#fff", color: "var(--primary)", font: "var(--fw-bold) 17px/1 var(--font-sans)", padding: "16px 32px", borderRadius: "calc(12px * var(--radius-scale, 1))", boxShadow: "var(--shadow-lg)" }}>
+            {walkInsClosed ? t.microsite.cta.buttonClosed : t.microsite.cta.button}
           </div>
         </div>
       </div>
@@ -1608,11 +1740,17 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           }}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="ttMobileBarWait" style={{ font: "var(--fw-extrabold) 16px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{waitHeadline}</div>
-            <div className="ttMobileBarCount" style={{ font: "var(--fw-semibold) 15px/1.35 var(--font-sans)", color: "var(--text-body)", marginTop: 4 }}>{liveStatus}</div>
+            <div className="ttMobileBarWait" style={{ font: "var(--fw-extrabold) 16px/1.2 var(--font-sans)", color: walkInsClosed ? "var(--text-muted)" : "var(--text-strong)" }}>
+              {walkInsClosed ? t.microsite.mobileBar.closed : waitHeadline}
+            </div>
+            <div className="ttMobileBarCount" style={{ font: "var(--fw-semibold) 15px/1.35 var(--font-sans)", color: "var(--text-body)", marginTop: 4 }}>
+              {liveStatus}
+            </div>
           </div>
           <div style={{ flexShrink: 0 }}>
-            <Button size="lg" onClick={openQueue}>{t.microsite.mobileBar.checkIn}</Button>
+            <Button size="lg" onClick={walkInsClosed ? openBook : openQueue}>
+              {walkInsClosed ? t.microsite.mobileBar.book : t.microsite.mobileBar.checkIn}
+            </Button>
           </div>
         </div>
       )}
@@ -1699,7 +1837,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                   {/* SCREEN: pick service */}
                   {screen === "service" && (
                     <div style={{ animation: "ttStep .32s ease both" }}>
-                      <p style={{ font: "var(--fw-regular) 14px/1.4 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 16px" }}>{t.microsite.join.serviceQuestion}</p>
+                      <p style={{ font: "var(--fw-regular) 14px/1.4 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 16px" }}>
+                        {mode === "book" ? t.microsite.join.serviceQuestionBook : t.microsite.join.serviceQuestionQueue}
+                      </p>
                       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                         {services.map((sv) => {
                           const on = cart === sv.id;
@@ -1714,7 +1854,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                                 <div style={{ font: "var(--fw-semibold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{sv.name}</div>
                                 <div style={{ font: "var(--fw-regular) 12px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{sv.dur}</div>
                               </div>
-                              <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{curSym}{sv.price}</span>
+                              <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{sv.priceLabel}</span>
                             </div>
                           );
                         })}
@@ -1738,7 +1878,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>{t.microsite.join.nameLabel}</div>
                       <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={t.microsite.join.namePlaceholder} className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: "calc(10px * var(--radius-scale, 1))", fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 16, background: "var(--surface-card)" }} />
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>{t.microsite.join.phoneLabel}</div>
-                      <PhoneField country={phoneCountry} national={national} onCountryChange={setPhoneCountry} onNationalChange={setNational} marginBottom={16} />
+                      <PhoneField country={phoneCountry} national={national} onCountryChange={setPhoneCountry} onNationalChange={setNational} marginBottom={6} />
+                      {/* The form asks for a mobile number and then texts it. Saying so at the
+                          field, not after the fact, is the whole point of the helper line. */}
+                      <div style={{ font: "var(--fw-regular) 12.5px/1.45 var(--font-sans)", color: "var(--text-muted)", marginBottom: 16 }}>
+                        {mode === "book" ? t.microsite.join.phoneHelperBook : t.microsite.join.phoneHelperQueue}
+                      </div>
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 9 }}>{t.microsite.join.memberLabel}</div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
                         {[{ id: "any", name: t.microsite.join.memberAny }, ...members.map((b) => ({ id: b.id, name: b.name }))].map((c) => {
@@ -1757,7 +1902,21 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                           {slotsLoading ? (
                             <div style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)", marginBottom: 18 }}>{t.microsite.join.slotsLoading}</div>
                           ) : slots.length === 0 ? (
-                            <div style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)", marginBottom: 18 }}>{t.microsite.join.slotsEmpty}</div>
+                            <div style={{ marginBottom: 18 }}>
+                              <div style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)" }}>
+                                {walkInsClosed ? t.microsite.join.slotsEmptyClosed : t.microsite.join.slotsEmpty}
+                              </div>
+                              {/* Service cards open the booking flow, so a walk-in-only store used to
+                                  land here with nothing to press. The switch keeps the name, phone,
+                                  service and provider already entered. */}
+                              {!walkInsClosed && (
+                                <div style={{ marginTop: 10 }}>
+                                  <Button variant="outline" fullWidth onClick={switchToWaitlist}>
+                                    {t.microsite.join.switchToWaitlist}
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
                           ) : (
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
                               {slots.map((s) => {
@@ -1773,11 +1932,27 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                         </>
                       )}
 
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: "calc(12px * var(--radius-scale, 1))", padding: "13px 15px", marginBottom: 14 }}>
-                        <span style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--text-body)" }}>
-                          {(sel ? `${sel.name} · ` : "") + (mode === "book" ? (selectedSlot ? t.microsite.join.timeSelected : t.microsite.join.chooseTimeAbove) : joinWaitText)}
+                      {/* What the customer is about to agree to, spelled out before the button
+                          rather than after it: service, how long it takes, when, with whom, and
+                          what it costs. This used to read "THREADING · choose a time above · $0". */}
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: "calc(12px * var(--radius-scale, 1))", padding: "13px 15px", marginBottom: 14 }}>
+                        <span style={{ minWidth: 0, font: "var(--fw-medium) 13px/1.45 var(--font-sans)", color: "var(--text-body)" }}>
+                          <span style={{ display: "block", font: "var(--fw-semibold) 13.5px/1.35 var(--font-sans)", color: "var(--text-strong)" }}>
+                            {[sel?.name ?? site.name, sel?.dur].filter(Boolean).join(" · ")}
+                          </span>
+                          <span style={{ display: "block", marginTop: 3 }}>
+                            {[summaryWhen, summaryProvider].filter(Boolean).join(" · ")}
+                          </span>
                         </span>
-                        <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)" }}>{sel ? `${curSym}${sel.price}` : ""}</span>
+                        <span style={{ flexShrink: 0, font: "var(--fw-bold) 16px/1.35 var(--font-sans)", color: "var(--text-strong)" }}>{sel ? sel.priceLabel : ""}</span>
+                      </div>
+                      {/* Nothing is charged here — payments are not wired — so the page has to say
+                          where the money is actually taken, before the customer commits. */}
+                      <div style={{ font: "var(--fw-regular) 12.5px/1.45 var(--font-sans)", color: "var(--text-muted)", marginBottom: 10 }}>
+                        {t.microsite.join.paymentNote}
+                      </div>
+                      <div style={{ font: "var(--fw-regular) 11.5px/1.45 var(--font-sans)", color: "var(--text-subtle)", marginBottom: 14 }}>
+                        {format(mode === "book" ? t.microsite.join.consentBook : t.microsite.join.consentQueue, { name: site.name })}
                       </div>
                       {formError && <div style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--error)", marginBottom: 12 }}>{formError}</div>}
                       <div style={{ display: "flex", gap: 10 }}>
@@ -1907,7 +2082,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                           <Button variant="outline" fullWidth onClick={closeJoin}>{t.common.close}</Button>
                         </div>
                         <div style={{ flex: 1 }}>
-                          <Button variant="primary" fullWidth onClick={joinAfterTrack}>{t.microsite.track.checkIn}</Button>
+                          <Button variant="primary" fullWidth onClick={joinAfterTrack}>
+                            {walkInsClosed ? t.microsite.track.book : t.microsite.track.checkIn}
+                          </Button>
                         </div>
                       </div>
                     </div>

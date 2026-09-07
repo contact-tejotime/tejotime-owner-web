@@ -189,6 +189,7 @@ export function LiveBoard({
   liveSub,
   ctaLabel,
   onJoin,
+  walkInsClosed = false,
 }: {
   members: LiveMember[];
   heading: string;
@@ -197,6 +198,10 @@ export function LiveBoard({
   liveSub: ReactNode;
   ctaLabel: (name: string) => string;
   onJoin: (id: string) => void;
+  /** Outside business hours the board stays visible — a customer still wants to see who works
+   *  here — but nothing on it may read as "walk in now". The caller swaps `ctaLabel` to the
+   *  booking wording; this flag handles the status chip and the live counters. */
+  walkInsClosed?: boolean;
 }) {
   return (
     <>
@@ -292,7 +297,7 @@ export function LiveBoard({
                   borderRadius: 999,
                   padding: "6px 12px",
                   font: "var(--fw-semibold) 11.5px/1 var(--font-sans)",
-                  ...(m.busy
+                  ...(m.busy || walkInsClosed
                     ? { background: "var(--surface-sunken)", color: "var(--text-body)" }
                     : { background: "var(--success-soft)", color: "var(--success-soft-fg)" }),
                 }}
@@ -302,10 +307,14 @@ export function LiveBoard({
                     width: 6,
                     height: 6,
                     borderRadius: "50%",
-                    background: m.busy ? "var(--text-subtle)" : "var(--success)",
+                    background: m.busy || walkInsClosed ? "var(--text-subtle)" : "var(--success)",
                   }}
                 />
-                {m.busy ? t.microsite.sections.inService : t.microsite.sections.freeNow}
+                {walkInsClosed
+                  ? t.microsite.sections.closedNow
+                  : m.busy
+                    ? t.microsite.sections.inService
+                    : t.microsite.sections.freeNow}
               </span>
 
               <div
@@ -329,10 +338,17 @@ export function LiveBoard({
                 {m.role}
               </div>
 
+              {/* Live counters are walk-in information. Closed, the row is removed rather than
+                  zeroed: "0 min wait" beside a Closed chip reads as an invitation. */}
+              {!walkInsClosed && (
               <div style={{ display: "flex", gap: "clamp(18px, 2vw, 26px)", marginTop: "auto", paddingTop: "clamp(14px, 2vw, 26px)" }}>
                 {[
-                  { v: m.wait, l: m.busy ? "wait" : "walk in", c: m.busy ? "var(--text-strong)" : "var(--success)" },
-                  { v: String(m.count), l: "in line", c: "var(--text-strong)" },
+                  {
+                    v: m.wait,
+                    l: t.microsite.sections.waitCell,
+                    c: m.busy ? "var(--text-strong)" : "var(--success)",
+                  },
+                  { v: String(m.count), l: t.microsite.sections.waitingCell, c: "var(--text-strong)" },
                 ].map((cell) => (
                   <div key={cell.l}>
                     <div
@@ -360,8 +376,9 @@ export function LiveBoard({
                   </div>
                 ))}
               </div>
+              )}
 
-              <div style={{ marginTop: "clamp(12px, 2vw, 22px)" }}>
+              <div style={{ marginTop: walkInsClosed ? "auto" : "clamp(12px, 2vw, 22px)", paddingTop: walkInsClosed ? "clamp(14px, 2vw, 26px)" : undefined }}>
                 <Button variant="outline" fullWidth onClick={() => onJoin(m.id)}>
                   {ctaLabel(m.name)}
                 </Button>
@@ -413,7 +430,14 @@ export interface ServiceItem {
   id: string;
   name: string;
   dur: string;
-  price: number;
+  /**
+   * Already-rendered price ("$45", "Price varies") rather than a number.
+   *
+   * A price of zero is how the product stores "not priced yet", and rendering that as "$0" told
+   * every customer the service was free. Formatting happens once, next to the currency, so no
+   * caller can reintroduce a bare `{symbol}{number}`.
+   */
+  priceLabel: string;
 }
 
 /**
@@ -433,14 +457,12 @@ export function ServiceList({
   heading,
   eyebrow,
   note,
-  currencySymbol,
   onPick,
 }: {
   services: ServiceItem[];
   heading: string;
   eyebrow: string;
   note: string;
-  currencySymbol: string;
   onPick: (id: string) => void;
 }) {
   // Phones get the first 9 with a toggle; the CSS decides when that applies, so this stays a
@@ -467,7 +489,7 @@ export function ServiceList({
               // visible label alone would read as a bare "Book" to a screen reader.
               aria-label={format(t.microsite.sections.bookService, {
                 name: sv.name,
-                price: `${currencySymbol}${sv.price}`,
+                price: sv.priceLabel,
               })}
             >
               <span
@@ -527,8 +549,7 @@ export function ServiceList({
                     color: "var(--text-strong)",
                   }}
                 >
-                  {currencySymbol}
-                  {sv.price}
+                  {sv.priceLabel}
                 </span>
               </span>
 
@@ -658,7 +679,7 @@ export function ReviewsBlock({
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              {rating}
+              {rating.toFixed(1)}
             </span>
             <div>
               <div style={{ display: "flex", gap: 3, color: "var(--warning)" }}>
@@ -673,7 +694,9 @@ export function ReviewsBlock({
                   marginTop: 9,
                 }}
               >
-                {reviewCount} verified reviews
+                {/* Not "verified reviews": TejoTime does not verify reviewers, and claiming it
+                    on a store's behalf is a claim the platform cannot stand behind. */}
+                {format(t.microsite.sections.reviewsCount, { count: reviewCount })}
               </div>
             </div>
           </div>
