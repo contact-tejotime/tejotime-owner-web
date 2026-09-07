@@ -35,7 +35,7 @@ Full record: **`docs/customer-booking-page-copy-2026-09-06.md`** — read it bef
 microsite copy. The three things worth knowing here:
 
 - **One vocabulary rule drives the whole page.** "Book an Appointment" = a scheduled visit,
-  "Join the Waitlist" = a walk-in. Never "Free" for *available*, never `$0` for *unpriced*.
+  "Check in" = a walk-in. Never "Free" for *available*, never `$0` for *unpriced*.
   Service cards now open the **booking** flow (they say "Book"); the Team section and the hero
   own the walk-in flow.
 - **A closed store no longer invites walk-ins.** `walkInsClosed` gates every walk-in control and

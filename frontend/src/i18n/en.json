@@ -435,7 +435,10 @@
           { "label": "Spas", "href": "/industries/spas" },
           { "label": "Med spas", "href": "/industries/med-spas" },
           { "label": "Massage therapy", "href": "/industries/massage-therapy" },
-          { "label": "Physical therapy", "href": "/industries/physical-therapy" },
+          {
+            "label": "Physical therapy",
+            "href": "/industries/physical-therapy"
+          },
           { "label": "Tattoo studios", "href": "/industries/tattoo-studios" },
           { "label": "Pet grooming", "href": "/industries/pet-grooming" }
         ]
@@ -577,11 +580,7 @@
         ]
       }
     },
-    "inquiryPerks": [
-      "Free setup",
-      "No card",
-      "Cancel anytime"
-    ],
+    "inquiryPerks": ["Free setup", "No card", "Cancel anytime"],
     "hours": [
       "8:00 am",
       "9:00 am",
@@ -591,18 +590,8 @@
       "1:00 pm",
       "2:00 pm"
     ],
-    "providers": [
-      "Devin R.",
-      "Rosa M.",
-      "Amina K.",
-      "Theo B."
-    ],
-    "slots": [
-      "10:00 AM",
-      "10:30 AM",
-      "11:00 AM",
-      "11:30 AM"
-    ],
+    "providers": ["Devin R.", "Rosa M.", "Amina K.", "Theo B."],
+    "slots": ["10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM"],
     "appointments": [
       {
         "client": "Marcus T.",
@@ -709,7 +698,7 @@
       "saveContact": "Save Contact",
       "trackMyTurn": "Check Waitlist Status",
       "takeToken": "Take a Token",
-      "checkIn": "Join the Waitlist",
+      "checkIn": "Check in",
       "openMenu": "Open menu",
       "closeMenu": "Close menu"
     },
@@ -717,7 +706,7 @@
       "since": "Since {year}",
       "rightNow": "Right now",
       "takeAToken": "Take a Token",
-      "checkIn": "Join the Waitlist",
+      "checkIn": "Check in",
       "bookSlot": "Book an Appointment",
       "noAppNote": "No app or account needed. We’ll use your phone number to confirm.",
       "heroPhoto": "Hero photo"
@@ -744,7 +733,7 @@
       "subClosed": "Walk-in check-in is closed. {when}",
       "headingClosed": "Closed right now — book your next visit",
       "buttonClosed": "Book an Appointment",
-      "button": "Join the Waitlist"
+      "button": "Check in"
     },
     "resume": {
       "yourTurn": "It's your turn",
@@ -753,7 +742,7 @@
       "track": "Track"
     },
     "mobileBar": {
-      "checkIn": "Join Waitlist",
+      "checkIn": "Check in",
       "book": "Book Appointment",
       "closed": "Walk-ins closed"
     },
@@ -798,7 +787,7 @@
     },
     "nav": {
       "bookATime": "Book an Appointment",
-      "checkIn": "Join the Waitlist",
+      "checkIn": "Check in",
       "visitUs": "Location",
       "holdOn": "Hold on",
       "noActiveBooking": "No active booking",
@@ -835,7 +824,7 @@
       "timeSelected": "Time selected",
       "chooseTimeAbove": "Select a time to continue",
       "confirmBooking": "Confirm Appointment",
-      "confirmCheckIn": "Join the Waitlist",
+      "confirmCheckIn": "Check in",
       "consentBook": "By confirming, you agree to receive appointment updates by text from {name}. Message and data rates may apply. Reply STOP to opt out.",
       "consentQueue": "By joining, you agree to receive waitlist updates by text from {name}. Message and data rates may apply. Reply STOP to opt out.",
       "paymentNote": "Payment is due at the business.",
@@ -868,7 +857,7 @@
       "submit": "Check Status",
       "noneTitle": "No active booking found",
       "noneBody": "This number isn’t on today’s waitlist. It may have been served, cancelled, or expired.",
-      "checkIn": "Join the Waitlist",
+      "checkIn": "Check in",
       "book": "Book an Appointment"
     },
     "already": {
@@ -924,7 +913,7 @@
       "waitCell": "wait",
       "waitingCell": "waiting",
       "noWaitCell": "0 min",
-      "minWaitLabel": "min wait",
+      "minWaitLabel": "min est wait",
       "waitingLabel": "waiting",
       "reviewsCount": "{count} reviews"
     },
@@ -959,7 +948,7 @@
   "domains": {
     "generic": {
       "liveHeading": "Choose Your Provider",
-      "liveCta": "Join {name}'s Waitlist",
+      "liveCta": "Check in with {name}",
       "servicesHeading": "Choose a Service",
       "servicesNote": "Select a service to see the price, duration, and available appointment times.",
       "serviceNoun": "service",
@@ -968,7 +957,7 @@
     },
     "beauty": {
       "liveHeading": "Choose Your Provider",
-      "liveCta": "Join {name}'s Waitlist",
+      "liveCta": "Check in with {name}",
       "servicesHeading": "Choose a Service",
       "servicesNote": "Select a service to see the price, duration, and available appointment times. Walk-in availability may vary.",
       "serviceNoun": "treatment",
@@ -977,7 +966,7 @@
     },
     "clinic": {
       "liveHeading": "Choose Your Doctor",
-      "liveCta": "Join Dr. {name}'s Waitlist",
+      "liveCta": "Check in with Dr. {name}",
       "servicesHeading": "Choose a Consultation",
       "servicesNote": "Select a consultation to see the fee, duration, and available appointment times.",
       "serviceNoun": "consultation",
@@ -987,7 +976,7 @@
     },
     "food": {
       "liveHeading": "Live table availability",
-      "liveCta": "Join {name}'s Waitlist",
+      "liveCta": "Check in with {name}",
       "servicesHeading": "Menu Highlights",
       "servicesNote": "A taste of the menu — full card available in-store",
       "serviceNoun": "dish",
@@ -996,7 +985,7 @@
     },
     "fitness": {
       "liveHeading": "Choose Your Trainer",
-      "liveCta": "Join {name}'s Waitlist",
+      "liveCta": "Check in with {name}",
       "servicesHeading": "Choose a Session",
       "servicesNote": "Select a session to see the price, duration, and available booking times.",
       "serviceNoun": "session",
@@ -1059,9 +1048,7 @@
       },
       {
         "heading": "2. Information we collect",
-        "paragraphs": [
-          "We collect the following categories of information:"
-        ],
+        "paragraphs": ["We collect the following categories of information:"],
         "bullets": [
           "Account information — the phone number and password used to sign in, plus the name, role, and business details you enter when you create or join a business account.",
           "Business content — your business name, address, hours, services, prices, photos, staff names and photos, and anything else you publish to your booking page.",
@@ -1082,9 +1069,7 @@
       },
       {
         "heading": "4. How we use information",
-        "paragraphs": [
-          "We use the information described above to:"
-        ],
+        "paragraphs": ["We use the information described above to:"],
         "bullets": [
           "Create your account and sign you in securely.",
           "Operate your calendar, appointments, optional walk-in waitlist, and client records.",
@@ -1240,9 +1225,7 @@
       },
       {
         "heading": "7. Your responsibilities",
-        "paragraphs": [
-          "When you use TejoTime, you agree to:"
-        ],
+        "paragraphs": ["When you use TejoTime, you agree to:"],
         "bullets": [
           "Keep your business information, services, prices, and hours accurate and current.",
           "Have an appropriate basis to collect, store, and message your clients, including for reminders and confirmations.",
@@ -1253,9 +1236,7 @@
       },
       {
         "heading": "8. Acceptable use",
-        "paragraphs": [
-          "You may not:"
-        ],
+        "paragraphs": ["You may not:"],
         "bullets": [
           "Use TejoTime for anything unlawful, deceptive, harassing, or harmful.",
           "Publish content that is fraudulent, infringing, obscene, or that misrepresents your business or its reviews.",
