@@ -40,22 +40,65 @@ async function resolveBusiness(slug: string) {
   return data;
 }
 
+// Minutes are kept ("10:00 AM", not "10 AM"). The microsite prints these back to a customer as
+// the store's business hours, and a bare hour reads like an approximation next to a half-hour
+// opening on the row below it.
 function fmtTime(t: string | null): string {
   if (!t) return '';
-  return dayjs(`2000-01-01 ${t}`, 'YYYY-MM-DD HH:mm:ss').format('h:mm A').replace(':00', '');
+  return dayjs(`2000-01-01 ${t}`, 'YYYY-MM-DD HH:mm:ss').format('h:mm A');
 }
 
-function computeOpenStatus(hours: any[], tz: string) {
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/**
+ * Next opening in words — "today at 10:00 AM", "tomorrow at 9:30 AM", "Monday at 10:00 AM".
+ *
+ * Walks today through today+7 so a business open one day a week still resolves, and skips any
+ * opening that has already passed (that is what makes a store closed at 8pm say
+ * "tomorrow" rather than repeating this morning's time).
+ */
+function nextOpening(hours: any[], tz: string): string | null {
   const now = dayjs().tz(tz);
+  for (let offset = 0; offset <= 7; offset += 1) {
+    const d = now.add(offset, 'day');
+    const row = hours.find((h) => h.day_of_week === d.day());
+    if (!row || row.is_closed || !row.opens_at) continue;
+    const opens = dayjs.tz(`${d.format('YYYY-MM-DD')} ${row.opens_at}`, tz);
+    if (!opens.isAfter(now)) continue;
+    const when = offset === 0 ? 'today' : offset === 1 ? 'tomorrow' : DAY_NAMES[d.day()];
+    return `${when} at ${fmtTime(row.opens_at)}`;
+  }
+  return null;
+}
+
+/**
+ * Open/closed for the microsite, plus `nextOpenLabel` so a closed page can tell the customer
+ * when to come back instead of leaving a dead "Closed today" badge next to a live "Walk in now"
+ * button. The microsite gates its whole walk-in call to action on `isOpen`, so the answer to
+ * "closed until when?" has to travel with it.
+ *
+ * `hours` empty (a store that skipped the hours step) still yields isOpen:false — the microsite
+ * treats "no hours configured" as "unknown, stay joinable" rather than reading this flag alone.
+ *
+ * Exported for the unit test: the timezone and week-wrap arithmetic is the part that breaks
+ * silently, and it is pure, so it is worth pinning without a database.
+ */
+export function computeOpenStatus(hours: any[], tz: string) {
+  const now = dayjs().tz(tz);
+  const nextOpenLabel = nextOpening(hours, tz);
   const today = hours.find((h) => h.day_of_week === now.day());
-  if (!today || today.is_closed) return { isOpen: false, closesAt: null, label: 'Closed today' };
+  const closedLabel = nextOpenLabel ? `Closed · Opens ${nextOpenLabel}` : 'Closed today';
+  if (!today || today.is_closed) {
+    return { isOpen: false, closesAt: null, label: closedLabel, nextOpenLabel };
+  }
   const opens = dayjs.tz(`${now.format('YYYY-MM-DD')} ${today.opens_at}`, tz);
   const closes = dayjs.tz(`${now.format('YYYY-MM-DD')} ${today.closes_at}`, tz);
   const isOpen = now.isAfter(opens) && now.isBefore(closes);
   return {
     isOpen,
     closesAt: today.closes_at,
-    label: isOpen ? `Open now · till ${fmtTime(today.closes_at)}` : `Opens ${fmtTime(today.opens_at)}`,
+    label: isOpen ? `Open now · till ${fmtTime(today.closes_at)}` : closedLabel,
+    nextOpenLabel,
   };
 }
 
