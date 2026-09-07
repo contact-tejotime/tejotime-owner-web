@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-09-04 · branch `feat-jay`, 4 commits ahead of `main`, working tree clean.
+**Last updated:** 2026-09-06 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -27,6 +27,32 @@ guide. **Shipped** in `bc0b482`:
   photography and testimonials exist.
 - New routes: `/industries/[slug]` (9 industry pages), `/resources`, `/terms`, `/accessibility`;
   `/privacy` rewritten.
+
+### The customer booking page (microsite) copy + correctness pass
+
+Same U.S.-market repositioning, now applied to the **public customer microsite** (`/{phone}`).
+Full record: **`docs/customer-booking-page-copy-2026-09-06.md`** — read it before touching
+microsite copy. The three things worth knowing here:
+
+- **One vocabulary rule drives the whole page.** "Book an Appointment" = a scheduled visit,
+  "Join the Waitlist" = a walk-in. Never "Free" for *available*, never `$0` for *unpriced*.
+  Service cards now open the **booking** flow (they say "Book"); the Team section and the hero
+  own the walk-in flow.
+- **A closed store no longer invites walk-ins.** `walkInsClosed` gates every walk-in control and
+  swaps them to booking. The gate is `hours.length > 0 && !isOpen`, **not** `!isOpen` — a store
+  that never configured hours reports `isOpen: false` forever, and gating on the raw flag would
+  have switched check-in off for every one of them. UI-only; the API still accepts an
+  out-of-hours join.
+- **`openStatus` gained `nextOpenLabel`** ("Monday at 10:00 AM", business-timezone-resolved) so a
+  closed page can say when to come back. Covered by `backend/tests/unit/open-status.test.ts`.
+
+A second review pass caught what the first missed: `LiveStatusLine` was **hardcoded English**
+saying "All 4 free" in the two most prominent slots on the page, the closed gate stopped at the
+outside of the provider cards, and `joinAfterTrack` bypassed it entirely. Also removed: the dead
+`DomainProfile.liveNote` / `.ctaSub` (ten stale strings), dead `trustCells` (which rendered an
+empty About band on stores with reviews but no About copy), and salon-only vocabulary — "shop",
+"chair", "token" — from strings every vertical sees. A dead-key audit over the microsite
+dictionary now reports zero unreferenced keys.
 
 ### Legal pages
 
@@ -115,6 +141,13 @@ clean.
 
 - **Staff `/owner` sockets join a seat room that nothing emits to**, so staff clients silently fall
   back to polling for live queue updates. Seat-scoped emitters are unimplemented.
+- **Joining a queue outside business hours is still allowed by the API.** The microsite hides
+  every walk-in control when the store is closed, but `POST /public/businesses/:slug/queue` does
+  not check. A server-side rule needs a product call — shops that run late are a real case.
+- **No cancellation / no-show policy field on `business`**, so the booking flow cannot state or
+  link one. The copy review asked for it; it needs a column and an owner-portal editor first.
+- **Appointments cannot be rescheduled, cancelled or exported to a calendar**, and booking slots
+  are **today-only** — which is what constrains the booking copy on the microsite.
 - Backend still defaults `DEFAULT_CURRENCY` to **`INR`** with prices in paise, and `business.timezone`
   defaults to `Asia/Kolkata`, while the marketing site is now U.S.-facing. **This needs resolving
   before a real U.S. launch** — it is the largest open inconsistency in the codebase.
@@ -135,13 +168,16 @@ clean.
 
 Thin, and worth being honest about:
 
-- `backend/tests/unit/` — **5 vitest files (~565 lines)**, covering **pure functions only**:
-  `queue-engine`, `eta-notify`, `ttl-cache`, `whatsapp`, `whatsapp-webhook`.
+- `backend/tests/unit/` — **6 vitest files, 52 tests**, covering **pure functions only**:
+  `queue-engine`, `eta-notify`, `ttl-cache`, `whatsapp`, `whatsapp-webhook`, `open-status`.
 - `frontend/src/theme/engine/__tests__/run.ts` — framework-free theme self-check.
 - `backend/scripts/smoke-rest.mjs` / `smoke-socket.mjs` — end-to-end smoke against a running,
   seeded server.
 
 **No route or integration tests, no DB tests, no frontend or mobile tests, no coverage gate.**
+The microsite copy pass is the sharpest example: its backend half is unit-tested, and every one of
+its rendering changes — the `$0` rule, the closed-state gate, the per-store page title — is
+verified by nothing but a manual look.
 `supertest` is a devDependency but unused. Permission guards, tenant scoping, the plpgsql
 functions and the BFF proxies are verified only by smoke scripts and manual QA
 (`docs/qa-report-2026-07-10.md`).

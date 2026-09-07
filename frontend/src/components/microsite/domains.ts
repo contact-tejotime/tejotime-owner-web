@@ -26,7 +26,6 @@ export interface DomainProfile {
   order: DomainSection[];
   /** "Our team · live availability" */
   liveHeading: string;
-  liveNote: string;
   /** Verb used on a staff member's CTA: `Join {name}'s line` */
   liveCta: (name: string) => string;
   /** "What we offer" */
@@ -35,9 +34,9 @@ export interface DomainProfile {
   /** Word for one bookable item — "service", "treatment", "dish". */
   serviceNoun: string;
   galleryHeading: string;
-  /** Final CTA band. */
+  /** Final CTA band. Its sub-line is not here: it is count- and open/closed-aware, so it is
+   *  composed in MicrositeClient from `t.microsite.cta.sub*`. */
   ctaHeading: string;
-  ctaSub: string;
   /** Shown as a prominent strip above everything — clinics only, for now. */
   urgentLabel?: string;
 }
@@ -46,14 +45,12 @@ export const DEFAULT_DOMAIN: DomainProfile = {
   id: "generic",
   order: ["live", "about", "gallery", "services", "reviews"],
   liveHeading: t.domains.generic.liveHeading,
-  liveNote: t.domains.generic.liveNote,
   liveCta: (name) => format(t.domains.generic.liveCta, { name }),
   servicesHeading: t.domains.generic.servicesHeading,
   servicesNote: t.domains.generic.servicesNote,
   serviceNoun: t.domains.generic.serviceNoun,
   galleryHeading: t.domains.generic.galleryHeading,
   ctaHeading: t.domains.generic.ctaHeading,
-  ctaSub: t.domains.generic.ctaSub,
 };
 
 const PROFILES: { match: string[]; profile: DomainProfile }[] = [
@@ -64,14 +61,12 @@ const PROFILES: { match: string[]; profile: DomainProfile }[] = [
       id: "beauty",
       order: ["live", "services", "gallery", "about", "reviews"],
       liveHeading: t.domains.beauty.liveHeading,
-      liveNote: t.domains.beauty.liveNote,
       liveCta: (name) => format(t.domains.beauty.liveCta, { name }),
       servicesHeading: t.domains.beauty.servicesHeading,
       servicesNote: t.domains.beauty.servicesNote,
       serviceNoun: t.domains.beauty.serviceNoun,
       galleryHeading: t.domains.beauty.galleryHeading,
       ctaHeading: t.domains.beauty.ctaHeading,
-      ctaSub: t.domains.beauty.ctaSub,
     },
   },
   {
@@ -82,14 +77,12 @@ const PROFILES: { match: string[]; profile: DomainProfile }[] = [
       // Wait time and doctors come first; marketing copy drops below them.
       order: ["live", "services", "about", "reviews", "gallery"],
       liveHeading: t.domains.clinic.liveHeading,
-      liveNote: t.domains.clinic.liveNote,
       liveCta: (name) => format(t.domains.clinic.liveCta, { name }),
       servicesHeading: t.domains.clinic.servicesHeading,
       servicesNote: t.domains.clinic.servicesNote,
       serviceNoun: t.domains.clinic.serviceNoun,
       galleryHeading: t.domains.clinic.galleryHeading,
       ctaHeading: t.domains.clinic.ctaHeading,
-      ctaSub: t.domains.clinic.ctaSub,
       urgentLabel: t.domains.clinic.urgentLabel,
     },
   },
@@ -101,14 +94,12 @@ const PROFILES: { match: string[]; profile: DomainProfile }[] = [
       // Photos sell a restaurant; menu follows, staff barely matters to a diner.
       order: ["gallery", "services", "live", "about", "reviews"],
       liveHeading: t.domains.food.liveHeading,
-      liveNote: t.domains.food.liveNote,
       liveCta: (name) => format(t.domains.food.liveCta, { name }),
       servicesHeading: t.domains.food.servicesHeading,
       servicesNote: t.domains.food.servicesNote,
       serviceNoun: t.domains.food.serviceNoun,
       galleryHeading: t.domains.food.galleryHeading,
       ctaHeading: t.domains.food.ctaHeading,
-      ctaSub: t.domains.food.ctaSub,
     },
   },
   {
@@ -118,14 +109,12 @@ const PROFILES: { match: string[]; profile: DomainProfile }[] = [
       id: "fitness",
       order: ["services", "live", "gallery", "about", "reviews"],
       liveHeading: t.domains.fitness.liveHeading,
-      liveNote: t.domains.fitness.liveNote,
       liveCta: (name) => format(t.domains.fitness.liveCta, { name }),
       servicesHeading: t.domains.fitness.servicesHeading,
       servicesNote: t.domains.fitness.servicesNote,
       serviceNoun: t.domains.fitness.serviceNoun,
       galleryHeading: t.domains.fitness.galleryHeading,
       ctaHeading: t.domains.fitness.ctaHeading,
-      ctaSub: t.domains.fitness.ctaSub,
     },
   },
 ];

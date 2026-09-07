@@ -335,6 +335,16 @@ returns `meta.lockedCount`. The **server** truncates; client blur is cosmetic on
 `getLivePlan()` (a DB lookup) rather than the token's `plan` claim, so an upgrade applies
 immediately without waiting for a refresh.
 
+**Customer microsite rules** (see `docs/customer-booking-page-copy-2026-09-06.md`) — two invariants
+the public booking page depends on. **"Book an Appointment" always means a scheduled visit and
+"Join the Waitlist" always means a walk-in**; service cards open the booking flow, the hero and
+Team section own the walk-in flow. And a **price of `0` paise means "not priced yet", never
+"free"** — `MicrositeClient` renders it as "Price varies" via a single `priceLabel`, which is why
+`ServiceItem` carries a rendered string rather than a number. Walk-in controls are gated on
+`site.hours.length > 0 && !openStatus.isOpen` — **not** on `isOpen` alone, because a store with no
+configured hours reports `isOpen: false` forever and would lose check-in entirely. The gate is
+**UI-only**: the API still accepts an out-of-hours join.
+
 **Category behaviour** (`config/constants.ts`) — `OPTIONAL_SERVICES_STAFF_CATEGORIES`
 (Hospital, Restaurant) allow zero services/staff; `VISITOR_TYPE_CATEGORIES` (Hospital) require
 identifying the visitor as `mr` | `patient` (display-only, never part of wait-time math).
@@ -469,10 +479,12 @@ across the web apps.
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **5 vitest files (~565 lines)**, run with `npm test` in `backend/`
+- `backend/tests/unit/` — **6 vitest files, 52 tests**, run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
-  Four cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `whatsapp`).
-  The fifth, `whatsapp-webhook.test.ts`, is different and is **the pattern to copy**: it mounts a
+  Five cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `whatsapp`,
+  `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
+  `vi.setSystemTime`, no DB).
+  The sixth, `whatsapp-webhook.test.ts`, is different and is **the pattern to copy**: it mounts a
   real router into a throwaway `express()` app and drives it with **`supertest`**, using
   `vi.resetModules()` + a stubbed `process.env` so the zod env validator boots. It needs **no
   database and no running server**.

@@ -70,7 +70,12 @@ export interface Microsite {
   rating: number;
   reviewCount: number;
   establishedYear: number | null;
-  openStatus: { isOpen: boolean; closesAt: string | null; label: string };
+  /**
+   * `nextOpenLabel` is "today at 10:00 AM" / "Monday at 10:00 AM", already worded and
+   * timezone-resolved by the API. Optional: a response from a backend older than this field
+   * simply omits it, and the microsite then falls back to the generic closed copy.
+   */
+  openStatus: { isOpen: boolean; closesAt: string | null; label: string; nextOpenLabel?: string | null };
   hours: { dayOfWeek: number; label: string; isClosed: boolean }[];
   amenities: string[];
   gallery: string[];
