@@ -330,20 +330,28 @@ function QueueWaitSummary({
           font: "var(--fw-extrabold) clamp(24px, 3.4vw, 38px)/1.02 var(--font-sans)",
           letterSpacing: "-.035em",
           color: isClear ? "var(--success)" : walkInsClosed ? "var(--text-muted)" : "var(--text-strong)",
+          // Clear floor: one number says everything, so centre it. Staff rows below stay
+          // left/right aligned — they are a list, not a headline.
+          textAlign: isClear || (walkInsClosed && liveCount === 0) ? "center" : undefined,
         }}
       >
         {headline}
       </div>
-      <div
-        className="ttWaitEstimate"
-        style={{
-          marginTop: 10,
-          font: "var(--fw-semibold) clamp(16px, 4vw, 18px)/1.35 var(--font-sans)",
-          color: "var(--text-body)",
-        }}
-      >
-        {waitHeadline}
-      </div>
+      {/* When the floor is clear the big "0 est wait" already says it — the old pink
+          "No wait right now" pill was the same sentence twice. Keep the pill only when it
+          adds an ETA the headline does not already show. */}
+      {!isClear && waitHeadline ? (
+        <div
+          className="ttWaitEstimate"
+          style={{
+            marginTop: 10,
+            font: "var(--fw-semibold) clamp(16px, 4vw, 18px)/1.35 var(--font-sans)",
+            color: "var(--text-body)",
+          }}
+        >
+          {waitHeadline}
+        </div>
+      ) : null}
       {/* The breakdown says "Available" against every idle seat — true of the floor, false as an
           invitation once the doors are shut. Hidden while closed unless someone is still queued. */}
       {members.length > 0 && !(walkInsClosed && liveCount === 0) && (
@@ -1219,8 +1227,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // v3's four icon cards. Built from the same guarded data as the old trust row, so a store
   // without an established year or reviews simply shows fewer cards rather than zeroes.
   // v3's accent marquee: what the store offers, then where and how well rated.
+  // Service names only — prices belong on the Services cards, not this marquee strip.
   const tickerItems = [
-    ...services.map((sv) => `${sv.name} · ${sv.priceLabel}`),
+    ...services.map((sv) => sv.name),
     site.area ?? null,
     site.establishedYear != null ? format(t.microsite.hero.since, { year: site.establishedYear }) : null,
     reviewCount > 0 ? format(t.microsite.ticker.ratingReviews, { rating, reviewCount }) : null,
