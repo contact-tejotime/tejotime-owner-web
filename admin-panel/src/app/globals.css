@@ -487,8 +487,9 @@ textarea {
   align-items: end;
   margin-bottom: 10px;
 }
+/* name · duration · pricing mode · amount (or range min) · range max (or a spacer) · remove */
 .row.service {
-  grid-template-columns: 2fr 1fr 1fr 1.2fr auto;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
 }
 .row.staff {
   grid-template-columns: 1.5fr 1.5fr 1.2fr auto;

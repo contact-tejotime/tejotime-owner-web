@@ -125,7 +125,18 @@ async function main() {
       { name: 'Haircut & Beard', duration_minutes: 45, price_paise: parsePriceToPaise('₹450'), color_token: 'primary' },
       { name: 'Hair Color', duration_minutes: 90, price_paise: parsePriceToPaise('₹1,200'), color_token: 'amber500' },
       { name: 'Hair Spa', duration_minutes: 60, price_paise: parsePriceToPaise('₹800'), color_token: 'green500' },
-    ].map((s, position) => ({ business_id: bid, position, ...s }));
+      // A range-priced service, so every surface that renders or checks out a price has a
+      // banded fixture to exercise — the length depends on the hair, and the shop only commits
+      // to the band until it is in front of them.
+      {
+        name: 'Hair Extensions',
+        duration_minutes: 90,
+        price_paise: parsePriceToPaise('₹2,000'),
+        price_type: 'range',
+        price_max_paise: parsePriceToPaise('₹6,000'),
+        color_token: 'primary',
+      },
+    ].map((s, position) => ({ business_id: bid, position, price_type: 'fixed', price_max_paise: null, ...s }));
     const services = await insertRows(client, 'service', serviceRows);
     const svc = (name: string) => services.find((s: any) => s.name === name)?.id ?? null;
 

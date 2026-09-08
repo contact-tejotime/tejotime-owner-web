@@ -31,11 +31,26 @@ export interface Money {
   amount: number;
   currency: string;
 }
+/**
+ * How a service is priced. `unset` covers services that predate pricing modes and were carrying
+ * a `price_paise` of 0 to mean "not priced yet" — see the backfill note in
+ * backend/db/migrations/0024_service_price_range.sql.
+ */
+export type ServicePriceType = "fixed" | "range" | "unset";
+
 export interface MicrositeService {
   id: string;
   name: string;
   durationMinutes: number;
+  /** The fixed price, or the MINIMUM of a range — `priceType` says which. */
   price: Money;
+  /**
+   * Optional because a cached response from before pricing modes simply omits it; the label
+   * builder then falls back to the old rule (a non-zero amount is a fixed price).
+   */
+  priceType?: ServicePriceType;
+  /** The maximum of a range. Null in every other mode. */
+  priceMax?: Money | null;
 }
 export interface MicrositeStaff {
   id: string;
@@ -134,7 +149,10 @@ export type TrackResult =
   | { found: false; customerName?: string | null };
 
 export interface JoinBody {
+  /** Single-service form. Superseded by `serviceIds`; kept because the API still accepts it. */
   serviceId?: string;
+  /** The visit's services in pick order — the first becomes the primary service. */
+  serviceIds?: string[];
   name: string;
   phone: string;
   preferredStaffId?: string;
@@ -154,9 +172,14 @@ export const publicApi = {
   getMicrositeByPhone: (phone: string) => req<Microsite>(`/public/businesses/by-phone/${phone}`),
   getAvailability: (slug: string) => req<Availability>(`/public/businesses/${slug}/availability`),
   getStaffAvailability: (slug: string) => req<{ staff: MicrositeStaff[] }>(`/public/businesses/${slug}/staff`),
-  getSlots: (slug: string, params: { date: string; serviceId?: string; staffId?: string }) => {
+  getSlots: (
+    slug: string,
+    params: { date: string; serviceId?: string; serviceIds?: string[]; staffId?: string },
+  ) => {
     const q = new URLSearchParams({ date: params.date });
     if (params.serviceId) q.set("serviceId", params.serviceId);
+    // Comma-separated: the slot length is the SUM of the chosen services.
+    if (params.serviceIds?.length) q.set("serviceIds", params.serviceIds.join(","));
     if (params.staffId) q.set("staffId", params.staffId);
     return req<{ date: string; slots: Slot[] }>(`/public/businesses/${slug}/slots?${q}`);
   },

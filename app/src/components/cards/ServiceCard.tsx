@@ -15,6 +15,7 @@ function ServiceCardComponent({
   description,
   color,
   selected = false,
+  multiSelect = false,
   onPress,
 }: {
   name: string;
@@ -23,6 +24,11 @@ function ServiceCardComponent({
   description?: string;
   color?: string;
   selected?: boolean;
+  /**
+   * Show an explicit tick box. A visit can be several services, and a border colour alone does
+   * not tell anyone that picking a second one is allowed — the box is the affordance.
+   */
+  multiSelect?: boolean;
   onPress?: () => void;
 }) {
   const theme = useTheme();
@@ -30,8 +36,17 @@ function ServiceCardComponent({
   const accent = color ?? theme.colors.secondary;
 
   return (
-    <Pressable onPress={onPress} style={serviceCardStyle(s, selected)}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole={multiSelect ? 'checkbox' : 'button'}
+      accessibilityState={{ checked: multiSelect ? selected : undefined, selected }}
+      style={serviceCardStyle(s, selected)}>
       <View style={serviceAccentStyle(s.accent, accent)} />
+      {multiSelect && (
+        <View style={[s.tick, selected ? s.tickOn : null]}>
+          {selected && <Icon name="check" size={13} color={theme.colors.surfaceCard} />}
+        </View>
+      )}
       <View style={s.body}>
         <TText variant="bodyMd" color="textStrong" weight="semibold">
           {name}
@@ -85,6 +100,17 @@ const createServiceCardStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
       borderRadius: moderateScale(radius.pill),
     },
     body: { ...styles.flex, ...styles.minWidth0 },
+    // Square, deliberately: a circle would read as "pick one of these".
+    tick: {
+      width: moderateScale(21),
+      height: moderateScale(21),
+      borderRadius: moderateScale(6),
+      borderWidth: moderateScale(2),
+      borderColor: colors.borderDefault,
+      ...styles.itemsCenter,
+      justifyContent: 'center',
+    },
+    tickOn: { backgroundColor: colors.primary, borderColor: colors.primary },
     description: { ...styles.mt1 },
     durationRow: { ...styles.flexRow, ...styles.itemsCenter, gap: moderateScale(5), ...styles.mt2 },
   });

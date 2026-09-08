@@ -4,6 +4,7 @@ import type { Socket } from 'socket.io-client';
 
 import { AppointmentEntry, CalendarAppointmentEntry, Customer, ServiceVM, Staff } from '@/data/sample';
 import { SeatGroupVM, CardVM, flatCards } from '@/lib/queue';
+import type { ServiceFormValues } from '@/components/settings';
 import { api, ApiError, getAccessToken, initSession, setOnAuthFail } from '@/lib/api';
 import { connectOwner } from '@/lib/socket';
 import {
@@ -56,7 +57,12 @@ const OPTIONAL_SERVICE_CATEGORIES = new Set(['Hospital', 'Restaurant']);
 const VISITOR_TYPE_CATEGORIES = new Set(['Hospital']);
 
 type WalkIn = {
-  service: string | null; // service name
+  /**
+   * The visit's services by NAME, in pick order. A visit is routinely more than one thing, and
+   * picking one used to drop the rest — the board sized the visit by the first service and
+   * checkout rang up its price alone.
+   */
+  services: string[]; // service name
   position: WalkInPosition;
   staffId: string; // 'auto' | staff id
   visitorType: VisitorType | null;
@@ -205,14 +211,14 @@ type Store = State & {
   ) => Promise<boolean>;
   saveAppearance: (theme: ThemeConfig) => Promise<boolean>;
   saveHours: (next: DayHoursVM[]) => void;
-  createService: (f: { name: string; durationMinutes: number; priceRupees: number }) => Promise<boolean>;
-  updateService: (id: string, f: { name: string; durationMinutes: number; priceRupees: number }) => Promise<boolean>;
+  createService: (f: ServiceFormValues) => Promise<boolean>;
+  updateService: (id: string, f: ServiceFormValues) => Promise<boolean>;
   removeService: (id: string) => Promise<boolean>;
   createStaffMember: (f: { name: string; roleLabel: string; photoUrl: string | null }) => Promise<boolean>;
   updateStaffMember: (id: string, f: { name: string; roleLabel: string; photoUrl: string | null }) => Promise<boolean>;
 };
 
-const emptyWalkin: WalkIn = { service: null, position: 'end', staffId: 'auto', visitorType: null, error: '' };
+const emptyWalkin: WalkIn = { services: [], position: 'end', staffId: 'auto', visitorType: null, error: '' };
 
 const AppStateContext = createContext<Store | null>(null);
 
@@ -688,7 +694,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         const firstService = s.services[0]?.name ?? null;
         patch(() => ({
           sheet: 'walkin',
-          walkin: { ...emptyWalkin, service: firstService },
+          walkin: { ...emptyWalkin, services: firstService ? [firstService] : [] },
         }));
       },
       closeWalkin: () => patch(() => ({ sheet: null })),
@@ -697,22 +703,36 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setWalkinPosition: (position) => patch((p) => ({ walkin: { ...p.walkin, position } })),
       setWalkinStaff: (staffId) => patch((p) => ({ walkin: { ...p.walkin, staffId } })),
       setWalkinVisitorType: (visitorType) => patch((p) => ({ walkin: { ...p.walkin, visitorType, error: '' } })),
-      pickService: (name) => patch((p) => ({ walkin: { ...p.walkin, service: name, error: '' } })),
+      // Toggle, not set: the sheet is a checklist now. Order is kept because the first pick
+      // becomes the entry's primary service on the API side.
+      pickService: (name) =>
+        patch((p) => ({
+          walkin: {
+            ...p.walkin,
+            services: p.walkin.services.includes(name)
+              ? p.walkin.services.filter((x) => x !== name)
+              : [...p.walkin.services, name],
+            error: '',
+          },
+        })),
       addWalkin: async ({ name, phone }) => {
         const w = s.walkin;
         const category = s.business?.category ?? '';
         const serviceOptional = OPTIONAL_SERVICE_CATEGORIES.has(category);
         const needsVisitorType = VISITOR_TYPE_CATEGORIES.has(category);
         if (!name.trim()) return patch(() => ({ walkin: { ...w, error: t.toast.enterName } }));
-        if (!serviceOptional && !w.service) return patch(() => ({ walkin: { ...w, error: t.toast.pickService } }));
+        if (!serviceOptional && w.services.length === 0) return patch(() => ({ walkin: { ...w, error: t.toast.pickService } }));
         if (needsVisitorType && !w.visitorType) return patch(() => ({ walkin: { ...w, error: t.toast.pickVisitorType } }));
-        const serviceId = s.services.find((sv) => sv.name === w.service)?.id ?? null;
+        // Names → ids in pick order; an unknown name is dropped rather than sent as null.
+        const serviceIds = w.services
+          .map((n) => s.services.find((sv) => sv.name === n)?.id)
+          .filter((id): id is string => !!id);
         patch(() => ({ walkinLoading: true }));
         try {
           const res: any = await api.addWalkin({
             name: name.trim(),
             phone: phone.trim() || undefined,
-            serviceId,
+            serviceIds: serviceIds.length ? serviceIds : undefined,
             staffId: w.staffId,
             position: w.position,
             visitorType: w.visitorType,
@@ -914,12 +934,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           if (seq === hoursSeq.current) loadBusiness();
         }
       },
-      createService: async ({ name, durationMinutes, priceRupees }) => {
+      createService: async ({ name, durationMinutes, priceType, priceRupees, priceMaxRupees }) => {
         try {
           await api.createService({
             name,
             durationMinutes,
+            priceType,
             priceAmount: Math.round(priceRupees * 100),
+            // Only a range carries a ceiling — the API rejects one on a fixed price by design,
+            // so that a service switched back from range cannot keep a stale band.
+            ...(priceType === 'range' && priceMaxRupees != null
+              ? { priceMaxAmount: Math.round(priceMaxRupees * 100) }
+              : {}),
             colorToken: COLOR_PALETTE[s.services.length % COLOR_PALETTE.length],
             position: s.services.length,
           });
@@ -931,9 +957,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
       },
-      updateService: async (id, { name, durationMinutes, priceRupees }) => {
+      updateService: async (id, { name, durationMinutes, priceType, priceRupees, priceMaxRupees }) => {
         try {
-          await api.updateService(id, { name, durationMinutes, priceAmount: Math.round(priceRupees * 100) });
+          await api.updateService(id, {
+            name,
+            durationMinutes,
+            // Mode and amount always travel together — the API refuses a half-changed price.
+            priceType,
+            priceAmount: Math.round(priceRupees * 100),
+            ...(priceType === 'range' && priceMaxRupees != null
+              ? { priceMaxAmount: Math.round(priceMaxRupees * 100) }
+              : {}),
+          });
           await loadServices();
           showToast(t.toast.serviceUpdated, 'success');
           return true;

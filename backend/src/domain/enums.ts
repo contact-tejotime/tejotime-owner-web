@@ -15,6 +15,20 @@ export type UserRole = (typeof USER_ROLES)[number];
 export const CREATABLE_ROLES = ['co_owner', 'staff'] as const;
 export type CreatableRole = (typeof CREATABLE_ROLES)[number];
 
+/**
+ * How a service is priced. Mirrors the `ck_service_price_shape` check added in migration 0024.
+ *
+ * `unset` is legacy-only — the honest reading of the `price_paise = 0` rows that predate the
+ * two modes. The write schemas refuse it, so an owner editing such a service has to choose
+ * `fixed` or `range` before it can be saved again.
+ */
+export const SERVICE_PRICE_TYPES = ['fixed', 'range', 'unset'] as const;
+export type ServicePriceType = (typeof SERVICE_PRICE_TYPES)[number];
+
+/** The modes an editor may actually pick. `unset` is not one of them — see above. */
+export const WRITABLE_SERVICE_PRICE_TYPES = ['fixed', 'range'] as const;
+export type WritableServicePriceType = (typeof WRITABLE_SERVICE_PRICE_TYPES)[number];
+
 export const QUEUE_STATUSES = [
   'waiting',
   'in_service',

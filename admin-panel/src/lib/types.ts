@@ -15,10 +15,21 @@ export interface HourRow {
   closesAt: string;
   isClosed: boolean;
 }
+/**
+ * How a service is priced. `unset` is legacy — a service that predates pricing modes and was
+ * carrying a zero to mean "not priced yet" (migration 0024). It only ever arrives from the API;
+ * the form makes the admin choose a real mode, and the backend refuses to save it as it stands.
+ */
+export type ServicePriceType = "fixed" | "range" | "unset";
+
 export interface ServiceRow {
   name: string;
   durationMinutes: number;
+  /** The fixed price, or the MINIMUM of a range — `priceType` says which. Whole rupees. */
   priceRupees: number;
+  priceType: ServicePriceType;
+  /** The maximum of a range, in rupees. Null in every other mode. */
+  priceMaxRupees: number | null;
 }
 export interface StaffRow {
   name: string;
@@ -161,7 +172,7 @@ export const EMPTY_FORM: StoreForm = {
   hours: blankHours(),
   amenities: [],
   gallery: [],
-  services: [{ name: "", durationMinutes: 30, priceRupees: 0 }],
+  services: [{ name: "", durationMinutes: 30, priceRupees: 0, priceType: "fixed", priceMaxRupees: null }],
   staff: [{ name: "", roleLabel: "", avatarUrl: "" }],
   faqs: [],
   reviews: [],
@@ -266,7 +277,16 @@ export function fromDetail(d: StoreDetail): StoreForm {
     hours,
     amenities: d.amenities,
     gallery: d.gallery,
-    services: d.services.length ? d.services : EMPTY_FORM.services,
+    // Normalised rather than passed straight through: a service written before pricing modes
+    // (or a response cached from a backend without them) arrives with no `priceType`, and the
+    // form would then render a mode select bound to undefined.
+    services: d.services.length
+      ? d.services.map((s) => ({
+          ...s,
+          priceType: s.priceType ?? (s.priceRupees > 0 ? "fixed" : "unset"),
+          priceMaxRupees: s.priceMaxRupees ?? null,
+        }))
+      : EMPTY_FORM.services,
     staff: d.staff.length ? d.staff : EMPTY_FORM.staff,
     faqs: d.faqs,
     reviews: d.reviews ?? [],
@@ -344,6 +364,11 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
         name: s.name.trim(),
         durationMinutes: Number(s.durationMinutes),
         priceRupees: Number(s.priceRupees),
+        // 'unset' is not a mode the API accepts — a legacy service must be given one before it
+        // can be saved. Sending 'fixed' with its zero price fails validation with a message
+        // about the price, which is exactly the field the admin has to fill in.
+        priceType: s.priceType === "range" ? "range" : "fixed",
+        priceMaxRupees: s.priceType === "range" && s.priceMaxRupees != null ? Number(s.priceMaxRupees) : null,
       })),
     staff: f.staff
       .filter((s) => s.name.trim())

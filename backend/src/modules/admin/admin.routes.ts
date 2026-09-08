@@ -5,6 +5,7 @@ import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import { Errors } from '../../domain/errors';
 import { OPTIONAL_SERVICES_STAFF_CATEGORIES } from '../../config/constants';
+import { WRITABLE_SERVICE_PRICE_TYPES } from '../../domain/enums';
 import { MAX_IMAGE_BYTES, signUpload } from '../../integrations/storage';
 import { verifyAdminToken } from '../auth/token.service';
 import * as admin from './admin.service';
@@ -160,11 +161,34 @@ const storeFieldsSchema = z.object({
     .default([]),
   services: z
     .array(
-      z.object({
-        name: z.string().trim().min(1).max(80),
-        durationMinutes: z.coerce.number().int().min(1).max(600),
-        priceRupees: z.coerce.number().min(0).max(1_000_000),
-      }),
+      z
+        .object({
+          name: z.string().trim().min(1).max(80),
+          durationMinutes: z.coerce.number().int().min(1).max(600),
+          // Was `min(0)`. A zero used to mean "we'll fill the price in later" and shipped to
+          // customers as "$0"; a service that is named is now a service that is priced, either
+          // to a figure or to a band. Stores that genuinely have no menu (Hospital, Restaurant)
+          // send no services at all, so nothing that used to work is closed off here.
+          priceRupees: z.coerce.number().positive().max(1_000_000),
+          priceType: z.enum(WRITABLE_SERVICE_PRICE_TYPES).default('fixed'),
+          /** Range ceiling, in rupees like `priceRupees`. Required for, and only for, a range. */
+          priceMaxRupees: z.coerce.number().positive().max(1_000_000).nullable().optional(),
+        })
+        .superRefine((v, ctx) => {
+          if (v.priceType === 'range') {
+            if (v.priceMaxRupees == null) {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['priceMaxRupees'], message: 'Enter a maximum price' });
+            } else if (v.priceMaxRupees < v.priceRupees) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['priceMaxRupees'],
+                message: 'Maximum price must be at least the minimum',
+              });
+            }
+          } else if (v.priceMaxRupees != null) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['priceMaxRupees'], message: 'A fixed price has no maximum' });
+          }
+        }),
     )
     .max(50),
   staff: z

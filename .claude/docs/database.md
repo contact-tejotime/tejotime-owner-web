@@ -40,9 +40,16 @@ written to be **idempotent / re-runnable**.
 | 0020 | `queue_checkout_amount.sql` | checkout amount override (+ drops old signature) |
 | 0021 | `business_social_links.sql` | instagram/facebook/twitter/linkedin URLs |
 | 0022 | `admin_roles.sql` | `admins.role`/`name`/`is_active`, `business.created_by_admin_id` |
+| 0024 | `service_price_range.sql` | `service.price_type`/`price_max_paise` + `ck_service_price_shape`; `queue_checkout` refuses a derived total for a range |
+| 0025 | `multi_service_selection.sql` | `appointment_service` table; `queue_attach_services()`; `appointment_check_in` carries every booked service into the queue entry |
 
 > **`0016` is duplicated** across two independent files. Ordering relies on the filename sort, which
-> is deterministic. **Use a strictly increasing prefix from 0023 onward.**
+> is deterministic. **Use a strictly increasing prefix from 0025 onward.**
+>
+> Note `0023_eta_2_sms.sql`: it is recorded in `schema_migrations` on the deployed databases
+> (it added `queue_entry.notified_eta_2_at` / `notified_two_away_at`) but the **file exists in no
+> branch of this repo**. A fresh database therefore cannot be rebuilt from `db/migrations/`
+> alone. Recover and commit that file.
 
 Migrations are **manual in deploy** — nothing runs them automatically. See `deployment.md`.
 
@@ -113,8 +120,41 @@ the entry — see `buildSeatGroups` in `business-logic.md`.
 
 ### `service`
 
-`id`, `business_id`, `name`, `duration_minutes`, `price_paise`, `currency`, `color_token`,
-`is_active`, `position`.
+`id`, `business_id`, `name`, `duration_minutes`, `price_paise`, `price_type`,
+`price_max_paise`, `currency`, `color_token`, `is_active`, `position`.
+
+**Pricing modes** (migration 0024). `price_type` is `'fixed' | 'range' | 'unset'`, enforced by
+`ck_service_price_shape`:
+
+| `price_type` | `price_paise` | `price_max_paise` | Meaning |
+|---|---|---|---|
+| `fixed` | `> 0` | null | One amount. |
+| `range` | `> 0` (the floor) | `>= price_paise` | A band. The customer sees it; whoever checks the customer out types the real figure. |
+| `unset` | `0` | null | Nobody has priced this yet. **Legacy only** — see below. |
+
+`unset` exists because "not priced yet" used to be encoded as `price_paise = 0`, and each
+surface guessed what that zero meant (the microsite said "Price varies", the checkout sheet
+banked ₹0). The 0024 backfill records those rows as what they are; the write schemas refuse
+`unset`, so an owner editing one must choose a real mode and it can never be created again.
+
+`queue_checkout` raises **`TEJO:AMOUNT_REQUIRED`** (→ 422) when `p_amount_paise` is null and the
+booked service is `range` or `unset` — deriving would bank the band's minimum, which is the
+same under-reporting 0020 was written to stop.
+
+### `appointment_service`
+
+`id`, `appointment_id` (cascade), `service_id` (`on delete set null`), `name`, `minutes`,
+`price_paise`, `position`.
+
+One row per service on a booking, `position` 0 being the primary (the one mirrored onto
+`appointment.service_id`). Name/minutes/price are **denormalised on purpose** — deleting a
+service from the menu must not rewrite what a customer already agreed to.
+
+Queue entries need no equivalent table: a multi-service visit is stored the way `queue_extend`
+already stores add-ons — `service_id` is the first service, `service_name` the combined label,
+`extra_minutes` the sum of the rest (read by `estMins`), and one `queue_entry_extra` row per
+extra service (summed by `billingFor`). `appointment_service` exists only because a booking is
+made now and checked in later, so check-in has to be able to rebuild those extras.
 
 ### `customer`
 

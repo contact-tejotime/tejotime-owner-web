@@ -324,6 +324,25 @@ from **one** implementation. Mirrored in `backend/tests/unit/queue-engine.test.t
 `p_amount_paise` is an **override** (0020): pass null and the derived service + add-ons total is
 used. `no_show` deliberately does **not** auto-promote.
 
+**Multi-service visits** (0025) — a visit can carry several services. There is **no new shape for
+the queue**: it reuses what `queue_extend` already produces — `service_id` is the FIRST service,
+`service_name` the combined label ("Haircut + Hair Spa"), `extra_minutes` the sum of the rest
+(read by `estMins`), and one `queue_entry_extra` row per extra service (summed by `billingFor`),
+so wait times and checkout totals are right with no rework. Bookings itemise into
+**`appointment_service`** because a booking is made now and checked in later; `appointment_check_in`
+replays those rows through `queue_attach_services()` (which, unlike `queue_extend`, works on a
+`waiting` entry). APIs take `serviceIds[]` and still accept the legacy singular `serviceId`; slot
+length is the **sum** of the chosen services. An unknown id is a 404, never a silent drop.
+
+**Service pricing modes** (0024) — `service.price_type` is `fixed` (one amount), `range`
+(`price_paise` is the floor, `price_max_paise` the ceiling) or `unset` (legacy: the rows that
+encoded "not priced yet" as a zero; writes refuse it, so an owner must choose a mode). For
+`range`/`unset`, `queue_checkout` **raises `TEJO:AMOUNT_REQUIRED` (422) rather than deriving** —
+the derived figure would be the band's minimum, which is the same under-reporting of
+`visit.amount_paise` that 0020 exists to prevent. `domain/money.ts::servicePricing` is the one
+resolver; `GET /queue/:id` returns `amountRequired` with a **null** `suggestedAmount` so the
+checkout sheet has nothing dishonest to pre-fill.
+
 **ETA-15 alert** (`lib/eta-notify.ts` + `queue.service.ts` `processTicketBroadcasts`) — one-shot
 per ticket, for **online live-queue joins only** (not walk-ins, not checked-in appointments),
 when `0 < waitMinutes <= ETA_NOTIFY_MINUTES`. Idempotency via a **conditional claim** on
@@ -338,9 +357,16 @@ immediately without waiting for a refresh.
 **Customer microsite rules** (see `docs/customer-booking-page-copy-2026-09-06.md`) — two invariants
 the public booking page depends on. **"Book an Appointment" always means a scheduled visit and
 "Join the Waitlist" always means a walk-in**; service cards open the booking flow, the hero and
-Team section own the walk-in flow. And a **price of `0` paise means "not priced yet", never
-"free"** — `MicrositeClient` renders it as "Price varies" via a single `priceLabel`, which is why
-`ServiceItem` carries a rendered string rather than a number. Walk-in controls are gated on
+Team section own the walk-in flow. **Booking is multi-day**: the modal opens on a 14-day date
+strip (closed weekdays greyed), loads that day's slots, and keeps the preferred-provider chips —
+a named provider narrows availability to their chair. `GET /public/.../slots` already took `date`
+and `staffId`, so this is a client-side concern; the date is built with local date parts, never
+`toISOString()` (that is the UTC day, and sends anyone east of UTC to yesterday before dawn).
+"Join the walk-in waitlist instead" is a **fallback only** — shown when the selected day has no
+times AND it is today AND the store is open; Book an Appointment never doubles as Check in. And a **service is never rendered as a bare number** — the
+store says whether a price is `fixed`, a `range` or `unset` (migration 0024), and a single
+`priceLabel` in `MicrositeClient` turns that into "₹350", "₹2,000–₹6,000" or "Price on request",
+which is why `ServiceItem` carries a rendered string rather than a number. Walk-in controls are gated on
 `site.hours.length > 0 && !openStatus.isOpen` — **not** on `isOpen` alone, because a store with no
 configured hours reports `isOpen: false` forever and would lose check-in entirely. The gate is
 **UI-only**: the API still accepts an out-of-hours join.
@@ -501,13 +527,11 @@ or Selenium appears in any of the six `package.json` files. No browser is ever l
 `owner-web`, and `app` have zero test files and zero test dependencies. CI runs `lint`+`build`
 for the web apps and `tsc --noEmit` for mobile; only `backend` runs a test command.
 
-> ⚠️ **The smoke scripts are currently stale and fail immediately.** Both post
-> `{ handle: 'sharpcuts', password: 'password123' }` to `/auth/login`, but `loginSchema`
-> (`backend/src/modules/auth/auth.schemas.ts`) is `.strict()` and requires **`phone`**. The
-> unknown `handle` key plus the missing `phone` produce a **400 VALIDATION_ERROR**, so the first
-> assertion fails and every later one cascades. The seed prints the real credential:
-> **phone `919399385943` / password `password123`**. The root `README.md` repeats the same stale
-> `sharpcuts` credential. Fix the login payload before trusting either script.
+> The smoke scripts used to post `{ handle: 'sharpcuts', … }` to `/auth/login` and 400 on their
+> first call, because `loginSchema` is `.strict()` and requires **`phone`**. Both now post the
+> seeded credential — **phone `919399385943` / password `password123`** — as does `README.md`.
+> They still need a running server and a seeded throwaway database, and they still have no
+> cleanup (see §12.4).
 
 ### 12.2 Mandatory policy
 
@@ -579,9 +603,16 @@ already do this well (`wrong password → 401`, `owner socket rejects bad token`
   takes the same JWT in `handshake.auth.token`; `/customer` takes `{ businessId, ticketId,
   ticketKey }`, and the join response hands back exactly that under `socket`.
 - **Fixtures.** `backend/db/seed.ts` is the **only** fixture factory — there are no per-test
-  factories. It builds the `sharp-cuts` tenant: 1 owner, 3 staff (John/Lisa/Mike), 4 services,
+  factories. It builds the `sharp-cuts` tenant: 1 owner, 3 staff (John/Lisa/Mike), 5 services
+  (four fixed-price, plus `Hair Extensions` at ₹2,000–₹6,000 as the range fixture),
   4 customers, 5 queue entries, 4 appointments, and pins `token_counter` so tokens continue at
   `A-6`. Tests depend on those exact names, so **changing the seed breaks the smoke scripts.**
+- **Re-running.** Two harness traps, both documented at the top of `smoke-rest.mjs`: **re-seed
+  between runs** (no cleanup, and the scripts leave the tenant on premium), and the **login rate
+  limiter** — `limiters.login` is 10 per 5 min per (IP, phone) and each run spends two, so after
+  ~5 back-to-back runs `wrong password → 401` starts reading **429**. The store is in-memory, so
+  restarting the API clears it. `SMOKE_BASE_URL` overrides the hardcoded `localhost:8080` when a
+  dev API already holds that port.
 - **Cleanup.** There is **none**. The seed is idempotent only at tenant granularity — it
   `delete from business where slug = 'sharp-cuts'` and rebuilds, relying on `on delete cascade`.
   The smoke scripts leave every row they create behind and **mutate shared state** (they upgrade
@@ -648,7 +679,7 @@ cd owner-web && npm install && npm run dev                                    # 
 cd app && npm install && npm start        # npm run android does `adb reverse` first
 ```
 
-Demo owner login: `sharpcuts` / `password123`. Demo tenant slug: `sharp-cuts`.
+Demo owner login: phone `919399385943` / password `password123`. Demo tenant slug: `sharp-cuts`.
 Android emulator reaches the host via `adb reverse` (`npm run android:reverse` at the root);
 a physical device needs the machine's LAN IP in `EXPO_PUBLIC_*`.
 
@@ -690,10 +721,6 @@ a physical device needs the machine's LAN IP in `EXPO_PUBLIC_*`.
   initialized" guard from before the backend existed.
 
 **Testing / E2E**
-- **The smoke scripts are broken.** `smoke-rest.mjs` and `smoke-socket.mjs` both log in with
-  `handle`, but `loginSchema` is `.strict()` and requires `phone` — every run 400s on the first
-  call. The root `README.md` documents the same stale `sharpcuts` credential. Fixing these is
-  the single highest-value testing task in the repo.
 - **No E2E framework and no browser test of any kind.** All four UI apps have zero automated
   tests; the BFF security model (httpOnly cookies, Edge proxy token rotation, `assertSameOrigin`)
   is entirely unverified.

@@ -1,4 +1,5 @@
-import type { Money } from "./server-api";
+import { t, format } from "@/i18n";
+import type { Money, ServicePriceType } from "./server-api";
 
 export { formatPhone } from "./phone";
 
@@ -37,4 +38,29 @@ export function formatDate(iso: string | null | undefined): string {
   return Number.isNaN(d.getTime())
     ? "—"
     : d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
+
+/**
+ * A service's price as one string.
+ *
+ * Every surface used to render `formatMoney(price)` and, for the services nobody had priced
+ * yet, print "₹0" — telling the owner their haircut was free. The mode now comes from the API,
+ * so the three readings are decided once here rather than at each call site.
+ */
+export function formatServicePrice(service: {
+  price: Money;
+  priceType?: ServicePriceType;
+  priceMax?: Money | null;
+}): string {
+  // A cached response from before pricing modes has no `priceType`; the old rule (a real
+  // amount is a fixed price) still reads it correctly.
+  const type = service.priceType ?? (service.price?.amount ? "fixed" : "unset");
+  if (type === "unset") return t.services.unpriced;
+  if (type === "range" && service.priceMax) {
+    return format(t.services.rangeLabel, {
+      min: formatMoney(service.price),
+      max: formatMoney(service.priceMax),
+    });
+  }
+  return formatMoney(service.price);
 }

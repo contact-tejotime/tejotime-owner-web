@@ -160,11 +160,24 @@ export function AddWalkInSheet() {
                   duration={sv.duration}
                   price={sv.price}
                   color={resolveColor(sv.color)}
-                  selected={store.walkin.service === sv.name}
+                  selected={store.walkin.services.includes(sv.name)}
+                  multiSelect
                   onPress={() => store.pickService(sv.name)}
                 />
               ))}
             </View>
+            {/* A running total, because more than one service is now normal — the person at the
+                counter should not have to add up the visit in their head. */}
+            {store.walkin.services.length > 0 && (
+              <TText variant="bodySm" color="textMuted" style={s.sectionLabel}>
+                {format(t.walkin.servicesSelected, {
+                  count: store.walkin.services.length,
+                  minutes: store.services
+                    .filter((sv) => store.walkin.services.includes(sv.name))
+                    .reduce((n, sv) => n + sv.durationMinutes, 0),
+                })}
+              </TText>
+            )}
             {!!store.walkin.error && (
               <TText variant="bodySm" color="error" style={s.error}>
                 {store.walkin.error}

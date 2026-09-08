@@ -2,7 +2,7 @@
 import { CardVM, SeatGroupVM } from '@/lib/queue';
 import { currencySymbol } from '@/lib/currencies';
 import { mapHours } from '@/lib/hours';
-import { AppointmentEntry, CalendarAppointmentEntry, Customer, ServiceColorToken, ServiceVM, Staff } from '@/data/sample';
+import { AppointmentEntry, CalendarAppointmentEntry, Customer, ServiceColorToken, ServicePriceType, ServiceVM, Staff } from '@/data/sample';
 import { StatusKind } from '@/components/ui/StatusBadge';
 import { t, format } from '@/i18n';
 
@@ -78,15 +78,39 @@ export function formatMoney(m?: Money): string {
   return `${symbol}${value.toLocaleString(locale, { maximumFractionDigits: value % 1 ? 1 : 0 })}`;
 }
 
+/**
+ * A service's price as one display string.
+ *
+ * Three readings, decided here rather than at each call site: a figure, a band, or nothing yet.
+ * The last used to be inferred from a zero and rendered as "₹0" — telling the owner their own
+ * unpriced service was free. A response cached from before pricing modes carries no
+ * `priceType`, and the old rule (a real amount is a fixed price) still reads it correctly.
+ */
+export function formatServicePrice(s: {
+  price?: Money;
+  priceType?: ServicePriceType | null;
+  priceMax?: Money | null;
+}): string {
+  const type = s.priceType ?? ((s.price?.amount ?? 0) > 0 ? 'fixed' : 'unset');
+  if (type === 'unset') return t.serviceSheet.unpriced;
+  if (type === 'range' && s.priceMax) {
+    return format(t.serviceSheet.rangeLabel, { min: formatMoney(s.price), max: formatMoney(s.priceMax) });
+  }
+  return formatMoney(s.price);
+}
+
 export function mapService(s: any, i = 0): ServiceVM {
+  const priceType = (s.priceType ?? ((s.price?.amount ?? 0) > 0 ? 'fixed' : 'unset')) as ServicePriceType;
   return {
     id: s.id,
     name: s.name,
     duration: format(t.format.durationMin, { min: s.durationMinutes }),
-    price: formatMoney(s.price),
+    price: formatServicePrice(s),
     color: colorByIndex(i),
     durationMinutes: s.durationMinutes ?? 0,
     priceRupees: (s.price?.amount ?? 0) / 100,
+    priceType,
+    priceMaxRupees: s.priceMax?.amount == null ? null : s.priceMax.amount / 100,
     colorToken: (s.colorToken ?? 'secondary') as ServiceColorToken,
   };
 }

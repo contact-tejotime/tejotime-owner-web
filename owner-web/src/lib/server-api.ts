@@ -204,11 +204,22 @@ export interface QueueView {
   summary: { seatCount: number; activeCount: number; waitingCount: number };
 }
 
+/**
+ * How a service is priced. `unset` is legacy — services that predate pricing modes and were
+ * carrying a zero to mean "not priced yet". The API refuses it on write, so an owner who opens
+ * one has to choose a real mode. See backend/db/migrations/0024_service_price_range.sql.
+ */
+export type ServicePriceType = "fixed" | "range" | "unset";
+
 export interface ServiceRow {
   id: string;
   name: string;
   durationMinutes: number;
+  /** The fixed price, or the MINIMUM of a range — `priceType` says which. */
   price: Money;
+  priceType: ServicePriceType;
+  /** The maximum of a range. Null for every other mode. */
+  priceMax: Money | null;
   isActive: boolean;
   position: number;
 }

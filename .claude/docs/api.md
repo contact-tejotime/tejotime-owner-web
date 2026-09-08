@@ -130,6 +130,12 @@ the API.
 | POST | `/:id/move` | `perm=queue:manage`, `ownRow` |
 | DELETE | `/:id` | `perm=queue:manage`, `ownRow` |
 
+`GET /:id` returns the checkout sheet's billing: `serviceAmount`, `servicePriceType`,
+`serviceMaxAmount`, `extrasAmount`, `extras[]`, `amountRequired`, and `suggestedAmount` — which
+is **null** whenever `amountRequired` is true (a range-priced or unpriced service). `POST
+/:id/checkout` then requires `amountPaise` for those and answers **422 `AMOUNT_REQUIRED`**
+without it; a fixed-price service still checks out on an empty body. See `business-logic.md`.
+
 A staff login's own seat **overrides** any `staffId` in the query, so the whole-shop view is not
 one query string away. Walk-ins added by a staff login are forced onto that login's own chair
 (`'auto'` would let the engine seat them in someone else's lane).
@@ -162,6 +168,17 @@ Free plan truncates the list server-side to `FREE_PLAN_CUSTOMER_LIMIT` and retur
 
 `GET /` (`ownerRead`, no module permission) — `POST /` · `PATCH /:id` · `DELETE /:id`
 (`perm=services:manage` / `perm=staff:manage`).
+
+**Service pricing** crosses as a triple, all paise: `priceType` (`'fixed' | 'range'`),
+`priceAmount` (the fixed price, or the range floor, `>= 1`) and `priceMaxAmount` (the ceiling —
+required for a range, refused on a fixed price). The three move **together**: a `PATCH` that
+sends one without `priceType` + `priceAmount` is a 400, so a service switched back from a range
+cannot keep a ceiling the check constraint would reject.
+
+The DTO mirrors that with `price` (fixed amount, or range minimum), `priceType` and `priceMax`
+(null unless a range). `priceType` may also read `'unset'` for services that predate pricing
+modes — writes refuse it, so an owner has to choose a real mode. See `database.md` and
+`business-logic.md`.
 
 ### `/users` (8) — team logins
 

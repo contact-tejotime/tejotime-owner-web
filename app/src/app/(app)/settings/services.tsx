@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { TButton, TText } from '@/components/common';
-import { ServiceEditSheet, SettingsPageShell } from '@/components/settings';
+import { ServiceEditSheet, SettingsPageShell, type ServiceFormValues } from '@/components/settings';
 import { Icon } from '@/components/ui/Icon';
 import { t } from '@/i18n';
 import { ServiceVM } from '@/data/sample';
@@ -27,7 +27,7 @@ export default function ServicesPricing() {
     setSheetOpen(true);
   };
 
-  const onSave = async (f: { name: string; durationMinutes: number; priceRupees: number }) => {
+  const onSave = async (f: ServiceFormValues) => {
     setSaving(true);
     const ok = editing ? await store.updateService(editing.id, f) : await store.createService(f);
     setSaving(false);
