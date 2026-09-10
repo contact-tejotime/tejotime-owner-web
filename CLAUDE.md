@@ -87,7 +87,8 @@ Dev: `tsx` (watch/run), `vitest`, `eslint`, `supertest` (router-level HTTP tests
 use **plain CSS custom properties + `globals.css`**, not Tailwind.
 
 **Mobile** — Expo 56, expo-router (typed routes, React Compiler on), expo-secure-store (token
-storage), react-native-reanimated 4, socket.io-client.
+storage), react-native-reanimated 4, socket.io-client, expo-screen-orientation (tablets rotate,
+phones stay portrait — see §7).
 
 ---
 
@@ -375,6 +376,22 @@ configured hours reports `isOpen: false` forever and would lose check-in entirel
 (Hospital, Restaurant) allow zero services/staff; `VISITOR_TYPE_CATEGORIES` (Hospital) require
 identifying the visitor as `mr` | `patient` (display-only, never part of wait-time math).
 
+**Mobile responsive layout** (see [docs/mobile-responsive-tablets.md](docs/mobile-responsive-tablets.md))
+— `app/src/lib/responsive.ts` is pure size arithmetic (no React, no react-native, so it is
+self-checkable); `useResponsive` / `useTabContent` are its React bindings. Two questions that are
+easy to conflate: **`isTabletSize` measures the device's screen short side** (≥ 600dp, Android's
+`sw600dp`) and so is unchanged by rotation, while **`sizeClassFor` measures the live window** —
+an iPad in Slide Over is a tablet with a compact window. Content caps engage on `width > cap`,
+never on "is tablet", which is what keeps phone portrait byte-identical to the pre-tablet layout
+(every cap in the app is wider than a phone). **Rotation policy: tablets rotate, phones stay
+portrait** — declared in `ios.infoPlist` for iPad and enforced at runtime by
+`lib/orientation.ts` for Android, because `android:screenOrientation` is a manifest enum with no
+`sw600dp` variant. `styles/scale.ts` deliberately **shadows** `react-native-size-matters`: the
+library never stops growing (a `moderateScale(16)` padding became 35–60dp on an iPad, inflating
+the whole UI 2.4–3.9×) and samples the window once at import time, which only worked while the
+app was portrait-locked. Tablets earn their room through **layout** — wider columns, 2-up grids —
+not bigger text.
+
 **Theme engine** (`frontend/src/theme/engine/`) — pure TS (no React/DOM/node), generates the
 per-store microsite theme from `business.theme` jsonb: 6 presets × light/dark, OKLCH colour
 ramps, WCAG contrast checks, radius/shadow/density/animation/hero/typography axes. Owners edit
@@ -490,10 +507,11 @@ Plus `npm run check:axes` — every editable theme axis must appear in **every**
 hand-lists them (including each Appearance panel's `key()` dirty-check; an axis missing there is
 silently **unsaveable**, with no error).
 And `npm run test:theme` — the framework-free theme engine self-check (parity, contrast, ramps,
-CSS tokens, input repair), run via the `tsx` the backend already depends on.
+CSS tokens, input repair), run via the `tsx` the backend already depends on. `npm run
+test:responsive` is the same idea for the mobile app's breakpoint/grid arithmetic (§7).
 
-> These three checks are **not wired into CI**. Run them manually after touching the theme
-> engine, the cropper, or a theme axis.
+> These checks are **not wired into CI**. Run them manually after touching the theme engine, the
+> cropper, a theme axis, or the mobile breakpoints.
 
 Also duplicated by hand, with **no** generator: `lib/countries.ts`, `lib/phone.ts`,
 `lib/format.ts`, `lib/support.ts`, `lib/frontend-url.ts`, `PhoneField`, and the `i18n` module
@@ -516,6 +534,10 @@ across the web apps.
   database and no running server**.
 - `frontend/src/theme/engine/__tests__/run.ts` — framework-free theme self-check
   (`npm run test:theme` from the root).
+- `app/src/lib/__tests__/responsive-check.ts` — the same pattern for the mobile app's breakpoint
+  and grid arithmetic (`npm run test:responsive`; **1262 assertions across an 11-device matrix**).
+  It exists because `app/` has no test runner and §12.6 forbids adding one — keeping
+  `lib/responsive.ts` free of React/react-native imports is what makes it checkable as plain TS.
 - `backend/scripts/smoke-rest.mjs` and `smoke-socket.mjs` — plain-Node scripts that hit a
   **running server + seeded database** over real HTTP and real Socket.IO. These are the only
   true end-to-end coverage in the repo.
@@ -681,7 +703,11 @@ cd app && npm install && npm start        # npm run android does `adb reverse` f
 
 Demo owner login: phone `919399385943` / password `password123`. Demo tenant slug: `sharp-cuts`.
 Android emulator reaches the host via `adb reverse` (`npm run android:reverse` at the root);
-a physical device needs the machine's LAN IP in `EXPO_PUBLIC_*`.
+a physical device needs the machine's LAN IP in `EXPO_PUBLIC_*`. The iOS simulator shares the
+host's loopback, so `localhost` just works there — but it needs a native build
+(`npm run ios` → `expo run:ios`), not `expo start`, because the app uses `expo-dev-client`.
+See [docs/ios-local-setup.md](docs/ios-local-setup.md), and note its first rule: **the checkout
+must not sit in a path containing a space** — three separate iOS build scripts run it unquoted.
 
 ---
 

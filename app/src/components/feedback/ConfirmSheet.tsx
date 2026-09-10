@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import { TButton, TText } from '@/components/common';
+import { TButton, TKeyboardScreen, TText } from '@/components/common';
 import { t } from '@/i18n';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
@@ -56,6 +56,10 @@ export function ConfirmSheet({
 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onCancel}>
+      {/* The prompt variant (Team -> reset password) centres a card that is ~300pt tall. iOS
+          floats the keyboard over it, which buried Confirm and Cancel; Android's resize mode
+          re-centred them. Avoid the keyboard so the buttons stay on screen on both. */}
+      <TKeyboardScreen isScrollView={false}>
       <Pressable style={s.backdrop} onPress={onCancel}>
         {/* Swallow taps inside the card so only the backdrop dismisses. */}
         <Pressable style={s.card} onPress={() => {}}>
@@ -111,6 +115,7 @@ export function ConfirmSheet({
           </View>
         </Pressable>
       </Pressable>
+      </TKeyboardScreen>
     </Modal>
   );
 }

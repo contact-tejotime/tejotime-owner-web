@@ -3,7 +3,7 @@
     "name": "TejoTime",
     "slug": "tejotime-mobile",
     "version": "1.0.2",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "tejotime",
     "userInterfaceStyle": "automatic",
@@ -49,7 +49,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow TejoTime to access your photos so you can add staff member photos."
+          "photosPermission": "Allow TejoTime to access your photos so you can add staff member photos.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ]
     ],
@@ -61,6 +63,22 @@
       "router": {},
       "eas": {
         "projectId": "a3b32050-35d9-4903-b931-2706751a35e8"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.tejotime.tejotimemobile",
+      "supportsTablet": true,
+      "infoPlist": {
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown"
+        ],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
       }
     }
   }

@@ -423,6 +423,56 @@ async function main() {
   const checkin = await call('POST', `/appointments/${confirmable.id}/check-in`, { token });
   ok(checkin.status === 201 && checkin.json.entry, 'appointment check-in → queue entry');
 
+  console.log('REMOVING A CHAIR');
+  // What the owner apps call "remove" is a SOFT delete: the backend flips `is_active` so completed
+  // visits keep their chair. The observable contract both clients depend on is therefore not "the
+  // row is gone" but "it stops coming back from /staff?active=true" — which is exactly the list the
+  // mobile app renders.
+  const gone = await call('POST', '/staff', {
+    token,
+    body: { name: `Smoke Removable ${Date.now()}`, roleLabel: 'Smoke', colorToken: 'secondary' },
+  });
+  ok(gone.status === 201, 'a chair to remove was created');
+  const removedId = gone.json.id;
+
+  const del = await call('DELETE', `/staff/${removedId}`, { token });
+  ok(del.status === 200, `removing an idle chair succeeds (got ${del.status})`);
+  const activeAfter = await call('GET', '/staff?active=true', { token });
+  ok(
+    !activeAfter.json.data.some((x) => x.id === removedId),
+    'the removed chair is gone from the active list the app renders',
+  );
+  const allAfter = await call('GET', '/staff', { token });
+  ok(
+    allAfter.json.data.some((x) => x.id === removedId && x.isActive === false),
+    'it is deactivated rather than deleted, so past visits keep their chair',
+  );
+
+  // The negative case, and the one the mobile toast exists for: a chair still holding a customer
+  // must be refused, not silently emptied.
+  const busySeat = await call('POST', '/staff', {
+    token,
+    body: { name: `Smoke Busy ${Date.now()}`, roleLabel: 'Smoke', colorToken: 'secondary' },
+  });
+  ok(busySeat.status === 201, 'a chair that will be busy was created');
+  const busyAdd = await call('POST', '/queue', {
+    token,
+    body: { name: 'Stay Put', phone: '+919555000333', serviceId: haircut.id, staffId: busySeat.json.id, position: 'end' },
+  });
+  ok(busyAdd.status === 201, 'a customer is waiting on that chair');
+
+  const refused = await call('DELETE', `/staff/${busySeat.json.id}`, { token });
+  ok(refused.status === 409, `removing a chair with a waiting customer → 409 (got ${refused.status})`);
+  ok(
+    refused.json.error?.code === 'SEAT_HAS_ACTIVE_ENTRIES',
+    `the refusal names the reason the app shows (got ${refused.json.error?.code})`,
+  );
+  const stillActive = await call('GET', '/staff?active=true', { token });
+  ok(
+    stillActive.json.data.some((x) => x.id === busySeat.json.id),
+    'the refused chair is still active — the failed delete changed nothing',
+  );
+
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }

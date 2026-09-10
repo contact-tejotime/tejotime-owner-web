@@ -205,6 +205,12 @@ export const api = {
     raw('POST', '/staff', b),
   updateStaff: (id: string, b: { name?: string; roleLabel?: string; photoUrl?: string | null }) =>
     raw('PATCH', `/staff/${id}`, b),
+  /**
+   * Soft-delete: the backend flips `is_active` rather than removing the row, so completed visits
+   * keep their chair. It answers 409 SEAT_HAS_ACTIVE_ENTRIES while the seat still holds a
+   * waiting/in-service entry — see `removeStaffMember` in the store for that path.
+   */
+  deleteStaff: (id: string) => raw('DELETE', `/staff/${id}`),
 
   /** Get a signed upload URL for an owner-scoped image (logo/hero/gallery/avatar). */
   signUpload: (b: { assetType: string; contentType: string; byteSize: number }) =>

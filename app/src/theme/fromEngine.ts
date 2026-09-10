@@ -17,7 +17,10 @@
  */
 
 import {
+  contrastRatio,
+  onColor,
   resolveTheme,
+  AA_BODY,
   type ModeId,
   type ResolvedTheme,
   type ThemeConfig,
@@ -41,6 +44,24 @@ function num(value: string | undefined, fallback: number): number {
  */
 export function colorsFromTokens(t: TokenMap, base: SemanticColors): SemanticColors {
   const pick = (name: string, fallback: string) => t[name] ?? fallback;
+
+  // `brandInk` is an owner preference, and `resolve.ts` honours it literally — `brandInk: 'white'`
+  // overwrites the contrast-safe ink it had just computed. That is fine in light mode, where a
+  // brand dark enough to want white ink keeps it. In DARK mode the engine lightens the brand so it
+  // reads against a dark page, and white-on-lightened-brand collapses: a store on #DC2626 resolves
+  // to #ff8377 in dark, where white scores 2.4:1. The engine notices — `resolved.contrast.dark`
+  // carries a failing `on-brand-on-brand` row — but reports rather than corrects, because the
+  // override is deliberate and the microsite has tests pinning it.
+  //
+  // The owner app cannot ship an unreadable button label, so the preference is honoured only while
+  // it is legible and falls back to the engine's own `onColor` picker when it is not. Kept here in
+  // the adapter rather than in `engine/` on purpose: that folder is a generated mirror of
+  // frontend's, and changing it would move every store's customer microsite too.
+  const brandFill = pick('--primary', base.primary);
+  const preferredInk = pick('--text-on-brand', base.textOnBrand);
+  const legibleInk =
+    contrastRatio(preferredInk, brandFill) >= AA_BODY ? preferredInk : onColor(brandFill);
+
   return {
     surfacePage: pick('--surface-page', base.surfacePage),
     surfaceCard: pick('--surface-card', base.surfaceCard),
@@ -52,7 +73,7 @@ export function colorsFromTokens(t: TokenMap, base: SemanticColors): SemanticCol
     textBody: pick('--text-body', base.textBody),
     textMuted: pick('--text-muted', base.textMuted),
     textSubtle: pick('--text-subtle', base.textSubtle),
-    textOnBrand: pick('--text-on-brand', base.textOnBrand),
+    textOnBrand: legibleInk,
     textLink: pick('--text-link', base.textLink),
 
     borderSubtle: pick('--border-subtle', base.borderSubtle),

@@ -106,7 +106,9 @@ const createQueueCardStyles = ({ colors, radius, shadow }: ThemeStyleProps) => {
     subText: { ...styles.flex },
     rightRow: { ...styles.flexRow, ...styles.itemsCenter, ...styles.g1 },
     statusDot: { width: moderateScale(7), height: moderateScale(7), borderRadius: moderateScale(3.5) },
-    numTextActive: { color: '#fff' },
+    // The badge fills with `colors.primary`, which is a LIGHT colour in dark mode — a hardcoded
+    // white numeral scored ~2:1 there. `textOnBrand` is the ink that tracks the fill per mode.
+    numTextActive: { color: colors.textOnBrand },
     numTextIdle: { color: colors.textMuted },
     rightTextActive: { color: colors.primary },
     rightTextIdle: { color: colors.textMuted },

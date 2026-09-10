@@ -216,6 +216,7 @@ type Store = State & {
   removeService: (id: string) => Promise<boolean>;
   createStaffMember: (f: { name: string; roleLabel: string; photoUrl: string | null }) => Promise<boolean>;
   updateStaffMember: (id: string, f: { name: string; roleLabel: string; photoUrl: string | null }) => Promise<boolean>;
+  removeStaffMember: (id: string) => Promise<boolean>;
 };
 
 const emptyWalkin: WalkIn = { services: [], position: 'end', staffId: 'auto', visitorType: null, error: '' };
@@ -1013,6 +1014,27 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           return true;
         } catch (e) {
           showToast((e as ApiError)?.message ?? t.toast.couldNotUpdateStaff, 'error');
+          return false;
+        }
+      },
+      removeStaffMember: async (id) => {
+        try {
+          await api.deleteStaff(id);
+          // The queue board is keyed on seats, and a removed chair's still-active tickets fall back
+          // to an "Any" group, so refresh it alongside the staff list rather than leaving the board
+          // showing a chair that no longer exists.
+          await Promise.all([loadStaff(), loadQueue()]);
+          showToast(t.toast.staffRemoved, 'success');
+          return true;
+        } catch (e) {
+          const err = e as ApiError;
+          // The backend refuses while the seat still holds a waiting/in-service entry. Its raw
+          // message names the constraint, not the fix, so say what the owner has to do instead.
+          const message =
+            err?.code === 'SEAT_HAS_ACTIVE_ENTRIES'
+              ? t.toast.staffHasActiveEntries
+              : (err?.message ?? t.toast.couldNotRemoveStaff);
+          showToast(message, 'error');
           return false;
         }
       },

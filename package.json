@@ -14,6 +14,7 @@
     "lint:owner": "npm run lint --prefix owner-web",
     "lint:app": "npm run lint --prefix app",
     "test:theme": "cd backend && npx tsx ../frontend/src/theme/engine/__tests__/run.ts",
+    "test:responsive": "cd backend && npx tsx ../app/src/lib/__tests__/responsive-check.ts",
     "sync:theme": "node scripts/sync-theme-engine.mjs",
     "check:theme": "node scripts/sync-theme-engine.mjs --check",
     "sync:crop": "node scripts/sync-image-crop.mjs",

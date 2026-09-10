@@ -17,6 +17,11 @@ export const TScreenScroll = forwardRef<ScrollView, {
       style={styles.flex}
       contentContainerStyle={[styles.screenPadding, styles.pb6]}
       showsVerticalScrollIndicator={false}
+      // Same pair TKeyboardScreen already uses. "handled" makes a button under the keyboard
+      // take one tap instead of two (the first was being spent dismissing), and on-drag gives
+      // iOS a way to dismiss a number-pad, which has no Return key and no Back button.
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
       refreshControl={
         onRefresh ? (
           <RefreshControl

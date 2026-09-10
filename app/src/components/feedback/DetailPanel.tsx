@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { TText } from '@/components/common';
+import { TKeyboardScreen, TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -161,8 +161,12 @@ export function DetailPanel() {
     <Modal transparent visible={open} animationType="fade" onRequestClose={close}>
       {card && (
         <View style={s.page}>
-          <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
-            <View style={[styles.flex, centerStyle]}>
+          <SafeAreaView style={s.safe} edges={['top', 'bottom', 'left', 'right']}>
+            {/* The amount box and Complete button live in a bottom-anchored footer. Android
+                resizes the window under the keyboard (softwareKeyboardLayoutMode: resize), so
+                they stayed reachable there; iOS floats the keyboard over the app, which hid
+                the whole checkout footer. Avoiding the keyboard here restores parity. */}
+            <TKeyboardScreen isScrollView={false} style={[styles.flex, centerStyle]}>
             <View style={s.topBar}>
               <Pressable onPress={close} style={s.backBtn}>
                 <Icon name="chevronLeft" size={22} color={theme.colors.textBody} />
@@ -348,7 +352,7 @@ export function DetailPanel() {
                 </>
               )}
             </View>
-            </View>
+            </TKeyboardScreen>
           </SafeAreaView>
         </View>
       )}

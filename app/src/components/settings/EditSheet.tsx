@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TKeyboardScreen, TText } from '@/components/common';
@@ -37,7 +37,17 @@ export function EditSheet({
           <TText variant="h4" weight="semibold" style={s.title}>
             {title}
           </TText>
-          {children}
+          {/* Capped + scrollable, matching AddWalkInSheet. The forms these shells wrap run to
+              five fields plus two buttons; unscrolled they ran off the bottom of a 667pt phone,
+              and on iOS the keyboard cannot be dismissed by a Back button, so the save button
+              was unreachable. Dragging the body now also dismisses the keyboard. */}
+          <ScrollView
+            style={s.body}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag">
+            {children}
+          </ScrollView>
         </View>
       </TKeyboardScreen>
     </Modal>
@@ -53,7 +63,10 @@ const createEditSheetStyles = ({ colors, radius }: ThemeStyleProps, bottomInset:
       ...styles.ph5,
       paddingTop: moderateScale(18),
       paddingBottom: moderateScale(26) + bottomInset,
+      maxHeight: '86%',
     },
+    /** flexShrink lets the body give way to the cap instead of overflowing past it. */
+    body: { flexGrow: 0, flexShrink: 1 },
     handle: {
       width: moderateScale(40),
       height: moderateScale(4),

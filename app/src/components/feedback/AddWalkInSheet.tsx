@@ -15,6 +15,7 @@ import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
+import { inkOn } from '@/theme/ink';
 import { useTheme } from '@/theme/ThemeProvider';
 
 import { createSheetOverlayStyles } from './QRSheet';
@@ -196,9 +197,9 @@ export function AddWalkInSheet() {
                       <Pressable key={o.id} onPress={() => store.setWalkinStaff(o.id)} style={s.seatOptionStyle(sel)}>
                         <View style={s.seatAvatarBg(o.color)}>
                           {o.auto ? (
-                            <Icon name="sparkles" size={15} color="#fff" />
+                            <Icon name="sparkles" size={15} color={inkOn(o.color)} />
                           ) : (
-                            <TText weight="bold" style={s.seatAvatarText}>
+                            <TText weight="bold" style={[s.seatAvatarText, { color: inkOn(o.color) }]}>
                               {o.initial}
                             </TText>
                           )}
@@ -289,7 +290,7 @@ const createAddWalkInSheetStyles = ({ colors, radius, shadow }: ThemeStyleProps,
       height: moderateScale(30),
       borderRadius: moderateScale(15),
     },
-    seatAvatarText: { fontSize: moderateScale(13), color: '#fff' },
+    seatAvatarText: { fontSize: moderateScale(13) },
     seatBody: { ...styles.flex, ...styles.minWidth0 },
     seatSub: { ...styles.mt1 },
     segmentWrap: {

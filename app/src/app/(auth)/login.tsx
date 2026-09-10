@@ -1,6 +1,7 @@
 import { Image } from "expo-image";
 import React, { useEffect, useMemo, useState } from "react";
-import { Keyboard, Pressable, StyleSheet, View } from "react-native";
+import { Keyboard, Linking, Pressable, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
   PhoneInput,
@@ -13,6 +14,7 @@ import {
 import { Icon } from "@/components/ui/Icon";
 import { t } from "@/i18n";
 import { useResponsive } from "@/hooks/useResponsive";
+import { WEB_BASE_URL } from "@/lib/config";
 import { combineToDigits, DEFAULT_DIAL_CODE, DEFAULT_ISO2 } from "@/lib/phone";
 import { useAppState } from "@/state/store";
 import { styles } from "@/styles";
@@ -20,7 +22,26 @@ import { moderateScale, verticalScale } from "@/styles/scale";
 import type { ThemeStyleProps } from "@/styles/types";
 import { useTheme } from "@/theme/ThemeProvider";
 
-const logo = require("@/assets/images/logo-full.png");
+// The wordmark and tagline are near-black navy, so on a dark page they disappear while the orange
+// "Time" keeps shining — the logo reads as half-missing. `logo-full-dark.png` lifts only that navy
+// to gray50 and leaves the orange and the blue calendar tile untouched; regenerate it with
+// `python3 scripts/make-dark-logo.py assets/images/logo-full.png assets/images/logo-full-dark.png`
+// if the brand asset ever changes.
+const logoLight = require("@/assets/images/logo-full.png");
+const logoDark = require("@/assets/images/logo-full-dark.png");
+
+// The legal pages live on the customer web app (`frontend/src/app/{terms,privacy}`), not in the
+// mobile app. `WEB_BASE_URL` can carry a trailing slash from the env var, so trim it the same way
+// `settings/appearance.tsx` does before appending a path.
+const legalUrl = (page: string) => `${WEB_BASE_URL.replace(/\/+$/, "")}/${page}`;
+
+function openTerms() {
+  void Linking.openURL(legalUrl("terms"));
+}
+
+function openPrivacy() {
+  void Linking.openURL(legalUrl("privacy"));
+}
 
 export default function Login() {
   const theme = useTheme();
@@ -53,123 +74,152 @@ export default function Login() {
   }, []);
 
   return (
-    <TKeyboardScreen contentContainerStyle={s.content}>
-      <View style={[s.body, centerStyle, keyboardOpen && s.bodyKeyboard]}>
-        <Image
-          source={logo}
-          style={[s.logo, keyboardOpen && s.logoKeyboard]}
-          contentFit="contain"
-        />
+    // Login is not under the tabs shell, so it carries its own insets. All four
+    // edges: in landscape on a tablet the notch is on a side, not the top.
+    <SafeAreaView style={styles.flex} edges={["top", "bottom", "left", "right"]}>
+      <TKeyboardScreen contentContainerStyle={s.content}>
+        <View style={[s.body, centerStyle, keyboardOpen && s.bodyKeyboard]}>
+          <Image
+            source={theme.dark ? logoDark : logoLight}
+            style={[s.logo, keyboardOpen && s.logoKeyboard]}
+            contentFit="contain"
+          />
 
-        <View style={s.card}>
-          <View style={s.titleBlock}>
-            <TText variant="h5" color="textStrong" weight="semibold">
-              {accountType === "owner" ? t.auth.ownerTitle : t.auth.staffTitle}
-            </TText>
-            <TText
-              variant="bodySm"
-              color="textMuted"
-              align="center"
-              style={s.subtitle}
-            >
-              {accountType === "owner"
-                ? t.auth.ownerSubtitle
-                : t.auth.staffSubtitle}
-            </TText>
-          </View>
+          <View style={s.card}>
+            <View style={s.titleBlock}>
+              <TText variant="h5" color="textStrong" weight="semibold">
+                {accountType === "owner" ? t.auth.ownerTitle : t.auth.staffTitle}
+              </TText>
+              <TText
+                variant="bodySm"
+                color="textMuted"
+                align="center"
+                style={s.subtitle}
+              >
+                {accountType === "owner"
+                  ? t.auth.ownerSubtitle
+                  : t.auth.staffSubtitle}
+              </TText>
+            </View>
 
-          <View style={s.segmented} accessibilityRole="tablist">
-            {(["owner", "staff"] as const).map((type) => {
-              const active = accountType === type;
-              return (
-                <Pressable
-                  key={type}
-                  onPress={() => setAccountType(type)}
-                  disabled={signInLoading}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: active }}
-                  style={[s.segmentedBtn, active && s.segmentedBtnActive]}
-                >
-                  <TText
-                    variant="bodySm"
-                    weight={active ? "semibold" : "medium"}
-                    color={active ? "primary" : "textMuted"}
+            <View style={s.segmented} accessibilityRole="tablist">
+              {(["owner", "staff"] as const).map((type) => {
+                const active = accountType === type;
+                return (
+                  <Pressable
+                    key={type}
+                    onPress={() => setAccountType(type)}
+                    disabled={signInLoading}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: active }}
+                    style={[s.segmentedBtn, active && s.segmentedBtnActive]}
                   >
-                    {type === "owner" ? t.auth.owner : t.auth.staff}
-                  </TText>
-                </Pressable>
-              );
-            })}
-          </View>
+                    <TText
+                      variant="bodySm"
+                      weight={active ? "semibold" : "medium"}
+                      color={active ? "primary" : "textMuted"}
+                    >
+                      {type === "owner" ? t.auth.owner : t.auth.staff}
+                    </TText>
+                  </Pressable>
+                );
+              })}
+            </View>
 
-          <View style={s.fields}>
-            <PhoneInput
-              label={t.auth.phoneLabel}
-              placeholder={t.auth.phonePlaceholder}
-              dialCode={dialCode}
-              iso2={iso2}
-              national={national}
-              onChangeCountry={(c) => {
-                setDialCode(c.dialCode);
-                setIso2(c.iso2);
-              }}
-              onChangeNational={setNational}
-              editable={!signInLoading}
-            />
-            <TInput
-              label={t.auth.passwordLabel}
-              placeholder={t.auth.passwordPlaceholder}
-              secureTextEntry={!showPassword}
-              value={password}
-              onChangeText={setPassword}
-              editable={!signInLoading}
-              trailingIcon={
-                <Pressable
-                  onPress={() => setShowPassword((v) => !v)}
-                  disabled={signInLoading}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    showPassword ? t.auth.hidePassword : t.auth.showPassword
-                  }
-                >
-                  <Icon
-                    name={showPassword ? "eyeOff" : "eye"}
-                    size={20}
-                    color={colors.textMuted}
-                  />
-                </Pressable>
+            <View style={s.fields}>
+              <PhoneInput
+                label={t.auth.phoneLabel}
+                placeholder={t.auth.phonePlaceholder}
+                dialCode={dialCode}
+                iso2={iso2}
+                national={national}
+                onChangeCountry={(c) => {
+                  setDialCode(c.dialCode);
+                  setIso2(c.iso2);
+                }}
+                onChangeNational={setNational}
+                editable={!signInLoading}
+              />
+              <TInput
+                label={t.auth.passwordLabel}
+                placeholder={t.auth.passwordPlaceholder}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+                editable={!signInLoading}
+                trailingIcon={
+                  <Pressable
+                    onPress={() => setShowPassword((v) => !v)}
+                    disabled={signInLoading}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      showPassword ? t.auth.hidePassword : t.auth.showPassword
+                    }
+                  >
+                    <Icon
+                      name={showPassword ? "eyeOff" : "eye"}
+                      size={20}
+                      color={colors.textMuted}
+                    />
+                  </Pressable>
+                }
+              />
+            </View>
+
+            <TButton
+              variant="primary"
+              size="lg"
+              fullWidth
+              loading={signInLoading}
+              onPress={() =>
+                signIn(combineToDigits(dialCode, national), password, accountType)
               }
-            />
+            >
+              {t.auth.signIn}
+            </TButton>
+
+            {accountType === "staff" ? (
+              <TText variant="caption" color="textSubtle" align="center">
+                {t.auth.staffFoot}
+              </TText>
+            ) : null}
           </View>
-
-          <TButton
-            variant="primary"
-            size="lg"
-            fullWidth
-            loading={signInLoading}
-            onPress={() =>
-              signIn(combineToDigits(dialCode, national), password, accountType)
-            }
-          >
-            {t.auth.signIn}
-          </TButton>
-
-          {accountType === "staff" ? (
-            <TText variant="caption" color="textSubtle" align="center">
-              {t.auth.staffFoot}
-            </TText>
-          ) : null}
         </View>
-      </View>
 
-      <View style={s.footer}>
-        <SupportContact variant="login" />
-        <TText variant="caption" color="textSubtle" align="center">
-          {t.auth.terms}
-        </TText>
-      </View>
-    </TKeyboardScreen>
+        <View style={s.footer}>
+          <SupportContact variant="login" />
+          {/* Split across two rows so the links are a line of their own rather than two blue words
+              buried mid-sentence — at 12px an inline link is a hard target to hit accurately. */}
+          <View style={s.legal}>
+            <TText variant="caption" color="textSubtle" align="center">
+              {t.auth.terms}
+            </TText>
+            <TText variant="caption" color="textSubtle" align="center">
+              <TText
+                variant="caption"
+                color="primary"
+                weight="semibold"
+                accessibilityRole="link"
+                suppressHighlighting
+                onPress={openTerms}>
+                {t.auth.termsLink}
+              </TText>
+              {" & "}
+              <TText
+                variant="caption"
+                color="primary"
+                weight="semibold"
+                accessibilityRole="link"
+                suppressHighlighting
+                onPress={openPrivacy}>
+                {t.auth.privacyLink}
+              </TText>
+            </TText>
+          </View>
+        </View>
+      </TKeyboardScreen>
+    </SafeAreaView>
   );
 }
 
@@ -244,6 +294,11 @@ const createLoginStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
     // No top margin: the body flexes to fill, so the slack above the logo and below the card stays
     // symmetric and the footer's own divider does the separating.
     footer: {
-      ...styles.g2,
+      ...styles.g3,
+    },
+    // Tighter than the footer gap on purpose: the two legal rows are one sentence, so they have to
+    // read as a pair rather than as another entry in the footer's stack.
+    legal: {
+      ...styles.g1,
     },
   });

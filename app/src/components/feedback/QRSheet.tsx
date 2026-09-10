@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as Print from 'expo-print';
 import QRCode from 'react-native-qrcode-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -108,32 +108,36 @@ export function QRSheet() {
         <Pressable onPress={store.closeQr} style={overlay.backdrop} />
         <View style={[s.sheet, centerStyle]}>
           <View style={s.handle} />
-          <TText variant="h4" weight="semibold" align="center">
-            {format(t.qr.contactTitle, { name })}
-          </TText>
-          <TText variant="bodySm" color="textMuted" align="center" style={s.subtitle}>
-            {t.qr.subtitle}
-          </TText>
-          <View ref={qrBoxRef} style={[s.qrBox, qrValue && s.qrBoxActive]}>
-            {qrValue ? (
-              <QRCode
-                value={qrValue}
-                size={moderateScale(176)}
-                backgroundColor="#ffffff"
-                color="#000000"
-                getRef={(c: QrSvgRef | null) => {
-                  qrRef.current = c;
-                }}
-              />
-            ) : (
-              <Icon name="qrCode" size={120} color={theme.colors.textSubtle} />
-            )}
-          </View>
-          <View style={s.actions}>
-            <Button variant="primary" fullWidth disabled={!qrValue} onPress={onPrint}>
-              {t.qr.print}
-            </Button>
-          </View>
+          {/* Scrolls only when the cap above actually bites; on a normal phone
+              or tablet the content is shorter than the sheet and this is inert. */}
+          <ScrollView style={s.body} showsVerticalScrollIndicator={false}>
+            <TText variant="h4" weight="semibold" align="center">
+              {format(t.qr.contactTitle, { name })}
+            </TText>
+            <TText variant="bodySm" color="textMuted" align="center" style={s.subtitle}>
+              {t.qr.subtitle}
+            </TText>
+            <View ref={qrBoxRef} style={[s.qrBox, qrValue && s.qrBoxActive]}>
+              {qrValue ? (
+                <QRCode
+                  value={qrValue}
+                  size={moderateScale(176)}
+                  backgroundColor="#ffffff"
+                  color="#000000"
+                  getRef={(c: QrSvgRef | null) => {
+                    qrRef.current = c;
+                  }}
+                />
+              ) : (
+                <Icon name="qrCode" size={120} color={theme.colors.textSubtle} />
+              )}
+            </View>
+            <View style={s.actions}>
+              <Button variant="primary" fullWidth disabled={!qrValue} onPress={onPrint}>
+                {t.qr.print}
+              </Button>
+            </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -155,6 +159,9 @@ const createQRSheetStyles = ({ colors, radius }: ThemeStyleProps, bottomInset: n
       ...styles.ph5,
       paddingTop: moderateScale(18),
       paddingBottom: moderateScale(28) + bottomInset,
+      // See DayAppointmentsSheet: a bottom-anchored sheet with no cap runs off
+      // the top of a short window. The QR box alone is 200dp.
+      maxHeight: '92%',
     },
     handle: {
       width: moderateScale(40),
@@ -164,6 +171,7 @@ const createQRSheetStyles = ({ colors, radius }: ThemeStyleProps, bottomInset: n
       alignSelf: 'center',
       ...styles.mb4,
     },
+    body: { flexGrow: 0, flexShrink: 1 },
     subtitle: { ...styles.mt1 },
     qrBox: {
       width: moderateScale(200),

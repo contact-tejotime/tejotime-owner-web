@@ -477,9 +477,97 @@ reason the mirror exists.
 | **Component primitives** | `MicrositeClient.tsx` still hard-codes a lot of geometry inline. Button / Card / Badge / Input primitives reading `--radius-*`, `--control-h-*`, `--shadow-*` would let the modifier axes actually reach the page. |
 | **Density in inline styles** | Same root cause: `density` moves `--space-*` and `--card-pad`, but inline `padding: 24` ignores them. Compact is under-delivering until those become `var(--card-pad)`. |
 | **Admin panel adopting the engine** | The admin chrome still runs on its own `globals.css`. It could resolve `minimal`/`light` for itself and get dark mode for free. |
-| **Expo app adopting the engine** | `app/` cannot import CSS variables at all — it needs a `tokensForMode(resolved, mode)` → React Native `StyleSheet` adapter, and a fourth copy of the engine under `app/`. Worth doing only once the axes visibly pay off on the web. |
+| ~~**Expo app adopting the engine**~~ | **Done.** `app/src/theme/engine/` is the fourth mirror and `app/src/theme/fromEngine.ts` is the adapter — it maps the engine's `--token` map onto the `SemanticColors` object `ThemeProvider` already served, so the screens calling `useTheme()` needed no change. See [§12](#12-react-native-navigator-backgrounds) for the one trap this exposed. |
 | **Per-store fonts** | `TYPE_SETS` names families; nothing loads them yet. Self-hosting is required — no external font CDN. |
 | **CI wiring** | `npm run check:theme` and `npm run test:theme` must both gate the admin-panel and frontend builds in `.github/workflows/`. The mirror is only honest if something enforces it. |
+
+---
+
+## 12. React Native navigator backgrounds
+
+**Every expo-router navigator needs an explicit `contentStyle` background, or the theme stops at
+the card edge.**
+
+React Navigation paints its **own opaque scene background** behind each screen. `app/` never
+installs `@react-navigation/native`'s `ThemeProvider` — the package is not even a direct
+dependency — so it falls back to the library's default light theme, a flat `rgb(242,242,242)`.
+That grey is painted *over* the themed `surfacePage` underneath.
+
+In light mode nobody noticed: `#F2F2F2` is close enough to most stores' page colour. In **dark
+mode it stayed light** while every card, chip and tab bar went dark, so the near-white
+`textStrong` headings rendered onto it and disappeared. The screens were never at fault — they
+were being covered. Sampling the rendered pixels is what identified it:
+
+| Sample | Value | Meaning |
+|---|---|---|
+| page background | `rgb(242,242,242)` | React Navigation's default, unthemed |
+| card interior | `#201B15` | engine `--surface-card`, themed correctly |
+
+The fix is `contentStyle: { backgroundColor: colors.surfacePage }` on the `Stack` in both
+`app/src/app/_layout.tsx` and `app/src/app/(app)/_layout.tsx`. A themed `<View>` wrapping the
+navigator is **not** enough — the scene background is drawn on top of it.
+
+It also silently corrected light mode, which had been showing the library grey rather than the
+store's own page colour (`#FCF9F4` for a `luxury` store).
+
+**All four navigators need it**, not just the visible one — `_layout.tsx`, `(app)/_layout.tsx`,
+`(auth)/_layout.tsx` and `(app)/settings/_layout.tsx`. Fixing only the first two left the **login
+screen** still painting React Navigation's grey behind a dark card, which is invisible on a phone
+(you are signed in most of the time) and obvious the moment the app is opened on a tablet.
+
+> If a new navigator is added, give it a `contentStyle` too. There is no guard for this — the
+> check is `grep -rn "screenOptions=" app/src/app/` and every hit's file must mention
+> `contentStyle`.
+
+### Dark-mode ink on brand fills
+
+Dark mode inverts which ink is legible. The brand fills stay **light** so they read against a dark
+page, which makes white-on-fill the wrong pairing. In `app/src/theme/tokens.ts` `darkColors`,
+white scored **3.68:1** on `primary` and **1.86:1** on the teal `secondary` — the secondary
+button's label was effectively invisible — so `textOnBrand` is `gray900` in dark, giving 4.85 and
+9.59. This mirrors what the engine already does for `--on-accent`.
+
+The engine applies no such correction to `--text-on-brand`, because `brandInk` is an owner-chosen
+axis and it is honoured literally. A store on a light brand in dark mode therefore *can* fail:
+`resolveTheme` reports it rather than fixing it, e.g.
+
+```
+FAIL 2.40  dark/on-brand-on-brand   Label on primary button   #ffffff on #ff8377
+```
+
+Those rows are in `resolved.contrast.dark`. **The Appearance panel should surface them** — today
+nothing does, so the only signal is the owner noticing a washed-out button.
+
+The owner app cannot ship an unreadable button label, so `app/src/theme/fromEngine.ts` applies the
+guard at the adapter boundary: the `brandInk` preference is honoured **while it is legible**, and
+falls back to the engine's own `onColor()` picker when it is not. This lives in the adapter and
+**not** in `engine/`, because that folder is a generated mirror — changing it would move every
+store's customer microsite too, and `resolve.ts`'s force-the-override behaviour has tests pinning
+it deliberately.
+
+### No hardcoded ink on a themed fill
+
+Dark mode lightens every brand-ish fill, which turns a hardcoded white label invisible. Nine of
+them existed:
+
+| Where | Fill | White scored |
+|---|---|---|
+| `TButton` success / error variants | `success` / `error` | ~2.0:1 |
+| `QueueCard` active number badge, `QueueBoard` chip label + count, `team.tsx` active pill | `primary` | 2.4:1 |
+| Staff / seat avatar initials (`staff.tsx`, `QueueBoard`, `AddWalkInSheet`) | per-staff colour | 1.86–2.28:1 |
+| `+` / `creditCard` icons on primary buttons | `primary` | 2.4:1 |
+
+Two different fixes, because they are two different problems:
+
+- **On the brand fill** → `colors.textOnBrand`, which already tracks the fill per mode. Note that
+  `TButton`'s `leadingIcon` is a `ReactNode` coloured by the *caller*, so an icon does not inherit
+  the button's `fg` — fixing only the label leaves a white glyph beside dark text.
+- **On a per-staff fill** → `inkOn(fill)` from `app/src/theme/ink.ts`, because `serviceColor.ts`
+  resolves those to `primary` / `amber500` / `green500` / `secondary` and no single token can
+  describe whichever one this staff member owns.
+
+> `TSwitch`'s `#fff` thumb is deliberately left alone — it is a surface, not text.
+> When adding a label on a coloured fill, reach for one of those two; never `'#fff'`.
 
 ---
 

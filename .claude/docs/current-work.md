@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-09-06 · branch `feat-jay`.
+**Last updated:** 2026-09-08 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,35 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Mobile tablet support (2026-09-08)
+
+`app/` was portrait-locked and phone-only. Now: **tablets rotate, phones stay portrait**
+(`ios.infoPlist` for iPad, `lib/orientation.ts` + `expo-screen-orientation` for Android, since
+`android:screenOrientation` has no `sw600dp` variant).
+
+Three bugs found on the way, all of which had been shipping:
+
+1. **`react-native-size-matters` never stops growing.** Its ratio is `window.width / 350` with no
+   ceiling, so on an iPad every `moderateScale()` padding, radius and gap inflated **2.4–3.9×** —
+   the whole UI rendered as a scaled-up phone. `styles/scale.ts` now shadows the library's
+   exports (all 550 call sites already import from there) with a clamped, screen-short-side basis.
+2. **It also samples the window once at import time,** which was only safe while the app was
+   portrait-locked. `StyleSheet.create` runs at module load, so with rotation enabled the ramp
+   would have frozen at whatever the app launched at.
+3. **Tablet detection was `width >= 768`,** which misses an iPad mini (744dp) and every small
+   Android tablet in portrait, and misfires on a large phone in landscape. Now the *screen's short
+   side* ≥ 600dp, which is orientation-invariant.
+
+Layout: `lib/responsive.ts` (pure), `useResponsive` / `useTabContent`, 720→900dp content column,
+2-up grids for customers / appointments / stats-by-staff / queue seats, landscape safe-area edges,
+height-capped sheets. `QueueBoard`'s drag-and-drop now hit-tests **x as well as y** — with seats
+side by side, a y-only test drops cards on the wrong seat.
+
+Verified: `tsc --noEmit`, `expo lint`, `expo export` for both platforms, and
+`npm run test:responsive` (1262 assertions, 11 devices, mutation-checked against the old
+behaviour). **Not verified on a real device or simulator** — the layout itself is unexercised.
+Full write-up: [docs/mobile-responsive-tablets.md](../../docs/mobile-responsive-tablets.md).
 
 ### Microsite team avatars (2026-09-07)
 
@@ -281,10 +310,14 @@ Thin, and worth being honest about:
 - `backend/tests/unit/` — **6 vitest files, 52 tests**, covering **pure functions only**:
   `queue-engine`, `eta-notify`, `ttl-cache`, `whatsapp`, `whatsapp-webhook`, `open-status`.
 - `frontend/src/theme/engine/__tests__/run.ts` — framework-free theme self-check.
+- `app/src/lib/__tests__/responsive-check.ts` — framework-free self-check for the mobile app's
+  breakpoint/grid arithmetic (`npm run test:responsive`).
 - `backend/scripts/smoke-rest.mjs` / `smoke-socket.mjs` — end-to-end smoke against a running,
   seeded server.
 
-**No route or integration tests, no DB tests, no frontend or mobile tests, no coverage gate.**
+**No route or integration tests, no DB tests, no frontend tests, no coverage gate.** The mobile
+app has no test runner either — its only automated coverage is the pure-arithmetic responsive
+self-check above.
 The microsite copy pass is the sharpest example: its backend half is unit-tested, and every one of
 its rendering changes — the `$0` rule, the closed-state gate, the per-store page title — is
 verified by nothing but a manual look.

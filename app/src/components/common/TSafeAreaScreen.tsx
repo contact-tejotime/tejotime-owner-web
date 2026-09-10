@@ -8,7 +8,10 @@ import { useTheme } from '@/theme/ThemeProvider';
 export function TSafeAreaScreen({
   children,
   style,
-  edges = ['top', 'bottom'],
+  // `left`/`right` are 0 in portrait but non-zero in landscape on notched
+  // phones and on tablets with a rotated home indicator, which tablets now
+  // reach. Including them by default keeps content clear of both.
+  edges = ['top', 'bottom', 'left', 'right'],
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;

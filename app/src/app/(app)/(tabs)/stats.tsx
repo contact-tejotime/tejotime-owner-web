@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { QueueCard } from '@/components/cards/QueueCard';
 import { TButton, THeader, TScopeNotice, TScreenScroll, TSectionTitle, TText } from '@/components/common';
+import { useTabContent } from '@/hooks/useResponsive';
 import { format, t } from '@/i18n';
 import { can } from '@/lib/permissions';
 import { flatCards } from '@/lib/queue';
@@ -31,9 +32,14 @@ function sortStaff(rows: DashboardStaffRow[]): DashboardStaffRow[] {
   );
 }
 
+/** A staff card holds a name plus three labelled figures side by side. */
+const STAFF_CARD_MIN_WIDTH = 300;
+
 export default function Stats() {
   const theme = useTheme();
   const { colors } = theme;
+  const { columns, gridItemWidth } = useTabContent();
+  const staffColumns = columns(STAFF_CARD_MIN_WIDTH, { gutter: 8, max: 2 });
   const s = useMemo(() => createReportStyles(theme), [theme]);
   const store = useAppState();
   const showQueue = can(store.session?.permissions ?? null, 'queue');
@@ -166,7 +172,7 @@ export default function Stats() {
                 {t.stats.emptyStaff}
               </TText>
             ) : (
-              <View style={s.staffList}>
+              <View style={staffColumns > 1 ? s.staffGrid : s.staffList}>
                 {staffRows.map((row, i) => {
                   const top = i === 0 && row.revenue.amount > 0;
                   return (
@@ -174,6 +180,7 @@ export default function Stats() {
                       key={row.staffId}
                       style={[
                         s.staffCard,
+                        staffColumns > 1 && { width: gridItemWidth(staffColumns) },
                         {
                           backgroundColor: top ? colors.primarySoft : colors.surfaceCard,
                           borderColor: top ? colors.primary : colors.borderSubtle,
@@ -305,6 +312,16 @@ const createReportStyles = ({ colors, radius }: ThemeStyleProps) =>
     metricValue: { marginTop: moderateScale(6), letterSpacing: -0.4 },
     lead: { marginTop: moderateScale(-8), marginBottom: moderateScale(12), lineHeight: moderateScale(18) },
     staffList: { ...styles.g2, marginBottom: moderateScale(8) },
+    // `rowGap` only, never `gap`: the cards are sized in percent, and an
+    // absolute column gap on top of that overflows the row and collapses the
+    // grid back to one column. `space-between` supplies the horizontal spacing.
+    staffGrid: {
+      ...styles.flexRow,
+      ...styles.wrap,
+      ...styles.justifyBetween,
+      rowGap: moderateScale(8),
+      marginBottom: moderateScale(8),
+    },
     staffCard: {
       borderWidth: moderateScale(1),
       borderRadius: moderateScale(12),
