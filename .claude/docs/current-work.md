@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-09-06 · branch `feat-jay`.
+**Last updated:** 2026-09-08 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,145 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Mobile tablet support (2026-09-08)
+
+`app/` was portrait-locked and phone-only. Now: **tablets rotate, phones stay portrait**
+(`ios.infoPlist` for iPad, `lib/orientation.ts` + `expo-screen-orientation` for Android, since
+`android:screenOrientation` has no `sw600dp` variant).
+
+Three bugs found on the way, all of which had been shipping:
+
+1. **`react-native-size-matters` never stops growing.** Its ratio is `window.width / 350` with no
+   ceiling, so on an iPad every `moderateScale()` padding, radius and gap inflated **2.4–3.9×** —
+   the whole UI rendered as a scaled-up phone. `styles/scale.ts` now shadows the library's
+   exports (all 550 call sites already import from there) with a clamped, screen-short-side basis.
+2. **It also samples the window once at import time,** which was only safe while the app was
+   portrait-locked. `StyleSheet.create` runs at module load, so with rotation enabled the ramp
+   would have frozen at whatever the app launched at.
+3. **Tablet detection was `width >= 768`,** which misses an iPad mini (744dp) and every small
+   Android tablet in portrait, and misfires on a large phone in landscape. Now the *screen's short
+   side* ≥ 600dp, which is orientation-invariant.
+
+Layout: `lib/responsive.ts` (pure), `useResponsive` / `useTabContent`, 720→900dp content column,
+2-up grids for customers / appointments / stats-by-staff / queue seats, landscape safe-area edges,
+height-capped sheets. `QueueBoard`'s drag-and-drop now hit-tests **x as well as y** — with seats
+side by side, a y-only test drops cards on the wrong seat.
+
+Verified: `tsc --noEmit`, `expo lint`, `expo export` for both platforms, and
+`npm run test:responsive` (1262 assertions, 11 devices, mutation-checked against the old
+behaviour). **Not verified on a real device or simulator** — the layout itself is unexercised.
+Full write-up: [docs/mobile-responsive-tablets.md](../../docs/mobile-responsive-tablets.md).
+
+### Microsite team avatars (2026-09-07)
+
+Uploaded staff photos never showed on the live page. Not a save or a serving bug — verified end
+to end that `staff.avatar_url` persists, the public DTO exposes `avatarUrl`, and `/media/...`
+302-redirects to a signed bucket URL that returns `200 image/jpeg`. The card in
+`sections.tsx::LiveBoard` simply never rendered it; `photo` and `avBg` had sat unused on the
+`LiveMember` interface since the section was written.
+
+`MemberAvatar` renders a round, cover-fitted photo, falling back to the member's **initials on
+`avBg`** when there is none, and again via `onError` if the signed redirect fails. Plain `<img>`
+(with the gallery's existing `eslint-disable`) because `next/image` would need the bucket host in
+`remotePatterns`. Confirmed against the actual server-rendered page: John's photo `src` present,
+`SS` / `L` / `M` monograms for the three staff without one.
+
+### Multi-service selection (2026-09-07)
+
+The microsite and the mobile walk-in sheet let a customer pick exactly **one** service. Real
+visits are routinely "haircut AND a hair spa", so the second service was invisible: the wait-time
+engine sized the visit at 30 minutes instead of 90, and checkout suggested ₹350 instead of ₹1150.
+
+- **No new shape for the queue.** A multi-service visit is stored the way `queue_extend` already
+  stores add-ons: `service_id` = first service, `service_name` = "Haircut + Hair Spa",
+  `extra_minutes` = Σ of the rest (read by `estMins`), one `queue_entry_extra` row per extra
+  (summed by `billingFor`). Both numbers were therefore already correct once the rows existed.
+- **Migration 0025** adds `appointment_service` (bookings must itemise — a booking is made now and
+  checked in later) and `queue_attach_services()`, which does what `queue_extend` does but works
+  on a **`waiting`** entry; `queue_extend` refuses anything not already `in_service`, by design.
+  `appointment_check_in` replays those rows so nothing is lost at the counter.
+- **APIs** take `serviceIds[]` and still accept the legacy singular `serviceId` (folded in first),
+  so already-shipped clients keep working. Slot length is the **sum** of the chosen services — a
+  90-minute visit books a 90-minute hole. An unknown id is a **404**, never a silent drop.
+- **UI**: microsite service cards are square checkboxes with a running "N selected · M min" total
+  and a visit total that stays a range when a range-priced service is in the cart; the mobile
+  `ServiceCard` gained a `multiSelect` tick box and the walk-in sheet the same total.
+- **Tests**: 11 new Tier-1 assertions ("MULTI-SERVICE VISITS"). Suite now **93/93**, exit 0.
+
+### Multi-day booking on the microsite (2026-09-07)
+
+"Book an Appointment" was **today-only** — `fetchSlotsForToday()` hardcoded one date — so a
+customer arriving late in the day saw whatever was left of today and got pushed at the waitlist.
+The seeded salon shows the shape of it: **today had 1 slot left at 7:30 PM while the next open
+day had 20.**
+
+- **No backend change was needed.** `GET /public/businesses/:slug/slots` already accepted `date`
+  and `staffId`, resolved that weekday's hours, excluded taken appointments, and filtered past
+  times with `cursor.isAfter(now)` (a no-op for a future day). `bookSlot` already took any
+  `slotStart` and `preferredStaffId`. The client API wrapper already forwarded all three params.
+- **Client** (`MicrositeClient.tsx`): a `bookDate` state and a 14-day horizontal day strip with
+  closed weekdays greyed rather than hidden. `fetchSlots(serviceId, date, staffId)` replaces the
+  today-only version and takes its inputs as arguments — every caller fires from the event that
+  changes one of them, so reading state there would fetch the previous day. A `slotReq` ref drops
+  out-of-order responses.
+- **Two latent bugs fixed on the way.** The date was built with `toISOString().slice(0,10)` — the
+  **UTC** day — so a customer in IST before 05:30 asked for yesterday and was told nothing was
+  available. Now local date parts. And provider choice never reached the slots query, so the
+  times shown ignored which chair was picked; a named provider now narrows availability.
+- **Check in stays a separate entry point.** "Join the walk-in waitlist instead" is now a
+  fallback only: selected day has no times AND it is today AND the store is open. It used to
+  appear for any empty day, which will now be most future days a customer browses.
+- **Copy**: `timeLabel` → "Choose a date and time"; empty states name the day
+  (`slotsEmptyDay` / `slotsClosedDay`); `slotsEmpty` / `slotsEmptyClosed` deleted as dead, keeping
+  the microsite dictionary's zero-unused-key property.
+- **Out of scope, still absent:** cancel, reschedule, calendar export.
+- **Tests**: 12 new Tier-1 assertions in `smoke-rest.mjs` ("MULTI-DAY BOOKING + PREFERRED
+  PROVIDER"). Suite now **82/82**, exit 0.
+
+### Service pricing modes — fixed vs range (2026-09-07)
+
+A service can now be priced two ways, and the store says which instead of every surface guessing
+from a zero.
+
+- **DB** — migration `0024_service_price_range.sql` adds `service.price_type`
+  (`fixed | range | unset`) and `price_max_paise`, with `ck_service_price_shape` enforcing one
+  shape per mode. **The backfill is the decision worth knowing:** `price_paise > 0` → `fixed`;
+  `price_paise = 0` → **`unset`**, not a fixed zero and not a bounded range. Those rows had no
+  price and no bounds to invent, so they are recorded as unpriced and the write schemas refuse
+  `unset` — an owner opening one must choose a mode. `unset` can never be created again.
+- **Checkout** — `queue_checkout` raises `TEJO:AMOUNT_REQUIRED` (→ 422) when no amount is passed
+  for a `range` or `unset` service. Deriving would bank the band's *minimum* into
+  `visit.amount_paise`, which is the same under-reporting migration 0020 was written to stop.
+  `GET /queue/:id` returns `amountRequired` and a **null** `suggestedAmount` for those, so the
+  sheet has nothing dishonest to pre-fill. Fixed services are unchanged end to end.
+- **One resolver** — `backend/src/domain/money.ts::servicePricing` reads a row into
+  `{ priceType, price, priceMax, amountRequired }`; the owner service list, the public microsite
+  DTO and the checkout billing all go through it.
+- **UI** — Fixed/Range pickers in `owner-web/ServicesEditor`, `admin-panel/StoreForm` and the
+  mobile `ServiceEditSheet`; the microsite renders `₹min–₹max` for a band and **"Price on
+  request"** for an unpriced service (the old `priceVaries` key is gone). Range checkout starts
+  with an **empty** amount box in both `owner-web/QueueDetailSheet` and mobile `DetailPanel`.
+- **Admin provisioning got stricter**: `priceRupees` is now `.positive()`. A named service is a
+  priced service. Categories that legitimately have no menu (Hospital, Restaurant) send no
+  services at all and are unaffected.
+- **Tests — all executed and green** against a local Postgres 17 + migrated + seeded database:
+  `backend` vitest **60/60**, `smoke-rest.mjs` **70/70** (exit 0), `smoke-socket.mjs` **6/6**
+  (exit 0). The admin create-store (201) and edit-store (200) paths were driven directly with a
+  two-range-service payload, and the range→fixed switch verified to clear `price_max_paise`.
+- **Two pre-existing smoke-script bugs surfaced once it could finally run.** `first John waiter
+  ETA ~45 min` asserted the *undecayed* estimate — the seed pins the in-service head 15 minutes
+  into a 45-minute service and `remainingMins` decays it, so the real value is ~30 and falling.
+  It now asserts the band, not a literal, so it cannot rot again. And the range-checkout test
+  seated its walk-in with `staffId: 'auto'`, which by that point picks a seat that is already
+  serving; `queue_start` raised SEAT_BUSY and the 422 assertion then passed for the **wrong**
+  reason (INVALID_STATE is also 422 — only asserting on the error *code* caught it). It now
+  creates a dedicated idle seat.
+- **Smoke scripts fixed while in there**: both posted `{ handle }` to `/auth/login`, which
+  `loginSchema` (`.strict()`, requires `phone`) rejected as a 400 — every run failed on its first
+  assertion. They now post the seeded phone. `README.md` carried the same stale credential.
+- **The seed gained a fifth service**, `Hair Extensions` (₹2,000–₹6,000), as the range fixture.
+  `smoke-rest.mjs` now expects 5 microsite services, not 4.
 
 ### The U.S. market repositioning (marketing site)
 
@@ -160,7 +299,7 @@ clean.
 - Six-plus utility modules duplicated across the web apps **by hand with no sync guard** —
   `countries.ts`, `phone.ts`, `format.ts`, `support.ts`, `frontend-url.ts`, `PhoneField`, `i18n`.
 - i18n migration is partial; `owner-web` in particular still has many inline strings.
-- Duplicate migration prefix `0016`. Use `0023+` going forward.
+- Duplicate migration prefix `0016`. Use `0025+` going forward.
 
 ---
 
@@ -171,10 +310,14 @@ Thin, and worth being honest about:
 - `backend/tests/unit/` — **6 vitest files, 52 tests**, covering **pure functions only**:
   `queue-engine`, `eta-notify`, `ttl-cache`, `whatsapp`, `whatsapp-webhook`, `open-status`.
 - `frontend/src/theme/engine/__tests__/run.ts` — framework-free theme self-check.
+- `app/src/lib/__tests__/responsive-check.ts` — framework-free self-check for the mobile app's
+  breakpoint/grid arithmetic (`npm run test:responsive`).
 - `backend/scripts/smoke-rest.mjs` / `smoke-socket.mjs` — end-to-end smoke against a running,
   seeded server.
 
-**No route or integration tests, no DB tests, no frontend or mobile tests, no coverage gate.**
+**No route or integration tests, no DB tests, no frontend tests, no coverage gate.** The mobile
+app has no test runner either — its only automated coverage is the pure-arithmetic responsive
+self-check above.
 The microsite copy pass is the sharpest example: its backend half is unit-tested, and every one of
 its rendering changes — the `$0` rule, the closed-state gate, the per-store page title — is
 verified by nothing but a manual look.

@@ -5,16 +5,24 @@ import { t, format } from "@/i18n";
 import { useState, useTransition } from "react";
 
 import { Icon } from "@/components/Icon";
-import { formatMoney } from "@/lib/format";
+import { formatServicePrice } from "@/lib/format";
 import type { ServiceRow } from "@/lib/server-api";
 import { Spinner } from "@/components/Skeleton";
 
 /**
  * Service menu editor.
  *
+ * Two pricing modes. A **fixed** service has one amount. A **range** service has a floor and a
+ * ceiling — the customer sees the band on the microsite, and whoever checks them out types the
+ * real figure, because the shop deliberately said it could not name one in advance.
+ *
  * Prices go over the wire as `priceAmount` in MINOR UNITS (paise) — the backend writes it
- * straight into `price_paise`. The form takes rupees, so it multiplies by 100 on the way out
- * and `formatMoney` divides on the way back.
+ * straight into `price_paise`, with `priceMaxAmount` as the ceiling. The form takes rupees, so
+ * it multiplies by 100 on the way out and `formatServicePrice` divides on the way back.
+ *
+ * The three pricing fields are always sent together: they only make sense as a set, and the
+ * API refuses a half-changed price rather than leaving a fixed service holding the ceiling of
+ * a range it used to be.
  *
  * `colorToken` is required by the backend's strict create schema; "secondary" is the same
  * default the mobile app and the seed use.
@@ -28,7 +36,9 @@ export function ServicesEditor({ services }: { services: ServiceRow[] }) {
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
   const [mins, setMins] = useState("30");
+  const [priceType, setPriceType] = useState<"fixed" | "range">("fixed");
   const [rupees, setRupees] = useState("");
+  const [maxRupees, setMaxRupees] = useState("");
   const [error, setError] = useState("");
   const [inFlight, setInFlight] = useState(false);
   const busy = inFlight || isPending;
@@ -59,15 +69,27 @@ export function ServicesEditor({ services }: { services: ServiceRow[] }) {
 
   async function add() {
     if (!name.trim()) return setError(t.services.errName);
+    // Paise, and validated before the round trip so the common mistakes name the field that is
+    // wrong instead of coming back as a generic 400.
+    const min = Math.round((Number(rupees) || 0) * 100);
+    if (min <= 0) return setError(t.services.errPrice);
+    const max = Math.round((Number(maxRupees) || 0) * 100);
+    if (priceType === "range" && max < min) return setError(t.services.errPriceRange);
+
     const ok = await send("/api/services", "POST", {
       name: name.trim(),
       durationMinutes: Number(mins) || 30,
-      priceAmount: Math.round((Number(rupees) || 0) * 100),
+      priceType,
+      priceAmount: min,
+      // Only a range carries a ceiling — sending one on a fixed service is a 400, by design.
+      ...(priceType === "range" ? { priceMaxAmount: max } : {}),
       colorToken: "secondary",
     });
     if (ok) {
       setName("");
       setRupees("");
+      setMaxRupees("");
+      setPriceType("fixed");
       setMins("30");
     }
   }
@@ -83,8 +105,16 @@ export function ServicesEditor({ services }: { services: ServiceRow[] }) {
             <li key={s.id} className="home-queue-card">
               <div className="title">{s.name}</div>
               <div className="meta">
-                {format(t.services.minShort, { mins: s.durationMinutes })} · {formatMoney(s.price)}
+                {format(t.services.minShort, { mins: s.durationMinutes })} · {formatServicePrice(s)}
               </div>
+              {/* Only ever true for a service that predates pricing modes. It is called out
+                  rather than shown as "₹0", because the API will now refuse to save it again
+                  until a mode is chosen — and the microsite is telling customers nothing. */}
+              {s.priceType === "unset" ? (
+                <p className="field-hint" style={{ marginTop: 4 }}>
+                  {t.services.unpricedHint}
+                </p>
+              ) : null}
               <button
                 type="button"
                 className="btn secondary btn-sm"
@@ -109,7 +139,22 @@ export function ServicesEditor({ services }: { services: ServiceRow[] }) {
         <input id="sv-mins" inputMode="numeric" value={mins} onChange={(e) => setMins(e.target.value)} />
       </div>
       <div className="field">
-        <label htmlFor="sv-price">{t.services.price}</label>
+        <label htmlFor="sv-price-mode">{t.services.priceMode}</label>
+        <select
+          id="sv-price-mode"
+          value={priceType}
+          onChange={(e) => {
+            setPriceType(e.target.value as "fixed" | "range");
+            setError("");
+          }}
+        >
+          <option value="fixed">{t.services.priceModeFixed}</option>
+          <option value="range">{t.services.priceModeRange}</option>
+        </select>
+      </div>
+
+      <div className="field">
+        <label htmlFor="sv-price">{priceType === "range" ? t.services.priceMin : t.services.price}</label>
         <input
           id="sv-price"
           inputMode="numeric"
@@ -118,6 +163,20 @@ export function ServicesEditor({ services }: { services: ServiceRow[] }) {
           placeholder="300"
         />
       </div>
+
+      {priceType === "range" ? (
+        <div className="field">
+          <label htmlFor="sv-price-max">{t.services.priceMax}</label>
+          <input
+            id="sv-price-max"
+            inputMode="numeric"
+            value={maxRupees}
+            onChange={(e) => setMaxRupees(e.target.value)}
+            placeholder="600"
+          />
+          <p className="field-hint">{t.services.priceRangeHint}</p>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="alert err" role="alert">

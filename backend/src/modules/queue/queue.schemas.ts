@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SERVICE_EXTRAS } from '../../config/constants';
+import { MAX_SERVICES_PER_VISIT, SERVICE_EXTRAS } from '../../config/constants';
 
 export const queueQuerySchema = z.object({
   view: z.enum(['grouped', 'flat']).optional().default('grouped'),
@@ -11,6 +11,9 @@ export const addWalkInSchema = z
     name: z.string().trim().min(1, 'Enter a customer name').max(80),
     phone: z.string().trim().max(20).optional().nullable(),
     serviceId: z.string().uuid('Pick a service').nullable().optional(),
+    // A visit can carry several services. `serviceId` stays for already-shipped clients; when
+    // both arrive `serviceIds` wins and the singular is folded in (see addWalkIn).
+    serviceIds: z.array(z.string().uuid('Pick a service')).min(1).max(MAX_SERVICES_PER_VISIT).nullable().optional(),
     staffId: z.string().default('auto'), // 'auto' | uuid
     position: z.enum(['end', 'next']).default('end'),
     visitorType: z.enum(['mr', 'patient']).nullable().optional(),

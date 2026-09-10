@@ -116,7 +116,10 @@ export const api = {
   addWalkin: (b: {
     name: string;
     phone?: string | null;
+    /** Single-service form, still accepted by the API. Superseded by `serviceIds`. */
     serviceId?: string | null;
+    /** The visit's services in pick order — the first becomes the entry's primary service. */
+    serviceIds?: string[];
     staffId: string;
     position: 'end' | 'next';
     visitorType?: 'mr' | 'patient' | null;
@@ -133,8 +136,16 @@ export const api = {
   getQueueEntry: (id: string) =>
     raw<{
       serviceAmount: { amount: number; currency: string };
+      servicePriceType: 'fixed' | 'range' | 'unset';
+      serviceMaxAmount: { amount: number; currency: string } | null;
       extrasAmount: { amount: number; currency: string };
-      suggestedAmount: { amount: number; currency: string };
+      /**
+       * What to pre-fill, or NULL when there is nothing honest to pre-fill — a range-priced or
+       * unpriced service. The API rejects a checkout with no amount for those too, so the
+       * requirement holds even if a client ignores this.
+       */
+      suggestedAmount: { amount: number; currency: string } | null;
+      amountRequired: boolean;
       extras: { id: string; label: string; minutes: number; pricePaise: number }[];
     }>('GET', `/queue/${id}`),
   noShow: (id: string) => raw('POST', `/queue/${id}/no-show`),
@@ -163,16 +174,43 @@ export const api = {
   setGallery: (images: import('@/lib/business-profile').GalleryImageInput[]) =>
     raw('PUT', '/business/gallery', { images }),
 
-  createService: (b: { name: string; durationMinutes: number; priceAmount: number; colorToken: string; position?: number }) =>
-    raw('POST', '/services', b),
-  updateService: (id: string, b: { name?: string; durationMinutes?: number; priceAmount?: number }) =>
-    raw('PATCH', `/services/${id}`, b),
+  /**
+   * Pricing crosses as a triple — mode, amount (fixed price or range floor) and, for a range
+   * only, the ceiling. All in paise. The three fields only make sense together, so the API
+   * refuses a PATCH that sends one without the others rather than leaving a fixed service
+   * holding the ceiling of a range it used to be.
+   */
+  createService: (b: {
+    name: string;
+    durationMinutes: number;
+    priceType: 'fixed' | 'range';
+    priceAmount: number;
+    priceMaxAmount?: number;
+    colorToken: string;
+    position?: number;
+  }) => raw('POST', '/services', b),
+  updateService: (
+    id: string,
+    b: {
+      name?: string;
+      durationMinutes?: number;
+      priceType?: 'fixed' | 'range';
+      priceAmount?: number;
+      priceMaxAmount?: number;
+    },
+  ) => raw('PATCH', `/services/${id}`, b),
   deleteService: (id: string) => raw('DELETE', `/services/${id}`),
 
   createStaff: (b: { name: string; roleLabel?: string; colorToken?: string; position?: number; photoUrl?: string | null }) =>
     raw('POST', '/staff', b),
   updateStaff: (id: string, b: { name?: string; roleLabel?: string; photoUrl?: string | null }) =>
     raw('PATCH', `/staff/${id}`, b),
+  /**
+   * Soft-delete: the backend flips `is_active` rather than removing the row, so completed visits
+   * keep their chair. It answers 409 SEAT_HAS_ACTIVE_ENTRIES while the seat still holds a
+   * waiting/in-service entry — see `removeStaffMember` in the store for that path.
+   */
+  deleteStaff: (id: string) => raw('DELETE', `/staff/${id}`),
 
   /** Get a signed upload URL for an owner-scoped image (logo/hero/gallery/avatar). */
   signUpload: (b: { assetType: string; contentType: string; byteSize: number }) =>

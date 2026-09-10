@@ -89,6 +89,10 @@ const createDayAppointmentsSheetStyles = ({ colors, radius }: ThemeStyleProps, b
       ...styles.ph5,
       paddingTop: moderateScale(18),
       paddingBottom: moderateScale(28) + bottomInset,
+      // Bottom-anchored: without a cap the sheet grows off the *top* of the
+      // screen and the title becomes unreachable. Bites in any short window —
+      // a tablet in split-screen, or one in landscape on a 600dp-tall panel.
+      maxHeight: '86%',
     },
     handle: {
       width: moderateScale(40),
@@ -99,5 +103,8 @@ const createDayAppointmentsSheetStyles = ({ colors, radius }: ThemeStyleProps, b
       ...styles.mb4,
     },
     title: { ...styles.mb4 },
-    list: { maxHeight: moderateScale(420) },
+    // Was a fixed 420: on a short window that alone overflowed the screen, and
+    // on a tall one it capped the list well below the room available. Shrinking
+    // to fit the sheet's own cap does both jobs.
+    list: { flexGrow: 0, flexShrink: 1 },
   });

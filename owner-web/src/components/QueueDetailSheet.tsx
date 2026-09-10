@@ -5,10 +5,10 @@ import { t, format } from "@/i18n";
 
 import { Icon } from "@/components/Icon";
 import { Skeleton, Spinner } from "@/components/Skeleton";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatServicePrice } from "@/lib/format";
 import { extrasForCategory } from "@/lib/service-extras";
 import { showToast } from "@/lib/toast";
-import type { Money, QueueCard, SeatGroup } from "@/lib/server-api";
+import type { Money, QueueCard, SeatGroup, ServicePriceType } from "@/lib/server-api";
 
 /**
  * The sheet behind a queue card — the web twin of the app's Customer sheet.
@@ -32,8 +32,18 @@ import type { Money, QueueCard, SeatGroup } from "@/lib/server-api";
 
 interface Billing {
   serviceAmount: Money;
+  /** The booked service's pricing mode — see backend/src/domain/money.ts `servicePricing`. */
+  servicePriceType: ServicePriceType;
+  /** Ceiling of a range-priced service. Null for a fixed one. */
+  serviceMaxAmount: Money | null;
   extrasAmount: Money;
-  suggestedAmount: Money;
+  /**
+   * What to pre-fill. NULL for a range-priced or unpriced service: there is no honest figure
+   * to seed the box with, and seeding the floor is exactly how a band's minimum gets banked as
+   * the day's takings. The API refuses a checkout with no amount for these too.
+   */
+  suggestedAmount: Money | null;
+  amountRequired: boolean;
   extras: { id: string; label: string; minutes: number; pricePaise: number }[];
 }
 
@@ -102,8 +112,10 @@ export function QueueDetailSheet({
           return;
         }
         setBilling(json as Billing);
-        // Pre-fill with what the shop would charge today, so the common case is one tap.
-        setAmount(rupees(json.suggestedAmount?.amount ?? 0));
+        // Pre-fill with what the shop would charge today, so the common case is one tap. A
+        // range-priced service has no such figure and deliberately starts empty — the whole
+        // point of the mode is that someone has to look at the customer and decide.
+        setAmount(json.suggestedAmount ? rupees(json.suggestedAmount.amount) : "");
       } catch {
         if (alive) setError(t.detail.networkError);
       }
@@ -153,7 +165,7 @@ export function QueueDetailSheet({
    * typed by hand, which is the one thing they are here to do.
    */
   async function addExtra(label: string, minutes: number) {
-    const before = billing?.suggestedAmount.amount ?? 0;
+    const before = billing?.suggestedAmount?.amount ?? null;
     const ok = await send(`/api/queue/${entryId}/extend`, { label, minutes });
     if (!ok) return;
     onChanged();
@@ -161,16 +173,27 @@ export function QueueDetailSheet({
     if (!res.ok) return;
     const next = (await res.json()) as Billing;
     setBilling(next);
+    // With no suggestion on either side (a range-priced service) there is no delta to apply —
+    // the add-on's own price is still shown in the breakdown below, so the person typing can
+    // see it and decide. Nudging a hand-typed figure by a number we did not derive would be
+    // worse than leaving it alone.
+    if (before == null || next.suggestedAmount == null) return;
     const delta = (next.suggestedAmount.amount - before) / 100;
     setAmount((prev) => {
       const current = Number(prev);
-      return Number.isFinite(current)
+      return Number.isFinite(current) && prev.trim() !== ""
         ? String(current + delta)
-        : rupees(next.suggestedAmount.amount);
+        : rupees(next.suggestedAmount!.amount);
     });
   }
 
   async function onComplete() {
+    // Empty is never a valid bill. It reads as "not decided yet", which for a range-priced
+    // service is the state this box exists to get out of — and the API rejects it anyway.
+    if (amount.trim() === "") {
+      setError(billing?.amountRequired ? t.detail.amountRequired : t.detail.errAmount);
+      return;
+    }
     const value = Number(amount);
     if (!Number.isFinite(value) || value < 0) {
       setError(t.detail.errAmount);
@@ -218,7 +241,22 @@ export function QueueDetailSheet({
           <>
             <div className="checkout-block">
               <h3>{t.detail.amount}</h3>
-              <p className="field-hint">{t.detail.amountHint}</p>
+              {/* The hint changes with the mode: for a fixed service the box is already right
+                  and only needs correcting; for a range it is empty and the band the customer
+                  was quoted is the thing they need to see while filling it in. */}
+              <p className="field-hint">
+                {billing?.servicePriceType === "range" && billing.serviceMaxAmount
+                  ? format(t.detail.amountHintRange, {
+                      range: formatServicePrice({
+                        price: billing.serviceAmount,
+                        priceType: "range",
+                        priceMax: billing.serviceMaxAmount,
+                      }),
+                    })
+                  : billing?.servicePriceType === "unset"
+                    ? t.detail.amountHintUnpriced
+                    : t.detail.amountHint}
+              </p>
 
               <div className="amount-row">
                 <span className="amount-prefix">₹</span>
@@ -264,7 +302,13 @@ export function QueueDetailSheet({
                 <ul className="amount-breakdown">
                   <li>
                     <span>{card.service ?? t.detail.service}</span>
-                    <span>{formatMoney(billing.serviceAmount)}</span>
+                    <span>
+                      {formatServicePrice({
+                        price: billing.serviceAmount,
+                        priceType: billing.servicePriceType,
+                        priceMax: billing.serviceMaxAmount,
+                      })}
+                    </span>
                   </li>
                   {billing.extras.map((x) => (
                     <li key={x.id}>
@@ -274,10 +318,14 @@ export function QueueDetailSheet({
                       <span>{formatMoney({ ...billing.extrasAmount, amount: x.pricePaise })}</span>
                     </li>
                   ))}
-                  <li className="total">
-                    <span>{t.detail.suggested}</span>
-                    <span>{formatMoney(billing.suggestedAmount)}</span>
-                  </li>
+                  {/* No suggested total for a range: printing one would be the derived figure
+                      this mode exists to stop anybody reaching for. */}
+                  {billing.suggestedAmount ? (
+                    <li className="total">
+                      <span>{t.detail.suggested}</span>
+                      <span>{formatMoney(billing.suggestedAmount)}</span>
+                    </li>
+                  ) : null}
                 </ul>
               ) : (
                 // Roughly the height of the real breakdown, so nothing jumps when it lands.

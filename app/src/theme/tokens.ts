@@ -173,8 +173,17 @@ export const darkColors: SemanticColors = {
   textStrong: palette.gray50,
   textBody: palette.gray300,
   textMuted: palette.gray400,
-  textSubtle: palette.gray500,
-  textOnBrand: '#FFFFFF',
+  // gray500 is the light-theme subtle tone; on a near-black card it only reaches 3.75:1, under the
+  // 4.5 needed for the 12px captions this is used for. Lifted just far enough to pass (4.61 on
+  // card, 4.84 on page) while staying clearly dimmer than textMuted's 6.96 — the two tones have to
+  // stay distinguishable or the hierarchy collapses.
+  textSubtle: '#72839A',
+  // Dark mode inverts which ink is legible. The brand fills stay light so they read against the
+  // dark page, and white-on-light-fill is exactly the wrong pairing: white scored 3.68 on primary
+  // and 1.86 on the teal secondary — the secondary button's label was effectively invisible. Dark
+  // ink on those same fills gives 4.85 and 9.59. Same reasoning the engine already applies to
+  // `--on-accent`. Only ever used as the label on a brand-filled surface (TButton, calendar cell).
+  textOnBrand: palette.gray900,
   textLink: palette.blue400,
 
   borderSubtle: '#1E293B',

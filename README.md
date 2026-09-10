@@ -40,7 +40,7 @@ npm run seed      # load the Sharp Cuts demo tenant
 npm run dev       # http://localhost:8080
 ```
 
-Demo owner login: `sharpcuts` / `password123`. See [backend/README.md](backend/README.md)
+Demo owner login: phone `919399385943` / password `password123`. See [backend/README.md](backend/README.md)
 and the full specification in [docs/](docs/).
 
 ## Running the full stack
@@ -54,7 +54,7 @@ cd backend && npm install && npm run migrate && npm run seed && npm run dev
 # 2. Customer salon site → http://localhost:3000/sharp-cuts
 cd frontend && npm install && npm run dev
 
-# 3. Owner app (login: sharpcuts / password123)
+# 3. Owner app (login: 919399385943 / password123)
 cd app && npm install && npm run web      # or: npm run ios / npm run android
 ```
 

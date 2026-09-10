@@ -15,6 +15,7 @@ import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
+import { inkOn } from '@/theme/ink';
 import { useTheme } from '@/theme/ThemeProvider';
 
 import { createSheetOverlayStyles } from './QRSheet';
@@ -160,11 +161,24 @@ export function AddWalkInSheet() {
                   duration={sv.duration}
                   price={sv.price}
                   color={resolveColor(sv.color)}
-                  selected={store.walkin.service === sv.name}
+                  selected={store.walkin.services.includes(sv.name)}
+                  multiSelect
                   onPress={() => store.pickService(sv.name)}
                 />
               ))}
             </View>
+            {/* A running total, because more than one service is now normal — the person at the
+                counter should not have to add up the visit in their head. */}
+            {store.walkin.services.length > 0 && (
+              <TText variant="bodySm" color="textMuted" style={s.sectionLabel}>
+                {format(t.walkin.servicesSelected, {
+                  count: store.walkin.services.length,
+                  minutes: store.services
+                    .filter((sv) => store.walkin.services.includes(sv.name))
+                    .reduce((n, sv) => n + sv.durationMinutes, 0),
+                })}
+              </TText>
+            )}
             {!!store.walkin.error && (
               <TText variant="bodySm" color="error" style={s.error}>
                 {store.walkin.error}
@@ -183,9 +197,9 @@ export function AddWalkInSheet() {
                       <Pressable key={o.id} onPress={() => store.setWalkinStaff(o.id)} style={s.seatOptionStyle(sel)}>
                         <View style={s.seatAvatarBg(o.color)}>
                           {o.auto ? (
-                            <Icon name="sparkles" size={15} color="#fff" />
+                            <Icon name="sparkles" size={15} color={inkOn(o.color)} />
                           ) : (
-                            <TText weight="bold" style={s.seatAvatarText}>
+                            <TText weight="bold" style={[s.seatAvatarText, { color: inkOn(o.color) }]}>
                               {o.initial}
                             </TText>
                           )}
@@ -276,7 +290,7 @@ const createAddWalkInSheetStyles = ({ colors, radius, shadow }: ThemeStyleProps,
       height: moderateScale(30),
       borderRadius: moderateScale(15),
     },
-    seatAvatarText: { fontSize: moderateScale(13), color: '#fff' },
+    seatAvatarText: { fontSize: moderateScale(13) },
     seatBody: { ...styles.flex, ...styles.minWidth0 },
     seatSub: { ...styles.mt1 },
     segmentWrap: {

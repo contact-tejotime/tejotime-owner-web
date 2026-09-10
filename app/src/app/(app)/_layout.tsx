@@ -21,7 +21,9 @@ export default function AppLayout() {
   return (
     <View style={[styles.flex, { backgroundColor: colors.surfacePage }]}>
       <StatusBar style={dark ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false }}>
+      {/* The themed View above is not enough on its own — this navigator paints its own opaque
+          scene background on top of it. See the note in the root layout. */}
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surfacePage } }}>
         <Stack.Screen name="(tabs)" />
       </Stack>
       <AddWalkInSheet />

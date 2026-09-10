@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { AppointmentListItem } from '@/components/appointments/AppointmentListItem';
 import { THeader, TScopeNotice, TScreenScroll, TSectionTitle, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
+import { useTabContent } from '@/hooks/useResponsive';
 import { t } from '@/i18n';
 import { IconButton } from '@/components/ui/IconButton';
 import { useAppState } from '@/state/store';
@@ -12,9 +13,14 @@ import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 
+/** An appointment row carries a time, a customer, a service and a Check in button. */
+const APPOINTMENT_MIN_WIDTH = 340;
+
 export default function Appointments() {
   const theme = useTheme();
   const store = useAppState();
+  const { columns, gridItemWidth } = useTabContent();
+  const apptColumns = columns(APPOINTMENT_MIN_WIDTH, { gutter: 8, max: 2 });
   const emptyStyles = useMemo(() => createEmptyStyles(theme), [theme]);
 
   // Was the literal string "Thursday, 24 June" — it never changed with the date. Locale-
@@ -44,7 +50,7 @@ export default function Appointments() {
       <TScreenScroll refreshing={store.refreshing} onRefresh={store.refresh}>
         <TScopeNotice />
         <TSectionTitle>{t.appointments.upcomingToday}</TSectionTitle>
-        <View style={styles.g2}>
+        <View style={apptColumns > 1 ? apptStyles.grid : styles.g2}>
           {store.appts.length === 0 ? (
             <View style={emptyStyles.box}>
               <TText variant="bodyMd" color="textStrong" weight="bold" align="center">
@@ -56,13 +62,16 @@ export default function Appointments() {
             </View>
           ) : (
             store.appts.map((a) => (
-              <AppointmentListItem
+              <View
                 key={a.id}
-                appointment={a}
-                staffName={a.staffId ? staffById[a.staffId] : undefined}
-                checkInLoading={store.checkInId === a.id}
-                onCheckIn={store.checkInAppt}
-              />
+                style={apptColumns > 1 ? { width: gridItemWidth(apptColumns) } : undefined}>
+                <AppointmentListItem
+                  appointment={a}
+                  staffName={a.staffId ? staffById[a.staffId] : undefined}
+                  checkInLoading={store.checkInId === a.id}
+                  onCheckIn={store.checkInAppt}
+                />
+              </View>
             ))
           )}
         </View>
@@ -70,6 +79,17 @@ export default function Appointments() {
     </>
   );
 }
+
+const apptStyles = StyleSheet.create({
+  // `rowGap` only, never `gap`: the rows are sized in percent, and an absolute
+  // column gap on top of that overflows and collapses the grid to one column.
+  grid: {
+    ...styles.flexRow,
+    ...styles.wrap,
+    ...styles.justifyBetween,
+    rowGap: moderateScale(8),
+  },
+});
 
 const createEmptyStyles = ({ colors, radius }: ThemeStyleProps) =>
   StyleSheet.create({

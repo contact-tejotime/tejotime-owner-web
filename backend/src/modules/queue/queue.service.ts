@@ -1,5 +1,5 @@
 import { exec, many, one } from '../../db/pool';
-import { money } from '../../domain/money';
+import { money, servicePricing } from '../../domain/money';
 import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
 import { SERVICE_EXTRAS, OPTIONAL_SERVICES_STAFF_CATEGORIES, VISITOR_TYPE_CATEGORIES } from '../../config/constants';
@@ -92,8 +92,16 @@ export async function getQueueView(businessId: string, opts: QueueViewOpts = {})
  * is the whole reason the override exists.
  */
 async function billingFor(businessId: string, entryId: string) {
-  const row = await one<{ service_paise: string; extras_paise: string; currency: string }>(
+  const row = await one<{
+    service_paise: string;
+    service_max_paise: string | null;
+    service_price_type: string | null;
+    extras_paise: string;
+    currency: string;
+  }>(
     `select coalesce(sv.price_paise, 0)                                    as service_paise,
+            sv.price_max_paise                                             as service_max_paise,
+            sv.price_type                                                  as service_price_type,
             coalesce((select sum(x.price_paise)
                         from queue_entry_extra x
                        where x.queue_entry_id = q.id), 0)                  as extras_paise,
@@ -107,10 +115,35 @@ async function billingFor(businessId: string, entryId: string) {
   const service = Number(row?.service_paise ?? 0);
   const extras = Number(row?.extras_paise ?? 0);
   const currency = row?.currency;
+  // An entry with no service at all (a bare walk-in) is priced entirely by whoever checks it
+  // out; it is a fixed nothing rather than an unpriced service, so it keeps deriving to the
+  // add-ons total as it always has.
+  const pricing = row?.service_price_type
+    ? servicePricing(
+        {
+          price_type: row.service_price_type,
+          price_paise: service,
+          price_max_paise: row.service_max_paise,
+        },
+        currency,
+      )
+    : null;
+  const amountRequired = pricing?.amountRequired ?? false;
   return {
     serviceAmount: money(service, currency),
+    // The band the shop published, so the checkout sheet can show what it promised the
+    // customer next to the box it is asking someone to fill in.
+    servicePriceType: pricing?.priceType ?? 'fixed',
+    serviceMaxAmount: pricing?.priceMax ?? null,
     extrasAmount: money(extras, currency),
-    suggestedAmount: money(service + extras, currency),
+    /**
+     * What to pre-fill. Null for a range or an unpriced service: there is no defensible figure
+     * to put in the box, and pre-filling the floor is precisely how the minimum ends up banked
+     * as the day's takings. `queue_checkout` refuses a null amount for these too, so the
+     * requirement holds even for a client that ignores this.
+     */
+    suggestedAmount: amountRequired ? null : money(service + extras, currency),
+    amountRequired,
   };
 }
 
@@ -321,7 +354,10 @@ async function recordAlertNotification(
 export interface AddWalkInInput {
   name: string;
   phone?: string | null;
+  /** Single-service form every already-shipped client sends. Folded into `serviceIds`. */
   serviceId?: string | null;
+  /** The visit's services in pick order; the first becomes the entry's primary service. */
+  serviceIds?: string[] | null;
   staffId: string; // 'auto' | staff id
   position: 'end' | 'next';
   visitorType?: 'mr' | 'patient' | null;
@@ -331,8 +367,13 @@ export async function addWalkIn(businessId: string, input: AddWalkInInput) {
   const ctx = await loadQueueContext(businessId);
   const biz = await one('select category from business where id = $1', [businessId]);
   const category = biz?.category ?? '';
-  if (!OPTIONAL_SERVICES_STAFF_CATEGORIES.has(category) && !input.serviceId) {
-    throw Errors.validation('Add a service', [{ field: 'serviceId', message: 'Pick a service' }]);
+  // Pick order matters — the first choice becomes the primary service, the rest become extras.
+  const pickedIds: string[] = [];
+  for (const id of [...(input.serviceIds ?? []), ...(input.serviceId ? [input.serviceId] : [])]) {
+    if (id && !pickedIds.includes(id)) pickedIds.push(id);
+  }
+  if (!OPTIONAL_SERVICES_STAFF_CATEGORIES.has(category) && pickedIds.length === 0) {
+    throw Errors.validation('Add a service', [{ field: 'serviceIds', message: 'Pick a service' }]);
   }
   if (VISITOR_TYPE_CATEGORIES.has(category) && !input.visitorType) {
     throw Errors.validation('Visitor type is required', [{ field: 'visitorType', message: 'Pick MR or Patient' }]);
@@ -349,9 +390,13 @@ export async function addWalkIn(businessId: string, input: AddWalkInInput) {
   } else if (!ctx.staffRows.find((s) => s.id === staffId)) {
     throw Errors.notFound('Seat not found');
   }
-  if (input.serviceId && !ctx.serviceRows.find((s) => s.id === input.serviceId)) {
-    throw Errors.notFound('Service not found');
-  }
+  // Resolved in pick order. An unknown id is refused rather than dropped: silently queueing a
+  // shorter, cheaper visit than the one that was rung up is the failure this guards.
+  const picked = pickedIds.map((id) => {
+    const row = ctx.serviceRows.find((s) => s.id === id);
+    if (!row) throw Errors.notFound('Service not found');
+    return row;
+  });
 
   const phone = input.phone ? normalizePhone(input.phone) : null;
   const customerId = await findOrCreateCustomer(businessId, input.name, phone);
@@ -360,7 +405,7 @@ export async function addWalkIn(businessId: string, input: AddWalkInInput) {
     p_business_id: businessId,
     p_name: input.name,
     p_phone: phone,
-    p_service_id: input.serviceId ?? null,
+    p_service_id: picked[0]?.id ?? null,
     p_staff_id: staffId,
     p_position: input.position,
     p_source: 'walk_in',
@@ -369,6 +414,19 @@ export async function addWalkIn(businessId: string, input: AddWalkInInput) {
     p_customer_id: customerId,
     p_visitor_type: input.visitorType ?? null,
   });
+
+  // Services 2..n become the entry's extras — `extra_minutes` for the wait-time engine and
+  // `queue_entry_extra` rows for the checkout total (migration 0025). Before the broadcast, so
+  // the board never flashes the entry up as a bare first service.
+  if (picked.length > 1) {
+    await callRpc('queue_attach_services', {
+      p_business_id: businessId,
+      p_entry_id: result.id,
+      p_services: JSON.stringify(
+        picked.slice(1).map((sv) => ({ name: sv.name, minutes: sv.duration_minutes, price: sv.price_paise })),
+      ),
+    });
+  }
 
   emitToOwners(businessId, 'queue:entry.created', { entryId: result.id, seatId: staffId, source: 'walk_in' });
   await broadcastQueue(businessId);

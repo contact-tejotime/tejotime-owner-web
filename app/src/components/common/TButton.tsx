@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, StyleProp, StyleSheet, TextStyle, View, V
 import { TText } from '@/components/common/TText';
 import { styles } from '@/styles';
 import { moderateScale, rSize, scaleFont } from '@/styles/scale';
+import { inkOn } from '@/theme/ink';
 import { SemanticColors, controlHeight, fontSize, radius } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -86,9 +87,9 @@ function variantColors(variant: string, c: SemanticColors, pressed: boolean) {
      *   danger  = Checkout — closes the visit and writes money to the ledger
      */
     case 'success':
-      return { bg: pressed ? c.successSoftFg : c.success, fg: '#fff', border: 'transparent' };
+      return { bg: pressed ? c.successSoftFg : c.success, fg: inkOn(c.success), border: 'transparent' };
     case 'danger':
-      return { bg: pressed ? c.errorSoftFg : c.error, fg: '#fff', border: 'transparent' };
+      return { bg: pressed ? c.errorSoftFg : c.error, fg: inkOn(c.error), border: 'transparent' };
     case 'primary':
     default:
       return { bg: pressed ? c.primaryHover : c.primary, fg: c.textOnBrand, border: 'transparent' };

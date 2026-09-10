@@ -50,13 +50,18 @@ export function SupportContact({ variant = 'block' }: { variant?: Variant }) {
     );
   }
 
-  // `login` drops the heading and blurb — on a sign-in screen the two blue contacts read as support
-  // on their own, and anything more turns the footer into a second block competing with the form.
+  // `login` drops the heading and blurb — an email address and a phone number read as support on
+  // their own, and anything more turns the footer into a second block competing with the form.
+  //
+  // Deliberately muted rather than the primary blue the other variants use: on the sign-in screen
+  // this sits directly under the Sign in button, and two bold blue links there pull the eye past
+  // the one control that matters. The legal links below are the only blue in the footer, so the
+  // colour still means "tappable" — these stay a shade darker than the `·` to keep the affordance.
   if (variant === 'login') {
     return (
       <View style={s.login}>
         <Pressable onPress={openMail} hitSlop={8}>
-          <TText variant="caption" color="primary" weight="semibold">
+          <TText variant="caption" color="textMuted">
             {SUPPORT.email}
           </TText>
         </Pressable>
@@ -64,7 +69,7 @@ export function SupportContact({ variant = 'block' }: { variant?: Variant }) {
           ·
         </TText>
         <Pressable onPress={openTel} hitSlop={8}>
-          <TText variant="caption" color="primary" weight="semibold">
+          <TText variant="caption" color="textMuted">
             {SUPPORT.phoneDisplay}
           </TText>
         </Pressable>
@@ -125,7 +130,7 @@ const createSupportStyles = ({ colors }: ThemeStyleProps) =>
       ...styles.justifyCenter,
       flexWrap: 'wrap',
       gap: moderateScale(8),
-      paddingTop: moderateScale(14),
+      paddingTop: moderateScale(16),
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.borderSubtle,
     },

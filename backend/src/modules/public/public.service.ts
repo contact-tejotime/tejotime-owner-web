@@ -1,9 +1,9 @@
-import { many, one } from '../../db/pool';
+import { exec, many, one } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
 import { VISITOR_TYPE_CATEGORIES } from '../../config/constants';
 import { Errors } from '../../domain/errors';
-import { money } from '../../domain/money';
+import { servicePricing } from '../../domain/money';
 import { normalizePhone } from '../../lib/phone';
 import { dayjs } from '../../lib/time';
 import { createTtlCache } from '../../lib/ttl-cache';
@@ -226,12 +226,20 @@ async function buildMicrosite(b: any) {
     })),
     amenities: (amenities ?? []).map((a) => a.label),
     gallery: (gallery ?? []).map((g) => g.url),
-    services: (services ?? []).map((s) => ({
-      id: s.id,
-      name: s.name,
-      durationMinutes: s.duration_minutes,
-      price: money(s.price_paise, s.currency),
-    })),
+    services: (services ?? []).map((s) => {
+      const pricing = servicePricing(s, s.currency);
+      return {
+        id: s.id,
+        name: s.name,
+        durationMinutes: s.duration_minutes,
+        // Fixed price, or the floor of a band — `priceType` says which, and the microsite
+        // renders "₹300–₹600" / "From ₹300" from the pair. A cached response from before
+        // pricing modes has no `priceType`; the client falls back to the plain amount.
+        price: pricing.price,
+        priceType: pricing.priceType,
+        priceMax: pricing.priceMax,
+      };
+    }),
     staff: staffDTO,
     reviews: (Array.isArray(b.reviews) ? b.reviews : []).map((r: any) => ({
       stars: Number(r.stars) || 0,
@@ -298,7 +306,47 @@ export async function getStaffAvailability(slug: string) {
   return result;
 }
 
-export async function getSlots(slug: string, date: string, serviceId?: string, staffId?: string) {
+/**
+ * The services a visit is for, in the order the customer picked them, validated against this
+ * business.
+ *
+ * One resolver for all three entry points (slots, join, book) so they can never disagree about
+ * what was selected — the slot length, the queue entry's duration and the checkout total are all
+ * derived from this same list.
+ *
+ * `serviceId` (singular) is still accepted: it is what every already-shipped client sends. When
+ * both arrive `serviceIds` wins, with the singular folded in first if it is not already present.
+ */
+async function resolveServices(
+  businessId: string,
+  input: { serviceId?: string; serviceIds?: string[] },
+): Promise<{ id: string; name: string; duration_minutes: number; price_paise: number }[]> {
+  const ids: string[] = [];
+  for (const id of [...(input.serviceIds ?? []), ...(input.serviceId ? [input.serviceId] : [])]) {
+    if (!ids.includes(id)) ids.push(id);
+  }
+  if (ids.length === 0) return [];
+
+  const rows = await many<{ id: string; name: string; duration_minutes: number; price_paise: number }>(
+    'select id, name, duration_minutes, price_paise from service where business_id = $1 and id = any($2::uuid[])',
+    [businessId, ids],
+  );
+  // Any unknown id is a hard error rather than a silent drop: quietly booking a shorter, cheaper
+  // visit than the one the customer chose is the failure this whole feature exists to prevent.
+  const missing = ids.filter((id) => !rows.some((r) => r.id === id));
+  if (missing.length) throw Errors.notFound('Service not found');
+  // Preserve the customer's order — the first pick becomes the primary service.
+  return ids.map((id) => rows.find((r) => r.id === id)!);
+}
+
+/** "Haircut + Hair Spa" — the label the queue board, the ticket and the visit ledger all show. */
+const combinedServiceName = (svcs: { name: string }[]) => (svcs.length ? svcs.map((s) => s.name).join(' + ') : null);
+
+/** The extras payload `queue_attach_services` takes: everything after the primary service. */
+const extraServicesPayload = (svcs: { name: string; duration_minutes: number; price_paise: number }[]) =>
+  svcs.slice(1).map((s) => ({ name: s.name, minutes: s.duration_minutes, price: s.price_paise }));
+
+export async function getSlots(slug: string, date: string, serviceIds?: string[], staffId?: string) {
   const b = await resolveBusiness(slug);
   const tz = b.timezone;
   const day = dayjs.tz(date, tz);
@@ -308,10 +356,13 @@ export async function getSlots(slug: string, date: string, serviceId?: string, s
   ]);
   if (!hours || hours.is_closed) return { date, slots: [] };
 
+  // A multi-service visit occupies the SUM of its parts. Sizing the hole by the first service
+  // alone would offer the next customer a time that overlaps the back half of this one.
   let duration = env.BOOKING_SLOT_MINUTES;
-  if (serviceId) {
-    const svc = await one('select duration_minutes from service where id = $1', [serviceId]);
-    if (svc) duration = svc.duration_minutes;
+  if (serviceIds?.length) {
+    const svcs = await resolveServices(b.id, { serviceIds });
+    const total = svcs.reduce((n, sv) => n + (sv.duration_minutes || 0), 0);
+    if (total > 0) duration = total;
   }
 
   const open = dayjs.tz(`${date} ${hours.opens_at}`, tz);
@@ -355,7 +406,14 @@ function ticketSocket(businessId: string, ticketId: string) {
 
 export async function joinQueue(
   slug: string,
-  input: { serviceId?: string; name: string; phone: string; preferredStaffId?: string; visitorType?: 'mr' | 'patient' },
+  input: {
+    serviceId?: string;
+    serviceIds?: string[];
+    name: string;
+    phone: string;
+    preferredStaffId?: string;
+    visitorType?: 'mr' | 'patient';
+  },
 ) {
   const b = await resolveBusiness(slug);
   if (VISITOR_TYPE_CATEGORIES.has(b.category) && !input.visitorType) {
@@ -373,10 +431,8 @@ export async function joinQueue(
   // Services are optional for some categories (e.g. Hospital/Restaurant) — a missing serviceId
   // is a valid "no specific service" join; the wait-time engine already falls back to a default
   // duration for entries with no service_name (see queue-engine.ts's estMins).
-  const svc = input.serviceId
-    ? await one('select id, name from service where id = $1 and business_id = $2', [input.serviceId, b.id])
-    : null;
-  if (input.serviceId && !svc) throw Errors.notFound('Service not found');
+  const svcs = await resolveServices(b.id, input);
+  const svc = svcs[0] ?? null;
 
   let staffId = input.preferredStaffId && input.preferredStaffId !== 'any' ? input.preferredStaffId : null;
   if (staffId && !ctx.staffRows.find((s) => s.id === staffId)) staffId = null;
@@ -399,6 +455,18 @@ export async function joinQueue(
     p_visitor_type: input.visitorType ?? null,
   });
 
+  // Services 2..n become the entry's extras: `extra_minutes` so the wait-time engine sizes the
+  // visit correctly, and `queue_entry_extra` rows so checkout totals them. Done before the
+  // broadcast, or owners would see the entry flash up as a bare "Haircut" first.
+  const extras = extraServicesPayload(svcs);
+  if (extras.length) {
+    await callRpc('queue_attach_services', {
+      p_business_id: b.id,
+      p_entry_id: result.id,
+      p_services: JSON.stringify(extras),
+    });
+  }
+
   emitToOwners(b.id, 'queue:entry.created', { entryId: result.id, seatId: staffId, source: 'online' });
   await broadcastQueue(b.id);
 
@@ -414,7 +482,7 @@ export async function joinQueue(
     serviceRemainingMinutes: pos.serviceRemainingMinutes,
     status: pos.status ?? 'waiting',
     staffName,
-    serviceName: svc?.name ?? null,
+    serviceName: combinedServiceName(svcs),
     asOf: new Date().toISOString(),
     socket: ticketSocket(b.id, result.id),
   };
@@ -424,6 +492,7 @@ export async function bookSlot(
   slug: string,
   input: {
     serviceId?: string;
+    serviceIds?: string[];
     name: string;
     phone: string;
     preferredStaffId?: string;
@@ -435,20 +504,17 @@ export async function bookSlot(
   if (VISITOR_TYPE_CATEGORIES.has(b.category) && !input.visitorType) {
     throw Errors.validation('Visitor type is required', [{ field: 'visitorType', message: 'Pick MR or Patient' }]);
   }
-  const svc = input.serviceId
-    ? await one('select id, name, duration_minutes from service where id = $1 and business_id = $2', [
-        input.serviceId,
-        b.id,
-      ])
-    : null;
-  if (input.serviceId && !svc) throw Errors.notFound('Service not found');
+  const svcs = await resolveServices(b.id, input);
+  const svc = svcs[0] ?? null;
 
   const phone = normalizePhone(input.phone);
   const customerId = await findOrCreateCustomer(b.id, input.name, phone);
   const staffId = input.preferredStaffId && input.preferredStaffId !== 'any' ? input.preferredStaffId : null;
   const start = new Date(input.slotStart);
-  // No service picked → fall back to the standard slot length (same convention as getSlots above).
-  const durationMinutes = svc?.duration_minutes ?? env.BOOKING_SLOT_MINUTES;
+  // The booking blocks out ALL the chosen services, not just the first — same rule getSlots uses
+  // to size the hole it offered. No service picked → the standard slot length.
+  const totalMinutes = svcs.reduce((n, sv) => n + (sv.duration_minutes || 0), 0);
+  const durationMinutes = totalMinutes > 0 ? totalMinutes : env.BOOKING_SLOT_MINUTES;
   const end = new Date(start.getTime() + durationMinutes * 60_000);
 
   const data = await one(
@@ -463,7 +529,7 @@ export async function bookSlot(
       input.name,
       phone,
       svc?.id ?? null,
-      svc?.name ?? null,
+      combinedServiceName(svcs),
       staffId,
       start.toISOString(),
       end.toISOString(),
@@ -472,13 +538,32 @@ export async function bookSlot(
   );
   if (!data) throw new Error('Failed to create appointment');
 
+  // Itemise the booking. A booking is made now and checked in later, so without this list
+  // `appointment_check_in` could not rebuild the queue entry's extras and the visit would be
+  // sized and priced as if only the first service had been chosen (migration 0025).
+  if (svcs.length) {
+    // `position` is load-bearing, not decoration: check-in reads `position > 0` to find the
+    // services to re-attach, so leaving it at its default of 0 would hide every extra.
+    const values = svcs
+      .map((_, i) => `($1, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5}, $${i * 5 + 6})`)
+      .join(', ');
+    await exec(
+      `insert into appointment_service (appointment_id, service_id, name, minutes, price_paise, position)
+       values ${values}`,
+      [
+        data.id,
+        ...svcs.flatMap((sv, i) => [sv.id, sv.name, sv.duration_minutes, sv.price_paise, i]),
+      ],
+    );
+  }
+
   emitToOwners(b.id, 'appointment:created', {
     appointment: { id: data.id, customerName: data.customer_name, serviceName: data.service_name, scheduledStartAt: data.scheduled_start_at, status: data.status },
   });
 
   return {
     appointmentId: data.id,
-    serviceName: svc?.name ?? null,
+    serviceName: combinedServiceName(svcs),
     scheduledStartAt: data.scheduled_start_at,
     status: 'confirmed',
     staffName: staffId ? (await one('select name from staff where id = $1', [staffId]))?.name : null,

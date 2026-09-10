@@ -4,14 +4,29 @@ import { asyncHandler } from '../../http/async-handler';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import * as pub from './public.service';
+import { MAX_SERVICES_PER_VISIT } from '../../config/constants';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const slugParam = z.object({ slug: z.string().min(1).max(80) });
 const phoneParam = z.object({ phone: z.string().regex(/^\d{7,15}$/) });
 const ticketParam = z.object({ ticketId: z.string().uuid() });
 
+/**
+ * A visit can carry several services ("haircut AND a hair spa").
+ *
+ * `serviceIds` is the current field; `serviceId` is kept because it is what every already-shipped
+ * client sends — a stale microsite bundle or an older build of the Expo app must keep working.
+ * When both arrive, `serviceIds` wins and `serviceId` is folded in as the first entry.
+ */
+const serviceSelection = {
+  serviceId: z.string().uuid().optional(),
+  serviceIds: z.array(z.string().uuid()).min(1).max(MAX_SERVICES_PER_VISIT).optional(),
+};
+
 const joinSchema = z
   .object({
-    serviceId: z.string().uuid().optional(),
+    ...serviceSelection,
     name: z.string().trim().min(1).max(80),
     phone: z.string().trim().min(4).max(20),
     preferredStaffId: z.string().optional(),
@@ -101,6 +116,16 @@ publicRouter.get(
     query: z.object({
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       serviceId: z.string().uuid().optional(),
+      // Comma-separated because this is a query string. The slot LENGTH is the sum of the chosen
+      // services, so a haircut + spa books a 90-minute hole rather than a 30-minute one that the
+      // next customer would then be offered on top of.
+      serviceIds: z
+        .string()
+        .optional()
+        .transform((v) => (v ? v.split(',').map((x) => x.trim()).filter(Boolean) : undefined))
+        .refine((v) => !v || (v.length <= MAX_SERVICES_PER_VISIT && v.every((x) => UUID_RE.test(x))), {
+          message: 'serviceIds must be up to 10 comma-separated UUIDs',
+        }),
       staffId: z.string().uuid().optional(),
     }),
   }),
@@ -109,7 +134,8 @@ publicRouter.get(
       await pub.getSlots(
         req.params.slug,
         req.query.date as string,
-        req.query.serviceId as string | undefined,
+        (req.query.serviceIds as unknown as string[] | undefined) ??
+          (req.query.serviceId ? [req.query.serviceId as string] : undefined),
         req.query.staffId as string | undefined,
       ),
     );

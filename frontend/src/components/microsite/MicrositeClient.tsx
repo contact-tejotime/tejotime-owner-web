@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { Socket } from "socket.io-client";
@@ -36,6 +36,25 @@ const Lightbox = dynamic(() => import("./sections").then((m) => ({ default: m.Li
 
 const AVATAR_COLORS = ["var(--primary)", "var(--secondary)", "var(--amber-500)"];
 const DAYS = t.microsite.days;
+
+/**
+ * How far ahead the booking calendar runs. Two weeks covers "next Saturday" — the thing
+ * customers actually ask for — without turning the day strip into an endless scroll.
+ */
+const BOOKING_DAYS_AHEAD = 14;
+
+/**
+ * YYYY-MM-DD in the VIEWER's timezone.
+ *
+ * NOT `toISOString().slice(0, 10)`, which is the UTC date. A customer in IST opening the page at
+ * 2am would have asked the API for *yesterday's* slots, been handed a day that had already
+ * ended, and been told no appointments were available. Local date parts are what the shop and
+ * the customer both mean by "today".
+ */
+function localYmd(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 // Client-side abuse simulation: after this many joins from one phone in a session we
 // show the "too many attempts" view (the backend enforces only a generic per-IP 429).
@@ -425,7 +444,16 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const [view, setView] = useState<View>("flow");
   const [screen, setScreen] = useState<FlowScreen>("details");
   const [tstep, setTstep] = useState(1); // Track-my-turn sub-step: 1 phone → 3 not-found
-  const [cart, setCart] = useState<string | null>(null);
+  /**
+   * The services chosen for this visit, in pick order. A visit is routinely more than one thing
+   * ("haircut AND a hair spa"), and picking one used to silently drop the rest: the shop sized
+   * the visit by the first service and rang up its price alone.
+   *
+   * Order is load-bearing — the first pick becomes the entry's primary service on the API side.
+   */
+  const [cart, setCart] = useState<string[]>([]);
+  const toggleService = (id: string) =>
+    setCart((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const [visitorType, setVisitorType] = useState<"mr" | "patient" | null>(null);
   const [name, setName] = useState("");
   // Phone entry is split into a searchable country code + national number. `phone`
@@ -450,6 +478,17 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  /**
+   * The day being booked, YYYY-MM-DD. Booking used to be today-only, which bites hardest exactly
+   * when someone is most likely to be looking: late in the day, when today has one slot left and
+   * the customer's actual intent is "sometime this week".
+   */
+  const [bookDate, setBookDate] = useState<string>(() => localYmd(new Date()));
+  /**
+   * Guards against out-of-order slot responses. Tapping through days faster than the network
+   * answers would otherwise let an earlier request land last and paint the wrong day's times.
+   */
+  const slotReq = useRef(0);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [booking, setBooking] = useState<{ serviceName: string | null; scheduledStartAt: string } | null>(null);
   const [justTurn, setJustTurn] = useState(false);
@@ -693,16 +732,40 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
   // ---- derived data ----
   const curSym = currencySymbol(site.currency);
-  // A zero price is how the product stores "not priced yet" — every store that has not filled in
-  // its menu was telling customers each service cost $0, i.e. that it was free. The label is
-  // built once, here, so no call site can reintroduce a bare `${curSym}${number}`.
-  const priceLabelFor = (amountPaise: number) =>
-    amountPaise > 0 ? `${curSym}${Math.round(amountPaise / 100)}` : t.microsite.sections.priceVaries;
+  const rupeeLabel = (amountPaise: number) => `${curSym}${Math.round(amountPaise / 100)}`;
+  /**
+   * One label per service, built once here so no call site can reintroduce a bare
+   * `${curSym}${number}`.
+   *
+   * The store now says which of three things a price is, instead of every surface guessing
+   * from a zero. A **fixed** service shows its amount. A **range** shows the band the shop
+   * committed to — the final figure is settled at the counter, not on this page. A service
+   * nobody has priced says so; it used to render as "$0", which told every customer it was
+   * free. A response cached from before pricing modes carries no `priceType`, and the old rule
+   * (a real amount is a fixed price) still reads it correctly.
+   */
+  const priceLabelFor = (sv: { price: { amount: number }; priceType?: string; priceMax?: { amount: number } | null }) => {
+    const type = sv.priceType ?? (sv.price.amount > 0 ? "fixed" : "unset");
+    if (type === "range" && sv.priceMax) {
+      return format(t.microsite.sections.priceRange, {
+        min: rupeeLabel(sv.price.amount),
+        max: rupeeLabel(sv.priceMax.amount),
+      });
+    }
+    if (type === "unset" || sv.price.amount <= 0) return t.microsite.sections.priceOnRequest;
+    return rupeeLabel(sv.price.amount);
+  };
   const services = (site.services ?? []).map((s) => ({
     id: s.id,
     name: s.name,
     dur: `${s.durationMinutes} min`,
-    priceLabel: priceLabelFor(s.price.amount),
+    priceLabel: priceLabelFor(s),
+    // Raw values kept alongside the rendered label: a multi-service visit has to SUM durations
+    // and prices, which a formatted string cannot do.
+    durationMinutes: s.durationMinutes,
+    price: s.price,
+    priceType: s.priceType,
+    priceMax: s.priceMax ?? null,
   }));
 
   // ---- open / closed ----
@@ -712,6 +775,43 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const hasHours = site.hours.length > 0;
   const walkInsClosed = hasHours && !site.openStatus.isOpen;
   const nextOpenLabel = site.openStatus.nextOpenLabel ?? null;
+
+  /**
+   * The bookable days, starting today.
+   *
+   * Weekdays the store never opens are shown greyed rather than hidden, so the strip reads as a
+   * calendar ("closed Sundays") instead of silently skipping a date the customer was looking for.
+   * `hasHours` gates that the same way the walk-in controls are gated: a store that never
+   * configured hours reports every day closed, and hiding every date would leave nothing to book.
+   *
+   * Rendered only inside the modal, which cannot be open during SSR — so `new Date()` here can
+   * never produce a server/client hydration mismatch.
+   */
+  const bookDays = useMemo(() => {
+    const base = new Date();
+    base.setHours(0, 0, 0, 0);
+    return Array.from({ length: BOOKING_DAYS_AHEAD }, (_, i) => {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
+      const closedDay = site.hours.find((h) => h.dayOfWeek === d.getDay())?.isClosed ?? false;
+      return {
+        ymd: localYmd(d),
+        closed: hasHours && closedDay,
+        weekday:
+          i === 0
+            ? t.microsite.join.dayToday
+            : i === 1
+              ? t.microsite.join.dayTomorrow
+              : d.toLocaleDateString(undefined, { weekday: "short" }),
+        dayNum: d.getDate(),
+        month: d.toLocaleDateString(undefined, { month: "short" }),
+        full: d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }),
+      };
+    });
+  }, [site.hours, hasHours]);
+  const selectedDay = bookDays.find((d) => d.ymd === bookDate) ?? bookDays[0];
+  /** "Check in instead" only makes sense for today, and only while the doors are actually open. */
+  const canOfferWalkIn = !walkInsClosed && bookDate === bookDays[0]?.ymd;
   // Which screens the join/book modal shows, in order — computed per-business so the
   // progress bar and navigation stay correct regardless of which optional screens apply.
   const isHospital = site.category === "Hospital";
@@ -727,7 +827,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     if (!next) return;
     setScreen(next);
     setFormError("");
-    if (next === "details" && mode === "book") await fetchSlotsForToday(cart);
+    if (next === "details" && mode === "book") await fetchSlots(cart, bookDate, member);
   };
   const goBack = (from: FlowScreen) => {
     const i = flowScreens.indexOf(from);
@@ -792,7 +892,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     // service picking are skipped entirely when they don't apply (see flowScreens above).
     const firstScreen = flowScreens[0];
     setScreen(firstScreen);
-    setCart(null);
+    setCart([]);
     setVisitorType(null);
     setName(store.lastName || "");
     seedPhone(lp || "");
@@ -802,8 +902,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setJustTurn(false);
     setSlots([]);
     setSelectedSlot(null);
+    // Every open starts on today; a date left over from a previous booking would silently send
+    // the next customer to last week.
+    const openingDate = localYmd(new Date());
+    setBookDate(openingDate);
     setJoinOpen(true);
-    if (firstScreen === "details" && m === "book") fetchSlotsForToday(null);
+    if (firstScreen === "details" && m === "book") fetchSlots([], openingDate, preselectMember);
   };
   // Every walk-in control is disabled or re-pointed while the shop is closed; these two are the
   // backstop for a page left open past closing time, so a stale render cannot mint a token that
@@ -898,7 +1002,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setMode(walkInsClosed ? "book" : "queue");
     setView("flow");
     setScreen(flowScreens[0]);
-    setCart(null);
+    setCart([]);
     setVisitorType(null);
     setMember("any");
     setName(trackedName || storeRef.current.lastName || "");
@@ -909,10 +1013,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setConfirmLeave(false);
     setSlots([]);
     setSelectedSlot(null);
+    setBookDate(localYmd(new Date()));
+    setCart([]);
   };
 
-  // Booking → waitlist without losing the form. Only reachable when the store is open and the
-  // day has no slots left; `mode` drives validation and submission, so nothing else has to move.
+  // Booking → waitlist without losing the form. Only offered when the store is open AND the
+  // selected day is today — "join the queue now" is meaningless while browsing next Tuesday.
+  // `mode` drives validation and submission, so nothing else has to move.
   const switchToWaitlist = () => {
     setMode("queue");
     setSelectedSlot(null);
@@ -932,17 +1039,34 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   const toggleFaq = (i: number) => setFaqOpen((cur) => (cur === i ? null : i));
 
-  const fetchSlotsForToday = async (serviceId: string | null) => {
+  /**
+   * Load the bookable times for one day.
+   *
+   * Takes its date, service and provider as ARGUMENTS rather than reading state: every caller
+   * fires from the same event that changes one of them, and React state is not updated yet at
+   * that point — reading `bookDate` here would fetch the previous day.
+   *
+   * `staffId` narrows availability to a named provider's chair; "no preference" leaves it off so
+   * the customer sees every time the shop could take them.
+   */
+  const fetchSlots = async (serviceIds: string[], date: string, staffId: string) => {
+    const req = ++slotReq.current;
     setSlotsLoading(true);
     setSelectedSlot(null);
     try {
-      const today = new Date().toISOString().slice(0, 10);
-      const r = await publicApi.getSlots(site.slug, { date: today, serviceId: serviceId ?? undefined });
+      const r = await publicApi.getSlots(site.slug, {
+        date,
+        // The whole selection: a haircut + spa needs a 90-minute hole, not a 30-minute one.
+        serviceIds: serviceIds.length ? serviceIds : undefined,
+        staffId: staffId && staffId !== "any" ? staffId : undefined,
+      });
+      // A newer day/provider was picked while this was in flight — its response is the truth.
+      if (slotReq.current !== req) return;
       setSlots(r.slots);
     } catch {
-      setSlots([]);
+      if (slotReq.current === req) setSlots([]);
     } finally {
-      setSlotsLoading(false);
+      if (slotReq.current === req) setSlotsLoading(false);
     }
   };
   // Returns true (and shows the blocked view) if this phone is locally rate-limited.
@@ -978,14 +1102,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
   // Perform the REAL join/book — the single place that talks to the join/book API.
   const performJoinOrBook = async () => {
-    if (services.length > 0 && !cart) return;
+    if (services.length > 0 && cart.length === 0) return;
     const p = phone.trim();
     setSubmitting(true);
     setFormError("");
     try {
       if (mode === "queue") {
         const t = await publicApi.joinQueue(site.slug, {
-          serviceId: cart ?? undefined,
+          serviceIds: cart.length ? cart : undefined,
           name: name.trim(),
           phone: p,
           preferredStaffId: member,
@@ -1017,7 +1141,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         else setScreen("success");
       } else {
         const b = await publicApi.bookSlot(site.slug, {
-          serviceId: cart ?? undefined,
+          serviceIds: cart.length ? cart : undefined,
           name: name.trim(),
           phone: p,
           preferredStaffId: member,
@@ -1078,7 +1202,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const joinDifferent = () => {
     setView("flow");
     setScreen(flowScreens[0]);
-    setCart(null);
+    setCart([]);
     setVisitorType(null);
     setName("");
     seedPhone("");
@@ -1092,7 +1216,22 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   };
 
   // ---- derived render values ----
-  const sel = services.find((x) => x.id === cart);
+  /** The chosen services in pick order; `sel` stays the primary one for the single-service copy. */
+  const selected = cart.map((id) => services.find((x) => x.id === id)).filter((x): x is (typeof services)[number] => !!x);
+  const sel = selected[0];
+  const totalMinutes = selected.reduce((n, sv) => n + sv.durationMinutes, 0);
+  /**
+   * The visit's total. A range-priced service makes the whole total a range, so the two ends are
+   * summed separately — "from ₹2,350" is honest where a single figure would not be.
+   */
+  const cartTotalLabel = (() => {
+    if (selected.length === 0) return "";
+    const min = selected.reduce((n, sv) => n + sv.price.amount, 0);
+    const max = selected.reduce((n, sv) => n + (sv.priceMax?.amount ?? sv.price.amount), 0);
+    const anyUnpriced = selected.some((sv) => (sv.priceType ?? (sv.price.amount > 0 ? "fixed" : "unset")) === "unset");
+    if (anyUnpriced && min === 0) return t.microsite.sections.priceOnRequest;
+    return max > min ? `${curSym}${Math.round(min / 100)}–${curSym}${Math.round(max / 100)}` : `${curSym}${Math.round(min / 100)}`;
+  })();
   // Shop-wide "soonest free chair" wait. A 0 means a chair is open right now, so read
   // it as an invitation ("Walk in now") rather than the nonsensical "~0 min wait".
   const displayLiveWait = displayStaffWaitMinutes(liveWait, liveAsOf, nowTs);
@@ -1181,8 +1320,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // "time selected", so the customer can check the time without scrolling back up to the chips.
   const summaryWhen =
     mode === "book"
-      ? slots.find((x) => x.startAt === selectedSlot)?.label ??
-        (selectedSlot ? t.microsite.join.timeSelected : t.microsite.join.chooseTimeAbove)
+      ? (() => {
+          const label = slots.find((x) => x.startAt === selectedSlot)?.label;
+          // Day AND time now that more than today is bookable — "10:00 AM" alone no longer says
+          // which of fourteen days the customer just picked.
+          if (label) return [selectedDay?.full, label].filter(Boolean).join(" · ");
+          return selectedSlot ? t.microsite.join.timeSelected : t.microsite.join.chooseTimeAbove;
+        })()
       : joinWaitText;
   const summaryProvider = member === "any" ? t.microsite.join.memberAny : selMember?.name ?? null;
 
@@ -1284,7 +1428,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // (header, hero, the per-provider cards, the sticky bar), all of which say "waitlist".
   const openServiceBooking = (serviceId: string) => {
     openJoin("book");
-    setCart(serviceId);
+    setCart([serviceId]);
   };
 
   /* Sections whose position varies by domain are built here and placed by the order map in
@@ -1822,8 +1966,11 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                           const on = visitorType === value;
                           return (
                             <div key={value} onClick={() => setVisitorType(value)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 13, borderRadius: "calc(12px * var(--radius-scale, 1))", padding: "13px 15px", transition: "border-color .15s ease, background .15s ease", background: on ? "color-mix(in srgb, var(--primary) 6%, var(--surface-card))" : "var(--surface-card)", border: `1.5px solid ${on ? "var(--primary)" : "var(--border-subtle)"}` }}>
-                              <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${on ? "var(--primary)" : "var(--border-default)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                <span style={{ display: "flex", color: "var(--primary)", transition: "opacity .15s ease", opacity: on ? 1 : 0 }}>
+                              {/* Square, not a circle: a radio says "pick one of these", a checkbox
+                                  says "pick any of these". The shape is the affordance — it is
+                                  what tells someone they may add the spa as well as the haircut. */}
+                              <div role="checkbox" aria-checked={on} style={{ width: 22, height: 22, borderRadius: "calc(6px * var(--radius-scale, 1))", border: `2px solid ${on ? "var(--primary)" : "var(--border-default)"}`, background: on ? "var(--primary)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                <span style={{ display: "flex", color: "#fff", transition: "opacity .15s ease", opacity: on ? 1 : 0 }}>
                                   <Icon name="check" size={13} />
                                 </span>
                               </div>
@@ -1851,9 +1998,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       </p>
                       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                         {services.map((sv) => {
-                          const on = cart === sv.id;
+                          const on = cart.includes(sv.id);
                           return (
-                            <div key={sv.id} onClick={() => setCart(sv.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 13, borderRadius: "calc(12px * var(--radius-scale, 1))", padding: "13px 15px", transition: "border-color .15s ease, background .15s ease", background: on ? "color-mix(in srgb, var(--primary) 6%, var(--surface-card))" : "var(--surface-card)", border: `1.5px solid ${on ? "var(--primary)" : "var(--border-subtle)"}` }}>
+                            <div key={sv.id} onClick={() => toggleService(sv.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 13, borderRadius: "calc(12px * var(--radius-scale, 1))", padding: "13px 15px", transition: "border-color .15s ease, background .15s ease", background: on ? "color-mix(in srgb, var(--primary) 6%, var(--surface-card))" : "var(--surface-card)", border: `1.5px solid ${on ? "var(--primary)" : "var(--border-subtle)"}` }}>
                               <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${on ? "var(--primary)" : "var(--border-default)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                                 <span style={{ display: "flex", color: "var(--primary)", transition: "opacity .15s ease", opacity: on ? 1 : 0 }}>
                                   <Icon name="check" size={13} />
@@ -1868,13 +2015,31 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                           );
                         })}
                       </div>
+                      {/* A running total, because more than one service is now normal: the customer
+                          needs to see what the visit costs and how long it takes without adding it
+                          up themselves. Hidden at zero — an empty row would just be noise. */}
+                      {selected.length > 0 && (
+                        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginTop: 14, padding: "11px 15px", background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: "calc(12px * var(--radius-scale, 1))" }}>
+                          <span style={{ font: "var(--fw-medium) 13px/1.35 var(--font-sans)", color: "var(--text-body)" }}>
+                            {format(t.microsite.join.serviceTotal, { count: selected.length, minutes: totalMinutes })}
+                          </span>
+                          <span style={{ flexShrink: 0, font: "var(--fw-bold) 15px/1.35 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>
+                            {cartTotalLabel}
+                          </span>
+                        </div>
+                      )}
+
                       <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
                         {flowScreens.indexOf("service") > 0 && (
                           <Button variant="outline" size="lg" onClick={() => goBack("service")}>{t.common.back}</Button>
                         )}
                         <div style={{ flex: 1 }}>
-                          <Button variant="primary" size="lg" fullWidth disabled={!cart} onClick={() => goNext("service")}>
-                            {cart ? format(t.microsite.join.serviceContinue, { name: sel!.name }) : t.microsite.join.servicePickOne}
+                          <Button variant="primary" size="lg" fullWidth disabled={cart.length === 0} onClick={() => goNext("service")}>
+                            {cart.length === 0
+                              ? t.microsite.join.servicePickOne
+                              : cart.length === 1
+                                ? format(t.microsite.join.serviceContinue, { name: sel!.name })
+                                : format(t.microsite.join.serviceContinueMany, { count: cart.length })}
                           </Button>
                         </div>
                       </div>
@@ -1898,7 +2063,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                         {[{ id: "any", name: t.microsite.join.memberAny }, ...members.map((b) => ({ id: b.id, name: b.name }))].map((c) => {
                           const on = member === c.id;
                           return (
-                            <span key={c.id} onClick={() => setMember(c.id)} style={{ cursor: "pointer", font: "var(--fw-semibold) 13px/1 var(--font-sans)", padding: "8px 15px", borderRadius: 999, transition: "all .15s ease", ...(on ? { background: "var(--primary)", color: "#fff", border: "1.5px solid var(--primary)" } : { background: "var(--surface-card)", color: "var(--text-body)", border: "1.5px solid var(--border-subtle)" }) }}>
+                            <span key={c.id} onClick={() => { setMember(c.id); if (mode === "book") fetchSlots(cart, bookDate, c.id); }} style={{ cursor: "pointer", font: "var(--fw-semibold) 13px/1 var(--font-sans)", padding: "8px 15px", borderRadius: 999, transition: "all .15s ease", ...(on ? { background: "var(--primary)", color: "#fff", border: "1.5px solid var(--primary)" } : { background: "var(--surface-card)", color: "var(--text-body)", border: "1.5px solid var(--border-subtle)" }) }}>
                               {c.name}
                             </span>
                           );
@@ -1908,17 +2073,52 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       {mode === "book" && (
                         <>
                           <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 9 }}>{t.microsite.join.timeLabel}</div>
+
+                          {/* The day strip. Horizontally scrollable rather than wrapped: two weeks
+                              of dates wrapped into rows dominates the sheet and buries the times,
+                              which are what the customer is actually here to pick. */}
+                          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6, marginBottom: 14, scrollbarWidth: "thin", WebkitOverflowScrolling: "touch" }}>
+                            {bookDays.map((d) => {
+                              const on = bookDate === d.ymd;
+                              return (
+                                <button
+                                  key={d.ymd}
+                                  type="button"
+                                  disabled={d.closed}
+                                  aria-pressed={on}
+                                  aria-label={d.closed ? `${d.full} — ${t.microsite.join.dayClosed}` : d.full}
+                                  onClick={() => { setBookDate(d.ymd); fetchSlots(cart, d.ymd, member); }}
+                                  style={{
+                                    flex: "0 0 auto", minWidth: 62, padding: "8px 10px", textAlign: "center",
+                                    borderRadius: "calc(10px * var(--radius-scale, 1))", fontFamily: "var(--font-sans)",
+                                    cursor: d.closed ? "not-allowed" : "pointer", opacity: d.closed ? 0.4 : 1,
+                                    transition: "all .15s ease",
+                                    ...(on
+                                      ? { background: "var(--primary)", color: "#fff", border: "1.5px solid var(--primary)" }
+                                      : { background: "var(--surface-card)", color: "var(--text-body)", border: "1.5px solid var(--border-subtle)" }),
+                                  }}
+                                >
+                                  <span style={{ display: "block", font: "var(--fw-semibold) 11px/1.3 var(--font-sans)", opacity: 0.85 }}>{d.weekday}</span>
+                                  <span style={{ display: "block", font: "var(--fw-bold) 15px/1.25 var(--font-sans)", fontVariantNumeric: "tabular-nums" }}>{d.dayNum}</span>
+                                  <span style={{ display: "block", font: "var(--fw-medium) 10.5px/1.3 var(--font-sans)", opacity: 0.75 }}>{d.closed ? t.microsite.join.dayClosed : d.month}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
                           {slotsLoading ? (
                             <div style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)", marginBottom: 18 }}>{t.microsite.join.slotsLoading}</div>
                           ) : slots.length === 0 ? (
                             <div style={{ marginBottom: 18 }}>
                               <div style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)" }}>
-                                {walkInsClosed ? t.microsite.join.slotsEmptyClosed : t.microsite.join.slotsEmpty}
+                                {format(selectedDay?.closed ? t.microsite.join.slotsClosedDay : t.microsite.join.slotsEmptyDay, { date: selectedDay?.full ?? "" })}
                               </div>
-                              {/* Service cards open the booking flow, so a walk-in-only store used to
-                                  land here with nothing to press. The switch keeps the name, phone,
-                                  service and provider already entered. */}
-                              {!walkInsClosed && (
+                              {/* Fallback only — Check in stays its own entry point. Offered when the
+                                  selected day is TODAY and the doors are open, because that is the
+                                  only situation where joining the live queue is a real alternative
+                                  to the appointment the customer came here for. Keeps the name,
+                                  phone, service and provider already entered. */}
+                              {canOfferWalkIn && (
                                 <div style={{ marginTop: 10 }}>
                                   <Button variant="outline" fullWidth onClick={switchToWaitlist}>
                                     {t.microsite.join.switchToWaitlist}
@@ -1947,13 +2147,15 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: "calc(12px * var(--radius-scale, 1))", padding: "13px 15px", marginBottom: 14 }}>
                         <span style={{ minWidth: 0, font: "var(--fw-medium) 13px/1.45 var(--font-sans)", color: "var(--text-body)" }}>
                           <span style={{ display: "block", font: "var(--fw-semibold) 13.5px/1.35 var(--font-sans)", color: "var(--text-strong)" }}>
-                            {[sel?.name ?? site.name, sel?.dur].filter(Boolean).join(" · ")}
+                            {selected.length
+                              ? [selected.map((sv) => sv.name).join(" + "), `${totalMinutes} min`].join(" · ")
+                              : site.name}
                           </span>
                           <span style={{ display: "block", marginTop: 3 }}>
                             {[summaryWhen, summaryProvider].filter(Boolean).join(" · ")}
                           </span>
                         </span>
-                        <span style={{ flexShrink: 0, font: "var(--fw-bold) 16px/1.35 var(--font-sans)", color: "var(--text-strong)" }}>{sel ? sel.priceLabel : ""}</span>
+                        <span style={{ flexShrink: 0, font: "var(--fw-bold) 16px/1.35 var(--font-sans)", color: "var(--text-strong)" }}>{cartTotalLabel}</span>
                       </div>
                       {/* Nothing is charged here — payments are not wired — so the page has to say
                           where the money is actually taken, before the customer commits. */}

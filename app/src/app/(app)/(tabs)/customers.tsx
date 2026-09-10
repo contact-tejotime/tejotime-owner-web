@@ -8,6 +8,7 @@ import { TButton } from '@/components/common/TButton';
 import { TLoader } from '@/components/common/TLoader';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
+import { useTabContent } from '@/hooks/useResponsive';
 import { t, format } from '@/i18n';
 import { useAppState } from '@/state/store';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -16,9 +17,18 @@ import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import type { Customer } from '@/data/sample';
 
+/**
+ * Narrowest a customer card stays readable at. Each card carries a name, a phone
+ * number and three labelled metrics in a row; below this they start wrapping
+ * mid-metric, so the grid drops back to one column rather than squeezing.
+ */
+const CUSTOMER_CARD_MIN_WIDTH = 320;
+
 export default function Customers() {
   const theme = useTheme();
   const store = useAppState();
+  const { columns, gridItemWidth } = useTabContent();
+  const numColumns = columns(CUSTOMER_CARD_MIN_WIDTH, { gutter: 12, max: 2 });
   const s = useMemo(() => createCustomersStyles({ ...theme, dark: theme.dark }), [theme]);
   const isPremium = store.plan === 'premium';
 
@@ -34,16 +44,18 @@ export default function Customers() {
   );
 
   const renderCustomer = ({ item: c }: { item: Customer }) => (
-    <CustomerCard
-      name={c.name}
-      phone={c.phone}
-      tag={c.vip ? <Badge tone="primary">{t.customers.vip}</Badge> : null}
-      meta={[
-        { label: t.customers.visits, value: c.visits },
-        { label: t.customers.lastVisit, value: c.last },
-        { label: t.customers.spend, value: c.spend },
-      ]}
-    />
+    <View style={numColumns > 1 ? { width: gridItemWidth(numColumns) } : undefined}>
+      <CustomerCard
+        name={c.name}
+        phone={c.phone}
+        tag={c.vip ? <Badge tone="primary">{t.customers.vip}</Badge> : null}
+        meta={[
+          { label: t.customers.visits, value: c.visits },
+          { label: t.customers.lastVisit, value: c.last },
+          { label: t.customers.spend, value: c.spend },
+        ]}
+      />
+    </View>
   );
 
   const lockedFooter =
@@ -80,7 +92,7 @@ export default function Customers() {
               variant="primary"
               loading={store.upgradeLoading}
               onPress={store.upgrade}
-              leadingIcon={<Icon name="creditCard" size={20} color="#fff" />}>
+              leadingIcon={<Icon name="creditCard" size={20} color={theme.colors.textOnBrand} />}>
               {t.customers.upgrade}
             </TButton>
           </View>
@@ -101,9 +113,15 @@ export default function Customers() {
       </View>
 
       <FlatList
+        // FlatList refuses to change `numColumns` in place, so the column count
+        // has to be part of the identity: without this key, rotating a tablet
+        // crashes with "Changing numColumns on the fly is not supported".
+        key={`cols-${numColumns}`}
         data={shown}
         keyExtractor={(c) => c.id}
         renderItem={renderCustomer}
+        numColumns={numColumns}
+        columnWrapperStyle={numColumns > 1 ? s.gridRow : undefined}
         contentContainerStyle={[styles.screenPadding, styles.pb6, styles.g3]}
         showsVerticalScrollIndicator={false}
         initialNumToRender={10}
@@ -136,6 +154,11 @@ export default function Customers() {
 const createCustomersStyles = ({ colors, radius, shadow, dark }: ThemeStyleProps & { dark: boolean }) =>
   StyleSheet.create({
     searchWrap: { ...styles.screenPadding, ...styles.pb2 },
+    // `space-between`, not `gap`: the cells are sized in percent (see
+    // gridItemWidth), and an absolute column gap on top of that overflows the
+    // row and collapses the grid back to one column. The list's own `g3`
+    // supplies the vertical rhythm between rows.
+    gridRow: { ...styles.justifyBetween },
     lockedWrap: { borderRadius: moderateScale(radius.lg), overflow: 'hidden', ...styles.mt1 },
     lockedPlaceholder: { ...styles.g3, opacity: 0.3 },
     blurOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },

@@ -1,7 +1,9 @@
 // Realtime smoke test: assert owner + customer sockets receive events on mutations.
 import { io } from 'socket.io-client';
-const BASE = 'http://localhost:8080/api/v1';
-const ORIGIN = 'http://localhost:8080';
+// Overridable so a run can target a server that is not on the default port — e.g. when a
+// dev API already holds 8080 and a throwaway instance is brought up beside it.
+const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:8080/api/v1';
+const ORIGIN = BASE.replace(/\/api\/v1\/?$/, '');
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗ FAIL:', m); } };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -23,7 +25,9 @@ function once(socket, event, timeout = 4000) {
 }
 
 async function main() {
-  const login = await call('POST', '/auth/login', { body: { handle: 'sharpcuts', password: 'password123' } });
+  // Phone + password — `loginSchema` is .strict() and has never accepted a `handle`, so the
+  // previous payload 400'd and left every later assertion running without a token.
+  const login = await call('POST', '/auth/login', { body: { phone: '919399385943', password: 'password123' } });
   const token = login.json.accessToken;
   const services = await call('GET', '/services?active=true', { token });
   const haircut = services.json.data.find((s) => s.name === 'Haircut');

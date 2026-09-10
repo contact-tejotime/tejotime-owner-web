@@ -74,12 +74,25 @@ export type Service = {
   color: ServiceColorToken;
 };
 
+/**
+ * How a service is priced. `unset` is legacy — a service predating pricing modes that was
+ * carrying a zero to mean "not priced yet" (backend migration 0024). It arrives from the API
+ * only; the edit sheet makes you choose a real mode, and the API refuses to save it otherwise.
+ */
+export type ServicePriceType = 'fixed' | 'range' | 'unset';
+
 /** Service with its server id + raw editable fields — the shape the store holds. */
 export type ServiceVM = Service & {
   id: string;
   durationMinutes: number;
-  /** Price in whole rupees (API speaks paise — convert only at the call site). */
+  /**
+   * The fixed price, or the MINIMUM of a range — `priceType` says which. Whole rupees; the API
+   * speaks paise, so conversion happens only at the call site.
+   */
   priceRupees: number;
+  priceType: ServicePriceType;
+  /** The maximum of a range, in rupees. Null in every other mode. */
+  priceMaxRupees: number | null;
   colorToken: ServiceColorToken;
 };
 

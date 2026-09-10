@@ -72,6 +72,25 @@ already 0, so they never see a phantom countdown.
 `p_amount_paise` (migration 0020) is an **override**: pass `null` and the derived service + add-ons
 total is used instead.
 
+### Pricing modes, and when the amount stops being optional
+
+A service is priced `fixed` (one amount), `range` (a floor and a ceiling) or `unset` (legacy —
+nobody has priced it; see `database.md`). Money is integer paise throughout: `price_paise` is the
+fixed amount *or* the range floor, `price_max_paise` the ceiling.
+
+- **Fixed** — unchanged. Checkout pre-fills service + add-ons and the override is optional.
+- **Range / unset** — `queue_checkout` **raises `TEJO:AMOUNT_REQUIRED` (422)** when
+  `p_amount_paise` is null. Deriving would bank the band's *minimum*, which is the same
+  under-reporting of `visit.amount_paise` that 0020 exists to prevent, arrived at by a different
+  route. The refusal lives in the function rather than only in the UI, so a client that ignores
+  the flag still cannot bank a figure nobody chose.
+
+`GET /queue/:id` carries the resolution for the checkout sheet: `servicePriceType`,
+`serviceMaxAmount`, `amountRequired`, and a **null** `suggestedAmount` whenever `amountRequired`
+is true — there is no honest figure to pre-fill, and pre-filling the floor is exactly the failure.
+`domain/money.ts::servicePricing` is the one place that reads a row into that shape, so the owner
+list, the public microsite and the checkout sheet cannot disagree about what a price means.
+
 **`queue_no_show` deliberately does *not* auto-promote.** Marking someone absent should not start
 the next customer's clock without the shop deciding to.
 

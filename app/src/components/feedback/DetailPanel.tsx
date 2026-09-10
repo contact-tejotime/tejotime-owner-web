@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { TText } from '@/components/common';
+import { TKeyboardScreen, TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -10,6 +10,7 @@ import { useResponsive } from '@/hooks/useResponsive';
 import { t, format } from '@/i18n';
 import { api } from '@/lib/api';
 import { flatCards } from '@/lib/queue';
+import { formatMoney } from '@/lib/mappers';
 import { extrasForCategory } from '@/lib/service-extras';
 import { showToast } from '@/lib/toast';
 import { styles } from '@/styles';
@@ -21,7 +22,18 @@ import { useTheme } from '@/theme/ThemeProvider';
 
 /** What this entry would be charged right now, as the API computes it. */
 interface Billing {
-  suggestedAmount: { amount: number; currency: string };
+  serviceAmount: { amount: number; currency: string };
+  /** The booked service's pricing mode — see backend/src/domain/money.ts `servicePricing`. */
+  servicePriceType: 'fixed' | 'range' | 'unset';
+  /** Ceiling of a range-priced service. Null for a fixed one. */
+  serviceMaxAmount: { amount: number; currency: string } | null;
+  /**
+   * What to pre-fill. NULL for a range-priced or unpriced service: there is no honest figure to
+   * seed the box with, and seeding a band's floor is exactly how the minimum ends up banked as
+   * the day's takings. The API refuses a checkout with no amount for these too.
+   */
+  suggestedAmount: { amount: number; currency: string } | null;
+  amountRequired: boolean;
   extras: { id: string; label: string; minutes: number; pricePaise: number }[];
 }
 
@@ -81,7 +93,9 @@ export function DetailPanel() {
         const b = await api.getQueueEntry(cardId);
         if (!alive) return;
         setBilling(b);
-        setAmount(String(Math.round((b.suggestedAmount?.amount ?? 0) / 100)));
+        // A range-priced service deliberately starts empty — the whole point of the mode is
+        // that someone has to look at the customer and decide what to charge.
+        setAmount(b.suggestedAmount ? String(Math.round(b.suggestedAmount.amount / 100)) : '');
       } catch {
         if (alive) setBilling(null);
       }
@@ -105,17 +119,22 @@ export function DetailPanel() {
    * hand, which is the one thing this screen exists to let you do.
    */
   const addExtra = async (label: string, mins: number) => {
-    const before = billing?.suggestedAmount?.amount ?? 0;
+    const before = billing?.suggestedAmount?.amount ?? null;
     store.extendService(card!.id, label, mins);
     try {
       const next = await api.getQueueEntry(card!.id);
       setBilling(next);
-      const delta = ((next.suggestedAmount?.amount ?? 0) - before) / 100;
+      // With no suggestion on either side (a range-priced service) there is no delta to apply.
+      // The add-on's own price is still listed in the breakdown below, so the person typing can
+      // see it; nudging a hand-typed figure by a number we did not derive would be worse.
+      if (before == null || next.suggestedAmount == null) return;
+      const suggested = next.suggestedAmount.amount;
+      const delta = (suggested - before) / 100;
       const current = Number(amount);
       setAmount(
-        Number.isFinite(current)
+        Number.isFinite(current) && amount.trim() !== ''
           ? String(current + delta)
-          : String(Math.round((next.suggestedAmount?.amount ?? 0) / 100)),
+          : String(Math.round(suggested / 100)),
       );
     } catch {
       /* the extend itself already reported any failure */
@@ -123,6 +142,12 @@ export function DetailPanel() {
   };
 
   const onConfirm = () => {
+    // Empty is never a valid bill. It reads as "not decided yet", which for a range-priced
+    // service is the state this box exists to get out of — and the API rejects it anyway.
+    if (amount.trim() === '') {
+      showToast(billing?.amountRequired ? t.detail.amountRequired : t.detail.amountInvalid, 'error');
+      return;
+    }
     const rupees = Number(amount);
     if (!Number.isFinite(rupees) || rupees < 0) {
       showToast(t.detail.amountInvalid, 'error');
@@ -136,8 +161,12 @@ export function DetailPanel() {
     <Modal transparent visible={open} animationType="fade" onRequestClose={close}>
       {card && (
         <View style={s.page}>
-          <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
-            <View style={[styles.flex, centerStyle]}>
+          <SafeAreaView style={s.safe} edges={['top', 'bottom', 'left', 'right']}>
+            {/* The amount box and Complete button live in a bottom-anchored footer. Android
+                resizes the window under the keyboard (softwareKeyboardLayoutMode: resize), so
+                they stayed reachable there; iOS floats the keyboard over the app, which hid
+                the whole checkout footer. Avoiding the keyboard here restores parity. */}
+            <TKeyboardScreen isScrollView={false} style={[styles.flex, centerStyle]}>
             <View style={s.topBar}>
               <Pressable onPress={close} style={s.backBtn}>
                 <Icon name="chevronLeft" size={22} color={theme.colors.textBody} />
@@ -228,8 +257,20 @@ export function DetailPanel() {
                   <TText variant="bodySm" weight="semibold" color="textBody">
                     {t.detail.amountTitle}
                   </TText>
+                  {/* The hint changes with the mode: a fixed service's box is already right and
+                      only needs correcting; a range's is empty, and the band the customer was
+                      quoted is what they need to see while filling it in. */}
                   <TText variant="caption" color="textMuted">
-                    {t.detail.amountHint}
+                    {billing?.servicePriceType === 'range' && billing.serviceMaxAmount
+                      ? format(t.detail.amountHintRange, {
+                          range: format(t.serviceSheet.rangeLabel, {
+                            min: formatMoney(billing.serviceAmount),
+                            max: formatMoney(billing.serviceMaxAmount),
+                          }),
+                        })
+                      : billing?.servicePriceType === 'unset'
+                        ? t.detail.amountHintUnpriced
+                        : t.detail.amountHint}
                   </TText>
                   <View style={s.amountRow}>
                     <TText variant="h4" color="textMuted" weight="bold">
@@ -275,14 +316,18 @@ export function DetailPanel() {
                           </TText>
                         </View>
                       ))}
-                      <View style={s.breakdownRow}>
-                        <TText variant="caption" color="textBody" weight="semibold">
-                          {t.detail.amountSuggested}
-                        </TText>
-                        <TText variant="caption" color="textBody" weight="semibold">
-                          ₹{Math.round((billing.suggestedAmount?.amount ?? 0) / 100)}
-                        </TText>
-                      </View>
+                      {/* No suggested total for a range: printing one would be the derived
+                          figure this mode exists to stop anybody reaching for. */}
+                      {billing.suggestedAmount ? (
+                        <View style={s.breakdownRow}>
+                          <TText variant="caption" color="textBody" weight="semibold">
+                            {t.detail.amountSuggested}
+                          </TText>
+                          <TText variant="caption" color="textBody" weight="semibold">
+                            ₹{Math.round(billing.suggestedAmount.amount / 100)}
+                          </TText>
+                        </View>
+                      ) : null}
                     </View>
                   ) : null}
 
@@ -307,7 +352,7 @@ export function DetailPanel() {
                 </>
               )}
             </View>
-            </View>
+            </TKeyboardScreen>
           </SafeAreaView>
         </View>
       )}
