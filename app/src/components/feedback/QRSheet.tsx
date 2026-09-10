@@ -1,10 +1,10 @@
 import React, { useCallback, useMemo, useRef } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import * as Print from 'expo-print';
 import QRCode from 'react-native-qrcode-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { TText } from '@/components/common';
+import { TSheet, TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -68,7 +68,6 @@ export function QRSheet() {
   const insets = useSafeAreaInsets();
   const store = useAppState();
   const { centerStyle } = useResponsive(520);
-  const overlay = useMemo(() => createSheetOverlayStyles(), []);
   const s = useMemo(() => createQRSheetStyles(theme, insets.bottom), [theme, insets.bottom]);
   const qrRef = useRef<QrSvgRef | null>(null);
   const qrBoxRef = useRef<View | null>(null);
@@ -103,10 +102,7 @@ export function QRSheet() {
   }, [qrValue, name]);
 
   return (
-    <Modal transparent visible={store.qr} animationType="slide" onRequestClose={store.closeQr}>
-      <View style={overlay.root}>
-        <Pressable onPress={store.closeQr} style={overlay.backdrop} />
-        <View style={[s.sheet, centerStyle]}>
+    <TSheet visible={store.qr} onClose={store.closeQr} contentStyle={[s.sheet, centerStyle]}>
           <View style={s.handle} />
           {/* Scrolls only when the cap above actually bites; on a normal phone
               or tablet the content is shorter than the sheet and this is inert. */}
@@ -138,9 +134,7 @@ export function QRSheet() {
               </Button>
             </View>
           </ScrollView>
-        </View>
-      </View>
-    </Modal>
+    </TSheet>
   );
 }
 

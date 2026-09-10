@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppointmentListItem } from '@/components/appointments/AppointmentListItem';
-import { TText } from '@/components/common';
+import { TSheet, TText } from '@/components/common';
 import { useResponsive } from '@/hooks/useResponsive';
 import { t } from '@/i18n';
 import { styles } from '@/styles';
@@ -12,7 +12,6 @@ import type { ThemeStyleProps } from '@/styles/types';
 import { useAppState } from '@/state/store';
 import { useTheme } from '@/theme/ThemeProvider';
 
-import { createSheetOverlayStyles } from './QRSheet';
 
 /** Parse a local `YYYY-MM-DD` key back into a Date without any UTC shift. */
 function parseDateKey(key: string): Date {
@@ -25,7 +24,6 @@ export function DayAppointmentsSheet() {
   const insets = useSafeAreaInsets();
   const store = useAppState();
   const { centerStyle } = useResponsive(520);
-  const overlay = useMemo(() => createSheetOverlayStyles(), []);
   const s = useMemo(() => createDayAppointmentsSheetStyles(theme, insets.bottom), [theme, insets.bottom]);
 
   const dateKey = store.dayApptsDate;
@@ -47,10 +45,7 @@ export function DayAppointmentsSheet() {
     : '';
 
   return (
-    <Modal transparent visible={open} animationType="slide" onRequestClose={store.closeDayAppts}>
-      <View style={overlay.root}>
-        <Pressable onPress={store.closeDayAppts} style={overlay.backdrop} />
-        <View style={[s.sheet, centerStyle]}>
+    <TSheet visible={open} onClose={store.closeDayAppts} contentStyle={[s.sheet, centerStyle]}>
           <View style={s.handle} />
           <TText variant="h4" weight="semibold" style={s.title}>
             {title}
@@ -74,9 +69,7 @@ export function DayAppointmentsSheet() {
               </View>
             )}
           </ScrollView>
-        </View>
-      </View>
-    </Modal>
+    </TSheet>
   );
 }
 
