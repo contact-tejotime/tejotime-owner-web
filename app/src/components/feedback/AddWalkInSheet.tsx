@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, TextStyle, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextStyle, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ServiceCard } from '@/components/cards/ServiceCard';
-import { PhoneInput, TKeyboardScreen, TText } from '@/components/common';
+import { PhoneInput, TSheet, TText } from '@/components/common';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Input } from '@/components/ui/Input';
@@ -17,8 +17,6 @@ import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
 import { inkOn } from '@/theme/ink';
 import { useTheme } from '@/theme/ThemeProvider';
-
-import { createSheetOverlayStyles } from './QRSheet';
 
 function SegButton({
   label,
@@ -64,7 +62,6 @@ export function AddWalkInSheet() {
       setNational('');
     }
   }
-  const overlay = useMemo(() => createSheetOverlayStyles(), []);
   const s = useMemo(() => createAddWalkInSheetStyles(theme, insets.bottom), [theme, insets.bottom]);
 
   // Derived seat options — recomputed only when the seats/staff change.
@@ -109,11 +106,14 @@ export function AddWalkInSheet() {
   }, [store.seats, store.staff, theme.colors]);
 
   return (
-    <Modal transparent visible={open} animationType="slide" onRequestClose={store.closeWalkin}>
-      <TKeyboardScreen isScrollView={false} style={overlay.root}>
-        <Pressable onPress={store.closeWalkin} style={overlay.backdrop} />
-        <View style={[s.sheet, centerStyle]}>
-          <View style={s.handle} />
+    // The sheet sizes to its content (capped at maxHeight: '86%'), so toggling a service changes
+    // its height mid-flight; TSheet's `layout` transition absorbs that instead of snapping.
+    <TSheet
+      visible={open}
+      onClose={store.closeWalkin}
+      contentStyle={[s.sheet, centerStyle]}
+      keyboardAvoiding>
+      <View style={s.handle} />
           <TText variant="h4" weight="semibold" style={s.title}>
             {t.walkin.title}
           </TText>
@@ -242,9 +242,7 @@ export function AddWalkInSheet() {
               {t.walkin.add}
             </Button>
           </View>
-        </View>
-      </TKeyboardScreen>
-    </Modal>
+    </TSheet>
   );
 }
 
