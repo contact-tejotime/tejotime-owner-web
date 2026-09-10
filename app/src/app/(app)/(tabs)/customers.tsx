@@ -5,7 +5,7 @@ import { FlatList, Platform, RefreshControl, StyleSheet, View } from 'react-nati
 import { CustomerCard } from '@/components/cards/CustomerCard';
 import { THeader, TKeyboardScreen, TSearchInput, TText } from '@/components/common';
 import { TButton } from '@/components/common/TButton';
-import { TLoader } from '@/components/common/TLoader';
+import { TCustomerCardSkeleton } from '@/components/common/TSkeleton';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
 import { useTabContent } from '@/hooks/useResponsive';
@@ -23,6 +23,9 @@ import type { Customer } from '@/data/sample';
  * mid-metric, so the grid drops back to one column rather than squeezing.
  */
 const CUSTOMER_CARD_MIN_WIDTH = 320;
+
+/** Enough rows to fill a phone screen; the real list replaces them in place. */
+const SKELETON_ROWS = [0, 1, 2, 3, 4];
 
 export default function Customers() {
   const theme = useTheme();
@@ -78,23 +81,30 @@ export default function Customers() {
 
         {Platform.OS === 'ios' && <BlurView intensity={40} tint={theme.dark ? 'dark' : 'light'} style={s.blurOverlay} />}
         <View style={s.lockedOverlay}>
-          <View style={s.lockedIcon}>
-            <Icon name="star" size={22} color={theme.colors.amber500} />
-          </View>
-          <TText variant="h5" color="textStrong" weight="bold" align="center">
-            {format(t.customers.moreLocked, { count: lockedCount })}
-          </TText>
-          <TText variant="bodySm" color="textMuted" align="center" style={s.lockedDesc}>
-            {t.customers.upsell}
-          </TText>
-          <View style={s.upgradeWrap}>
-            <TButton
-              variant="primary"
-              loading={store.upgradeLoading}
-              onPress={store.upgrade}
-              leadingIcon={<Icon name="creditCard" size={20} color={theme.colors.textOnBrand} />}>
-              {t.customers.upgrade}
-            </TButton>
+          {/* The copy sits on its own solid card rather than floating straight over the
+              placeholders. On Android expo-blur needs a `blurTarget` ref to blur anything at all
+              and otherwise silently falls back to no blur, so the scrim alone left the dummy
+              cards' borders and their "Visits / Last visit / Spend" labels cutting through this
+              paragraph. A solid surface is legible on both platforms and needs no blur. */}
+          <View style={s.lockedCard}>
+            <View style={s.lockedIcon}>
+              <Icon name="star" size={22} color={theme.colors.amber500} />
+            </View>
+            <TText variant="h5" color="textStrong" weight="bold" align="center">
+              {format(t.customers.moreLocked, { count: lockedCount })}
+            </TText>
+            <TText variant="bodySm" color="textMuted" align="center" style={s.lockedDesc}>
+              {t.customers.upsell}
+            </TText>
+            <View style={s.upgradeWrap}>
+              <TButton
+                variant="primary"
+                loading={store.upgradeLoading}
+                onPress={store.upgrade}
+                leadingIcon={<Icon name="creditCard" size={20} color={theme.colors.textOnBrand} />}>
+                {t.customers.upgrade}
+              </TButton>
+            </View>
           </View>
         </View>
       </View>
@@ -130,7 +140,13 @@ export default function Customers() {
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           store.bootstrapping ? (
-            <TLoader fullScreen={false} style={styles.pt6} />
+            // Skeleton rows rather than a spinner: the list's shape is known before the data
+            // arrives, so showing it avoids the blank-then-pop that a centred spinner gives.
+            <View style={s.skeletonList}>
+              {SKELETON_ROWS.map((k) => (
+                <TCustomerCardSkeleton key={k} />
+              ))}
+            </View>
           ) : (
             <TText variant="bodySm" color="textMuted" style={styles.pt4}>
               {store.search ? t.customers.noMatch : t.customers.empty}
@@ -154,6 +170,7 @@ export default function Customers() {
 const createCustomersStyles = ({ colors, radius, shadow, dark }: ThemeStyleProps & { dark: boolean }) =>
   StyleSheet.create({
     searchWrap: { ...styles.screenPadding, ...styles.pb2 },
+    skeletonList: { ...styles.g3, ...styles.pt2 },
     // `space-between`, not `gap`: the cells are sized in percent (see
     // gridItemWidth), and an absolute column gap on top of that overflows the
     // row and collapses the grid back to one column. The list's own `g3`
@@ -164,7 +181,6 @@ const createCustomersStyles = ({ colors, radius, shadow, dark }: ThemeStyleProps
     blurOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
     lockedOverlay: {
       ...styles.flexCenter,
-      ...styles.g2,
       position: 'absolute',
       top: 0,
       left: 0,
@@ -172,6 +188,18 @@ const createCustomersStyles = ({ colors, radius, shadow, dark }: ThemeStyleProps
       bottom: 0,
       ...styles.p5,
       backgroundColor: dark ? 'rgba(11,18,32,0.55)' : 'rgba(248,250,252,0.5)',
+    },
+    lockedCard: {
+      ...styles.flexCenter,
+      ...styles.g2,
+      ...styles.p5,
+      alignSelf: 'center',
+      maxWidth: moderateScale(320),
+      borderRadius: moderateScale(radius.lg),
+      backgroundColor: colors.surfaceCard,
+      borderWidth: moderateScale(1),
+      borderColor: colors.borderSubtle,
+      ...shadow.sm,
     },
     lockedIcon: {
       ...styles.nonFlexCenter,

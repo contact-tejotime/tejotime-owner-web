@@ -517,6 +517,48 @@ Also duplicated by hand, with **no** generator: `lib/countries.ts`, `lib/phone.t
 `lib/format.ts`, `lib/support.ts`, `lib/frontend-url.ts`, `PhoneField`, and the `i18n` module
 across the web apps.
 
+### 11.1 The owner surfaces move together — owner-web, iOS and Android
+
+**The same owner-facing product ships on three surfaces. A change to one is not finished until
+the others match.** This is a hard rule, not a nicety: an owner who adds a service on their phone
+and then opens the laptop expects the same feature, the same wording and the same rules.
+
+| Surface | Codebase | Notes |
+|---|---|---|
+| Owner web | `owner-web/` | Next.js BFF — Server Components + `/api/*` route handlers |
+| Owner mobile — **iOS** | `app/` | one Expo codebase… |
+| Owner mobile — **Android** | `app/` | …serves both platforms |
+
+So it is **three surfaces but two codebases**, and each half of that sentence carries a trap:
+
+- **`owner-web/` and `app/` are wholly separate implementations.** Nothing is shared — not the
+  components, not the API layer (`owner-web/src/lib/server-api.ts` vs `app/src/lib/api.ts`), not
+  the state. Adding a field, an action, a validation rule or a permission check in one leaves the
+  other silently behind. Change both in the same piece of work, or write down why you did not.
+- **One mobile codebase does *not* guarantee two identical platforms.** iOS and Android diverge on
+  anything native. Real examples already hit in this repo: `expo-blur` needs a `blurTarget` on
+  Android and silently renders nothing without it (§ the customers upsell); the Android 12+ splash
+  masks its icon to a 192dp circle while iOS does not
+  ([docs/mobile-splash-and-branding.md](docs/mobile-splash-and-branding.md)); Android resizes under
+  the keyboard while iOS floats it over the app
+  ([docs/ios-local-setup.md](docs/ios-local-setup.md)). **Look at a mobile change on both
+  platforms before calling it done.**
+
+Checklist for any owner-facing change:
+
+1. Does `owner-web/` need the same change? (Usually yes.)
+2. Does `app/` need it? Its DTOs are hand-mirrored from the backend with no compiler between them
+   (§16) — so are owner-web's. Drift type-checks fine and renders `undefined` at runtime.
+3. Did you look at it on **both** iOS and Android, not just whichever simulator was already open?
+4. Do the user-facing strings match? They live in two separate `i18n/en.json` files.
+5. If a surface is deliberately left out, say so explicitly in the PR/summary rather than leaving
+   it to be discovered.
+
+> Known drift worth fixing when touched: the Calendar tab uses the `grid` icon on **both**
+> owner-web and mobile, which renders as the same four rounded squares as Home's
+> `layoutDashboard` — two tabs with effectively the same glyph. Fixing it means changing both
+> surfaces together.
+
 ---
 
 ## 12. Testing & the mandatory E2E policy
@@ -725,6 +767,10 @@ must not sit in a path containing a space** — three separate iOS build scripts
   backend DTOs with **no compiler between them** — `call<T>` casts parsed JSON straight to `T`,
   so a drifted interface type-checks perfectly and renders `undefined` at runtime. This has
   already shipped a bug. **Change both sides together.**
+- **An owner-facing change lands on all three owner surfaces — owner-web, iOS and Android — or
+  says explicitly which one it skipped and why.** `owner-web/` and `app/` are separate
+  implementations that share no code, and one mobile codebase still renders differently on the two
+  platforms wherever anything native is involved. See §11.1 for the checklist.
 - **Every feature ships with an E2E test; every E2E-testable bug fix ships with a regression
   test. Run them, and never report a test as passing unless it was executed.** See §12.
 - User-facing strings belong in `src/i18n/en.json` (`t.group.key`, `format()`, `plural()`).
