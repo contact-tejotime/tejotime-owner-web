@@ -10,6 +10,13 @@ const PG_ERROR_MAP: Record<string, { status: number; code: string; message: stri
   INVALID_STATE: { status: 422, code: 'INVALID_STATE_TRANSITION', message: 'Invalid state transition' },
   SEAT_BUSY: { status: 409, code: 'SEAT_BUSY', message: 'That seat is already serving someone' },
   ALREADY_CHECKED_IN: { status: 409, code: 'ALREADY_CHECKED_IN', message: 'Appointment already checked in' },
+  // Raised by queue_checkout for a range-priced or unpriced service: there is no derivable
+  // total, so the caller has to say what was actually charged rather than have the floor banked.
+  AMOUNT_REQUIRED: {
+    status: 422,
+    code: 'AMOUNT_REQUIRED',
+    message: 'This service is priced as a range — enter the final amount',
+  },
 };
 
 export function mapPgError(message: string): AppError | null {

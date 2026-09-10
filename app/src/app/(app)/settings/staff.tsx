@@ -9,6 +9,7 @@ import { t } from '@/i18n';
 import { Staff } from '@/data/sample';
 import { useAppState } from '@/state/store';
 import { styles } from '@/styles';
+import { inkOn } from '@/theme/ink';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { useServiceColor } from '@/theme/serviceColor';
@@ -35,6 +36,16 @@ export default function StaffSeats() {
     if (ok) setSheetOpen(false);
   };
 
+  // Mirrors services.tsx: the sheet stays open on failure so the owner can read the toast (a chair
+  // with active customers is refused) and act, instead of the row silently reappearing.
+  const onRemove = async () => {
+    if (!editing) return;
+    setSaving(true);
+    const ok = await store.removeStaffMember(editing.id);
+    setSaving(false);
+    if (ok) setSheetOpen(false);
+  };
+
   return (
     <SettingsPageShell title={t.staff.title}>
       {store.staff.length === 0 && (
@@ -49,7 +60,7 @@ export default function StaffSeats() {
               <Image source={{ uri: st.photoUrl }} style={s.avatar} contentFit="cover" />
             ) : (
               <View style={[s.avatar, { backgroundColor: staffColor(st.color) }]}>
-                <TText variant="bodyMd" weight="bold" style={s.avatarText}>
+                <TText variant="bodyMd" weight="bold" style={[s.avatarText, { color: inkOn(staffColor(st.color)) }]}>
                   {st.name[0]}
                 </TText>
               </View>
@@ -83,6 +94,7 @@ export default function StaffSeats() {
         saving={saving}
         onClose={() => setSheetOpen(false)}
         onSave={onSave}
+        onRemove={onRemove}
       />
     </SettingsPageShell>
   );
@@ -115,7 +127,9 @@ const createStaffStyles = ({ colors, radius }: ThemeStyleProps) =>
       height: moderateScale(36),
       borderRadius: moderateScale(18),
     },
-    avatarText: { color: '#fff' },
+    // Colour comes from `inkOn(fill)` at the call site — the fill is per-staff, so it cannot be
+    // decided here. See src/theme/ink.ts.
+    avatarText: {},
     body: { ...styles.flex, ...styles.minWidth0 },
     sub: { marginTop: moderateScale(3) },
     footnote: { ...styles.mt3, ...styles.mh1 },

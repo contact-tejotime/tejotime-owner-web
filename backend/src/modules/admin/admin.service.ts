@@ -56,7 +56,13 @@ export interface StoreFields {
   hours: { dayOfWeek: number; opensAt?: string | null; closesAt?: string | null; isClosed: boolean }[];
   amenities: string[];
   gallery: { url: string; alt?: string | null }[];
-  services: { name: string; durationMinutes: number; priceRupees: number }[];
+  services: {
+    name: string;
+    durationMinutes: number;
+    priceRupees: number;
+    priceType?: 'fixed' | 'range';
+    priceMaxRupees?: number | null;
+  }[];
   staff: { name: string; roleLabel?: string | null; avatarUrl?: string | null }[];
   faqs?: { q: string; a: string }[];
   reviews?: { stars: number; text: string; authorName: string }[];
@@ -210,21 +216,29 @@ async function syncServices(
     const key = s.name.trim().toLowerCase();
     const id = byName.get(key);
     const pricePaise = Math.round(s.priceRupees * 100);
+    const priceType = s.priceType ?? 'fixed';
+    // Written unconditionally rather than only for a range: a service switched from range back
+    // to fixed has to lose its old ceiling, or the check constraint rejects the whole save.
+    const priceMaxPaise = priceType === 'range' && s.priceMaxRupees != null
+      ? Math.round(s.priceMaxRupees * 100)
+      : null;
     if (id) {
       byName.delete(key); // consumed — a repeat of this name inserts a new row
       keep.add(id);
       await client.query(
         `update service
             set name = $1, duration_minutes = $2, price_paise = $3, currency = $4,
-                position = $5, is_active = true, updated_at = now()
+                position = $5, price_type = $7, price_max_paise = $8,
+                is_active = true, updated_at = now()
           where id = $6`,
-        [s.name, s.durationMinutes, pricePaise, currency, position, id],
+        [s.name, s.durationMinutes, pricePaise, currency, position, id, priceType, priceMaxPaise],
       );
     } else {
       const ins = await client.query<{ id: string }>(
-        `insert into service (business_id, name, duration_minutes, price_paise, currency, position)
-         values ($1, $2, $3, $4, $5, $6) returning id`,
-        [bid, s.name, s.durationMinutes, pricePaise, currency, position],
+        `insert into service (business_id, name, duration_minutes, price_paise, currency, position,
+                              price_type, price_max_paise)
+         values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
+        [bid, s.name, s.durationMinutes, pricePaise, currency, position, priceType, priceMaxPaise],
       );
       keep.add(ins.rows[0]!.id);
     }
@@ -766,6 +780,10 @@ export async function getBusinessDetail(id: string) {
       name: s.name,
       durationMinutes: s.duration_minutes,
       priceRupees: s.price_paise / 100,
+      // A pre-0024 service comes back as 'unset'; the store form shows it as unpriced and makes
+      // the admin pick a mode, because the API will no longer accept it as it stands.
+      priceType: (s.price_type ?? 'fixed') as 'fixed' | 'range' | 'unset',
+      priceMaxRupees: s.price_max_paise == null ? null : s.price_max_paise / 100,
     })),
     staff: staff.map((s) => ({
       name: s.name,

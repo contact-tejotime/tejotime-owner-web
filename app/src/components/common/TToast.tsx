@@ -80,7 +80,6 @@ const tToastStyles = StyleSheet.create({
     right: 0,
     zIndex: 999999,
     elevation: 999999,
-    backgroundColor: 'red',
   },
   toast: {
     borderLeftWidth: moderateScale(4),
@@ -88,8 +87,6 @@ const tToastStyles = StyleSheet.create({
     minHeight: moderateScale(56),
     zIndex: 999999,
     elevation: 999999,
-    backgroundColor: 'blue',
-
   },
   content: {
     paddingHorizontal: moderateScale(15),

@@ -13,17 +13,23 @@ import {
 
 import { QueueCard } from '@/components/cards/QueueCard';
 import { TButton, TText } from '@/components/common';
+import { useTabContent } from '@/hooks/useResponsive';
 import { Icon } from '@/components/ui/Icon';
 import { t } from '@/i18n';
 import { CardVM, SeatGroupVM } from '@/lib/queue';
 import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
+import { inkOn } from '@/theme/ink';
 import { useTheme } from '@/theme/ThemeProvider';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 
-type SeatLayout = { y: number; height: number; headerH: number };
+// `x`/`width` matter only once seats can sit side by side (the tablet grid) —
+// with a single column every seat spans the full width and the y-range alone
+// identifies one. In a grid, two seats share a y-range, so a y-only hit test
+// would drop a card into whichever of them happened to be measured first.
+type SeatLayout = { x: number; y: number; width: number; height: number; headerH: number };
 type DropTarget = { seatId: string; toIndex: number };
 
 function DraggableCard({
@@ -111,12 +117,13 @@ function DraggableCard({
     commitMove.current(seatId, id);
   };
 
-  const resolveDrop = (moveY: number): DropTarget | null => {
+  const resolveDrop = (moveX: number, moveY: number): DropTarget | null => {
     const layouts = seatLayouts.current;
     for (const seat of seatsRef.current) {
       const layout = layouts[seat.id];
       if (!layout) continue;
       if (moveY < layout.y || moveY > layout.y + layout.height) continue;
+      if (moveX < layout.x || moveX > layout.x + layout.width) continue;
       const relative = moveY - layout.y - layout.headerH;
       const gap = cardH.current + 10;
       const waiting = seat.cards.filter((c) => c.isWaiting && c.id !== live.current.id);
@@ -153,7 +160,7 @@ function DraggableCard({
       onPanResponderMove: (_e, g) => {
         if (!dragging.current) return;
         remasureRef.current();
-        const hit = resolveDrop(g.moveY);
+        const hit = resolveDrop(g.moveX, g.moveY);
         if (!hit) {
           onDropTargetRef.current(null);
           const steps = Math.round(g.dy / (cardH.current + 10));
@@ -206,7 +213,7 @@ function SeatHeader({ group, s }: { group: SeatGroupVM; s: ReturnType<typeof cre
   return (
     <View style={s.seatHeader}>
       <View style={queueAvatarStyle(s.seatHeaderAvatar, resolveColor(group.color))}>
-        <TText weight="bold" style={s.seatHeaderAvatarText}>
+        <TText weight="bold" style={[s.seatHeaderAvatarText, { color: inkOn(resolveColor(group.color)) }]}>
           {group.initials}
         </TText>
       </View>
@@ -237,9 +244,16 @@ function WaitBadge({ group, s }: { group: SeatGroupVM; s: ReturnType<typeof crea
  * Live queue board (filters, Walk-in, seat cards). Used on Home; the old Queue tab redirects here.
  * Long-press drag reorders within a seat or drops onto another seat (Kanban).
  */
+/**
+ * Narrowest a seat board stays usable at: it holds queue cards showing a name,
+ * a service and an ETA, plus a header with an avatar and a wait badge.
+ */
+const SEAT_BOARD_MIN_WIDTH = 320;
+
 export function QueueBoard() {
   const theme = useTheme();
   const store = useAppState();
+  const { columns, gridItemWidth } = useTabContent();
   const scrollAt = useRef(0);
   const seatLayouts = useRef<Record<string, SeatLayout>>({});
   const seatNodes = useRef<Record<string, View | null>>({});
@@ -248,6 +262,7 @@ export function QueueBoard() {
   const s = useMemo(() => createQueueStyles(theme), [theme]);
 
   const groupsAll = store.seats;
+  const seatColumns = columns(SEAT_BOARD_MIN_WIDTH, { gutter: 14, max: 2 });
   const isStaff = store.session?.role === 'staff';
   const hideAllChip = isStaff || groupsAll.length <= 1;
   const allView = !hideAllChip && store.queueStaff === 'all';
@@ -255,8 +270,8 @@ export function QueueBoard() {
 
   const remasureSeats = () => {
     for (const id of Object.keys(seatNodes.current)) {
-      seatNodes.current[id]?.measureInWindow((_x, y, _w, height) => {
-        seatLayouts.current[id] = { y, height, headerH: headerH.current };
+      seatNodes.current[id]?.measureInWindow((x, y, width, height) => {
+        seatLayouts.current[id] = { x, y, width, height, headerH: headerH.current };
       });
     }
   };
@@ -304,7 +319,7 @@ export function QueueBoard() {
             );
           })
         )}
-        <TButton variant="primary" size="sm" onPress={store.openWalkin} leadingIcon={<Icon name="plus" size={16} color="#fff" />}>
+        <TButton variant="primary" size="sm" onPress={store.openWalkin} leadingIcon={<Icon name="plus" size={16} color={theme.colors.textOnBrand} />}>
           {t.queue.walkIn}
         </TButton>
       </ScrollView>
@@ -337,7 +352,7 @@ export function QueueBoard() {
             {t.queue.empty}
           </TText>
         ) : (
-          <View style={s.groupList}>
+          <View style={seatColumns > 1 ? s.groupGrid : s.groupList}>
             {groups.map((g) => {
               const waitCount = g.cards.filter((c) => c.isWaiting).length;
               const isDropSeat = dropTarget?.seatId === g.id;
@@ -349,7 +364,11 @@ export function QueueBoard() {
               return (
                 <View
                   key={g.id}
-                  style={[s.seatBoard, isDropSeat ? s.seatBoardDrop : null]}
+                  style={[
+                    s.seatBoard,
+                    seatColumns > 1 && { width: gridItemWidth(seatColumns) },
+                    isDropSeat ? s.seatBoardDrop : null,
+                  ]}
                   ref={(node) => {
                     seatNodes.current[g.id] = node;
                   }}
@@ -438,7 +457,8 @@ const createQueueStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
       backgroundColor: colors.primary,
       borderWidth: 0,
     },
-    chipLabelOn: { color: '#fff' },
+    // `chipOn` fills with `colors.primary`; see the note in QueueCard about white-on-light-fill.
+    chipLabelOn: { color: colors.textOnBrand },
     chipLabelOff: { color: colors.textBody },
     chipCount: {
       paddingHorizontal: moderateScale(6),
@@ -448,7 +468,7 @@ const createQueueStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
     },
     chipCountOn: { backgroundColor: 'rgba(255,255,255,0.25)' },
     chipCountText: { fontSize: moderateScale(11), color: colors.textMuted },
-    chipCountTextOn: { color: '#fff' },
+    chipCountTextOn: { color: colors.textOnBrand },
     dragBanner: {
       ...styles.mh5,
       ...styles.mb2,
@@ -460,6 +480,18 @@ const createQueueStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
     mainScroll: { ...styles.flex },
     mainScrollContent: { ...styles.screenPadding, ...styles.pt2, ...styles.pb6 },
     groupList: { gap: moderateScale(14) },
+    // `rowGap` only, never `gap`: the boards are sized in percent, and an
+    // absolute column gap on top of that overflows the row and collapses the
+    // grid back to one column. `space-between` supplies the horizontal spacing.
+    groupGrid: {
+      ...styles.flexRow,
+      ...styles.wrap,
+      ...styles.justifyBetween,
+      rowGap: moderateScale(14),
+      // Seats in a row are independent boards of differing height; without this
+      // they would each stretch to the tallest one and show a long empty tail.
+      alignItems: 'flex-start',
+    },
     seatBoard: {
       backgroundColor: colors.surfaceCard,
       borderWidth: moderateScale(1),
@@ -499,7 +531,7 @@ const createQueueStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
       height: moderateScale(36),
       borderRadius: moderateScale(radius.md),
     },
-    seatHeaderAvatarText: { fontSize: moderateScale(15), color: '#fff' },
+    seatHeaderAvatarText: { fontSize: moderateScale(15) },
     seatHeaderBody: { ...styles.flex, ...styles.minWidth0 },
     seatHeaderSubline: { ...styles.mt1 },
     waitBadge: {

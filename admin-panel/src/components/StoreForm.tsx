@@ -521,8 +521,28 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
                   inputMode="numeric"
                 />
               </div>
+              {/* Fixed = one amount. Range = a band the customer sees, with the real figure
+                  settled at checkout. Choosing "Fixed" clears any ceiling the row was carrying,
+                  because the API refuses a fixed service that still has one. */}
               <div className="field">
-                <label>{format(t.storeForm.price, { symbol: currencySymbol(form.currency) })}</label>
+                <label>{t.storeForm.priceMode}</label>
+                <select
+                  value={s.priceType === "range" ? "range" : "fixed"}
+                  onChange={(e) => {
+                    const priceType = e.target.value === "range" ? "range" : "fixed";
+                    setService(i, { priceType, priceMaxRupees: priceType === "range" ? s.priceMaxRupees : null });
+                  }}
+                >
+                  <option value="fixed">{t.storeForm.priceModeFixed}</option>
+                  <option value="range">{t.storeForm.priceModeRange}</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>
+                  {format(s.priceType === "range" ? t.storeForm.priceMin : t.storeForm.price, {
+                    symbol: currencySymbol(form.currency),
+                  })}
+                </label>
                 <input
                   value={s.priceRupees || ""}
                   onChange={(e) => {
@@ -534,15 +554,47 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
                   inputMode="numeric"
                 />
               </div>
+              {/* The placeholder keeps the grid columns aligned across rows in different modes —
+                  without it a fixed row and a range row below it stagger. */}
+              {s.priceType === "range" ? (
+                <div className="field">
+                  <label>{format(t.storeForm.priceMax, { symbol: currencySymbol(form.currency) })}</label>
+                  <input
+                    value={s.priceMaxRupees || ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "") return setService(i, { priceMaxRupees: null });
+                      const n = Number(v);
+                      if (!Number.isNaN(n)) setService(i, { priceMaxRupees: n });
+                    }}
+                    inputMode="numeric"
+                  />
+                </div>
+              ) : (
+                <div className="field" aria-hidden />
+              )}
               <button type="button" className="btn-remove" onClick={() => set("services", removeAt(form.services, i))}>
                 {t.common.remove}
               </button>
+              {s.priceType === "unset" && (
+                <p className="hint" style={{ gridColumn: "1 / -1", margin: 0 }}>
+                  {t.storeForm.priceUnsetHint}
+                </p>
+              )}
             </div>
           ))}
+          <p className="hint" style={{ marginTop: 0 }}>
+            {t.storeForm.priceRangeHint}
+          </p>
           <button
             type="button"
             className="btn-add"
-            onClick={() => set("services", [...form.services, { name: "", durationMinutes: 30, priceRupees: 0 }])}
+            onClick={() =>
+              set("services", [
+                ...form.services,
+                { name: "", durationMinutes: 30, priceRupees: 0, priceType: "fixed" as const, priceMaxRupees: null },
+              ])
+            }
           >
             {t.storeForm.addService}
           </button>

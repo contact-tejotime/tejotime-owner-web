@@ -12,6 +12,14 @@ export const DEFAULT_SERVICE_MINUTES = 20;
  * subset; every label here must remain accepted by `extend` validation.
  * Prices are conservative defaults — checkout amount override still wins.
  */
+/**
+ * Ceiling on how many services one visit may carry. Not a business rule so much as a bound: the
+ * combined `service_name` is a text column that the queue board and the customer's ticket both
+ * render on one line, and an unbounded list would also let one request write an unbounded number
+ * of `queue_entry_extra` rows.
+ */
+export const MAX_SERVICES_PER_VISIT = 10;
+
 export const SERVICE_EXTRAS = [
   // Default / Barber
   { label: 'Shave', minutes: 10, pricePaise: 5000 },

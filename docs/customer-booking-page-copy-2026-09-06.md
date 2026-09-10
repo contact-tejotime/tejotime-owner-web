@@ -18,6 +18,17 @@ it needed. Nothing in `owner-web`, `admin-panel` or `app` was touched.
 Every string below was chosen to keep those two sentences true. The two surfaces are now cleanly
 split:
 
+> **Update 2026-09-07 — booking became multi-day.** The rule above is unchanged and the two flows
+> stay separate; what changed is that "Book an Appointment" no longer means *today only*. The
+> modal now opens on a 14-day date strip (closed weekdays greyed, not hidden), loads that day's
+> slots, and keeps the preferred-provider chips — a named provider narrows the times to their own
+> chair. `timeLabel` is now **"Choose a date and time"**, and the empty state names the day
+> (`slotsEmptyDay` / `slotsClosedDay`). **"Join the walk-in waitlist instead" is now a fallback
+> only**: it appears when the selected day has no times AND that day is today AND the store is
+> open — the only situation where joining the live queue is a real alternative. Check in remains
+> its own entry point and Book an Appointment never doubles as one. See §"Booking date strip"
+> below.
+
 | Surface | Means | Entry points |
 |---|---|---|
 | **Waitlist** (live queue) | walk in now, we hold your place | header CTA, hero card, per-provider cards in the Team section, sticky mobile bar, closing CTA band |
@@ -279,8 +290,51 @@ fix them** — they have to be corrected per store:
 | `frontend` `npm run lint` | clean |
 | `frontend` `npm run build` | succeeds, all 17 routes |
 
-**Not verified by automated tests:** every rendering change in `MicrositeClient.tsx` and
-`sections.tsx` — the `$0` rule, the closed-state gate, the per-store page title and all wording.
+## Team card avatars (2026-09-07)
+
+Staff photos never appeared on the microsite. The chain was complete except for its last link:
+`staff.avatar_url` is saved by the admin panel, the public DTO exposes it as `avatarUrl`, and
+`MicrositeClient` maps it onto `LiveMember.photo` — but `LiveBoard`'s card rendered the status
+chip, name, role, counters and CTA, and never drew the photo. `photo` and `avBg` had been on the
+`LiveMember` interface, unused, since the section was written.
+
+`MemberAvatar` now renders it: round, `object-fit: cover`, with the member's **initials on
+`avBg`** when there is no photo. It is a plain `<img>` (matching the gallery, with the same
+`eslint-disable` for `no-img-element`), because the stored URL is `{API}/media/{key}` which
+302-redirects to a freshly signed bucket URL on a host `next/image` would need declared in
+`remotePatterns` in advance. `onError` falls back to the monogram — that redirect can fail, and a
+broken-image icon is worse than initials. `alt=""` because the name is rendered directly below.
+
+## Booking date strip (2026-09-07)
+
+Backend needed **no change**: `GET /public/businesses/:slug/slots` already took `date` and
+`staffId`, resolved the weekday's hours, excluded taken appointments and filtered past times via
+`cursor.isAfter(now)` — which is a no-op for a future day. `bookSlot` already accepted any
+`slotStart` and any `preferredStaffId`. The whole gap was `fetchSlotsForToday()` in
+`MicrositeClient.tsx` hardcoding one date.
+
+What the client now does:
+
+- `bookDate` state, defaulted to **`localYmd(new Date())`** — local date parts, *not*
+  `toISOString().slice(0,10)`. The old UTC form meant a customer in IST at 2am asked for
+  yesterday and was told nothing was available.
+- `fetchSlots(serviceId, date, staffId)` takes its inputs as **arguments**, because every caller
+  fires from the event that changes one of them and the corresponding state is not updated yet.
+  A `slotReq` ref discards out-of-order responses when days are tapped faster than the network.
+- The day strip renders only inside the modal, which cannot be open during SSR, so `new Date()`
+  there can never cause a hydration mismatch.
+
+Covered by Tier-1 E2E in `backend/scripts/smoke-rest.mjs` ("MULTI-DAY BOOKING + PREFERRED
+PROVIDER", 12 assertions): a future date returns a full day of slots where today returned only
+its remainder, a closed weekday returns none, slots narrow to one provider, a future booking
+lands on exactly the chosen slot with the provider kept, and the booked time disappears from that
+provider's list.
+
+**Out of scope, still absent:** cancel, reschedule and calendar export.
+
+**Not verified by automated tests:** the date strip's *rendering* — chip states, greyed closed
+days, scroll behaviour — along with every earlier rendering change in `MicrositeClient.tsx` and
+`sections.tsx`: the `$0` rule, the closed-state gate, the per-store page title and all wording.
 The repo has **no UI test runner** for any of its four front ends, and `CLAUDE.md` §12.3 says not
 to add a browser runner speculatively. The backend `openStatus` logic — the part with real
 timezone and week-wrap arithmetic — is covered by the new unit test; the rest needs manual QA, or

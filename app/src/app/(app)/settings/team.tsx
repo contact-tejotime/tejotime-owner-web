@@ -589,7 +589,7 @@ function Chip({
         active && { borderColor: colors.primary, backgroundColor: colors.primary },
       ]}
     >
-      <TText variant="caption" weight="semibold" style={{ color: active ? '#fff' : colors.textMuted }}>
+      <TText variant="caption" weight="semibold" style={{ color: active ? colors.textOnBrand : colors.textMuted }}>
         {label}
       </TText>
     </Pressable>

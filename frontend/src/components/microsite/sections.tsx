@@ -180,6 +180,66 @@ export interface LiveMember {
   wait: string;
 }
 
+/**
+ * A member's photo, round, or their initials when there is none.
+ *
+ * `photo` and `avBg` have been on `LiveMember` since this section was written and were never
+ * rendered anywhere: the API sends `avatarUrl`, `MicrositeClient` maps it to `photo`, and the
+ * card then dropped it — so an owner who uploaded a staff photo saw no change on their live
+ * page. This is the missing half of that chain.
+ *
+ * A plain <img>, not next/image: the stored URL is `{API}/media/{key}`, which 302-redirects to a
+ * freshly signed bucket URL on a host next/image would need declared in `remotePatterns` ahead
+ * of time. `onError` falls back to the initials, because that redirect can fail (expired object,
+ * API down) and a broken-image icon is worse than a monogram.
+ */
+function MemberAvatar({ photo, name, bg }: { photo: string | null; name: string; bg: string }) {
+  const [failed, setFailed] = useState(false);
+  const showPhoto = !!photo && !failed;
+  const initials =
+    name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0] ?? "")
+      .join("")
+      .toUpperCase() || "?";
+
+  return (
+    <div
+      aria-hidden
+      style={{
+        width: "clamp(44px, 5.2vw, 64px)",
+        height: "clamp(44px, 5.2vw, 64px)",
+        borderRadius: "50%",
+        overflow: "hidden",
+        flexShrink: 0,
+        background: showPhoto ? "var(--surface-sunken)" : bg,
+        border: "1px solid var(--border-subtle)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {showPhoto ? (
+        // alt="" on purpose: the member's name is rendered right below, so a description here
+        // would make a screen reader announce the same person twice.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={photo!}
+          alt=""
+          onError={() => setFailed(true)}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        />
+      ) : (
+        <span style={{ font: "var(--fw-bold) clamp(15px, 1.7vw, 21px)/1 var(--font-sans)", color: "#fff" }}>
+          {initials}
+        </span>
+      )}
+    </div>
+  );
+}
+
 /** v3's live floor: a dark brand-gradient summary tile followed by one card per member. */
 export function LiveBoard({
   members,
@@ -288,9 +348,13 @@ export function LiveBoard({
                 flexDirection: "column",
               }}
             >
+              {/* Avatar and status share one row: the face is the first thing you look for on a
+                  "choose your provider" card, and putting the chip beside it keeps the card's
+                  height identical whether or not a photo exists. */}
+              <div style={{ display: "flex", alignItems: "center", gap: "clamp(10px, 1.2vw, 14px)" }}>
+              <MemberAvatar photo={m.photo} name={m.name} bg={m.avBg} />
               <span
                 style={{
-                  alignSelf: "flex-start",
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 7,
@@ -316,6 +380,7 @@ export function LiveBoard({
                     ? t.microsite.sections.inService
                     : t.microsite.sections.freeNow}
               </span>
+              </div>
 
               <div
                 style={{
@@ -431,11 +496,12 @@ export interface ServiceItem {
   name: string;
   dur: string;
   /**
-   * Already-rendered price ("$45", "Price varies") rather than a number.
+   * Already-rendered price ("$45", "$20–$60", "Price on request") rather than a number.
    *
-   * A price of zero is how the product stores "not priced yet", and rendering that as "$0" told
-   * every customer the service was free. Formatting happens once, next to the currency, so no
-   * caller can reintroduce a bare `{symbol}{number}`.
+   * A service is priced to a figure, to a band, or not yet at all, and the store says which —
+   * this used to be inferred from a zero and rendered as "$0", telling every customer the
+   * service was free. Formatting happens once, next to the currency, so no caller can
+   * reintroduce a bare `{symbol}{number}`.
    */
   priceLabel: string;
 }

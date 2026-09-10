@@ -46,7 +46,7 @@ export default function Dashboard() {
                 variant="primary"
                 fullWidth
                 onPress={store.openWalkin}
-                leadingIcon={<Icon name="plus" size={18} color="#fff" />}>
+                leadingIcon={<Icon name="plus" size={18} color={colors.textOnBrand} />}>
                 {t.dashboard.addWalkIn}
               </TButton>
             </View>

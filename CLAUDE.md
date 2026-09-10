@@ -87,7 +87,8 @@ Dev: `tsx` (watch/run), `vitest`, `eslint`, `supertest` (router-level HTTP tests
 use **plain CSS custom properties + `globals.css`**, not Tailwind.
 
 **Mobile** — Expo 56, expo-router (typed routes, React Compiler on), expo-secure-store (token
-storage), react-native-reanimated 4, socket.io-client.
+storage), react-native-reanimated 4, socket.io-client, expo-screen-orientation (tablets rotate,
+phones stay portrait — see §7).
 
 ---
 
@@ -324,6 +325,25 @@ from **one** implementation. Mirrored in `backend/tests/unit/queue-engine.test.t
 `p_amount_paise` is an **override** (0020): pass null and the derived service + add-ons total is
 used. `no_show` deliberately does **not** auto-promote.
 
+**Multi-service visits** (0025) — a visit can carry several services. There is **no new shape for
+the queue**: it reuses what `queue_extend` already produces — `service_id` is the FIRST service,
+`service_name` the combined label ("Haircut + Hair Spa"), `extra_minutes` the sum of the rest
+(read by `estMins`), and one `queue_entry_extra` row per extra service (summed by `billingFor`),
+so wait times and checkout totals are right with no rework. Bookings itemise into
+**`appointment_service`** because a booking is made now and checked in later; `appointment_check_in`
+replays those rows through `queue_attach_services()` (which, unlike `queue_extend`, works on a
+`waiting` entry). APIs take `serviceIds[]` and still accept the legacy singular `serviceId`; slot
+length is the **sum** of the chosen services. An unknown id is a 404, never a silent drop.
+
+**Service pricing modes** (0024) — `service.price_type` is `fixed` (one amount), `range`
+(`price_paise` is the floor, `price_max_paise` the ceiling) or `unset` (legacy: the rows that
+encoded "not priced yet" as a zero; writes refuse it, so an owner must choose a mode). For
+`range`/`unset`, `queue_checkout` **raises `TEJO:AMOUNT_REQUIRED` (422) rather than deriving** —
+the derived figure would be the band's minimum, which is the same under-reporting of
+`visit.amount_paise` that 0020 exists to prevent. `domain/money.ts::servicePricing` is the one
+resolver; `GET /queue/:id` returns `amountRequired` with a **null** `suggestedAmount` so the
+checkout sheet has nothing dishonest to pre-fill.
+
 **ETA-15 alert** (`lib/eta-notify.ts` + `queue.service.ts` `processTicketBroadcasts`) — one-shot
 per ticket, for **online live-queue joins only** (not walk-ins, not checked-in appointments),
 when `0 < waitMinutes <= ETA_NOTIFY_MINUTES`. Idempotency via a **conditional claim** on
@@ -338,9 +358,16 @@ immediately without waiting for a refresh.
 **Customer microsite rules** (see `docs/customer-booking-page-copy-2026-09-06.md`) — two invariants
 the public booking page depends on. **"Book an Appointment" always means a scheduled visit and
 "Join the Waitlist" always means a walk-in**; service cards open the booking flow, the hero and
-Team section own the walk-in flow. And a **price of `0` paise means "not priced yet", never
-"free"** — `MicrositeClient` renders it as "Price varies" via a single `priceLabel`, which is why
-`ServiceItem` carries a rendered string rather than a number. Walk-in controls are gated on
+Team section own the walk-in flow. **Booking is multi-day**: the modal opens on a 14-day date
+strip (closed weekdays greyed), loads that day's slots, and keeps the preferred-provider chips —
+a named provider narrows availability to their chair. `GET /public/.../slots` already took `date`
+and `staffId`, so this is a client-side concern; the date is built with local date parts, never
+`toISOString()` (that is the UTC day, and sends anyone east of UTC to yesterday before dawn).
+"Join the walk-in waitlist instead" is a **fallback only** — shown when the selected day has no
+times AND it is today AND the store is open; Book an Appointment never doubles as Check in. And a **service is never rendered as a bare number** — the
+store says whether a price is `fixed`, a `range` or `unset` (migration 0024), and a single
+`priceLabel` in `MicrositeClient` turns that into "₹350", "₹2,000–₹6,000" or "Price on request",
+which is why `ServiceItem` carries a rendered string rather than a number. Walk-in controls are gated on
 `site.hours.length > 0 && !openStatus.isOpen` — **not** on `isOpen` alone, because a store with no
 configured hours reports `isOpen: false` forever and would lose check-in entirely. The gate is
 **UI-only**: the API still accepts an out-of-hours join.
@@ -348,6 +375,22 @@ configured hours reports `isOpen: false` forever and would lose check-in entirel
 **Category behaviour** (`config/constants.ts`) — `OPTIONAL_SERVICES_STAFF_CATEGORIES`
 (Hospital, Restaurant) allow zero services/staff; `VISITOR_TYPE_CATEGORIES` (Hospital) require
 identifying the visitor as `mr` | `patient` (display-only, never part of wait-time math).
+
+**Mobile responsive layout** (see [docs/mobile-responsive-tablets.md](docs/mobile-responsive-tablets.md))
+— `app/src/lib/responsive.ts` is pure size arithmetic (no React, no react-native, so it is
+self-checkable); `useResponsive` / `useTabContent` are its React bindings. Two questions that are
+easy to conflate: **`isTabletSize` measures the device's screen short side** (≥ 600dp, Android's
+`sw600dp`) and so is unchanged by rotation, while **`sizeClassFor` measures the live window** —
+an iPad in Slide Over is a tablet with a compact window. Content caps engage on `width > cap`,
+never on "is tablet", which is what keeps phone portrait byte-identical to the pre-tablet layout
+(every cap in the app is wider than a phone). **Rotation policy: tablets rotate, phones stay
+portrait** — declared in `ios.infoPlist` for iPad and enforced at runtime by
+`lib/orientation.ts` for Android, because `android:screenOrientation` is a manifest enum with no
+`sw600dp` variant. `styles/scale.ts` deliberately **shadows** `react-native-size-matters`: the
+library never stops growing (a `moderateScale(16)` padding became 35–60dp on an iPad, inflating
+the whole UI 2.4–3.9×) and samples the window once at import time, which only worked while the
+app was portrait-locked. Tablets earn their room through **layout** — wider columns, 2-up grids —
+not bigger text.
 
 **Theme engine** (`frontend/src/theme/engine/`) — pure TS (no React/DOM/node), generates the
 per-store microsite theme from `business.theme` jsonb: 6 presets × light/dark, OKLCH colour
@@ -464,10 +507,11 @@ Plus `npm run check:axes` — every editable theme axis must appear in **every**
 hand-lists them (including each Appearance panel's `key()` dirty-check; an axis missing there is
 silently **unsaveable**, with no error).
 And `npm run test:theme` — the framework-free theme engine self-check (parity, contrast, ramps,
-CSS tokens, input repair), run via the `tsx` the backend already depends on.
+CSS tokens, input repair), run via the `tsx` the backend already depends on. `npm run
+test:responsive` is the same idea for the mobile app's breakpoint/grid arithmetic (§7).
 
-> These three checks are **not wired into CI**. Run them manually after touching the theme
-> engine, the cropper, or a theme axis.
+> These checks are **not wired into CI**. Run them manually after touching the theme engine, the
+> cropper, a theme axis, or the mobile breakpoints.
 
 Also duplicated by hand, with **no** generator: `lib/countries.ts`, `lib/phone.ts`,
 `lib/format.ts`, `lib/support.ts`, `lib/frontend-url.ts`, `PhoneField`, and the `i18n` module
@@ -490,6 +534,10 @@ across the web apps.
   database and no running server**.
 - `frontend/src/theme/engine/__tests__/run.ts` — framework-free theme self-check
   (`npm run test:theme` from the root).
+- `app/src/lib/__tests__/responsive-check.ts` — the same pattern for the mobile app's breakpoint
+  and grid arithmetic (`npm run test:responsive`; **1262 assertions across an 11-device matrix**).
+  It exists because `app/` has no test runner and §12.6 forbids adding one — keeping
+  `lib/responsive.ts` free of React/react-native imports is what makes it checkable as plain TS.
 - `backend/scripts/smoke-rest.mjs` and `smoke-socket.mjs` — plain-Node scripts that hit a
   **running server + seeded database** over real HTTP and real Socket.IO. These are the only
   true end-to-end coverage in the repo.
@@ -501,13 +549,11 @@ or Selenium appears in any of the six `package.json` files. No browser is ever l
 `owner-web`, and `app` have zero test files and zero test dependencies. CI runs `lint`+`build`
 for the web apps and `tsc --noEmit` for mobile; only `backend` runs a test command.
 
-> ⚠️ **The smoke scripts are currently stale and fail immediately.** Both post
-> `{ handle: 'sharpcuts', password: 'password123' }` to `/auth/login`, but `loginSchema`
-> (`backend/src/modules/auth/auth.schemas.ts`) is `.strict()` and requires **`phone`**. The
-> unknown `handle` key plus the missing `phone` produce a **400 VALIDATION_ERROR**, so the first
-> assertion fails and every later one cascades. The seed prints the real credential:
-> **phone `919399385943` / password `password123`**. The root `README.md` repeats the same stale
-> `sharpcuts` credential. Fix the login payload before trusting either script.
+> The smoke scripts used to post `{ handle: 'sharpcuts', … }` to `/auth/login` and 400 on their
+> first call, because `loginSchema` is `.strict()` and requires **`phone`**. Both now post the
+> seeded credential — **phone `919399385943` / password `password123`** — as does `README.md`.
+> They still need a running server and a seeded throwaway database, and they still have no
+> cleanup (see §12.4).
 
 ### 12.2 Mandatory policy
 
@@ -579,9 +625,16 @@ already do this well (`wrong password → 401`, `owner socket rejects bad token`
   takes the same JWT in `handshake.auth.token`; `/customer` takes `{ businessId, ticketId,
   ticketKey }`, and the join response hands back exactly that under `socket`.
 - **Fixtures.** `backend/db/seed.ts` is the **only** fixture factory — there are no per-test
-  factories. It builds the `sharp-cuts` tenant: 1 owner, 3 staff (John/Lisa/Mike), 4 services,
+  factories. It builds the `sharp-cuts` tenant: 1 owner, 3 staff (John/Lisa/Mike), 5 services
+  (four fixed-price, plus `Hair Extensions` at ₹2,000–₹6,000 as the range fixture),
   4 customers, 5 queue entries, 4 appointments, and pins `token_counter` so tokens continue at
   `A-6`. Tests depend on those exact names, so **changing the seed breaks the smoke scripts.**
+- **Re-running.** Two harness traps, both documented at the top of `smoke-rest.mjs`: **re-seed
+  between runs** (no cleanup, and the scripts leave the tenant on premium), and the **login rate
+  limiter** — `limiters.login` is 10 per 5 min per (IP, phone) and each run spends two, so after
+  ~5 back-to-back runs `wrong password → 401` starts reading **429**. The store is in-memory, so
+  restarting the API clears it. `SMOKE_BASE_URL` overrides the hardcoded `localhost:8080` when a
+  dev API already holds that port.
 - **Cleanup.** There is **none**. The seed is idempotent only at tenant granularity — it
   `delete from business where slug = 'sharp-cuts'` and rebuilds, relying on `on delete cascade`.
   The smoke scripts leave every row they create behind and **mutate shared state** (they upgrade
@@ -648,9 +701,13 @@ cd owner-web && npm install && npm run dev                                    # 
 cd app && npm install && npm start        # npm run android does `adb reverse` first
 ```
 
-Demo owner login: `sharpcuts` / `password123`. Demo tenant slug: `sharp-cuts`.
+Demo owner login: phone `919399385943` / password `password123`. Demo tenant slug: `sharp-cuts`.
 Android emulator reaches the host via `adb reverse` (`npm run android:reverse` at the root);
-a physical device needs the machine's LAN IP in `EXPO_PUBLIC_*`.
+a physical device needs the machine's LAN IP in `EXPO_PUBLIC_*`. The iOS simulator shares the
+host's loopback, so `localhost` just works there — but it needs a native build
+(`npm run ios` → `expo run:ios`), not `expo start`, because the app uses `expo-dev-client`.
+See [docs/ios-local-setup.md](docs/ios-local-setup.md), and note its first rule: **the checkout
+must not sit in a path containing a space** — three separate iOS build scripts run it unquoted.
 
 ---
 
@@ -690,10 +747,6 @@ a physical device needs the machine's LAN IP in `EXPO_PUBLIC_*`.
   initialized" guard from before the backend existed.
 
 **Testing / E2E**
-- **The smoke scripts are broken.** `smoke-rest.mjs` and `smoke-socket.mjs` both log in with
-  `handle`, but `loginSchema` is `.strict()` and requires `phone` — every run 400s on the first
-  call. The root `README.md` documents the same stale `sharpcuts` credential. Fixing these is
-  the single highest-value testing task in the repo.
 - **No E2E framework and no browser test of any kind.** All four UI apps have zero automated
   tests; the BFF security model (httpOnly cookies, Edge proxy token rotation, `assertSameOrigin`)
   is entirely unverified.

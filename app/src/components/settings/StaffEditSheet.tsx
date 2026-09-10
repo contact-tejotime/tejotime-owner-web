@@ -22,16 +22,20 @@ export function StaffEditSheet({
   saving,
   onClose,
   onSave,
+  onRemove,
 }: {
   open: boolean;
   member: Staff | null;
   saving: boolean;
   onClose: () => void;
   onSave: (f: StaffFormValues) => void;
+  onRemove: () => void;
 }) {
   return (
     <EditSheet visible={open} title={member ? t.staffSheet.editTitle : t.staffSheet.addTitle} onClose={onClose}>
-      {open && <StaffForm key={member?.id ?? 'new'} member={member} saving={saving} onSave={onSave} />}
+      {open && (
+        <StaffForm key={member?.id ?? 'new'} member={member} saving={saving} onSave={onSave} onRemove={onRemove} />
+      )}
     </EditSheet>
   );
 }
@@ -41,10 +45,12 @@ function StaffForm({
   member,
   saving,
   onSave,
+  onRemove,
 }: {
   member: Staff | null;
   saving: boolean;
   onSave: (f: StaffFormValues) => void;
+  onRemove: () => void;
 }) {
   const theme = useTheme();
   const s = useMemo(() => createStyles(theme), [theme]);
@@ -119,6 +125,12 @@ function StaffForm({
       <TButton variant="primary" size="lg" fullWidth loading={saving} disabled={uploading} onPress={save}>
         {t.staffSheet.save}
       </TButton>
+      {/* Only for an existing chair — matches ServiceEditSheet, where "new" has nothing to remove. */}
+      {member && (
+        <TButton variant="ghost" fullWidth textColor={theme.colors.error} disabled={saving || uploading} onPress={onRemove}>
+          {t.staffSheet.remove}
+        </TButton>
+      )}
     </View>
   );
 }
