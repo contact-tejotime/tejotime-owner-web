@@ -43,5 +43,14 @@ export const limiters = {
   // traffic sharing the same IP/NAT.
   inquiries: rateLimit({ ...base, windowMs: 60 * 60_000, limit: 8 }),
   otp: rateLimit({ ...base, windowMs: 60 * 60_000, limit: 5 }),
+  // Microsite chatbot. Its own bucket because it is the most abuse-prone public write — free
+  // text that may fan out to a metered LLM free tier — and because a burst of chat must not
+  // spend the `publicWrite` allowance a real join/booking on the same NAT needs.
+  publicChat: rateLimit({ ...base, windowMs: 60 * 60_000, limit: 20 }),
+  // Cookie consent. Its own bucket and roomier than publicWrite: one visitor legitimately
+  // produces several rows (accept, then reopen settings and change their mind), and being
+  // throttled while withdrawing consent would be the worst possible failure — the UI would
+  // silently fail to record a withdrawal. Still bounded, since the endpoint is unauthenticated.
+  consent: rateLimit({ ...base, windowMs: 60 * 60_000, limit: 60 }),
   global: rateLimit({ ...base, windowMs: 60_000, limit: 600 }),
 };

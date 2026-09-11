@@ -4,7 +4,10 @@ import { asyncHandler } from '../../http/async-handler';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import * as pub from './public.service';
+import { chatWithPlatform, chatWithStore } from './chat.service';
+import { countryFromHeaders, recordConsent } from './consent.service';
 import { MAX_SERVICES_PER_VISIT } from '../../config/constants';
+import { env } from '../../config/env';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -43,6 +46,46 @@ const inquirySchema = z
     businessName: z.string().trim().min(1).max(120),
     address: z.string().trim().min(1).max(300),
     phone: z.string().trim().min(4).max(20),
+  })
+  .strict();
+
+/**
+ * Cookie-consent record. `.strict()` so an unexpected field is a 400 rather than being quietly
+ * dropped — notably `countryCode`, which a client must NOT be able to supply: the server derives
+ * it from the edge headers instead (see consent.service.ts).
+ */
+const consentSchema = z
+  .object({
+    visitorId: z.string().uuid(),
+    necessary: z.literal(true),
+    analytics: z.boolean(),
+    marketing: z.boolean(),
+    preferences: z.boolean(),
+    timestamp: z.string().datetime(),
+    policyVersion: z.string().trim().min(1).max(40),
+  })
+  .strict();
+
+/** Slug or digits-only full phone — see `resolveBusinessByKey`. */
+const keyParam = z.object({ key: z.string().trim().min(1).max(80) });
+
+/**
+ * Chat is stateless on the server, so the client carries the recent turns. A turn may be one
+ * of the bot's own replies (an hours list runs longer than a customer message), hence the looser
+ * per-turn cap; the count is bounded by CHATBOT_MAX_HISTORY. `sessionId` is only for log
+ * correlation — nothing is keyed on it.
+ */
+const chatTurnSchema = z
+  .object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string().trim().min(1).max(2_000),
+  })
+  .strict();
+const chatSchema = z
+  .object({
+    message: z.string().trim().min(1).max(env.CHATBOT_MAX_MESSAGE_CHARS),
+    sessionId: z.string().uuid(),
+    history: z.array(chatTurnSchema).max(env.CHATBOT_MAX_HISTORY).optional(),
   })
   .strict();
 
@@ -168,6 +211,57 @@ publicRouter.post(
   validate({ params: slugParam, body: trackSchema }),
   asyncHandler(async (req, res) => {
     res.json(await pub.trackByPhone(req.params.slug, req.body));
+  }),
+);
+
+// Microsite help chat. Read-only — it answers from FAQs and public facts and may point at the
+// page's Join / Book / Track / Call buttons, but never joins, books or checks anyone out.
+// Its own limiter: free text that may fan out to a metered LLM free tier is the most
+// abuse-prone public write there is. 404 (CHATBOT_DISABLED) while the flag is off.
+publicRouter.post(
+  '/businesses/:key/chat',
+  limiters.publicChat,
+  validate({ params: keyParam, body: chatSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await chatWithStore(req.params.key, req.body));
+  }),
+);
+
+// Is the help chat switched on at all? The marketing landing page is statically rendered and
+// has no business payload to carry the flag, so it asks here on mount and stays hidden unless
+// this says yes (and if the call fails, it also stays hidden). Cheap, cacheable, no secrets.
+publicRouter.get(
+  '/chat/status',
+  limiters.publicRead,
+  asyncHandler(async (_req, res) => {
+    res.json({ enabled: env.CHATBOT_ENABLED });
+  }),
+);
+
+// Cookie consent audit log. Fire-and-forget from the browser: the banner never awaits this and
+// never surfaces a failure, because the visitor's own cookie already governs behaviour. 204 so
+// there is no body for a client to depend on.
+publicRouter.post(
+  '/consent',
+  limiters.consent,
+  validate({ body: consentSchema }),
+  asyncHandler(async (req, res) => {
+    await recordConsent(req.body, countryFromHeaders(req));
+    res.status(204).end();
+  }),
+);
+
+// Marketing-site help chat (tejotime.com/). No business key: it answers about the PRODUCT —
+// what TejoTime is, who it is for, what it costs — from a fixed fact sheet, and points at the
+// landing page's own sections and its Request-access CTA. Read-only, same as the store chat.
+// Declared before '/businesses/:key/chat' is irrelevant (different shape), but it shares that
+// route's limiter and body schema so the two surfaces cannot drift apart.
+publicRouter.post(
+  '/chat',
+  limiters.publicChat,
+  validate({ body: chatSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await chatWithPlatform(req.body));
   }),
 );
 

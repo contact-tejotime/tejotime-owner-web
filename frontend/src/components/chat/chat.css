@@ -1,0 +1,277 @@
+/*
+ * Microsite help chat (components/chat/ChatWidget.tsx).
+ *
+ * Every colour, radius and weight is a theme token from the store's [data-tt-theme] root, so
+ * the widget wears the shop's brand — including dark mode — rather than a generic "AI" look.
+ * Only the fixed-position geometry and the phone breakpoint live here; the rest is the same
+ * inline-style convention as the microsite.
+ */
+
+.ttChatFab {
+  position: fixed;
+  right: 22px;
+  /* `--tt-consent-h` is the cookie banner's height while it is on screen, published by
+     CookieBanner and absent (so 0px) otherwise. The banner is a full-width bar, so without this
+     the launcher would sit on top of it at every viewport width. */
+  bottom: calc(22px + var(--tt-consent-h, 0px));
+  z-index: 150;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  border: 1px solid var(--brand-outline, transparent);
+  background: var(--primary);
+  color: var(--text-on-brand);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  transition:
+    transform var(--dur-fast, 160ms) var(--ease-standard, ease),
+    background var(--dur-fast, 160ms) var(--ease-standard, ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.ttChatFab:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+.ttChatFab:focus-visible {
+  outline: 2px solid var(--border-focus, var(--primary));
+  outline-offset: 2px;
+}
+/* The resume pill owns the corner while a customer holds a ticket; sit above it. */
+.ttChatFab.isLifted {
+  bottom: calc(84px + var(--tt-consent-h, 0px));
+}
+
+.ttChatPanel {
+  position: fixed;
+  right: 22px;
+  bottom: calc(88px + var(--tt-consent-h, 0px));
+  z-index: 190;
+  width: 360px;
+  max-width: calc(100vw - 44px);
+  max-height: min(600px, calc(100vh - 110px));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  color: var(--text-body);
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(18px * var(--radius-scale, 1));
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  font-family: var(--font-sans);
+  animation: ttChatIn 0.28s cubic-bezier(0.34, 1.3, 0.5, 1) both;
+}
+.ttChatPanel.isLifted {
+  bottom: calc(150px + var(--tt-consent-h, 0px));
+}
+@keyframes ttChatIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ttChatHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 12px 12px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface-card));
+}
+.ttChatTitle {
+  font: var(--fw-bold) 15px/1.2 var(--font-sans);
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ttChatSub {
+  font: var(--fw-regular) 12px/1.3 var(--font-sans);
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+.ttChatClose {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.ttChatClose:hover {
+  background: var(--surface-hover);
+  color: var(--text-strong);
+}
+
+.ttChatList {
+  flex: 1;
+  min-height: 160px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 14px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ttChatBubble {
+  max-width: 88%;
+  padding: 10px 13px;
+  border-radius: calc(14px * var(--radius-scale, 1));
+  font: var(--fw-regular) 14px/1.5 var(--font-sans);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ttChatBubble.isBot {
+  align-self: flex-start;
+  background: var(--surface-sunken);
+  color: var(--text-body);
+  border-bottom-left-radius: calc(4px * var(--radius-scale, 1));
+}
+.ttChatBubble.isUser {
+  align-self: flex-end;
+  background: var(--primary);
+  color: var(--text-on-brand);
+  border-bottom-right-radius: calc(4px * var(--radius-scale, 1));
+}
+.ttChatBubble.isMuted {
+  color: var(--text-muted);
+  font-style: italic;
+}
+.ttChatActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 6px;
+}
+.ttChatAction,
+.ttChatChip {
+  appearance: none;
+  font: var(--fw-semibold) 13px/1 var(--font-sans);
+  color: var(--primary);
+  background: var(--primary-soft, color-mix(in srgb, var(--primary) 10%, var(--surface-card)));
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  border-radius: 999px;
+  padding: 9px 13px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.ttChatAction:hover,
+.ttChatChip:hover {
+  background: color-mix(in srgb, var(--primary) 18%, var(--surface-card));
+}
+.ttChatError {
+  font: var(--fw-medium) 13px/1.4 var(--font-sans);
+  color: var(--error);
+  background: var(--error-soft, color-mix(in srgb, var(--error) 8%, var(--surface-card)));
+  border-radius: calc(10px * var(--radius-scale, 1));
+  padding: 8px 12px;
+}
+.ttChatChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 14px 10px;
+}
+.ttChatForm {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+.ttChatInput {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-h-md, 44px);
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-card);
+  color: var(--text-strong);
+  font: var(--fw-regular) 15px/1 var(--font-sans);
+  outline: none;
+}
+.ttChatInput::placeholder {
+  color: var(--text-muted);
+}
+.ttChatInput:focus {
+  border-color: var(--border-focus, var(--primary));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+.ttChatSend {
+  flex-shrink: 0;
+  width: var(--control-h-md, 44px);
+  height: var(--control-h-md, 44px);
+  border-radius: 999px;
+  border: 1px solid var(--brand-outline, transparent);
+  background: var(--primary);
+  color: var(--text-on-brand);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.ttChatSend:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ttChatDisclaimer {
+  font: var(--fw-regular) 11px/1.4 var(--font-sans);
+  color: var(--text-muted);
+  padding: 0 14px 10px;
+}
+
+/*
+ * Phones (the same 860px the sticky action bar uses): the launcher sits above that bar, and an
+ * open panel becomes a full-height sheet with the launcher hidden — a card squeezed above a
+ * launcher above a bar is worse than either.
+ */
+@media (max-width: 860px) {
+  .ttChatFab {
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px) + var(--tt-consent-h, 0px));
+  }
+  .ttChatFab.isLifted {
+    bottom: calc(96px + var(--tt-consent-h, 0px));
+  }
+  .ttChatFab.isOpen {
+    display: none;
+  }
+  .ttChatPanel,
+  .ttChatPanel.isLifted {
+    inset: 0;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    height: 100dvh;
+    border-radius: 0;
+    border: none;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* iOS zooms the page on focus when an input's font is under 16px. */
+  .ttChatInput {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ttChatPanel {
+    animation: none;
+  }
+  .ttChatFab {
+    transition: none;
+  }
+}

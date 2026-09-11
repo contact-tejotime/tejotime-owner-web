@@ -270,6 +270,7 @@ On payment success (client callback + webhook), plan flips to `premium`, CRM unl
 | POST | `/public/businesses/:slug/appointments` | Book a slot | FR-H5 |
 | GET | `/public/tickets/:ticketId` | Live ticket status | FR-H7 |
 | DELETE | `/public/tickets/:ticketId` | Leave queue | FR-H9 |
+| POST | `/public/businesses/:key/chat` | Help chat — answers from FAQs + page facts, suggests page buttons, **never acts** ([customer-chatbot-v1](./customer-chatbot-v1.md)) | — |
 
 **GET /public/businesses/:slug → 200** (drives `sharp-cuts/page.tsx`)
 ```jsonc
@@ -320,6 +321,15 @@ Response `201` (ticket — mirrors `Ticket`/step-3):
   "status":"waiting","isYourTurn":false,"progressPct":33 }
 ```
 When `ahead` reaches 0 → `status:"in_service"`, `isYourTurn:true` ("It's your turn!"). Ownership: requires the OTP/customer token or a signed ticket URL; a bare `ticketId` must not leak PII across customers.
+
+**POST /public/businesses/:key/chat** (`:key` = slug or digits-only phone) — request
+```jsonc
+{ "message": "What are your opening hours?", "sessionId": "<client uuid>",
+  "history": [{ "role": "user", "content": "hi" }] }   // optional, ≤ 8 turns
+```
+Response `200` — `{ "reply": "…", "mode": "faq_match" | "facts" | "llm" | "fallback",
+"suggestedActions": [{ "type": "join" | "book" | "track" | "call" | "faq", "label": "…" }] }`.
+`404 CHATBOT_DISABLED` while `CHATBOT_ENABLED=false`. Stateless and read-only by design.
 
 **Rate limits** on all `/public/*` POST endpoints — see [12](./12-rate-limiting.md).
 

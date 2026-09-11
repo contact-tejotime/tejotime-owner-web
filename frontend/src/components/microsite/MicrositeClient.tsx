@@ -21,6 +21,8 @@ import { domainFor } from "./domains";
 import { GalleryMosaic, LiveBoard, ReviewsBlock, Section, ServiceList, StatCards, Ticker } from "./sections";
 import "./salon.css";
 import { SocialLinks } from "./SocialLinks";
+import ChatWidget, { storeChatTitle } from "@/components/chat/ChatWidget";
+import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton";
 
 /**
  * Interaction-only surfaces, kept out of the first-load chunk.
@@ -1038,6 +1040,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   };
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   const toggleFaq = (i: number) => setFaqOpen((cur) => (cur === i ? null : i));
+  // The help chat's suggested buttons land on the page's own flows — the widget itself never
+  // calls a mutating endpoint. "faq" simply scrolls to the Q&A the answer pointed at.
+  const onChatAction = (type: string) => {
+    if (type === "join") openQueue();
+    else if (type === "book") openBook();
+    else if (type === "track") openTrack();
+    else document.getElementById("faq")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   /**
    * Load the bookable times for one day.
@@ -1710,7 +1720,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
       {/* ===== FAQ (only when the store has Q&A) ===== */}
       {faqs.length > 0 && (
-        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "24px clamp(16px, 4vw, 32px) 56px" }}>
+        <div id="faq" style={{ maxWidth: 1180, margin: "0 auto", padding: "24px clamp(16px, 4vw, 32px) 56px" }}>
           <div style={revealStyle}>
             <div style={eyebrow}>{t.microsite.faq.eyebrow}</div>
             <div style={{ border: "1px solid var(--border-subtle)", borderRadius: "calc(16px * var(--radius-scale, 1))", overflow: "hidden", background: "var(--surface-card)" }}>
@@ -1849,6 +1859,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             <Link href="/privacy" style={{ color: "inherit" }}>
               {t.brand.privacy}
             </Link>
+            {" · "}
+            {/* A customer who accepted on the booking page can change their mind here without
+                having to find the marketing site. */}
+            <CookieSettingsButton style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }} />
           </span>
         </div>
       </div>
@@ -1906,6 +1920,24 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             </Button>
           </div>
         </div>
+      )}
+
+      {/* ===== HELP CHAT (platform flag) =====
+           Rendered only when the payload says CHATBOT_ENABLED is on, so a backend with the
+           feature off never shows a launcher that leads to a 404. Read-only by design: it answers
+           from the FAQs and the facts on this page and hands every action back to the handlers
+           above, so a chat can never join, book or leave for the customer. */}
+      {site.chatbotEnabled && (
+        <ChatWidget
+          send={(body) => publicApi.chat(site.slug, body)}
+          title={storeChatTitle(site.name)}
+          subtitle={t.chat.subtitle}
+          welcome={format(t.chat.welcome, { name: site.name })}
+          chips={[t.chat.chips.hours, t.chat.chips.walkIns, t.chat.chips.waitlist]}
+          lifted={showResume}
+          phoneHref={phoneFull ? `tel:+${phoneFull}` : null}
+          onAction={onChatAction}
+        />
       )}
 
       {/* ===== GALLERY LIGHTBOX ===== */}

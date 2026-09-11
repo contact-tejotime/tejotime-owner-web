@@ -62,6 +62,7 @@ In-memory, single-instance only (`middleware/rate-limit.ts`):
 | `publicRead` | 60/min |
 | `publicWrite` | 20/hr |
 | `inquiries` | 8/hr |
+| `publicChat` | 20/hr — microsite help chat; own bucket because free text may fan out to a metered LLM free tier |
 | `otp` | 5/hr |
 | `login` | 10 per 5 min keyed on **(IP, phone)** |
 | `loginIp` | 60 per 5 min — layered behind `login` so rotating the phone isn't a bypass |
@@ -195,7 +196,7 @@ Gated by the `team` module, which is **not grantable** — see `business-logic.m
 (`perm=billing:manage`).
 `POST /uploads/sign` (`ownerWrite`).
 
-### `/public` (12) — no auth
+### `/public` (15) — no auth
 
 | Method | Path | Bucket |
 |---|---|---|
@@ -208,11 +209,23 @@ Gated by the `team` module, which is **not grantable** — see `business-logic.m
 | POST | `/businesses/:slug/queue` | `publicWrite` |
 | POST | `/businesses/:slug/appointments` | `publicWrite` |
 | POST | `/businesses/:slug/track` | `publicWrite` |
+| POST | `/businesses/:key/chat` | `publicChat` |
+| POST | `/chat` | `publicChat` |
+| GET | `/chat/status` | `publicRead` |
 | POST | `/inquiries` | `inquiries` |
 | GET | `/tickets/:ticketId` | `publicRead` |
 | DELETE | `/tickets/:ticketId` | `publicWrite` |
 
 Ticket reads/leaves authenticate with the HMAC `ticketKey`, not a session.
+
+`/chat` is the **marketing landing page's** bot (no business context — it answers about the
+product from a fixed fact sheet), and `/chat/status` just reports the flag so that statically
+rendered page can decide whether to show the launcher.
+
+`/businesses/:key/chat` takes a slug **or** the digits-only phone, answers `404 CHATBOT_DISABLED`
+while `CHATBOT_ENABLED=false`, and never mutates — it answers from FAQs/page facts (or a free
+Gemini/Groq model behind `CHATBOT_PROVIDER`) and only *suggests* the page's buttons. See
+[docs/customer-chatbot-v1.md](../../docs/customer-chatbot-v1.md).
 
 > Public writes are **not idempotent** — the `idempotency_key` table exists but no middleware
 > uses it. A double-tapped "join queue" creates two entries.

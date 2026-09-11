@@ -8,6 +8,8 @@ import { Button, Input } from "@/components/landing/ui";
 import { AppointmentCard, Avatar, Badge, WaitTimeWidget } from "@/components/landing/ds";
 import { ProductTour } from "@/components/landing/ProductTour";
 import PhoneField from "@/components/ui/PhoneField";
+import ChatWidget from "@/components/chat/ChatWidget";
+import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton";
 import { t } from "@/i18n";
 import { publicApi } from "@/lib/api";
 import { OWNER_ORIGIN } from "@/lib/config";
@@ -38,6 +40,9 @@ import {
 } from "@/components/landing/landingData";
 
 const MAX = 1240;
+
+/** Which footer column gets the Cookie Settings control. */
+const legalColHead = footerCols[footerCols.length - 1].head;
 const PAD = "0 40px";
 
 /**
@@ -313,6 +318,47 @@ export default function Home() {
     setShowInquiry(true);
   };
   const closeInquiry = () => setShowInquiry(false);
+
+  /**
+   * Help chat. This page is statically rendered and has no business payload to carry
+   * CHATBOT_ENABLED, so it asks the API once on mount and stays hidden unless the answer is a
+   * clear yes — a failed call leaves the launcher off rather than showing a button that 404s.
+   */
+  const [chatOn, setChatOn] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    publicApi
+      .chatStatus()
+      .then((r) => alive && setChatOn(!!r.enabled))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /**
+   * The chat only ever *suggests* these; the page performs them. "pilot" opens the same
+   * Request-access modal every CTA on the page opens, so the bot has no privileged path.
+   */
+  const onChatAction = (type: string) => {
+    if (type === "pilot") {
+      openInquiry();
+      return;
+    }
+    if (type === "signin") {
+      window.location.href = OWNER_ORIGIN;
+      return;
+    }
+    const anchors: Record<string, string> = {
+      pricing: "pricing",
+      product: "product",
+      industries: "industries",
+      demo: "tour",
+      faq: "faq",
+    };
+    const id = anchors[type];
+    if (id) document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1990,6 +2036,14 @@ export default function Home() {
                     {fl.label}
                   </a>
                 ))}
+                {/* Withdrawing consent has to be as reachable as giving it, so the Legal column
+                    carries a live control next to the policy links, not just a link to them. */}
+                {fc.head === legalColHead && (
+                  <CookieSettingsButton
+                    className="tj-footlink"
+                    style={{ font: "var(--fw-medium) 14px/1.35 var(--font-sans)", color: "var(--text-body)" }}
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -2309,6 +2363,22 @@ export default function Home() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ===== HELP CHAT =====
+           The product bot, not a store bot: it answers what TejoTime is, who it is for, what it
+           costs and how to get started, from a fixed fact sheet on the server. Read-only — every
+           button it suggests is routed back through onChatAction to this page's own handlers. */}
+      {chatOn && (
+        <ChatWidget
+          send={publicApi.platformChat}
+          title={t.chat.landing.title}
+          subtitle={t.chat.landing.subtitle}
+          welcome={t.chat.landing.welcome}
+          chips={[t.chat.landing.chips.what, t.chat.landing.chips.pricing, t.chat.landing.chips.start]}
+          disclaimer={t.chat.landing.disclaimer}
+          onAction={onChatAction}
+        />
       )}
     </div>
   );

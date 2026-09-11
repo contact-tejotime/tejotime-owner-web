@@ -114,6 +114,11 @@ export interface Microsite {
    * on the legacy parity config. Never trust the shape: it is normalised before use.
    */
   theme?: ThemeConfig | null;
+  /**
+   * Platform flag (backend CHATBOT_ENABLED) that shows the help-chat widget. Optional and
+   * treated as false when absent, so a cached payload from before the feature hides it.
+   */
+  chatbotEnabled?: boolean;
 }
 export interface Availability {
   waitMinutes: number;
@@ -167,6 +172,55 @@ export interface InquiryBody {
   phone: string;
 }
 
+/** Mirrors the zod schema on POST /public/consent. */
+export interface ConsentBody {
+  visitorId: string;
+  necessary: true;
+  analytics: boolean;
+  marketing: boolean;
+  preferences: boolean;
+  /** ISO 8601. */
+  timestamp: string;
+  policyVersion: string;
+}
+
+// ---- Help chat (docs/customer-chatbot-v1.md) ----
+export type ChatActionType = "track" | "book" | "join" | "call" | "faq";
+/** A page button the reply suggests; the widget hands it to the page's own handler. */
+export interface ChatAction {
+  type: ChatActionType;
+  label: string;
+}
+/** `faq_match` = an FAQ verbatim · `facts` = built from page facts · `llm` = a model, grounded on the same facts · `fallback` = escalate. */
+export type ChatMode = "faq_match" | "facts" | "llm" | "fallback";
+
+/** Shared reply envelope. `T` is the set of page buttons that surface may suggest. */
+export interface ChatReplyOf<T extends string> {
+  reply: string;
+  mode: ChatMode;
+  suggestedActions: { type: T; label: string }[];
+}
+export type ChatReply = ChatReplyOf<ChatActionType>;
+
+/**
+ * The marketing landing page's bot answers about the PRODUCT, so its buttons are landing-page
+ * destinations rather than store actions. Different union, same envelope and same widget.
+ */
+export type PlatformChatActionType = "pilot" | "pricing" | "product" | "industries" | "demo" | "faq" | "signin";
+export type PlatformChatReply = ChatReplyOf<PlatformChatActionType>;
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+export interface ChatBody {
+  /** 1–500 chars, trimmed server-side. */
+  message: string;
+  /** A client-generated UUID; correlates log lines only — nothing is stored against it. */
+  sessionId: string;
+  /** The last few turns (max 8), since the server keeps none. */
+  history?: ChatTurn[];
+}
+
 export const publicApi = {
   getMicrosite: (slug: string) => req<Microsite>(`/public/businesses/${slug}`),
   getMicrositeByPhone: (phone: string) => req<Microsite>(`/public/businesses/by-phone/${phone}`),
@@ -197,4 +251,20 @@ export const publicApi = {
     req<TrackResult>(`/public/businesses/${slug}/track`, { method: "POST", body: JSON.stringify(body) }),
   submitInquiry: (body: InquiryBody) =>
     req<{ id: string; submittedAt: string }>(`/public/inquiries`, { method: "POST", body: JSON.stringify(body) }),
+  // Read-only: the reply may *suggest* Join / Book / Track, never perform them.
+  chat: (slug: string, body: ChatBody) =>
+    req<ChatReply>(`/public/businesses/${slug}/chat`, { method: "POST", body: JSON.stringify(body) }),
+  // The marketing site's bot. No business key — it answers about TejoTime itself.
+  platformChat: (body: ChatBody) =>
+    req<PlatformChatReply>(`/public/chat`, { method: "POST", body: JSON.stringify(body) }),
+  // The landing page is static and has no business payload to carry the flag, so it asks.
+  chatStatus: () => req<{ enabled: boolean }>(`/public/chat/status`),
+  /**
+   * Record a cookie-consent choice. Fire-and-forget by contract — the caller never awaits it and
+   * never shows an error, because the visitor's own cookie is what governs behaviour; this is
+   * only the server-side audit copy. `countryCode` is deliberately NOT sent: the server derives
+   * it from edge headers so a client cannot forge it.
+   */
+  postConsent: (body: ConsentBody) =>
+    req<void>(`/public/consent`, { method: "POST", body: JSON.stringify(body) }),
 };

@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-09-08 · branch `feat-jay`.
+**Last updated:** 2026-09-11 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,106 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Cookie consent, GDPR/CCPA (2026-09-11)
+
+Banner + preferences modal + `/cookies` policy + a server-side audit log, across `frontend/` and
+`backend/` only. **No new npm dependencies, and no analytics or advertising tag was added** —
+Consent Mode here is pure future-proofing. Full write-up:
+[docs/cookie-consent-v1.md](../../docs/cookie-consent-v1.md).
+
+Three decisions worth knowing before touching it:
+
+- **The cookie is host-only.** `cookie_consent` is set with NO `Domain` attribute, so it never
+  travels to `business.tejotime.com` or `admin.tejotime.com`. `Domain=.tejotime.com` would have
+  attached the record and its `visitorId` to every owner-portal and admin API call.
+- **Nothing is stored before a choice.** `visitorId` is minted with `crypto.randomUUID()` at the
+  click and lives only inside the cookie JSON. Verified: first visit has empty cookies and empty
+  localStorage.
+- **The banner renders BEFORE `{children}`.** It is `position: fixed`, so DOM order changes
+  nothing visually — but rendered last it took 60+ tab stops to reach, and rendered first it takes
+  1. Do not move it back.
+
+Server side, `consent_log` (migration 0026) stores no IP and no user agent; `country_code` comes
+from the CDN edge header and a client-supplied `countryCode` is a 400, because a forgeable field
+would make the audit log worthless as evidence.
+
+Verified (all executed): `npm test` → **12 files, 131 tests**; `tsc`/`eslint` clean both apps;
+`next build` clean with `/cookies` prerendered; migration idempotent on a second run; and a
+headless-Chrome pass covering storage-before-choice, no banner in server HTML, cookie attributes,
+Reject/Accept parity, the full keyboard-only path, 320px, the 1.5s microsite delay, and a console
+with no hydration warnings. **Not verified:** a real CDN edge header, and the `_ga` sweep against
+genuine analytics cookies (no tag exists to create them).
+
+### Marketing landing page chatbot (2026-09-11, follow-on)
+
+The chatbot now also runs on `tejotime.com/` — asked for after v1 shipped, and out of the
+original scope, which deliberately excluded the marketing site.
+
+It is a **different brain on the same machinery**. There is no business context on the landing
+page, so it answers about the product from `backend/src/lib/chat-platform.ts` → `PLATFORM_FACTS`
+(8 product FAQs, 3 plans, 6 features, 3 steps, 9 industries), hand-mirrored from
+`frontend/src/i18n/en.json` → `landingData` and guarded by **`npm run check:chat-facts`** (imports
+the module through `tsx` and compares field by field; mutation-tested against a changed price and
+a dropped FAQ). Endpoint `POST /public/chat`, plus `GET /public/chat/status` because the landing
+page is statically rendered and has no payload to carry the flag — a failed status call leaves
+the launcher hidden.
+
+Two refactors made it fit rather than duplicate:
+- `backend/src/lib/chat-text.ts` now holds the ranking both bots share. The *vocabulary* stays
+  with each bot on purpose — one shared dictionary would make every question look a little like
+  every other. `chat-faq.ts` kept its entire public API, so its 24 tests passed unchanged, which
+  is what makes the refactor trustworthy.
+- `ChatWidget.tsx` is surface-agnostic: `send`, copy, `onAction`. The microsite passes the store
+  call; the landing page passes the platform call and routes actions to its own anchors and its
+  Request-access modal.
+
+The sharp edge here is different from the store bot's: this one talks to a prospect about money
+while the page runs in pilot mode with two of three plans unpriced. `chat-platform.test.ts` pins
+the honest-refusal behaviour, including a regex that fails if a dollar figure ever appears in a
+pricing answer.
+
+Verified: `npm test` → **11 files, 124 tests**; `tsc`/`eslint` clean both apps; `next build`
+clean; `check:chat-facts` passes and fails correctly when mutated; and a headless-Chrome pass over
+the real dev stack on desktop and phone — launcher shows, pricing chip answers with the real plan
+table, "See pricing" scrolls the page, "Request access" opens the pilot modal, and the store
+microsite chat still behaves identically. 0 exceptions, 0 failed requests, 1 navigation.
+
+### Customer microsite chatbot v1 (2026-09-11)
+
+A help chat on the public store page (`frontend/` only — not the homepage, owner-web, mobile or
+WhatsApp). **Off by default** (`CHATBOT_ENABLED=false`); **no paid key required**. Full write-up:
+[docs/customer-chatbot-v1.md](../../docs/customer-chatbot-v1.md).
+
+- **Layer A, always on:** `backend/src/lib/chat-faq.ts` — a pure, deterministic answerer. Owner
+  FAQ verbatim when the question matches (synonym table + coverage/precision score, threshold
+  0.5), else a reply built from the page's own facts (hours, open/closed, address, phone,
+  services with the page's price labels, team, live wait), else an honest fallback that names the
+  page's buttons. Never invents; the facts come from the same microsite DTO the page renders.
+- **Layer B, optional:** `backend/src/integrations/chatbot.ts` — Gemini (default) / Groq free
+  tiers, OpenAI only if explicitly chosen. Never throws; any failure (no key, 429, timeout) is
+  `null` and Layer A answers. Skipped when Layer A already has a confident FAQ (≥ 0.9).
+- **Endpoint:** `POST /api/v1/public/businesses/:key/chat` (`:key` = slug or digits-only phone),
+  strict zod body, own limiter `publicChat` 20/hr/IP, `404 CHATBOT_DISABLED` while off. Read-only
+  by construction — the service imports nothing that can write. Public payload now carries
+  `chatbotEnabled`.
+- **Widget:** `frontend/src/components/chat/ChatWidget.tsx` + `chat.css`, mounted in
+  `MicrositeClient` behind `site.chatbotEnabled`. Theme-token styled; lifts above the resume pill;
+  full-height sheet on phones. Suggested actions call the page's own handlers; Call is a `tel:` link.
+- **Response `mode`** has a fourth value, `facts`, beyond the three in the brief — a store-fact
+  answer is not an FAQ match and labelling it as one would hide what the bot is actually doing.
+
+Verified (all executed): `cd backend && npm test` → **10 files, 105 tests, all passing** (three
+new files: `chat-faq`, `chatbot`, `public-chat`); `tsc --noEmit` and `eslint` clean on both apps;
+`frontend` `next build` clean; `scripts/smoke-rest.mjs` against a throwaway `tejotime_smoke` DB
+with `CHATBOT_ENABLED=true` on `:8090` → **117 passed, 0 failed** (15 new `PUBLIC CHAT`
+assertions, including "a 'join for me' message leaves the queue count unchanged and mints no
+ticket"); and a second instance with the flag off → `404 CHATBOT_DISABLED` + `chatbotEnabled:false`.
+**Not verified:** a real Gemini/Groq call (no key on this machine — the seam is exercised with a
+stubbed `fetch`), and the widget in a browser (no browser tests exist; see §4).
+
+Known gaps: platform-wide flag only (no per-store toggle — would need a `business` column and the
+owner-web + mobile setting per §11.1); the matcher is English-first; no analytics beyond a log line.
 
 ### Mobile tablet support (2026-09-08)
 
@@ -307,8 +407,10 @@ clean.
 
 Thin, and worth being honest about:
 
-- `backend/tests/unit/` — **6 vitest files, 52 tests**, covering **pure functions only**:
-  `queue-engine`, `eta-notify`, `ttl-cache`, `whatsapp`, `whatsapp-webhook`, `open-status`.
+- `backend/tests/unit/` — **10 vitest files, 105 tests**: pure functions (`queue-engine`,
+  `eta-notify`, `ttl-cache`, `whatsapp`, `service-pricing`, `open-status`, `chat-faq`) plus three
+  router/seam tests over `supertest` with `fetch` stubbed (`whatsapp-webhook`, `public-chat`,
+  `chatbot`).
 - `frontend/src/theme/engine/__tests__/run.ts` — framework-free theme self-check.
 - `app/src/lib/__tests__/responsive-check.ts` — framework-free self-check for the mobile app's
   breakpoint/grid arithmetic (`npm run test:responsive`).
@@ -321,7 +423,7 @@ self-check above.
 The microsite copy pass is the sharpest example: its backend half is unit-tested, and every one of
 its rendering changes — the `$0` rule, the closed-state gate, the per-store page title — is
 verified by nothing but a manual look.
-`supertest` is a devDependency but unused. Permission guards, tenant scoping, the plpgsql
+`supertest` covers three routers (webhooks, public chat, and the chatbot seam) and nothing else. Permission guards, tenant scoping, the plpgsql
 functions and the BFF proxies are verified only by smoke scripts and manual QA
 (`docs/qa-report-2026-07-10.md`).
 
