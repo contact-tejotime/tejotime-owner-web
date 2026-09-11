@@ -23,6 +23,7 @@ Public microsite endpoints are the main abuse surface (unauthenticated queue-joi
 | **Owner-write** | queue/appt/customer mutations | userId | 120 / min (bursty during rush is normal) |
 | **Uploads-sign** | `POST /uploads/sign` | userId | 60 / hour |
 | **Webhooks** | `/webhooks/*` | provider ip allow-list + signature | high; no user limit, signature-gated |
+| **Public-chat** | `POST /public/businesses/:key/chat` | ip | 20 / hour — free text that may fan out to a metered LLM free tier; its own bucket so a chat burst cannot spend the join/booking allowance (`publicChat` in `middleware/rate-limit.ts`) |
 | **Global per-IP** | all | ip | 600 / min safety net |
 
 Values are starting points — tune from production metrics.

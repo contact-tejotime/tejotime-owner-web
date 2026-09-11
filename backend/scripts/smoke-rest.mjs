@@ -473,6 +473,69 @@ async function main() {
     'the refused chair is still active — the failed delete changed nothing',
   );
 
+  console.log('PUBLIC CHAT (docs/customer-chatbot-v1.md)');
+  // The seed writes no FAQs, so give the store two through the owner API — the same path the
+  // owner profile screen uses — and then ask the bot for them back. Read-only feature: the
+  // assertions at the end check that a chat about joining moved nobody.
+  const faqSet = await call('PATCH', '/business', {
+    token,
+    body: {
+      faqs: [
+        { q: 'Do you take walk-ins?', a: 'Yes — walk in any time we are open and take a token at the door.' },
+        { q: 'What are your opening hours?', a: 'We are open 10:00 AM to 8:00 PM, Monday to Saturday.' },
+      ],
+    },
+  });
+  ok(faqSet.status === 200, `owner can set FAQs (got ${faqSet.status})`);
+  const CHAT_SESSION = '3b241101-e2bb-4255-8caf-4136c566a962';
+  const chat = (message, key = 'sharp-cuts', extra = {}) =>
+    call('POST', `/public/businesses/${key}/chat`, { body: { message, sessionId: CHAT_SESSION, ...extra } });
+
+  const probe = await chat('What are your opening hours?');
+  const siteForChat = await call('GET', '/public/businesses/sharp-cuts');
+  if (probe.status === 404 && probe.json.error?.code === 'CHATBOT_DISABLED') {
+    // The API under test runs with CHATBOT_ENABLED=false (the default). Off must be off at the
+    // API, not just a hidden button — that is the one behaviour provable here. Start the API
+    // with CHATBOT_ENABLED=true to exercise the rest of this block.
+    ok(true, 'CHATBOT_ENABLED=false → 404 CHATBOT_DISABLED (rest of the chat block skipped: flag is off on this server)');
+    ok(siteForChat.json.chatbotEnabled === false, 'microsite payload says chatbotEnabled:false, so the widget stays hidden');
+  } else {
+    ok(siteForChat.json.chatbotEnabled === true, 'microsite payload says chatbotEnabled:true, so the widget shows');
+    ok(probe.status === 200 && probe.json.mode === 'faq_match', `FAQ question → faq_match (got ${probe.status} ${probe.json.mode})`);
+    ok(probe.json.reply === 'We are open 10:00 AM to 8:00 PM, Monday to Saturday.', 'reply is the owner’s FAQ answer, verbatim');
+    ok(Array.isArray(probe.json.suggestedActions) && probe.json.suggestedActions.length > 0, 'reply carries suggested page actions');
+
+    // A store fact rather than an FAQ: the price is read from the same payload the page renders.
+    const price = await chat('how much is a haircut');
+    ok(price.status === 200 && price.json.mode === 'facts' && /Haircut — ₹/.test(price.json.reply), `service price is quoted from the live payload (got "${price.json.reply}")`);
+
+    // The phone-keyed URL (www.tejotime.com/<digits>) resolves the same store.
+    const phoneKey = `${siteForChat.json.countryCode ?? ''}${siteForChat.json.phoneNumber ?? ''}`.replace(/\D/g, '');
+    const byPhone = await chat('walk-ins?', phoneKey);
+    ok(byPhone.status === 200 && ['faq_match', 'facts', 'llm'].includes(byPhone.json.mode), `chat by phone key ${phoneKey} → 200 (got ${byPhone.status})`);
+
+    // Unknown → an honest fallback that points at the page's buttons, never a guess.
+    const fallback = await chat('do you sell gift vouchers');
+    ok(fallback.status === 200 && ['fallback', 'llm'].includes(fallback.json.mode), `unknown question → fallback (got ${fallback.json.mode})`);
+    ok(fallback.json.suggestedActions.some((a) => a.type === 'faq'), 'fallback offers the FAQ section');
+
+    const unknownStore = await chat('hours?', 'no-such-store');
+    ok(unknownStore.status === 404, `unknown store → 404 (got ${unknownStore.status})`);
+    const noSession = await call('POST', '/public/businesses/sharp-cuts/chat', { body: { message: 'hours?' } });
+    ok(noSession.status === 400 && noSession.json.error?.code === 'VALIDATION_ERROR', 'missing sessionId → 400');
+    const injected = await chat('hours?', 'sharp-cuts', { businessId: 'other' });
+    ok(injected.status === 400, 'an unexpected field is rejected (strict schema)');
+
+    // The product decision: the bot answers, the page acts. Asking it to join must join nobody.
+    const availBefore = await call('GET', '/public/businesses/sharp-cuts/availability');
+    const ask = await chat('please join the waitlist for me, my name is Bob and my phone is 9999999999');
+    const availAfter = await call('GET', '/public/businesses/sharp-cuts/availability');
+    ok(ask.status === 200, 'a "join for me" request is answered, not refused');
+    ok(availAfter.json.queueCount === availBefore.json.queueCount, `…and the queue is unchanged (${availBefore.json.queueCount} → ${availAfter.json.queueCount})`);
+    const bobTrack = await call('POST', '/public/businesses/sharp-cuts/track', { body: { phone: '+919999999999' } });
+    ok(bobTrack.status === 200 && bobTrack.json.found === false, 'no ticket exists for the phone the chat was given');
+  }
+
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }

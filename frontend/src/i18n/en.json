@@ -16,7 +16,8 @@
     "nameSecond": "Time",
     "poweredBy": "Powered by",
     "terms": "Terms",
-    "privacy": "Privacy"
+    "privacy": "Privacy",
+    "cookieSettings": "Cookie Settings"
   },
   "notFound": {
     "title": "We couldn’t find that business",
@@ -184,16 +185,40 @@
   },
   "landingData": {
     "proofSignals": [
-      { "name": "Online booking", "score": "24/7" },
-      { "name": "Optional walk-in waitlist", "score": "Live" },
-      { "name": "Mobile-friendly dashboard", "score": "Any device" },
-      { "name": "Personal pilot setup", "score": "Included" }
+      {
+        "name": "Online booking",
+        "score": "24/7"
+      },
+      {
+        "name": "Optional walk-in waitlist",
+        "score": "Live"
+      },
+      {
+        "name": "Mobile-friendly dashboard",
+        "score": "Any device"
+      },
+      {
+        "name": "Personal pilot setup",
+        "score": "Included"
+      }
     ],
     "proofStats": [
-      { "value": "9", "label": "Service industries" },
-      { "value": "Free", "label": "During the U.S. pilot" },
-      { "value": "24/7", "label": "Client booking page" },
-      { "value": "1", "label": "View for the whole day" }
+      {
+        "value": "9",
+        "label": "Service industries"
+      },
+      {
+        "value": "Free",
+        "label": "During the U.S. pilot"
+      },
+      {
+        "value": "24/7",
+        "label": "Client booking page"
+      },
+      {
+        "value": "1",
+        "label": "View for the whole day"
+      }
     ],
     "status": {
       "waiting": "Waiting",
@@ -420,44 +445,105 @@
       {
         "head": "Product",
         "links": [
-          { "label": "Online booking", "href": "/#booking" },
-          { "label": "Optional walk-in waitlist", "href": "/#walkins" },
-          { "label": "Client management", "href": "/#tour" },
-          { "label": "Pricing", "href": "/#pricing" }
+          {
+            "label": "Online booking",
+            "href": "/#booking"
+          },
+          {
+            "label": "Optional walk-in waitlist",
+            "href": "/#walkins"
+          },
+          {
+            "label": "Client management",
+            "href": "/#tour"
+          },
+          {
+            "label": "Pricing",
+            "href": "/#pricing"
+          }
         ]
       },
       {
         "head": "Industries",
         "links": [
-          { "label": "Hair salons", "href": "/industries/hair-salons" },
-          { "label": "Barbershops", "href": "/industries/barbershops" },
-          { "label": "Nail studios", "href": "/industries/nail-studios" },
-          { "label": "Spas", "href": "/industries/spas" },
-          { "label": "Med spas", "href": "/industries/med-spas" },
-          { "label": "Massage therapy", "href": "/industries/massage-therapy" },
+          {
+            "label": "Hair salons",
+            "href": "/industries/hair-salons"
+          },
+          {
+            "label": "Barbershops",
+            "href": "/industries/barbershops"
+          },
+          {
+            "label": "Nail studios",
+            "href": "/industries/nail-studios"
+          },
+          {
+            "label": "Spas",
+            "href": "/industries/spas"
+          },
+          {
+            "label": "Med spas",
+            "href": "/industries/med-spas"
+          },
+          {
+            "label": "Massage therapy",
+            "href": "/industries/massage-therapy"
+          },
           {
             "label": "Physical therapy",
             "href": "/industries/physical-therapy"
           },
-          { "label": "Tattoo studios", "href": "/industries/tattoo-studios" },
-          { "label": "Pet grooming", "href": "/industries/pet-grooming" }
+          {
+            "label": "Tattoo studios",
+            "href": "/industries/tattoo-studios"
+          },
+          {
+            "label": "Pet grooming",
+            "href": "/industries/pet-grooming"
+          }
         ]
       },
       {
         "head": "Resources",
         "links": [
-          { "label": "How it works", "href": "/#tour" },
-          { "label": "FAQ", "href": "/#faq" },
-          { "label": "Support", "href": "mailto:support@tejotime.com" },
-          { "label": "Resources hub", "href": "/resources" }
+          {
+            "label": "How it works",
+            "href": "/#tour"
+          },
+          {
+            "label": "FAQ",
+            "href": "/#faq"
+          },
+          {
+            "label": "Support",
+            "href": "mailto:support@tejotime.com"
+          },
+          {
+            "label": "Resources hub",
+            "href": "/resources"
+          }
         ]
       },
       {
         "head": "Legal",
         "links": [
-          { "label": "Privacy Policy", "href": "/privacy" },
-          { "label": "Terms of Service", "href": "/terms" },
-          { "label": "Accessibility", "href": "/accessibility" }
+          {
+            "label": "Privacy Policy",
+            "href": "/privacy"
+          },
+          {
+            "label": "Terms of Service",
+            "href": "/terms"
+          },
+          {
+            "label": "Accessibility",
+            "href": "/accessibility"
+          },
+          {
+            "label": "Cookie Policy",
+            "href": "/cookies"
+          }
         ]
       }
     ],
@@ -580,7 +666,11 @@
         ]
       }
     },
-    "inquiryPerks": ["Free setup", "No card", "Cancel anytime"],
+    "inquiryPerks": [
+      "Free setup",
+      "No card",
+      "Cancel anytime"
+    ],
     "hours": [
       "8:00 am",
       "9:00 am",
@@ -590,8 +680,18 @@
       "1:00 pm",
       "2:00 pm"
     ],
-    "providers": ["Devin R.", "Rosa M.", "Amina K.", "Theo B."],
-    "slots": ["10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM"],
+    "providers": [
+      "Devin R.",
+      "Rosa M.",
+      "Amina K.",
+      "Theo B."
+    ],
+    "slots": [
+      "10:00 AM",
+      "10:30 AM",
+      "11:00 AM",
+      "11:30 AM"
+    ],
     "appointments": [
       {
         "client": "Marcus T.",
@@ -688,6 +788,35 @@
         "time": "11:30 AM"
       }
     ]
+  },
+  "chat": {
+    "open": "Ask a question",
+    "close": "Close chat",
+    "title": "Ask {name}",
+    "subtitle": "Quick answers from this page",
+    "welcome": "Hi! Ask me about {name}’s hours, services or how the waitlist works.",
+    "chips": {
+      "hours": "Hours?",
+      "walkIns": "Walk-ins?",
+      "waitlist": "How does waitlist work?"
+    },
+    "placeholder": "Type your question…",
+    "send": "Send",
+    "thinking": "Typing…",
+    "errUnavailable": "Couldn’t reach the help assistant. Please try again, or use the buttons on this page.",
+    "errRateLimited": "Too many messages for now — please wait a few minutes and try again.",
+    "disclaimer": "AI/help answers may be imperfect. Use Join Waitlist / Book buttons to take action.",
+    "landing": {
+      "title": "Ask about TejoTime",
+      "subtitle": "Quick answers about the product",
+      "welcome": "Hi! I can explain what TejoTime does, who it’s for, what it costs and how to get started.",
+      "chips": {
+        "what": "What is TejoTime?",
+        "pricing": "How much does it cost?",
+        "start": "How do I get started?"
+      },
+      "disclaimer": "AI/help answers may be imperfect. Tap Request access to talk to the team."
+    }
   },
   "microsite": {
     "meta": {
@@ -1021,6 +1150,10 @@
       {
         "label": "Accessibility",
         "href": "/accessibility"
+      },
+      {
+        "label": "Cookie Policy",
+        "href": "/cookies"
       }
     ],
     "contactHeading": "Contact us",
@@ -1054,7 +1187,10 @@
       },
       {
         "heading": "2. Information we collect",
-        "paragraphs": ["We collect the following categories of information:"],
+        "paragraphs": [
+          "We collect the following categories of information:",
+          "For a full list of the cookies we set, what each one does, and how to change your choices at any time, see our Cookie Policy at /cookies."
+        ],
         "bullets": [
           "Account information — the phone number and password used to sign in, plus the name, role, and business details you enter when you create or join a business account.",
           "Business content — your business name, address, hours, services, prices, photos, staff names and photos, and anything else you publish to your booking page.",
@@ -1075,7 +1211,9 @@
       },
       {
         "heading": "4. How we use information",
-        "paragraphs": ["We use the information described above to:"],
+        "paragraphs": [
+          "We use the information described above to:"
+        ],
         "bullets": [
           "Create your account and sign you in securely.",
           "Operate your calendar, appointments, optional walk-in waitlist, and client records.",
@@ -1231,7 +1369,9 @@
       },
       {
         "heading": "7. Your responsibilities",
-        "paragraphs": ["When you use TejoTime, you agree to:"],
+        "paragraphs": [
+          "When you use TejoTime, you agree to:"
+        ],
         "bullets": [
           "Keep your business information, services, prices, and hours accurate and current.",
           "Have an appropriate basis to collect, store, and message your clients, including for reminders and confirmations.",
@@ -1242,7 +1382,9 @@
       },
       {
         "heading": "8. Acceptable use",
-        "paragraphs": ["You may not:"],
+        "paragraphs": [
+          "You may not:"
+        ],
         "bullets": [
           "Use TejoTime for anything unlawful, deceptive, harassing, or harmful.",
           "Publish content that is fraudulent, infringing, obscene, or that misrepresents your business or its reviews.",
@@ -1421,6 +1563,120 @@
         "paragraphs": [
           "If you are not satisfied with our response, reply to our email and ask for the report to be escalated. We will review it again and respond with our conclusion.",
           "This statement will be reviewed and updated as we address the limitations listed above."
+        ],
+        "bullets": []
+      }
+    ]
+  },
+  "consent": {
+    "banner": {
+      "title": "We use cookies",
+      "body": "We use cookies to run this site and, with your permission, to improve it.",
+      "policyLink": "Cookie Policy",
+      "acceptAll": "Accept All",
+      "rejectAll": "Reject All",
+      "customize": "Customize",
+      "label": "Cookie consent"
+    },
+    "modal": {
+      "title": "Cookie preferences",
+      "description": "Choose which cookies we use. Necessary ones keep the site running.",
+      "save": "Save Preferences",
+      "rejectAll": "Reject All",
+      "close": "Close cookie preferences",
+      "alwaysActive": "Always active",
+      "policyLink": "Read our Cookie Policy",
+      "footerNote": "You can change this any time from Cookie Settings in the footer."
+    },
+    "categories": {
+      "necessary": {
+        "name": "Necessary",
+        "description": "Keep the site working and remember your choice."
+      },
+      "analytics": {
+        "name": "Analytics",
+        "description": "Help us see which pages people use. Not in use today."
+      },
+      "marketing": {
+        "name": "Marketing",
+        "description": "Measure ads and show relevant ones. Not in use today."
+      },
+      "preferences": {
+        "name": "Preferences",
+        "description": "Remember choices like your language or region."
+      }
+    },
+    "settingsButton": "Cookie Settings",
+    "toggleOn": "on",
+    "toggleOff": "off"
+  },
+  "cookies": {
+    "metaTitle": "Cookie Policy — TejoTime",
+    "metaDescription": "Which cookies TejoTime uses, what each one does, how long it lasts, and how to change your choices at any time.",
+    "title": "Cookie Policy",
+    "lastUpdated": "Last updated: September 11, 2026",
+    "intro": "This Cookie Policy explains which cookies and similar technologies {entity} uses on tejotime.com and on the public booking pages we host, what each one is for, and how you can change your choices. Read it alongside our Privacy Policy.",
+    "sections": [
+      {
+        "heading": "1. What cookies are",
+        "paragraphs": [
+          "A cookie is a small text file a website stores in your browser. It lets a site remember something between page loads — for example that you already chose your cookie preferences, or that you are signed in.",
+          "Some technologies are not cookies but do a similar job. Our public booking pages use your browser's local storage to remember your place in a queue. We treat that the same way we treat a necessary cookie, and it is listed below."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "2. What TejoTime actually uses today",
+        "paragraphs": [
+          "We want to be precise here, because a cookie policy that lists cookies a site does not set is misleading.",
+          "TejoTime currently sets NO analytics cookies and NO marketing or advertising cookies. There is no Google Analytics, no advertising pixel, and no third-party tracker on this website. The Analytics and Marketing categories appear in your cookie settings so that your choice is already recorded and respected if we ever introduce them — until then, leaving them on changes nothing and sets nothing.",
+          "Every cookie below is a first-party cookie, meaning it is set by TejoTime and not by an outside company. We do not sell or share personal information with third parties for advertising."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "3. The cookies we use",
+        "paragraphs": [
+          "cookie_consent — Stores your cookie choices and a random identifier for that record, so we can prove what you agreed to and not ask you again on every page. Category: Necessary. Duration: 6 months. First party.",
+          "tt_owner_at and tt_owner_rt — Keep a business owner or staff member signed in to the owner portal at business.tejotime.com. These are set when signing in there, not by this website. Category: Necessary. Duration: about 15 minutes and 30 days. First party.",
+          "tt_admin_session — Keeps a TejoTime staff member signed in to our internal admin panel. Set only on that panel, not by this website. Category: Necessary. Duration: about 12 hours. First party.",
+          "Booking page local storage — On a business's public booking page, your browser stores your current queue ticket so you can close the tab and still return to your place in line. Category: Necessary and functional. Duration: until you leave the queue or clear your browser data. First party."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "4. What the categories mean",
+        "paragraphs": [
+          "Your cookie settings group everything into four categories."
+        ],
+        "bullets": [
+          "Necessary — Required for the site to work at all: remembering your cookie choice, keeping you signed in, and holding your place in a queue. These cannot be switched off, because switching them off would break the thing you came to do.",
+          "Analytics — Would tell us which pages people use and where they get stuck, so we can improve them. Nothing in this category is in use today.",
+          "Marketing — Would measure advertising and show more relevant ads. Nothing in this category is in use today.",
+          "Preferences — Would remember choices such as language or region to personalise your visit. Nothing in this category is in use today."
+        ]
+      },
+      {
+        "heading": "5. How to change your choices",
+        "paragraphs": [
+          "Select Cookie Settings in the footer of any page to reopen the preferences panel and change any optional category. Your change takes effect immediately.",
+          "If you withdraw consent for a category you previously allowed, we stop using it straight away and remove any cookies that category had set.",
+          "You can also block or delete cookies in your browser settings. Blocking necessary cookies will stop parts of the site working — you may be signed out, or lose your place in a queue."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "6. How long your choice is kept",
+        "paragraphs": [
+          "Your cookie choice is stored for 6 months, after which we ask again. We will also ask again sooner if we change what the categories cover, so your consent always matches what we actually do.",
+          "We keep a record of each choice — the random identifier from your cookie, which categories you allowed, the policy version, the time, and the country your request came from — so that we can demonstrate consent if asked. We do not store your IP address or your browser's user agent with it."
+        ],
+        "bullets": []
+      },
+      {
+        "heading": "7. More information",
+        "paragraphs": [
+          "Our Privacy Policy at /privacy explains what personal information we collect and your rights over it, including how to request access or deletion. If you have a question about this policy, contact us using the details below."
         ],
         "bullets": []
       }

@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
 
 import { Logo } from "@/components/landing/Logo";
 import { Button } from "@/components/landing/ui";
+import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton";
 import { footerCols, nav } from "@/components/landing/landingData";
 import { shell } from "@/components/landing/shell";
 import { t } from "@/i18n";
@@ -124,6 +125,13 @@ export function MarketingChrome({ children }: { children: ReactNode }) {
                     {fl.label}
                   </Link>
                 ))}
+                {/* Same control as the homepage footer — see the note there. */}
+                {fc.head === footerCols[footerCols.length - 1].head && (
+                  <CookieSettingsButton
+                    className="tj-footlink"
+                    style={{ font: "var(--fw-medium) 14px/1.35 var(--font-sans)", color: "var(--text-body)" }}
+                  />
+                )}
               </div>
             ))}
           </div>

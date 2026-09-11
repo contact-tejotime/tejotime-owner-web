@@ -79,6 +79,25 @@ const schema = z.object({
   /** Optional override: when set, ALL alert sends go here (never message real customers in test). */
   TWILIO_TEST_TO: z.string().default(''),
 
+  /**
+   * Customer microsite chatbot (docs/customer-chatbot-v1.md). OFF by default: the widget is
+   * hidden and the endpoint answers 404 until an operator turns it on. With the flag on but no
+   * provider (or no key) it still answers — from the store's FAQs and public facts, with no
+   * external call at all. A provider is an optional upgrade, never a requirement, and the free
+   * tiers (Gemini, Groq) are the intended defaults; OpenAI is accepted but never assumed.
+   */
+  CHATBOT_ENABLED: boolish(false),
+  CHATBOT_PROVIDER: z.enum(['none', 'gemini', 'groq', 'openai']).default('none'),
+  /** Server-side only. Never mirrored into a NEXT_PUBLIC_* / EXPO_PUBLIC_* variable. */
+  CHATBOT_API_KEY: z.string().default(''),
+  /** Blank ⇒ the provider's free-tier default in integrations/chatbot.ts. */
+  CHATBOT_MODEL: z.string().default(''),
+  /** How many prior turns the client may send back; the bot itself stores nothing. */
+  CHATBOT_MAX_HISTORY: z.coerce.number().int().min(0).max(20).default(8),
+  CHATBOT_MAX_MESSAGE_CHARS: z.coerce.number().int().min(50).max(2000).default(500),
+  /** A slow model must degrade to the FAQ answer, not hang the page. */
+  CHATBOT_TIMEOUT_MS: z.coerce.number().int().positive().default(8_000),
+
   OTP_LENGTH: z.coerce.number().int().min(4).max(8).default(4),
   OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),

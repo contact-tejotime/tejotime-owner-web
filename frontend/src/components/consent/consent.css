@@ -1,0 +1,460 @@
+/*
+ * Cookie banner + preferences modal.
+ *
+ * COLOUR. Primary actions use --primary / --primary-hover, which is the same blue the hero's
+ * "Start Free" button paints with (components/landing/ui.tsx, variant="primary"). That button is
+ * a component with inline styles rather than a CSS class, so there is no class to share — binding
+ * to the same tokens is what actually keeps the two identical. --brand-accent (the orange in the
+ * logo wordmark) is now used for ONE thing here: the tint behind the cookie glyph.
+ *
+ * globals.css defines no dark-mode tokens, so there is deliberately no dark variant; inventing
+ * one would make this the only component in the app with a second, unmatched colour scheme.
+ */
+
+/* =============================================================================== banner == */
+
+.ttConsentBanner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* z-index comes from Z_INDEX in lib/consent.ts and is applied inline. */
+
+  background: color-mix(in srgb, var(--surface-card) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-subtle);
+  /* Rounded top only — it is a bar anchored to the floor, not a floating card. */
+  border-radius: 16px 16px 0 0;
+  /* Soft and wide rather than a hard drop shadow: it should lift off the page, not stamp on it. */
+  box-shadow: 0 -8px 32px -8px rgba(0, 0, 0, 0.18);
+  padding: 0;
+
+  /* Mounted hidden, revealed only once the cookie check resolves, so there is no flash of banner
+     for a visitor who already answered. Opacity + transform only — both composited, so the
+     entrance costs no layout and shifts nothing. */
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 240ms var(--ease-standard),
+    transform 240ms var(--ease-standard);
+}
+.ttConsentBanner.isIn {
+  opacity: 1;
+  transform: none;
+}
+
+/*
+ * The bar is full-bleed; its CONTENT sits on the page grid.
+ *
+ * 1240px with 40px gutters is the homepage's own container (page.tsx MAX/PAD), so the cookie
+ * icon starts on the same vertical line as "Online booking" and "Privacy Policy" in the footer
+ * directly above it. A full-bleed bar whose content floats wherever the viewport puts it is the
+ * thing that reads as a bolted-on third-party widget.
+ *
+ * Marketing subpages use a slightly narrower shell (1120/32px), so on those the alignment is
+ * ~50px out at wide viewports — visible only if you look for it, and not worth a second
+ * container to chase.
+ */
+.ttConsentBannerInner {
+  max-width: 1240px;
+  margin-inline: auto;
+  /* 20px matches the page's small-screen gutter, which globals.css drops to at
+     `@container page (max-width: 680px)`. A container query cannot reach this element — the
+     banner is fixed and sits outside `.tj-page` — so the equivalent media query is used, and the
+     two stay in step because that container spans the viewport. */
+  padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+@media (min-width: 681px) {
+  .ttConsentBannerInner {
+    padding-inline: 40px;
+  }
+}
+@media (min-width: 768px) {
+  .ttConsentBannerInner {
+    padding-block: 16px;
+    flex-direction: row;
+    align-items: center;
+    gap: 24px;
+  }
+}
+
+/* Icon + copy together, so the banner has an anchor instead of opening as a wall of grey type. */
+.ttConsentHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ttConsentIcon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-accent);
+  background: color-mix(in srgb, var(--brand-accent) 12%, var(--surface-card));
+}
+
+/* Mobile: stacked, full-width, Accept first and Customize last. */
+.ttConsentActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 768px) {
+  .ttConsentActions {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+}
+
+/*
+ * Reduced motion: fade only, no movement.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .ttConsentBanner,
+  .ttConsentBanner.isIn {
+    transform: none;
+    transition: opacity 240ms var(--ease-standard);
+  }
+  .ttConsentSheet,
+  .ttConsentScrim {
+    animation: none !important;
+  }
+  .ttConsentSwitchTrack,
+  .ttConsentSwitchKnob {
+    transition: none !important;
+  }
+}
+
+/* ============================================================================== buttons == */
+
+/*
+ * Accept All and Reject All are the same height, font size and font weight.
+ *
+ * This is a legal requirement under the EDPB's dark-pattern guidance, not a style preference:
+ * refusing must be as easy as accepting, so Reject cannot be a quieter or smaller control. Only
+ * Customize — which is neither accepting nor refusing — may be less prominent, and even it gets
+ * a real resting affordance (see below).
+ */
+.ttConsentBtn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  font: var(--fw-semibold) var(--fs-body-md) / 1 var(--font-sans);
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+
+/* The hero CTA's blue, via the same tokens it uses. */
+.ttConsentBtnPrimary {
+  background: var(--primary);
+  color: #fff;
+  border: 1px solid transparent;
+}
+.ttConsentBtnPrimary:hover {
+  background: var(--primary-hover);
+}
+
+.ttConsentBtnOutline {
+  background: transparent;
+  color: var(--brand-ink);
+  border: 1.5px solid var(--brand-ink);
+}
+.ttConsentBtnOutline:hover {
+  background: color-mix(in srgb, var(--brand-ink) 6%, transparent);
+}
+
+/* Ghost, but never inert: it carries a resting border and a neutral hover so it reads as a
+   control at rest rather than as a stray line of text. */
+.ttConsentBtnGhost {
+  background: transparent;
+  color: var(--text-body);
+  border: 1px solid var(--border-subtle);
+  font-weight: var(--fw-medium);
+}
+.ttConsentBtnGhost:hover {
+  background: var(--gray-100);
+  color: var(--text-strong);
+  border-color: var(--border-default);
+}
+
+/*
+ * Modal footer buttons are the taller 44px control.
+ *
+ * `flex: 1` ONLY once the footer is a row. While stacked on a phone the footer is a column, and
+ * `flex: 1` there sets a zero basis along the vertical axis — the buttons collapsed to 17px.
+ */
+.ttConsentFooter .ttConsentBtn {
+  height: var(--control-h-md);
+  flex: none;
+  width: 100%;
+}
+@media (min-width: 768px) {
+  .ttConsentFooter .ttConsentBtn {
+    flex: 1;
+    width: auto;
+  }
+}
+
+/* =============================================================================== modal == */
+
+.ttConsentScrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: ttConsentFade 200ms var(--ease-standard) both;
+}
+@media (min-width: 768px) {
+  .ttConsentScrim {
+    align-items: center;
+    padding: 24px;
+  }
+}
+
+/*
+ * Sticky header / scrolling list / sticky footer.
+ *
+ * The whole sheet used to scroll, so on a short laptop (1366×768) it ran past the viewport and
+ * the Save button went with it. Capping the sheet and letting ONLY the category list scroll
+ * keeps both the title and the actions on screen at every height.
+ */
+.ttConsentSheet {
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-card);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.18);
+  border-radius: 20px 20px 0 0;
+  animation: ttConsentUp 240ms var(--ease-standard) both;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (min-width: 768px) {
+  .ttConsentSheet {
+    max-width: 520px;
+    max-height: 78vh;
+    border-radius: 16px;
+    animation: ttConsentPop 200ms var(--ease-standard) both;
+  }
+}
+
+@keyframes ttConsentFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ttConsentUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ttConsentPop {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Drag handle — a phone affordance; meaningless on a centred desktop card. */
+.ttConsentGrab {
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--gray-300);
+  margin: 8px auto 0;
+  flex-shrink: 0;
+}
+@media (min-width: 768px) {
+  .ttConsentGrab {
+    display: none;
+  }
+}
+
+.ttConsentHeader {
+  flex-shrink: 0;
+  padding: 20px 24px 12px;
+}
+
+.ttConsentBody {
+  flex: 1;
+  min-height: 0; /* without this a flex child refuses to shrink and the sheet overflows */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 24px 16px;
+}
+
+.ttConsentFooter {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-subtle);
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ttConsentFooterRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+@media (min-width: 768px) {
+  .ttConsentFooterRow {
+    flex-direction: row;
+  }
+}
+
+/* A real 32px target with a hover state, not a bare glyph floating in the corner. */
+.ttConsentClose {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+.ttConsentClose:hover {
+  background: var(--gray-100);
+  color: var(--text-strong);
+}
+
+/*
+ * All four rows share one surface. Necessary previously had a filled grey card, which read as
+ * "selected" rather than "locked" — the only thing that should mark it is the pill and a dimmed
+ * control area.
+ */
+.ttConsentRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+}
+.ttConsentRow + .ttConsentRow {
+  margin-top: 8px;
+}
+.ttConsentRowControl {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.ttConsentRow.isLocked .ttConsentRowControl {
+  opacity: 0.75;
+}
+
+.ttConsentPill {
+  font: var(--fw-semibold) 12px/1 var(--font-sans);
+  color: var(--success-soft-fg);
+  background: var(--success-soft);
+  border-radius: var(--radius-pill);
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+/* ============================================================================== toggle == */
+
+.ttConsentSwitch {
+  flex-shrink: 0;
+  width: 44px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  display: block;
+}
+.ttConsentSwitchTrack {
+  display: block;
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--gray-200);
+  transition: background 180ms var(--ease-standard);
+}
+.ttConsentSwitch[aria-checked="true"] .ttConsentSwitchTrack {
+  background: var(--primary);
+}
+.ttConsentSwitchKnob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.24);
+  transition: transform 180ms var(--ease-standard);
+}
+.ttConsentSwitch[aria-checked="true"] .ttConsentSwitchKnob {
+  transform: translateX(20px);
+}
+
+/* =============================================================================== focus == */
+
+/* One keyboard-only focus style for every interactive part of both surfaces. */
+.ttConsentBtn:focus-visible,
+.ttConsentSwitch:focus-visible,
+.ttConsentLink:focus-visible,
+.ttConsentClose:focus-visible,
+.ttConsentSettingsBtn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/*
+ * The policy link is body text with an underline, not a standalone orange block — the previous
+ * treatment read as an error link. It picks up the brand accent only on hover.
+ */
+.ttConsentLink {
+  color: var(--text-body);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: var(--fw-medium);
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+.ttConsentLink:hover {
+  color: var(--brand-accent);
+}
+
+/* Footer "Cookie Settings" — a button that must sit inline among anchor links. */
+.ttConsentSettingsBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}

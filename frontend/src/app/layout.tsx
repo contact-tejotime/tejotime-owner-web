@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display, Plus_Jakarta_Sans, Yellowtail } from "next/font/google";
 import { t } from "@/i18n";
+import { ConsentProvider } from "@/components/consent/ConsentProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -62,7 +63,9 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${jakarta.variable} ${yellowtail.variable} ${playfairDisplay.variable}`}
     >
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <ConsentProvider>{children}</ConsentProvider>
+      </body>
     </html>
   );
 }
