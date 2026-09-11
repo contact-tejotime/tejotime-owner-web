@@ -262,7 +262,6 @@ export function QueueBoard() {
   const s = useMemo(() => createQueueStyles(theme), [theme]);
 
   const groupsAll = store.seats;
-  const seatColumns = columns(SEAT_BOARD_MIN_WIDTH, { gutter: 14, max: 2 });
   const isStaff = store.session?.role === 'staff';
   const hideAllChip = isStaff || groupsAll.length <= 1;
   const allView = !hideAllChip && store.queueStaff === 'all';
@@ -288,6 +287,15 @@ export function QueueBoard() {
       waitingTotal: waiting,
     };
   }, [groupsAll, allView, store.queueStaff, hideAllChip]);
+
+  // Clamped by how many seats are actually on screen, not just by how many would fit. A shop with
+  // one chair (or a single seat picked from the chips) was still being handed a 2-column grid, so
+  // its only board rendered at 48.5% and left half the tablet empty next to full-width controls.
+  // Seats are a handful of fixed items, not a list that grows — so a lone one should span.
+  const seatColumns = Math.min(
+    columns(SEAT_BOARD_MIN_WIDTH, { gutter: 14, max: 2 }),
+    Math.max(groups.length, 1),
+  );
 
   return (
     <>

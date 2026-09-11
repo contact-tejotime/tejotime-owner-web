@@ -156,7 +156,10 @@ observability/     health.ts (/healthz liveness, /readyz db-readiness)
   `middleware/error-handler.ts`.
 - Public surface (`/public/*`, no auth): microsite by slug **and by phone**, vCard `.vcf`,
   availability, staff availability, bookable slots, join queue, book slot, track by phone,
-  ticket read/leave, inquiry submission.
+  ticket read/leave, inquiry submission, cookie-consent logging (`POST /consent` — see
+  [docs/cookie-consent-v1.md](docs/cookie-consent-v1.md)), and the read-only **help chat** — per-store
+  (`POST /businesses/:key/chat`) and for the marketing site (`POST /chat`, `GET /chat/status`).
+  See [docs/customer-chatbot-v1.md](docs/customer-chatbot-v1.md).
 - Admin surface (`/admin/*`) is gated by a separate admin JWT and re-checks the `admins` row on
   **every** request, so a demotion/deactivation bites immediately.
 - Webhooks: `/webhooks/whatsapp` (GET verify + POST), `/webhooks/payments`, `/webhooks/sms`.
@@ -410,6 +413,7 @@ it in the Appearance panel with a live `?preview=1` iframe of the microsite (gat
 | Email | SES/Postmark | **Deferred no-op** (`EMAIL_ENABLED=false`) |
 | Payments | Razorpay/Stripe | **Deferred** — `upgrade()` flips the plan directly when `PAYMENTS_ENABLED=false` |
 | OTP | — | **Deferred stub** (`OTP_ENABLED=false`) |
+| Help chat (store microsite + marketing landing page) | **Gemini / Groq free tier** behind `CHATBOT_PROVIDER`; a key-free FAQ/facts matcher underneath | **Shipped**, `CHATBOT_ENABLED` default false |
 
 Every integration is a **seam**: an interface plus a flag-gated implementation that logs and
 returns `{ id: null }` when disabled. Wire a provider behind the existing interface rather than
@@ -482,7 +486,8 @@ Tunables: `JWT_ACCESS_TTL` 900, `JWT_REFRESH_TTL` 2592000, `JWT_ADMIN_TTL` 43200
 `S3_DOWNLOAD_URL_TTL` 3600, `CORS_ALLOWED_ORIGINS` (comma-separated; empty ⇒ allow all).
 
 Feature flags (all default **false**): `OTP_ENABLED`, `PAYMENTS_ENABLED`, `SMS_ENABLED`,
-`EMAIL_ENABLED`, `WHATSAPP_ENABLED`.
+`EMAIL_ENABLED`, `WHATSAPP_ENABLED`, `CHATBOT_ENABLED` (+ `CHATBOT_PROVIDER` `none|gemini|groq|openai`,
+`CHATBOT_API_KEY`, `CHATBOT_MODEL` — server-side only; no key needed for the FAQ-only mode).
 
 Client vars: `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_SOCKET_URL`, `NEXT_PUBLIC_ASSET_PREFIX`,
 `NEXT_PUBLIC_ADMIN_ORIGIN`, `NEXT_PUBLIC_OWNER_ORIGIN`, `NEXT_PUBLIC_FRONTEND_URL` (frontend/
@@ -503,7 +508,10 @@ kept honest by generator scripts. **Never hand-edit a mirror.**
 | Theme engine | `frontend/src/theme/engine/` | `admin-panel`, `owner-web`, `app` | `npm run sync:theme` / `check:theme` |
 | Image cropper | `admin-panel/src/components/image-crop/` | `owner-web` | `npm run sync:crop` / `check:crop` |
 
-Plus `npm run check:axes` — every editable theme axis must appear in **every** file that
+Plus `npm run check:chat-facts` — the marketing chatbot's fact sheet
+(`backend/src/lib/chat-platform.ts`) is a hand-mirror of the landing copy in
+`frontend/src/i18n/en.json`; the guard fails if a price, plan or FAQ drifts.
+And `npm run check:axes` — every editable theme axis must appear in **every** file that
 hand-lists them (including each Appearance panel's `key()` dirty-check; an axis missing there is
 silently **unsaveable**, with no error).
 And `npm run test:theme` — the framework-free theme engine self-check (parity, contrast, ramps,
@@ -565,12 +573,13 @@ Checklist for any owner-facing change:
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **6 vitest files, 52 tests**, run with `npm test` in `backend/`
+- `backend/tests/unit/` — **12 vitest files, 131 tests**, run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
-  Five cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `whatsapp`,
-  `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
+  Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `whatsapp`,
+  `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
   `vi.setSystemTime`, no DB).
-  The sixth, `whatsapp-webhook.test.ts`, is different and is **the pattern to copy**: it mounts a
+  `whatsapp-webhook.test.ts` (followed by `public-chat.test.ts` and `chatbot.test.ts` for the
+  help chat, with `fetch` stubbed) is different and is **the pattern to copy**: it mounts a
   real router into a throwaway `express()` app and drives it with **`supertest`**, using
   `vi.resetModules()` + a stubbed `process.env` so the zod env validator boots. It needs **no
   database and no running server**.
@@ -718,7 +727,9 @@ guarded with `require.resolve` so a production runtime without it degrades to JS
 
 `middleware/rate-limit.ts` — **in-memory** (single instance only), all returning the standard
 error envelope: `global` 600/min, `ownerRead` 300/min and `ownerWrite` 120/min (keyed per user),
-`publicRead` 60/min, `publicWrite` 20/hr, `inquiries` 8/hr, `otp` 5/hr, and a layered login pair —
+`publicRead` 60/min, `publicWrite` 20/hr, `inquiries` 8/hr, `publicChat` 20/hr (microsite help chat),
+`consent` 60/hr (cookie-consent log — roomier than publicWrite so a withdrawal is never throttled),
+`otp` 5/hr, and a layered login pair —
 `login` 10 per 5min keyed on **(IP, phone)** so colleagues on one Wi-Fi don't lock each other
 out, behind `loginIp` 60 per 5min so rotating the phone number isn't a bypass.
 

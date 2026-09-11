@@ -169,6 +169,29 @@ export async function getMicrositeByPhone(phoneDigits: string) {
   return buildMicrosite(b);
 }
 
+/**
+ * Either key a microsite URL can carry: the slug (`/sharp-cuts`, and every follow-on call the
+ * client makes) or the digits-only full phone (`/919399385943`). One query, both columns, so a
+ * caller that only has what is in its address bar never has to know which kind it holds.
+ */
+export async function resolveBusinessByKey(key: string) {
+  const k = key.trim();
+  const data = await one(
+    'select * from business where (slug = $1 or phone_full = $1) and is_active = true',
+    [k],
+  );
+  if (!data) throw Errors.notFound('Business not found');
+  return data;
+}
+
+export async function getMicrositeByKey(key: string) {
+  const b = await resolveBusinessByKey(key);
+  return buildMicrosite(b);
+}
+
+/** The public microsite payload — what the page renders and what the chatbot may speak from. */
+export type MicrositeDTO = Awaited<ReturnType<typeof buildMicrosite>>;
+
 async function buildMicrosite(b: any) {
   // Single round-trip wave: hours/amenities/gallery run alongside the queue context,
   // which already loads active services (reused below instead of a duplicate query).
@@ -261,6 +284,9 @@ async function buildMicrosite(b: any) {
     // Full theme config (jsonb). NULL for stores provisioned before 0017 — the frontend
     // theme engine then falls back to the legacy config, seeded by themeColor.
     theme: b.theme ?? null,
+    // Platform-wide flag, surfaced per payload so the page can hide the chat widget without a
+    // second request — and so a cached payload from before the feature simply hides it.
+    chatbotEnabled: env.CHATBOT_ENABLED,
   };
 }
 

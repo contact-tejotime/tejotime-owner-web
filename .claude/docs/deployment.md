@@ -110,7 +110,11 @@ dashboard**):
 `S3_DOWNLOAD_URL_TTL` 3600 · `CORS_ALLOWED_ORIGINS` (comma-separated; **empty ⇒ allow all**).
 
 **Feature flags, all default `false`:** `OTP_ENABLED`, `PAYMENTS_ENABLED`, `SMS_ENABLED`,
-`EMAIL_ENABLED`, `WHATSAPP_ENABLED`.
+`EMAIL_ENABLED`, `WHATSAPP_ENABLED`, `CHATBOT_ENABLED`.
+
+**Microsite chatbot:** `CHATBOT_PROVIDER` (`none` default · `gemini` · `groq` · `openai`),
+`CHATBOT_API_KEY` (server-side only), `CHATBOT_MODEL` (blank ⇒ free-tier default). With the flag
+on and no provider it still answers from FAQs — no key required. See `docs/customer-chatbot-v1.md`.
 
 ### Client vars and the build-time trap
 

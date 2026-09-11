@@ -108,6 +108,15 @@ The bucket is private, so there is no CDN/public base URL: stored image URLs poi
 | `RAZORPAY_WEBHOOK_SECRET` | — |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | — |
 
+### Chatbot — customer microsite ([customer-chatbot-v1](./customer-chatbot-v1.md))
+| Var | Default | Notes |
+|---|---|---|
+| `CHATBOT_ENABLED` | `false` | Master switch: widget hidden **and** endpoint 404s while off |
+| `CHATBOT_PROVIDER` | `none` | `none` \| `gemini` \| `groq` \| `openai` — `none` answers from FAQs/facts with no key |
+| `CHATBOT_API_KEY` | — | Key for the chosen provider; server-side only, never `NEXT_PUBLIC_*` |
+| `CHATBOT_MODEL` | — | Blank ⇒ `gemini-2.5-flash-lite` / `llama-3.1-8b-instant` / `gpt-4o-mini` |
+| `CHATBOT_MAX_HISTORY` / `CHATBOT_MAX_MESSAGE_CHARS` / `CHATBOT_TIMEOUT_MS` | `8` / `500` / `8000` | Bounds on the stateless request; a slow model degrades to the FAQ answer |
+
 ### Observability
 | Var | Example |
 |---|---|
