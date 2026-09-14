@@ -17,8 +17,13 @@ actually bitten.
 
 Each environment has its **own** Postgres plugin and its **own** Bucket.
 
-The Expo app is **not** deployed here — it is built with EAS (`app/eas.json`,
-`npm run build:preprod` / `build:prod`) and points at the live API.
+The Expo app is **not** deployed here — it is built with EAS (`app/eas.json`) and points at the
+live API. Full Play Store runbook: [docs/mobile-android-release.md](../../docs/mobile-android-release.md).
+
+> `npm run build:prod` builds a **local APK signed with the debug keystore** — internal
+> distribution only, and Play rejects it. The store bundle (`.aab`) is `npm run eas:prod`.
+> No production build has been cut yet; the first one needs an EAS login and a one-time
+> keystore decision.
 
 ### Release flow
 
