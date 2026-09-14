@@ -104,6 +104,7 @@ export const config = {
   // redirected to HTML and render as broken images. Excluding static assets also keeps the
   // refresh above from firing many times per page load.
   matcher: [
-    "/((?!login|api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // api/chat is public (login-page help widget) — same exclusion pattern as api/auth.
+    "/((?!login|api/auth|api/chat|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

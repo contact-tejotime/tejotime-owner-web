@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-09-11 · branch `feat-jay`.
+**Last updated:** 2026-09-14 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,12 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Owner-web help chat (2026-09-14)
+
+The product chatbot now also mounts on `owner-web` (login + signed-in shell) via BFF
+`/api/chat` → `POST /public/chat`. Same `CHATBOT_ENABLED` flag as marketing/microsite. Not on
+Expo or admin-panel. See [docs/customer-chatbot-v1.md](../../docs/customer-chatbot-v1.md) §5c.
 
 ### Cookie consent, GDPR/CCPA (2026-09-11)
 
