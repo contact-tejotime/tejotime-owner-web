@@ -2,14 +2,15 @@
 
 **Status:** shipped 2026-09-11, **off by default** (`CHATBOT_ENABLED=false`).
 
-**Two surfaces, both in `frontend/`, one flag and one widget:**
+**Three surfaces, one flag (`CHATBOT_ENABLED`) and one widget pattern:**
 
 | Surface | URL | Answers about | Endpoint |
 |---|---|---|---|
 | Customer store microsite | `tejotime.com/{phone}` | one shop: hours, services, prices, team, live wait | `POST /public/businesses/:key/chat` |
 | Marketing landing page | `tejotime.com/` | the product: what it is, who for, price, getting started | `POST /public/chat` |
+| Owner portal (`owner-web`) | `business.tejotime.com` | same product brain as marketing (via BFF `/api/chat`) | `POST /public/chat` |
 
-Still **not** on owner-web, the admin panel, the Expo app, or WhatsApp.
+Still **not** on the admin panel, the Expo app, or WhatsApp.
 
 A help assistant that answers from what its page already shows, and points at that page's own
 buttons when the visitor wants to *do* something. It requires **no paid API key**: with nothing
@@ -24,7 +25,7 @@ different set of facts.
 
 | Is | Is not |
 |---|---|
-| A chat launcher on the microsite (`MicrositeClient`) | On owner-web, the admin panel, the mobile app, or WhatsApp |
+| A chat launcher on the microsite (`MicrositeClient`), marketing homepage, and owner portal (`owner-web`) | On the admin panel, the mobile app, or WhatsApp |
 | Answers from `business.faqs` + public store facts (hours, open/closed, address, phone, services and prices, team, live wait) | A source of anything not on the page — it must not invent prices, hours, services or policies |
 | Suggests the page's own buttons: **Join the Waitlist**, **Book an Appointment**, **Check Waitlist Status**, **Call**, **See FAQs** | An actor — it never joins a queue, books a slot, checks anyone out, or calls any mutating API |
 | Stateless: the client sends its last few turns with each message | Persisted: no table, no session store, nothing keyed on `sessionId` |
@@ -215,6 +216,15 @@ has no business context.
   `tests/unit/chat-platform.test.ts` pins exactly that, including a regex that fails if any
   dollar figure appears in a pricing answer.
 
+### 5c. Owner portal (`owner-web`)
+
+Same product brain as §5b (`POST /public/chat`), but the browser never calls the API directly:
+
+- BFF: `GET /api/chat/status`, `POST /api/chat` → backend public chat
+- Proxy matcher excludes `api/chat` so the widget works on `/login` without a session
+- UI: `OwnerHelpChat` in the root layout; suggested actions open support mailto/tel,
+  subscription settings when signed in, or the marketing site for product/FAQ
+
 ### Shared machinery
 
 `backend/src/lib/chat-text.ts` holds the ranking both bots use (normalise → tokenise → score →
@@ -225,7 +235,7 @@ a `send` function, its copy, and an `onAction` callback, and knows nothing about
 
 ## 6. Limitations (v1)
 
-- **One flag for both surfaces.** `CHATBOT_ENABLED` turns the store bot and the marketing bot on
+- **One flag for all surfaces.** `CHATBOT_ENABLED` turns store, marketing, and owner-web bots on
   together; there is no per-store or per-surface toggle yet.
 - **The marketing facts are a hand-mirror.** Guarded by `npm run check:chat-facts`, but that
   guard is not wired into CI, so run it after editing landing copy.

@@ -959,5 +959,23 @@
     "staffSubtitle": "Seats and team members",
     "servicesTitle": "Services",
     "servicesSubtitle": "What customers can book"
+  },
+  "chat": {
+    "open": "Ask a question",
+    "close": "Close chat",
+    "title": "Ask about TejoTime",
+    "subtitle": "Quick answers for business owners",
+    "welcome": "Hi! I can explain how TejoTime works, pricing, and how to get help signing in.",
+    "chips": {
+      "what": "What is TejoTime?",
+      "pricing": "How much does it cost?",
+      "help": "Need help signing in?"
+    },
+    "placeholder": "Type your question…",
+    "send": "Send",
+    "thinking": "Typing…",
+    "errUnavailable": "Couldn’t reach the help assistant. Please try again, or email support@tejotime.com.",
+    "errRateLimited": "Too many messages for now — please wait a few minutes and try again.",
+    "disclaimer": "AI/help answers may be imperfect. Email or call support for account help."
   }
 }
