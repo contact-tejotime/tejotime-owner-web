@@ -460,8 +460,10 @@ plugin and Bucket. Full runbook: [DEPLOY.md](DEPLOY.md).
 - `NEXT_PUBLIC_*` are **baked in at build time** — after changing one you must **redeploy**, not
   restart. They are declared as `ARG`s in the Dockerfiles because Railway does not pass service
   variables into `docker build`.
-- The Expo app is **not** deployed here; it is built with EAS (`app/eas.json`,
-  `npm run build:preprod` / `build:prod`) and points at the live API.
+- The Expo app is **not** deployed here; it is built with EAS (`app/eas.json`) and points at the
+  live API. `npm run build:preprod` / `build:prod` produce **local APKs signed with the debug
+  keystore** (internal only — Play rejects them); the Play Store bundle is `npm run eas:prod`,
+  which yields an `.aab`. Runbook: [docs/mobile-android-release.md](docs/mobile-android-release.md).
 
 **CI** — `.github/workflows/ci.yml`, **pull requests only, no deploys**. `dorny/paths-filter`
 gates four jobs: `frontend`/`admin` run `npm ci && lint && build`, `mobile` runs `tsc --noEmit`,
