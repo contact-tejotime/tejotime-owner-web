@@ -1,12 +1,12 @@
 import { exec, many, one } from '../../db/pool';
 import { money, servicePricing } from '../../domain/money';
 import { callRpc } from '../../db/rpc';
-import { env } from '../../config/env';
 import { SERVICE_EXTRAS, OPTIONAL_SERVICES_STAFF_CATEGORIES, VISITOR_TYPE_CATEGORIES } from '../../config/constants';
 import { Errors } from '../../domain/errors';
 import { normalizePhone } from '../../lib/phone';
 import { initials } from '../../lib/format';
-import { shouldNotifyEta15 } from '../../lib/eta-notify';
+import { shouldNotifyEta } from '../../lib/eta-notify';
+import { ETA_NOTIFY_2_MINUTES, ETA_NOTIFY_15_MINUTES, SMS_TEMPLATES, smsBodyEta, smsBodyYourTurn } from '../../lib/sms-copy';
 import {
   buildSeatGroups,
   flatCards,
@@ -16,7 +16,7 @@ import {
   SeatGroupVM,
 } from '../../lib/queue-engine';
 import { emitToOwners, emitToPublic, emitToTicket } from '../../realtime/emitters';
-import { whatsappSender } from '../../integrations/whatsapp';
+import { smsSender } from '../../integrations/sms';
 import { findOrCreateCustomer } from '../customers/customer.repo';
 import { loadQueueContext, QueueContext, RawEntry } from './queue.context';
 
@@ -252,31 +252,51 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
       const claimed = await claimNotifyStamp(entry.id, 'notified_turn_at');
       if (claimed) {
         emitToTicket(entry.id, 'ticket:ready', { token: entry.token });
-        await recordAlertNotification(businessId, entry, 'your_turn', "It's your turn — please head in.");
+        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.yourTurn, smsBodyYourTurn());
       }
       continue;
     }
 
-    // ~15-minute ETA window — once per online live-queue ticket (not walk-ins / appointments).
+    const etaBase = {
+      source: entry.source,
+      status: pos.status,
+      waitMinutes: pos.waitMinutes,
+      customerPhone: entry.customer_phone,
+    };
+
+    // ~15-minute ETA window — once per online queue ticket.
     if (
-      shouldNotifyEta15({
-        source: entry.source,
-        appointmentId: entry.appointment_id,
-        status: pos.status,
-        waitMinutes: pos.waitMinutes,
-        notifiedEta15At: entry.notified_eta_15_at,
-        customerPhone: entry.customer_phone,
-        thresholdMinutes: env.ETA_NOTIFY_MINUTES,
+      shouldNotifyEta({
+        ...etaBase,
+        notifiedAt: entry.notified_eta_15_at,
+        thresholdMinutes: ETA_NOTIFY_15_MINUTES,
       })
     ) {
       const claimed = await claimNotifyStamp(entry.id, 'notified_eta_15_at');
       if (claimed) {
         emitToTicket(entry.id, 'ticket:eta_15', {
           waitMinutes: pos.waitMinutes,
-          thresholdMinutes: env.ETA_NOTIFY_MINUTES,
+          thresholdMinutes: ETA_NOTIFY_15_MINUTES,
         });
-        const body = `You're about ${pos.waitMinutes} minutes away — almost your turn.`;
-        await recordAlertNotification(businessId, entry, env.WHATSAPP_TEMPLATE_ETA_15 || 'eta_15', body);
+        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.eta15, smsBodyEta(pos.waitMinutes));
+      }
+    }
+
+    // ~2-minute ETA window — once per online queue ticket.
+    if (
+      shouldNotifyEta({
+        ...etaBase,
+        notifiedAt: entry.notified_eta_2_at,
+        thresholdMinutes: ETA_NOTIFY_2_MINUTES,
+      })
+    ) {
+      const claimed = await claimNotifyStamp(entry.id, 'notified_eta_2_at');
+      if (claimed) {
+        emitToTicket(entry.id, 'ticket:eta_2', {
+          waitMinutes: pos.waitMinutes,
+          thresholdMinutes: ETA_NOTIFY_2_MINUTES,
+        });
+        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.eta2, smsBodyEta(pos.waitMinutes));
       }
     }
   }
@@ -288,7 +308,7 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
  */
 async function claimNotifyStamp(
   entryId: string,
-  column: 'notified_turn_at' | 'notified_eta_15_at',
+  column: 'notified_turn_at' | 'notified_eta_15_at' | 'notified_eta_2_at',
 ): Promise<boolean> {
   // `column` is a narrow union, never caller-supplied — safe to inline.
   const stamped = await exec(
@@ -298,15 +318,15 @@ async function claimNotifyStamp(
   return stamped > 0;
 }
 
-/** Persists an outbound alert and dispatches via the existing Twilio test-number path. */
-async function recordAlertNotification(
+/** Persists an outbound alert and dispatches via smsSender (Twilio when SMS_ENABLED). */
+export async function recordAlertNotification(
   businessId: string,
-  entry: RawEntry,
+  entry: Pick<RawEntry, 'id' | 'customer_phone'>,
   template: string,
   body: string,
 ): Promise<void> {
   const hasPhone = !!entry.customer_phone;
-  const channel = hasPhone ? 'whatsapp' : 'in_app';
+  const channel = hasPhone ? 'sms' : 'in_app';
 
   // Notification bookkeeping must never break the mutation that triggered it,
   // so a failed insert is swallowed exactly as the previous client's error
@@ -335,7 +355,7 @@ async function recordAlertNotification(
 
   if (!row?.id || !entry.customer_phone) return;
 
-  const result = await whatsappSender.send(entry.customer_phone, body, template);
+  const result = await smsSender.send(entry.customer_phone, body, template);
   await exec(
     `update notification
         set status = $1, provider_message_id = $2, sent_at = $3, error = $4
@@ -344,7 +364,7 @@ async function recordAlertNotification(
       result.id ? 'sent' : 'failed',
       result.id,
       result.id ? new Date().toISOString() : null,
-      result.id ? null : 'Twilio send failed or deferred',
+      result.id ? null : 'SMS send failed or deferred',
       row.id,
     ],
   );

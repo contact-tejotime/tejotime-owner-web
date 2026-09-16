@@ -111,7 +111,7 @@ backend/src/
   realtime/         io.ts (namespaces + handshake auth), emitters.ts
   jobs/scheduler.ts in-process node-cron
   lib/              queue-engine.ts (pure), eta-notify.ts, time, phone, format, ttl-cache
-  integrations/     storage (S3), whatsapp (Twilio), sms, email — provider seams
+  integrations/     storage (S3), sms, email — provider seams
   observability/    health.ts
 ```
 
