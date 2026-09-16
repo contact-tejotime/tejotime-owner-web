@@ -136,7 +136,7 @@ modules/<name>/    <name>.routes.ts + <name>.service.ts (+ .schemas.ts) — thin
 realtime/          io.ts (namespaces + handshake auth), emitters.ts
 jobs/scheduler.ts  in-process node-cron
 lib/               queue-engine.ts (pure ETA/seat math), eta-notify.ts, time, phone, format, ttl-cache
-integrations/      storage (S3), whatsapp (Twilio), sms, email  — provider "seams"
+integrations/      storage (S3), sms, email  — provider "seams"
 observability/     health.ts (/healthz liveness, /readyz db-readiness)
 ```
 
@@ -162,7 +162,7 @@ observability/     health.ts (/healthz liveness, /readyz db-readiness)
   See [docs/customer-chatbot-v1.md](docs/customer-chatbot-v1.md).
 - Admin surface (`/admin/*`) is gated by a separate admin JWT and re-checks the `admins` row on
   **every** request, so a demotion/deactivation bites immediately.
-- Webhooks: `/webhooks/whatsapp` (GET verify + POST), `/webhooks/payments`, `/webhooks/sms`.
+- Webhooks: `/webhooks/payments`, `/webhooks/sms`.
 
 ### Realtime (Socket.IO)
 
@@ -408,8 +408,7 @@ it in the Appearance panel with a live `?preview=1` iframe of the microsite (gat
 | Concern | Provider | State |
 |---|---|---|
 | Object storage | **Railway Buckets** (S3-compatible) via AWS SDK v3 | **Live** |
-| WhatsApp / alerts | **Twilio SMS** as a temporary stand-in behind `WHATSAPP_ENABLED` | Wired, flag-gated |
-| SMS | MSG91/Twilio | **Deferred no-op** (`SMS_ENABLED=false`) |
+| SMS / alerts | **Twilio SMS** behind `SMS_ENABLED` | Wired, flag-gated |
 | Email | SES/Postmark | **Deferred no-op** (`EMAIL_ENABLED=false`) |
 | Payments | Razorpay/Stripe | **Deferred** — `upgrade()` flips the plan directly when `PAYMENTS_ENABLED=false` |
 | OTP | — | **Deferred stub** (`OTP_ENABLED=false`) |
@@ -488,7 +487,7 @@ Tunables: `JWT_ACCESS_TTL` 900, `JWT_REFRESH_TTL` 2592000, `JWT_ADMIN_TTL` 43200
 `S3_DOWNLOAD_URL_TTL` 3600, `CORS_ALLOWED_ORIGINS` (comma-separated; empty ⇒ allow all).
 
 Feature flags (all default **false**): `OTP_ENABLED`, `PAYMENTS_ENABLED`, `SMS_ENABLED`,
-`EMAIL_ENABLED`, `WHATSAPP_ENABLED`, `CHATBOT_ENABLED` (+ `CHATBOT_PROVIDER` `none|gemini|groq|openai`,
+`EMAIL_ENABLED`, `CHATBOT_ENABLED` (+ `CHATBOT_PROVIDER` `none|gemini|groq|openai`,
 `CHATBOT_API_KEY`, `CHATBOT_MODEL` — server-side only; no key needed for the FAQ-only mode).
 
 Client vars: `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_SOCKET_URL`, `NEXT_PUBLIC_ASSET_PREFIX`,
@@ -577,10 +576,10 @@ Checklist for any owner-facing change:
 
 - `backend/tests/unit/` — **12 vitest files, 131 tests**, run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
-  Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `whatsapp`,
+  Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
   `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
   `vi.setSystemTime`, no DB).
-  `whatsapp-webhook.test.ts` (followed by `public-chat.test.ts` and `chatbot.test.ts` for the
+  `public-chat.test.ts` (followed by `chatbot.test.ts` for the
   help chat, with `fetch` stubbed) is different and is **the pattern to copy**: it mounts a
   real router into a throwaway `express()` app and drives it with **`supertest`**, using
   `vi.resetModules()` + a stubbed `process.env` so the zod env validator boots. It needs **no

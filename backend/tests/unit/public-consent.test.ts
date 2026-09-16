@@ -4,7 +4,7 @@ import request from 'supertest';
 
 /**
  * POST /public/consent through the real router, validator and error handler, with the single
- * database write stubbed. Same pattern as whatsapp-webhook.test.ts: no database, no server.
+ * database write stubbed. Same pattern as public-chat.test.ts: no database, no server.
  *
  * The assertions that matter are the privacy ones. A consent record is evidence, so the things
  * worth pinning are what it REFUSES to accept from a client (a forged country) and what it

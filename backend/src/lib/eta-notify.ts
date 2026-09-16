@@ -1,29 +1,44 @@
 import { QueueSource, QueueStatus } from '../domain/enums';
 
-/** Pure eligibility for the one-shot ~15-minute online-queue WhatsApp alert. */
-export interface Eta15NotifyInput {
+/** Pure eligibility for a one-shot online-queue wait-window SMS. */
+export interface EtaNotifyInput {
   source: QueueSource;
-  /** Linked appointment — checked-in bookings are excluded (online live join only). */
-  appointmentId: string | null | undefined;
   status: QueueStatus | null;
   waitMinutes: number;
-  notifiedEta15At: string | null | undefined;
+  notifiedAt: string | null | undefined;
   customerPhone: string | null | undefined;
-  /** Threshold minutes (default 15). Alert when 0 < waitMinutes <= threshold. */
+  /** Alert when 0 < waitMinutes <= threshold. */
   thresholdMinutes: number;
 }
 
+/** @deprecated Use EtaNotifyInput; kept for existing shouldNotifyEta15 call sites. */
+export type Eta15NotifyInput = Omit<EtaNotifyInput, 'notifiedAt'> & {
+  notifiedEta15At: string | null | undefined;
+  /** Ignored — checked-in appointments are included in ETA SMS. */
+  appointmentId?: string | null;
+};
+
 /**
- * Returns true when an online live-queue ticket should receive the ETA window alert.
- * One-shot: if notifiedEta15At is set, never again — even if a walk-in bumps ETA back above threshold.
+ * Returns true when an online queue ticket (live join or checked-in booking) should
+ * receive a wait-window alert. One-shot: if notifiedAt is set, never again.
  */
-export function shouldNotifyEta15(input: Eta15NotifyInput): boolean {
+export function shouldNotifyEta(input: EtaNotifyInput): boolean {
   if (input.source !== 'online') return false;
-  if (input.appointmentId) return false;
   if (input.status !== 'waiting') return false;
   if (!input.customerPhone) return false;
-  if (input.notifiedEta15At) return false;
+  if (input.notifiedAt) return false;
   const wait = input.waitMinutes;
   if (!(wait > 0 && wait <= input.thresholdMinutes)) return false;
   return true;
+}
+
+export function shouldNotifyEta15(input: Eta15NotifyInput): boolean {
+  return shouldNotifyEta({
+    source: input.source,
+    status: input.status,
+    waitMinutes: input.waitMinutes,
+    notifiedAt: input.notifiedEta15At,
+    customerPhone: input.customerPhone,
+    thresholdMinutes: input.thresholdMinutes,
+  });
 }

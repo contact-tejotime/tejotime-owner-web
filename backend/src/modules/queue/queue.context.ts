@@ -21,6 +21,7 @@ export interface RawEntry {
   notified_two_away_at: string | null;
   notified_turn_at: string | null;
   notified_eta_15_at: string | null;
+  notified_eta_2_at: string | null;
   visitor_type: 'mr' | 'patient' | null;
 }
 

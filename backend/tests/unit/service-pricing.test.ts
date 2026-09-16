@@ -7,7 +7,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
  * a service the shop could only quote as a band derived silently to its floor at checkout.
  *
  * `domain/money` pulls in the zod-validated env, so the module is imported after a stubbed
- * process.env — the same shape whatsapp-webhook.test.ts uses.
+ * process.env — the same shape public-chat.test.ts uses.
  */
 describe('servicePricing', () => {
   const originalEnv = { ...process.env };

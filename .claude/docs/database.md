@@ -28,7 +28,7 @@ written to be **idempotent / re-runnable**.
 | 0009 | `master_data_team_noun.sql` | `team_noun` |
 | 0010 | `admin_analytics.sql` | admin analytics support |
 | 0011 | `staff_avatar.sql` | `staff.avatar_url` |
-| 0012 | `eta_15_whatsapp.sql` | `queue_entry.notified_eta_15_at` |
+| 0012 | `eta_15_whatsapp.sql` | `queue_entry.notified_eta_15_at`; also added `'whatsapp'` to `notification_channel` — dead now that the WhatsApp integration is removed (app code only ever writes `sms`/`in_app`), left in place because Postgres can't drop a single enum value without rebuilding the type |
 | 0013 | `admin_password.sql` | `admins.password_hash` |
 | 0014 | `inquiries.sql` | `inquiry` table |
 | 0015 | `visitor_type.sql` | `visitor_type` on `queue_entry` + `appointment` |
