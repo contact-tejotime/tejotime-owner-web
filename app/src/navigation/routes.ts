@@ -20,8 +20,7 @@ export type SettingsPageId =
   | 'staff'
   | 'team'
   | 'password'
-  | 'notifications'
-  | 'subscription';
+  | 'notifications';
 
 export const SETTINGS_ROUTES: Record<SettingsPageId, string> = {
   profile: '/(app)/settings/profile',
@@ -32,7 +31,6 @@ export const SETTINGS_ROUTES: Record<SettingsPageId, string> = {
   team: '/(app)/settings/team',
   password: '/(app)/settings/password',
   notifications: '/(app)/settings/notifications',
-  subscription: '/(app)/settings/subscription',
 };
 
 export function tabFromPathname(pathname: string): TabId {

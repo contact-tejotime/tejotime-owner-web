@@ -546,7 +546,7 @@ So it is **three surfaces but two codebases**, and each half of that sentence ca
   other silently behind. Change both in the same piece of work, or write down why you did not.
 - **One mobile codebase does *not* guarantee two identical platforms.** iOS and Android diverge on
   anything native. Real examples already hit in this repo: `expo-blur` needs a `blurTarget` on
-  Android and silently renders nothing without it (§ the customers upsell); the Android 12+ splash
+  Android and silently renders nothing without it (the since-removed customers upsell); the Android 12+ splash
   masks its icon to a 192dp circle while iOS does not
   ([docs/mobile-splash-and-branding.md](docs/mobile-splash-and-branding.md)); Android resizes under
   the keyboard while iOS floats it over the app

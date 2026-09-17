@@ -128,7 +128,6 @@ type State = {
   bootstrapping: boolean; // first parallel data load after auth
   refreshing: boolean; // pull-to-refresh in progress
   walkinLoading: boolean;
-  upgradeLoading: boolean;
   detailBusy: boolean; // a start/checkout/no-show action on the open detail card
   /**
    * WHICH action is running, not just that one is.
@@ -204,7 +203,6 @@ type Store = State & {
   checkInAppt: (a: AppointmentEntry) => void;
   loadCalendarAppointments: (from: string, to: string) => Promise<void>;
   setReportRange: (range: ReportRange) => void;
-  upgrade: () => void;
   saveProfile: (
     patch: BusinessProfilePatch,
     extras?: { amenities?: string[]; gallery?: GalleryImageInput[] },
@@ -312,7 +310,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     bootstrapping: false,
     refreshing: false,
     walkinLoading: false,
-    upgradeLoading: false,
     detailBusy: false,
     detailAction: null,
     checkInId: null,
@@ -875,18 +872,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {
           patch(() => ({ checkInId: null }));
           showToast((e as ApiError)?.message ?? t.toast.couldNotCheckIn, 'error');
-        }
-      },
-      upgrade: async () => {
-        patch(() => ({ upgradeLoading: true }));
-        try {
-          await api.upgrade();
-          setS((p) => ({ ...p, plan: 'premium', upgradeLoading: false }));
-          showToast(t.toast.welcomePremium, 'success');
-          loadCustomers(s.search || undefined);
-        } catch (e) {
-          patch(() => ({ upgradeLoading: false }));
-          showToast((e as ApiError)?.message ?? t.toast.upgradeFailed, 'error');
         }
       },
       saveProfile: async (patch, extras) => {
