@@ -10,7 +10,7 @@ import { createTtlCache } from '../../lib/ttl-cache';
 import { buildSeatGroups, soonestSeat, ticketPosition } from '../../lib/queue-engine';
 import { emitToOwners, emitToTicket } from '../../realtime/emitters';
 import { ticketKey } from '../auth/token.service';
-import { findOrCreateCustomer } from '../customers/customer.repo';
+import { findOrCreateCustomer, recordSmsOptIn } from '../customers/customer.repo';
 import { loadQueueContext } from '../queue/queue.context';
 import { SMS_TEMPLATES, smsBodyQueueJoined } from '../../lib/sms-copy';
 import { broadcastQueue, recordAlertNotification } from '../queue/queue.service';
@@ -440,6 +440,7 @@ export async function joinQueue(
     phone: string;
     preferredStaffId?: string;
     visitorType?: 'mr' | 'patient';
+    smsOptIn?: boolean;
   },
 ) {
   const b = await resolveBusiness(slug);
@@ -495,8 +496,22 @@ export async function joinQueue(
   }
 
   emitToOwners(b.id, 'queue:entry.created', { entryId: result.id, seatId: staffId, source: 'online' });
+  const smsOptIn = input.smsOptIn === true;
+  if (smsOptIn) {
+    // After the RPC on purpose — do not add a parameter to queue_add (overload trap).
+    await exec('update queue_entry set sms_opt_in = true where id = $1 and business_id = $2', [
+      result.id,
+      b.id,
+    ]);
+    if (customerId) await recordSmsOptIn(b.id, customerId);
+  }
   if (phone) {
-    await recordAlertNotification(b.id, { id: result.id, customer_phone: phone }, SMS_TEMPLATES.queueJoined, smsBodyQueueJoined(result.token));
+    await recordAlertNotification(
+      b.id,
+      { id: result.id, customer_phone: phone, sms_opt_in: smsOptIn },
+      SMS_TEMPLATES.queueJoined,
+      smsBodyQueueJoined(result.token, b.name),
+    );
   }
   await broadcastQueue(b.id);
 
@@ -528,6 +543,7 @@ export async function bookSlot(
     preferredStaffId?: string;
     slotStart: string;
     visitorType?: 'mr' | 'patient';
+    smsOptIn?: boolean;
   },
 ) {
   const b = await resolveBusiness(slug);
@@ -547,11 +563,12 @@ export async function bookSlot(
   const durationMinutes = totalMinutes > 0 ? totalMinutes : env.BOOKING_SLOT_MINUTES;
   const end = new Date(start.getTime() + durationMinutes * 60_000);
 
+  const smsOptIn = input.smsOptIn === true;
   const data = await one(
     `insert into appointment
        (business_id, customer_id, customer_name, customer_phone, service_id, service_name,
-        staff_id, scheduled_start_at, scheduled_end_at, status, source, visitor_type)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', 'online', $10)
+        staff_id, scheduled_start_at, scheduled_end_at, status, source, visitor_type, sms_opt_in)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', 'online', $10, $11)
      returning *`,
     [
       b.id,
@@ -564,9 +581,11 @@ export async function bookSlot(
       start.toISOString(),
       end.toISOString(),
       input.visitorType ?? null,
+      smsOptIn,
     ],
   );
   if (!data) throw new Error('Failed to create appointment');
+  if (smsOptIn && customerId) await recordSmsOptIn(b.id, customerId);
 
   // Itemise the booking. A booking is made now and checked in later, so without this list
   // `appointment_check_in` could not rebuild the queue entry's extras and the visit would be

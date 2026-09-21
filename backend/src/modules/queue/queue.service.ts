@@ -7,6 +7,7 @@ import { normalizePhone } from '../../lib/phone';
 import { initials } from '../../lib/format';
 import { shouldNotifyEta } from '../../lib/eta-notify';
 import { ETA_NOTIFY_2_MINUTES, ETA_NOTIFY_15_MINUTES, SMS_TEMPLATES, smsBodyEta, smsBodyYourTurn } from '../../lib/sms-copy';
+import { shouldDispatchSms } from '../../lib/sms-opt-in';
 import {
   buildSeatGroups,
   flatCards,
@@ -235,6 +236,9 @@ export async function broadcastQueue(businessId: string): Promise<void> {
 }
 
 async function processTicketBroadcasts(businessId: string, ctx: QueueContext): Promise<void> {
+  const biz = await one<{ name: string }>('select name from business where id = $1', [businessId]);
+  const businessName = biz?.name ?? 'TejoTime';
+
   for (const entry of ctx.entries) {
     const pos = ticketPosition(entry.id, ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
     const isYourTurn = pos.status === 'in_service';
@@ -252,7 +256,7 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
       const claimed = await claimNotifyStamp(entry.id, 'notified_turn_at');
       if (claimed) {
         emitToTicket(entry.id, 'ticket:ready', { token: entry.token });
-        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.yourTurn, smsBodyYourTurn());
+        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.yourTurn, smsBodyYourTurn(businessName));
       }
       continue;
     }
@@ -262,6 +266,7 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
       status: pos.status,
       waitMinutes: pos.waitMinutes,
       customerPhone: entry.customer_phone,
+      smsOptIn: entry.sms_opt_in === true,
     };
 
     // ~15-minute ETA window — once per online queue ticket.
@@ -278,7 +283,7 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
           waitMinutes: pos.waitMinutes,
           thresholdMinutes: ETA_NOTIFY_15_MINUTES,
         });
-        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.eta15, smsBodyEta(pos.waitMinutes));
+        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.eta15, smsBodyEta(pos.waitMinutes, businessName));
       }
     }
 
@@ -296,7 +301,7 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
           waitMinutes: pos.waitMinutes,
           thresholdMinutes: ETA_NOTIFY_2_MINUTES,
         });
-        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.eta2, smsBodyEta(pos.waitMinutes));
+        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.eta2, smsBodyEta(pos.waitMinutes, businessName));
       }
     }
   }
@@ -321,12 +326,32 @@ async function claimNotifyStamp(
 /** Persists an outbound alert and dispatches via smsSender (Twilio when SMS_ENABLED). */
 export async function recordAlertNotification(
   businessId: string,
-  entry: Pick<RawEntry, 'id' | 'customer_phone'>,
+  entry: Pick<RawEntry, 'id' | 'customer_phone' | 'sms_opt_in'>,
   template: string,
   body: string,
 ): Promise<void> {
-  const hasPhone = !!entry.customer_phone;
-  const channel = hasPhone ? 'sms' : 'in_app';
+  let optedOutAt: string | null = null;
+  let optOutUnknown = false;
+  if (entry.customer_phone) {
+    try {
+      const customer = await one<{ sms_opt_out_at: string | null }>(
+        'select sms_opt_out_at from customer where business_id = $1 and phone = $2',
+        [businessId, entry.customer_phone],
+      );
+      optedOutAt = customer?.sms_opt_out_at ?? null;
+    } catch {
+      // Cannot prove they are still opted in — do not Twilio, and do not break the mutation.
+      optOutUnknown = true;
+    }
+  }
+  const canSms =
+    !optOutUnknown &&
+    shouldDispatchSms({
+      customerPhone: entry.customer_phone,
+      smsOptIn: entry.sms_opt_in,
+      smsOptOutAt: optedOutAt,
+    });
+  const channel = canSms ? 'sms' : 'in_app';
 
   // Notification bookkeeping must never break the mutation that triggered it,
   // so a failed insert is swallowed exactly as the previous client's error
@@ -345,15 +370,15 @@ export async function recordAlertNotification(
         template,
         entry.customer_phone,
         body,
-        hasPhone ? 'queued' : 'sent',
-        hasPhone ? null : new Date().toISOString(),
+        canSms ? 'queued' : 'sent',
+        canSms ? null : new Date().toISOString(),
       ],
     );
   } catch {
     return;
   }
 
-  if (!row?.id || !entry.customer_phone) return;
+  if (!row?.id || !canSms || !entry.customer_phone) return;
 
   const result = await smsSender.send(entry.customer_phone, body, template);
   await exec(

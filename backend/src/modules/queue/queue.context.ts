@@ -23,6 +23,7 @@ export interface RawEntry {
   notified_eta_15_at: string | null;
   notified_eta_2_at: string | null;
   visitor_type: 'mr' | 'patient' | null;
+  sms_opt_in: boolean;
 }
 
 export interface QueueContext {

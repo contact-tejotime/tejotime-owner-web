@@ -8,6 +8,7 @@ const base15 = {
   waitMinutes: 12,
   notifiedEta15At: null as string | null,
   customerPhone: '+919876543210',
+  smsOptIn: true,
   thresholdMinutes: 15,
 };
 
@@ -17,6 +18,7 @@ const baseEta = {
   waitMinutes: 12,
   notifiedAt: null as string | null,
   customerPhone: '+919876543210',
+  smsOptIn: true,
   thresholdMinutes: 15,
 };
 
@@ -97,5 +99,10 @@ describe('shouldNotifyEta (2-minute window)', () => {
   it('excludes walk-in and missing phone', () => {
     expect(shouldNotifyEta({ ...base2, source: 'walk_in', waitMinutes: 1 })).toBe(false);
     expect(shouldNotifyEta({ ...base2, customerPhone: null, waitMinutes: 1 })).toBe(false);
+  });
+
+  it('excludes visits that did not opt in to SMS', () => {
+    expect(shouldNotifyEta({ ...base2, smsOptIn: false, waitMinutes: 1 })).toBe(false);
+    expect(shouldNotifyEta15({ ...base15, smsOptIn: false })).toBe(false);
   });
 });

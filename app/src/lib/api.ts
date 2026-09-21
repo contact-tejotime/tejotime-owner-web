@@ -216,8 +216,6 @@ export const api = {
   signUpload: (b: { assetType: string; contentType: string; byteSize: number }) =>
     raw<{ uploadUrl: string; publicUrl: string; fileKey: string }>('POST', '/uploads/sign', b),
 
-  upgrade: () => raw('POST', '/subscription/upgrade'),
-
   // ---------- team logins (owner roles only; the backend refuses everyone else) ----------
   getTeam: () => raw<{ data: any[] }>('GET', '/users'),
   getPermissionCatalogue: () =>

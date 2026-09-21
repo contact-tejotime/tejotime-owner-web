@@ -227,10 +227,10 @@ reviews `<Section>` gained `id="reviews"` so the anchor resolves).
 
 ### Added, not just reworded
 
-- **Phone helper text** at the field: *"We'll text your appointment confirmation and updates to
-  this number."* (booking) / *"We'll text you when your turn is approaching."* (waitlist).
-- **Text consent**, above the confirm button: *"By confirming, you agree to receive appointment
-  updates by text from {Business}. Message and data rates may apply. Reply STOP to opt out."*
+- **Phone helper text** at the field: *"We'll use this number to identify your visit. Check the
+  box below if you want appointment/waitlist texts."*
+- **SMS opt-in**, unchecked by default, after the phone field — not bundled with Confirm. Full
+  A2P language + Terms/Privacy links. See [sms-opt-in-a2p.md](sms-opt-in-a2p.md).
 - **Payment expectation**: *"Payment is due at the business."* — accurate while
   `PAYMENTS_ENABLED=false`. **Revisit this line when online payments ship.**
 - **Pre-confirmation summary** now shows service · duration, then the actual chosen slot label ·

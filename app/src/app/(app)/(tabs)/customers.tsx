@@ -1,20 +1,15 @@
-import { BlurView } from 'expo-blur';
-import React, { useMemo } from 'react';
-import { FlatList, Platform, RefreshControl, StyleSheet, View } from 'react-native';
+import React from 'react';
+import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { CustomerCard } from '@/components/cards/CustomerCard';
 import { THeader, TKeyboardScreen, TSearchInput, TText } from '@/components/common';
-import { TButton } from '@/components/common/TButton';
 import { TCustomerCardSkeleton } from '@/components/common/TSkeleton';
 import { Badge } from '@/components/ui/Badge';
-import { Icon } from '@/components/ui/Icon';
 import { useTabContent } from '@/hooks/useResponsive';
 import { t, format } from '@/i18n';
 import { useAppState } from '@/state/store';
 import { useTheme } from '@/theme/ThemeProvider';
 import { styles } from '@/styles';
-import { moderateScale } from '@/styles/scale';
-import type { ThemeStyleProps } from '@/styles/types';
 import type { Customer } from '@/data/sample';
 
 /**
@@ -32,19 +27,18 @@ export default function Customers() {
   const store = useAppState();
   const { columns, gridItemWidth } = useTabContent();
   const numColumns = columns(CUSTOMER_CARD_MIN_WIDTH, { gutter: 12, max: 2 });
-  const s = useMemo(() => createCustomersStyles({ ...theme, dark: theme.dark }), [theme]);
-  const isPremium = store.plan === 'premium';
 
   const shown = store.customers;
-  const lockedCount = store.customerMeta.lockedCount;
-  const total = store.customerMeta.total;
-  const subtitle = isPremium
-    ? format(t.customers.total, { total })
-    : format(t.customers.trialShown, { shown: shown.length });
-  const placeholders = useMemo(
-    () => Array.from({ length: Math.min(lockedCount, 2) }, (_, i) => ({ id: `lock-${i}` })),
-    [lockedCount],
-  );
+  const { total, lockedCount } = store.customerMeta;
+  /**
+   * A free store gets a truncated list from the server. Say so plainly, but never why or how to
+   * lift it: App Review rejected v1.0 (2) under guideline 2.1(b) for an "Upgrade to Premium"
+   * with no In-App Purchase behind it, and pointing at a purchase elsewhere is its own rejection.
+   */
+  const subtitle =
+    lockedCount > 0
+      ? format(t.customers.latestShown, { shown: shown.length, total })
+      : format(t.customers.total, { total });
 
   const renderCustomer = ({ item: c }: { item: Customer }) => (
     <View style={numColumns > 1 ? { width: gridItemWidth(numColumns) } : undefined}>
@@ -61,61 +55,11 @@ export default function Customers() {
     </View>
   );
 
-  const lockedFooter =
-    lockedCount > 0 ? (
-      <View style={s.lockedWrap}>
-        <View style={s.lockedPlaceholder} pointerEvents="none">
-          {placeholders.map((c) => (
-            <CustomerCard
-              key={c.id}
-              name="••••••••"
-              phone="+•• ••••• •••••"
-              meta={[
-                { label: t.customers.visits, value: '•' },
-                { label: t.customers.lastVisit, value: '•' },
-                { label: t.customers.spend, value: '•' },
-              ]}
-            />
-          ))}
-        </View>
-
-        {Platform.OS === 'ios' && <BlurView intensity={40} tint={theme.dark ? 'dark' : 'light'} style={s.blurOverlay} />}
-        <View style={s.lockedOverlay}>
-          {/* The copy sits on its own solid card rather than floating straight over the
-              placeholders. On Android expo-blur needs a `blurTarget` ref to blur anything at all
-              and otherwise silently falls back to no blur, so the scrim alone left the dummy
-              cards' borders and their "Visits / Last visit / Spend" labels cutting through this
-              paragraph. A solid surface is legible on both platforms and needs no blur. */}
-          <View style={s.lockedCard}>
-            <View style={s.lockedIcon}>
-              <Icon name="star" size={22} color={theme.colors.amber500} />
-            </View>
-            <TText variant="h5" color="textStrong" weight="bold" align="center">
-              {format(t.customers.moreLocked, { count: lockedCount })}
-            </TText>
-            <TText variant="bodySm" color="textMuted" align="center" style={s.lockedDesc}>
-              {t.customers.upsell}
-            </TText>
-            <View style={s.upgradeWrap}>
-              <TButton
-                variant="primary"
-                loading={store.upgradeLoading}
-                onPress={store.upgrade}
-                leadingIcon={<Icon name="creditCard" size={20} color={theme.colors.textOnBrand} />}>
-                {t.customers.upgrade}
-              </TButton>
-            </View>
-          </View>
-        </View>
-      </View>
-    ) : null;
-
   return (
     <TKeyboardScreen isScrollView={false}>
       <THeader
         title={t.customers.title}
         subtitle={subtitle}
-        action={isPremium ? <Badge tone="primary">{t.customers.premium}</Badge> : undefined}
       />
 
       <View style={s.searchWrap}>
@@ -153,7 +97,6 @@ export default function Customers() {
             </TText>
           )
         }
-        ListFooterComponent={lockedFooter}
         refreshControl={
           <RefreshControl
             refreshing={store.refreshing}
@@ -167,48 +110,12 @@ export default function Customers() {
   );
 }
 
-const createCustomersStyles = ({ colors, radius, shadow, dark }: ThemeStyleProps & { dark: boolean }) =>
-  StyleSheet.create({
-    searchWrap: { ...styles.screenPadding, ...styles.pb2 },
-    skeletonList: { ...styles.g3, ...styles.pt2 },
-    // `space-between`, not `gap`: the cells are sized in percent (see
-    // gridItemWidth), and an absolute column gap on top of that overflows the
-    // row and collapses the grid back to one column. The list's own `g3`
-    // supplies the vertical rhythm between rows.
-    gridRow: { ...styles.justifyBetween },
-    lockedWrap: { borderRadius: moderateScale(radius.lg), overflow: 'hidden', ...styles.mt1 },
-    lockedPlaceholder: { ...styles.g3, opacity: 0.3 },
-    blurOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-    lockedOverlay: {
-      ...styles.flexCenter,
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      ...styles.p5,
-      backgroundColor: dark ? 'rgba(11,18,32,0.55)' : 'rgba(248,250,252,0.5)',
-    },
-    lockedCard: {
-      ...styles.flexCenter,
-      ...styles.g2,
-      ...styles.p5,
-      alignSelf: 'center',
-      maxWidth: moderateScale(320),
-      borderRadius: moderateScale(radius.lg),
-      backgroundColor: colors.surfaceCard,
-      borderWidth: moderateScale(1),
-      borderColor: colors.borderSubtle,
-      ...shadow.sm,
-    },
-    lockedIcon: {
-      ...styles.nonFlexCenter,
-      width: moderateScale(48),
-      height: moderateScale(48),
-      borderRadius: moderateScale(radius.lg),
-      backgroundColor: colors.warningSoft,
-      ...shadow.sm,
-    },
-    lockedDesc: { maxWidth: moderateScale(260) },
-    upgradeWrap: { ...styles.mt1 },
-  });
+const s = StyleSheet.create({
+  searchWrap: { ...styles.screenPadding, ...styles.pb2 },
+  skeletonList: { ...styles.g3, ...styles.pt2 },
+  // `space-between`, not `gap`: the cells are sized in percent (see
+  // gridItemWidth), and an absolute column gap on top of that overflows the
+  // row and collapses the grid back to one column. The list's own `g3`
+  // supplies the vertical rhythm between rows.
+  gridRow: { ...styles.justifyBetween },
+});

@@ -943,8 +943,8 @@
       "nameLabel": "Full Name",
       "namePlaceholder": "Your full name",
       "phoneLabel": "Mobile Number",
-      "phoneHelperBook": "We’ll text your appointment confirmation and updates to this number.",
-      "phoneHelperQueue": "We’ll text you when your turn is approaching.",
+      "phoneHelperBook": "We'll use this number to identify your visit. Check the box below if you want appointment texts.",
+      "phoneHelperQueue": "We'll use this number to identify your visit. Check the box below if you want waitlist texts.",
       "memberLabel": "Preferred Provider (optional)",
       "memberAny": "No preference",
       "timeLabel": "Choose a date and time",
@@ -959,8 +959,9 @@
       "chooseTimeAbove": "Select a time to continue",
       "confirmBooking": "Confirm Appointment",
       "confirmCheckIn": "Check in",
-      "consentBook": "By confirming, you agree to receive appointment updates by text from {name}. Message and data rates may apply. Reply STOP to opt out.",
-      "consentQueue": "By joining, you agree to receive waitlist updates by text from {name}. Message and data rates may apply. Reply STOP to opt out.",
+      "consentOptIn": "I agree to receive waitlist and appointment texts from {name} via TejoTime. Up to 4 messages per visit. Msg & data rates may apply. Reply STOP to opt out, HELP for help. Consent is not required to book.",
+      "consentPrivacy": "Privacy Policy",
+      "consentSmsTerms": "SMS Terms",
       "paymentNote": "Payment is due at the business.",
       "errNoPhone": "Enter your phone number",
       "errNoNamePhone": "Enter your name and phone number",
@@ -1228,7 +1229,7 @@
         "heading": "5. Text messages (SMS) and email",
         "paragraphs": [
           "Where enabled for a business, TejoTime sends transactional text messages tied to a specific booking or waitlist visit — for example, confirming that you have joined a waitlist, letting you know your wait is almost over, and letting you know it is your turn. These are not marketing messages, and we do not send recurring or promotional texts.",
-          "You opt in to these messages by providing your phone number when you book an appointment or join a waitlist on a business’s TejoTime page. Providing a phone number for texts is optional: you can complete a booking or waitlist join and ask the business to update you in person or by phone instead.",
+          "You opt in by checking the SMS box on a business’s TejoTime page when you book an appointment or join a waitlist. Your number identifies the visit; we only text it if that box is checked. You can finish a booking or waitlist join without agreeing to texts.",
           "Message frequency depends on your booking or waitlist activity and is typically no more than four messages per visit. Message and data rates may apply.",
           "Reply STOP to any message to stop receiving texts about that booking or visit, or ask the business to remove you. Reply HELP, or contact us at {email} or {phone}, for help. Carriers are not liable for delayed or undelivered messages.",
           "We do not sell, rent, or share your mobile phone number or your text-message opt-in status with third parties or affiliates for their own marketing or promotional purposes. Businesses are responsible for having an appropriate basis to contact their own clients."
@@ -1473,7 +1474,7 @@
         "heading": "18. SMS / text messaging terms",
         "paragraphs": [
           "If a business you interact with uses TejoTime’s optional texting feature, you may receive text messages tied to a specific appointment or waitlist visit — for example a confirmation that you joined a waitlist, a heads-up that your wait is almost over, or a notice that it is your turn. These messages are transactional, not marketing, and are not sent on a recurring subscription basis.",
-          "You opt in by providing your phone number when you book an appointment or join a waitlist on a business’s TejoTime page. Consenting to receive these texts is not a condition of purchasing any service from the business.",
+          "You opt in by checking the optional, unchecked-by-default SMS box when you book an appointment or join a waitlist on a business’s TejoTime page. Consenting to receive these texts is not a condition of purchasing any service from the business.",
           "Message frequency depends on your booking or waitlist activity and is typically no more than four messages per visit. Message and data rates may apply. Reply STOP to any message to stop receiving texts about that booking or visit, or reply HELP, or contact us at {email} or {phone}, for help. Carriers are not liable for delayed or undelivered messages.",
           "We do not sell, rent, or share your mobile phone number or your text-messaging opt-in status with third parties or affiliates for their own marketing or promotional purposes. See our Privacy Policy for more detail on how we handle information.",
           "Businesses using TejoTime’s texting feature are responsible for having their own appropriate basis to text their clients and for complying with applicable messaging and telemarketing law."

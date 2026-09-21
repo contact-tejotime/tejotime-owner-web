@@ -208,6 +208,9 @@ Gated by the `team` module, which is **not grantable** — see `business-logic.m
 | GET | `/businesses/:slug/slots` | `publicRead` |
 | POST | `/businesses/:slug/queue` | `publicWrite` |
 | POST | `/businesses/:slug/appointments` | `publicWrite` |
+
+Join and book accept optional `smsOptIn` (boolean, default `false`). Missing/false never
+dispatches Twilio; see [docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md).
 | POST | `/businesses/:slug/track` | `publicWrite` |
 | POST | `/businesses/:key/chat` | `publicChat` |
 | POST | `/chat` | `publicChat` |

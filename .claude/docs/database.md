@@ -42,6 +42,8 @@ written to be **idempotent / re-runnable**.
 | 0022 | `admin_roles.sql` | `admins.role`/`name`/`is_active`, `business.created_by_admin_id` |
 | 0024 | `service_price_range.sql` | `service.price_type`/`price_max_paise` + `ck_service_price_shape`; `queue_checkout` refuses a derived total for a range |
 | 0025 | `multi_service_selection.sql` | `appointment_service` table; `queue_attach_services()`; `appointment_check_in` carries every booked service into the queue entry |
+| 0026 | `consent_log.sql` | cookie-consent audit log |
+| 0027 | `sms_opt_in.sql` | `customer.sms_opt_in_at` / `sms_opt_out_at`; `sms_opt_in` on `queue_entry` and `appointment` (default false) |
 
 > **`0016` is duplicated** across two independent files. Ordering relies on the filename sort, which
 > is deterministic. **Use a strictly increasing prefix from 0025 onward.**
@@ -159,7 +161,7 @@ made now and checked in later, so check-in has to be able to rebuild those extra
 ### `customer`
 
 `id`, `business_id`, `name`, `phone`, `email`, `is_vip`, `visits_count`, `total_spend_paise`
-`bigint`, `last_visit_at`, `notes`. Unique on `(business_id, phone)`.
+`bigint`, `last_visit_at`, `notes`, `sms_opt_in_at`, `sms_opt_out_at` (0027). Unique on `(business_id, phone)`.
 
 Indexes: `(business_id, created_at desc)`, plus **trigram GIN** on `name` and `phone` for search.
 
@@ -169,7 +171,7 @@ Indexes: `(business_id, created_at desc)`, plus **trigram GIN** on `name` and `p
 `service_name`, `staff_id`, `preferred_staff_id`, `token`, `token_day`, `status` `queue_status`,
 `source` `queue_source`, `position`, `extra_minutes`, `base_wait_minutes`, `appointment_id`,
 `joined_at`, `started_at`, `completed_at`, `notified_two_away_at`, `notified_turn_at`,
-`notified_eta_15_at` (0012), `visitor_type` (0015, check `mr`|`patient`).
+`notified_eta_15_at` (0012), `visitor_type` (0015, check `mr`|`patient`), `sms_opt_in` (0027, default false).
 
 Indexes and constraints:
 - `idx_queue_business_seat_status` on `(business_id, staff_id, status, position)`
@@ -188,7 +190,7 @@ survive the service row being edited or deleted.
 
 `id`, `business_id`, `customer_id`, `customer_name`, `customer_phone`, `service_id`,
 `service_name`, `staff_id`, `scheduled_start_at`, `scheduled_end_at`, `status`, `source`,
-`queue_entry_id` (FK added after `queue_entry` exists), `notes`, `visitor_type`.
+`queue_entry_id` (FK added after `queue_entry` exists), `notes`, `visitor_type`, `sms_opt_in` (0027, default false).
 
 ### `visit` — completed-service ledger
 

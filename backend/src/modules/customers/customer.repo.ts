@@ -1,4 +1,4 @@
-import { one } from '../../db/pool';
+import { exec, one } from '../../db/pool';
 import { normalizePhone } from '../../lib/phone';
 
 /** Find a customer by phone within a business, or create a lightweight record. */
@@ -30,4 +30,19 @@ export async function findOrCreateCustomer(
     );
     return retry?.id ?? null;
   }
+}
+
+/**
+ * Stamp website SMS consent. Sets opt-in if this is the first time, and clears a
+ * prior STOP so a later checked box is a real re-consent (Twilio START equivalent).
+ */
+export async function recordSmsOptIn(businessId: string, customerId: string): Promise<void> {
+  await exec(
+    `update customer
+        set sms_opt_in_at = coalesce(sms_opt_in_at, now()),
+            sms_opt_out_at = null,
+            updated_at = now()
+      where id = $1 and business_id = $2`,
+    [customerId, businessId],
+  );
 }

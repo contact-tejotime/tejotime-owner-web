@@ -477,6 +477,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const [faqOpen, setFaqOpen] = useState<number | null>(0);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const [smsOptIn, setSmsOptIn] = useState(false);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -904,6 +905,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setJustTurn(false);
     setSlots([]);
     setSelectedSlot(null);
+    setSmsOptIn(false);
     // Every open starts on today; a date left over from a previous booking would silently send
     // the next customer to last week.
     const openingDate = localYmd(new Date());
@@ -1124,6 +1126,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           phone: p,
           preferredStaffId: member,
           visitorType: visitorType ?? undefined,
+          smsOptIn,
         });
         setTicket(t);
         setInitialAhead(t.ahead);
@@ -1157,6 +1160,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           preferredStaffId: member,
           slotStart: selectedSlot!,
           visitorType: visitorType ?? undefined,
+          smsOptIn,
         });
         setBooking({ serviceName: b.serviceName, scheduledStartAt: b.scheduledStartAt });
         const store = storeRef.current;
@@ -1854,7 +1858,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               the footer is where people look for "where else can I find this shop". */}
           <SocialLinks socials={site.socials} />
           <span style={{ font: "var(--fw-regular) 12px/1 var(--font-sans)", color: "var(--text-subtle)" }}>
-            {t.brand.terms}
+            <Link href="/terms" style={{ color: "inherit" }}>
+              {t.brand.terms}
+            </Link>
             {" · "}
             <Link href="/privacy" style={{ color: "inherit" }}>
               {t.brand.privacy}
@@ -2085,10 +2091,28 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={t.microsite.join.namePlaceholder} className="salonInput" style={{ width: "100%", padding: "12px 14px", border: "1.5px solid var(--border-default)", borderRadius: "calc(10px * var(--radius-scale, 1))", fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--text-strong)", outline: "none", marginBottom: 16, background: "var(--surface-card)" }} />
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>{t.microsite.join.phoneLabel}</div>
                       <PhoneField country={phoneCountry} national={national} onCountryChange={setPhoneCountry} onNationalChange={setNational} marginBottom={6} />
-                      {/* The form asks for a mobile number and then texts it. Saying so at the
-                          field, not after the fact, is the whole point of the helper line. */}
-                      <div style={{ font: "var(--fw-regular) 12.5px/1.45 var(--font-sans)", color: "var(--text-muted)", marginBottom: 16 }}>
+                      {/* The form asks for a mobile number. Texts only go out if they check
+                          the box — Twilio A2P 30925: unchecked by default, not bundled with Confirm. */}
+                      <div style={{ font: "var(--fw-regular) 12.5px/1.45 var(--font-sans)", color: "var(--text-muted)", marginBottom: 12 }}>
                         {mode === "book" ? t.microsite.join.phoneHelperBook : t.microsite.join.phoneHelperQueue}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
+                        <input
+                          id="tt-sms-opt-in"
+                          type="checkbox"
+                          checked={smsOptIn}
+                          onChange={(e) => setSmsOptIn(e.target.checked)}
+                          style={{ marginTop: 3, flexShrink: 0, width: 16, height: 16, accentColor: "var(--primary)" }}
+                        />
+                        <div style={{ font: "var(--fw-regular) 11.5px/1.45 var(--font-sans)", color: "var(--text-subtle)" }}>
+                          <label htmlFor="tt-sms-opt-in" style={{ cursor: "pointer" }}>
+                            {format(t.microsite.join.consentOptIn, { name: site.name })}
+                          </label>
+                          {" "}
+                          <Link href="/privacy" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{t.microsite.join.consentPrivacy}</Link>
+                          {" · "}
+                          <Link href="/terms" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{t.microsite.join.consentSmsTerms}</Link>
+                        </div>
                       </div>
                       <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 9 }}>{t.microsite.join.memberLabel}</div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
@@ -2191,11 +2215,8 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       </div>
                       {/* Nothing is charged here — payments are not wired — so the page has to say
                           where the money is actually taken, before the customer commits. */}
-                      <div style={{ font: "var(--fw-regular) 12.5px/1.45 var(--font-sans)", color: "var(--text-muted)", marginBottom: 10 }}>
+                      <div style={{ font: "var(--fw-regular) 12.5px/1.45 var(--font-sans)", color: "var(--text-muted)", marginBottom: 14 }}>
                         {t.microsite.join.paymentNote}
-                      </div>
-                      <div style={{ font: "var(--fw-regular) 11.5px/1.45 var(--font-sans)", color: "var(--text-subtle)", marginBottom: 14 }}>
-                        {format(mode === "book" ? t.microsite.join.consentBook : t.microsite.join.consentQueue, { name: site.name })}
                       </div>
                       {formError && <div style={{ font: "var(--fw-medium) 13px/1.3 var(--font-sans)", color: "var(--error)", marginBottom: 12 }}>{formError}</div>}
                       <div style={{ display: "flex", gap: 10 }}>

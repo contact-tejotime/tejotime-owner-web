@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-09-14 · branch `feat-jay`.
+**Last updated:** 2026-09-21 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,22 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Mobile: subscription/upgrade UI removed for App Store (2026-09-17)
+
+App Review rejected 1.0 (2) under guideline 2.1(b): an "Upgrade to Premium" button with no In-App Purchase behind it. Every
+plan, subscription and upgrade surface was removed from `app/`. `owner-web` and the backend are
+unchanged. See [docs/mobile-no-in-app-purchases.md](../../docs/mobile-no-in-app-purchases.md).
+
+### Twilio A2P SMS opt-in (2026-09-21)
+
+Optional, unchecked SMS checkbox on the public Check-in and Book forms. Join/book still succeed
+with the box off; Twilio is only called when `queue_entry.sms_opt_in` / `appointment.sms_opt_in`
+is true and `customer.sms_opt_out_at` is null. Migration `0027_sms_opt_in.sql`. Campaign paste and
+the $15-fee warnings: [docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md).
+
+Owner-web and Expo were **not** given an opt-in control — `message_flow` is website-only, so an
+owner walk-in with a phone must not text. `SMS_ENABLED` stays false until the campaign is Approved.
 
 ### Owner-web help chat (2026-09-14)
 
