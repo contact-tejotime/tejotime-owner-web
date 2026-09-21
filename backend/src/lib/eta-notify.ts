@@ -7,6 +7,8 @@ export interface EtaNotifyInput {
   waitMinutes: number;
   notifiedAt: string | null | undefined;
   customerPhone: string | null | undefined;
+  /** Visit-level A2P opt-in. Missing/false must never text. */
+  smsOptIn: boolean;
   /** Alert when 0 < waitMinutes <= threshold. */
   thresholdMinutes: number;
 }
@@ -26,6 +28,7 @@ export function shouldNotifyEta(input: EtaNotifyInput): boolean {
   if (input.source !== 'online') return false;
   if (input.status !== 'waiting') return false;
   if (!input.customerPhone) return false;
+  if (input.smsOptIn !== true) return false;
   if (input.notifiedAt) return false;
   const wait = input.waitMinutes;
   if (!(wait > 0 && wait <= input.thresholdMinutes)) return false;
@@ -39,6 +42,7 @@ export function shouldNotifyEta15(input: Eta15NotifyInput): boolean {
     waitMinutes: input.waitMinutes,
     notifiedAt: input.notifiedEta15At,
     customerPhone: input.customerPhone,
+    smsOptIn: input.smsOptIn,
     thresholdMinutes: input.thresholdMinutes,
   });
 }

@@ -3,10 +3,9 @@ import React, { useMemo } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { THeader, TScreenScroll, TSettingsRow, TSwitch, TText } from '@/components/common';
-import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
 import { t, format } from '@/i18n';
-import { appVersion, businessProfile, notificationsSub, subscription } from '@/data/settings';
+import { appVersion, businessProfile, notificationsSub } from '@/data/settings';
 import { hoursSummary } from '@/lib/hours';
 import { SUPPORT } from '@/lib/support';
 import { SETTINGS_ROUTES, SettingsPageId } from '@/navigation/routes';
@@ -158,22 +157,6 @@ export default function Settings() {
               sub={store.session?.name ?? t.settings.yourAccountSub}
               onPress={goTo('password')}
             />
-            {can(access, 'billing') ? (
-              <TSettingsRow
-                icon="creditCard"
-                label={t.settings.subscription}
-                sub={subscription.listSub}
-                onPress={goTo('subscription')}
-                trailing={
-                  <>
-                    <Badge tone="primary" size="sm">
-                      {subscription.badge}
-                    </Badge>
-                    <Icon name="chevronRight" size={18} color={theme.colors.textSubtle} />
-                  </>
-                }
-              />
-            ) : null}
             <TSettingsRow
               icon="moon"
               label={t.settings.darkMode}

@@ -18,13 +18,21 @@ describe('sms-copy', () => {
     });
   });
 
-  it('builds the four hardcoded bodies', () => {
-    expect(smsBodyQueueJoined('A-24')).toBe(
-      "You're in the queue. Token A-24. We'll text you as your turn gets close.",
+  it('builds A2P bodies with brand, frequency, STOP and HELP', () => {
+    expect(smsBodyQueueJoined('A-24', 'CURV BEAUTY')).toBe(
+      "CURV BEAUTY via TejoTime: You're on the waitlist. Token A-24. Up to 4 msgs/visit. Reply STOP to opt out, HELP for help.",
     );
-    expect(smsBodyEta(12)).toBe("You're about 12 minutes away — almost your turn.");
-    expect(smsBodyYourTurn()).toBe("It's your turn — please head in.");
+    expect(smsBodyEta(12, 'CURV BEAUTY')).toBe(
+      'CURV BEAUTY via TejoTime: You\'re about 12 minutes away. Reply STOP to opt out, HELP for help.',
+    );
+    expect(smsBodyYourTurn('CURV BEAUTY')).toBe(
+      "CURV BEAUTY via TejoTime: It's your turn — please head in. Reply STOP to opt out, HELP for help.",
+    );
     expect(ETA_NOTIFY_15_MINUTES).toBe(15);
     expect(ETA_NOTIFY_2_MINUTES).toBe(2);
+  });
+
+  it('falls back to TejoTime when the store name is blank', () => {
+    expect(smsBodyYourTurn('  ')).toMatch(/^TejoTime via TejoTime:/);
   });
 });

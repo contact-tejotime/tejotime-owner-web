@@ -1,4 +1,4 @@
-/** Static content for the Settings screens that stays UI-only (notifications, subscription).
+/** Static content for the Settings screens that stays UI-only (notifications).
  *  Profile, hours, services and staff now come from the API via the store. */
 import { t, format } from '@/i18n';
 
@@ -22,16 +22,7 @@ export const notificationPrefs: NotificationPref[] = [
   { id: 'dailySummary', label: t.notifications.prefs.dailySummaryLabel, sub: t.notifications.prefs.dailySummarySub, enabled: true },
 ];
 
-export const subscription = {
-  plan: t.subscription.plan,
-  badge: t.subscription.badge,
-  sub: t.subscription.sub,
-  listSub: t.subscription.listSub,
-  cta: t.subscription.cta,
-  features: t.subscription.features,
-};
-
-export const appVersion = t.subscription.appVersion;
+export const appVersion = t.settings.appVersion;
 
 export const notificationsSub = format(t.notifications.summary, {
   enabled: notificationPrefs.filter((p) => p.enabled).length,

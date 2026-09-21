@@ -34,6 +34,8 @@ const joinSchema = z
     phone: z.string().trim().min(4).max(20),
     preferredStaffId: z.string().optional(),
     visitorType: z.enum(['mr', 'patient']).optional(),
+    // Optional, default false: missing/old clients must never become "yes, text them".
+    smsOptIn: z.boolean().optional().default(false),
   })
   .strict();
 
