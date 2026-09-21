@@ -225,8 +225,7 @@ vendor SDK from a service.
 | Concern | Provider | State |
 |---|---|---|
 | Object storage | Railway Buckets (S3-compatible), AWS SDK v3 | **live** |
-| WhatsApp / alerts | Twilio SMS as a temporary stand-in | wired, behind `WHATSAPP_ENABLED` |
-| SMS | MSG91 / Twilio | deferred no-op (`SMS_ENABLED=false`) |
+| SMS / alerts | Twilio SMS | wired, behind `SMS_ENABLED` |
 | Email | SES / Postmark | deferred no-op (`EMAIL_ENABLED=false`) |
 | Payments | Razorpay / Stripe | deferred — `upgrade()` flips the plan directly |
 | OTP | — | **deferred stub** (`OTP_ENABLED=false`) — see the warning in `api.md` |

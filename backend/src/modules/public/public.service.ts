@@ -12,7 +12,8 @@ import { emitToOwners, emitToTicket } from '../../realtime/emitters';
 import { ticketKey } from '../auth/token.service';
 import { findOrCreateCustomer } from '../customers/customer.repo';
 import { loadQueueContext } from '../queue/queue.context';
-import { broadcastQueue } from '../queue/queue.service';
+import { SMS_TEMPLATES, smsBodyQueueJoined } from '../../lib/sms-copy';
+import { broadcastQueue, recordAlertNotification } from '../queue/queue.service';
 
 /** Short TTL so poll fallbacks coalesce under load without serving stale wait labels for long. */
 const LIVE_CACHE_TTL_MS = 5_000;
@@ -494,6 +495,9 @@ export async function joinQueue(
   }
 
   emitToOwners(b.id, 'queue:entry.created', { entryId: result.id, seatId: staffId, source: 'online' });
+  if (phone) {
+    await recordAlertNotification(b.id, { id: result.id, customer_phone: phone }, SMS_TEMPLATES.queueJoined, smsBodyQueueJoined(result.token));
+  }
   await broadcastQueue(b.id);
 
   const fresh = await loadQueueContext(b.id);

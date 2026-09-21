@@ -2,11 +2,12 @@ import { many, one } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { Errors } from '../../domain/errors';
 import { normalizePhone } from '../../lib/phone';
+import { SMS_TEMPLATES, smsBodyQueueJoined } from '../../lib/sms-copy';
 import { businessDayRange, businessRangeWindow } from '../../lib/time';
 import { soonestSeat } from '../../lib/queue-engine';
 import { emitToOwners } from '../../realtime/emitters';
 import { loadQueueContext } from '../queue/queue.context';
-import { broadcastQueue, getEntryDetail } from '../queue/queue.service';
+import { broadcastQueue, getEntryDetail, recordAlertNotification } from '../queue/queue.service';
 import { findOrCreateCustomer } from '../customers/customer.repo';
 
 function apptDTO(a: any) {
@@ -125,6 +126,21 @@ export async function checkIn(businessId: string, appointmentId: string) {
     seatId: staffId,
     source: 'online',
   });
+
+  // Same join SMS as online live-queue join (Twilio when SMS_ENABLED).
+  const phoneRow = await one<{ customer_phone: string | null }>(
+    'select customer_phone from queue_entry where id = $1 and business_id = $2',
+    [result.entry.id, businessId],
+  );
+  if (phoneRow?.customer_phone) {
+    await recordAlertNotification(
+      businessId,
+      { id: result.entry.id, customer_phone: phoneRow.customer_phone },
+      SMS_TEMPLATES.queueJoined,
+      smsBodyQueueJoined(result.entry.token),
+    );
+  }
+
   await broadcastQueue(businessId);
   const entry = await getEntryDetail(businessId, result.entry.id);
   return { appointmentId, entry, token: result.entry.token };

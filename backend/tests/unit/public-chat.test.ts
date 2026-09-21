@@ -4,8 +4,8 @@ import request from 'supertest';
 
 /**
  * POST /public/businesses/:key/chat through the real router, validator and error handler, with
- * the one database read (`getMicrositeByKey`) replaced by a fixture. Same pattern as
- * whatsapp-webhook.test.ts: no database, no server, and — the point of this file — no LLM.
+ * the one database read (`getMicrositeByKey`) replaced by a fixture. Same shape as
+ * public-consent.test.ts: no database, no server, and — the point of this file — no LLM.
  * A stubbed `fetch` proves the key-free path never leaves the process.
  */
 

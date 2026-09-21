@@ -6,7 +6,7 @@ import { broadcastQueue } from '../modules/queue/queue.service';
 
 /**
  * In-process scheduled jobs (single instance). Swap for BullMQ + Redis workers
- * when scaling — see docs/09-background-jobs.md. Reminder/SMS/email/WhatsApp
+ * when scaling — see docs/09-background-jobs.md. Reminder/SMS/email
  * provider sync are DEFERRED until credentials are provided.
  */
 
@@ -36,19 +36,18 @@ async function staleCleanup() {
 }
 
 /**
- * Recompute ETA / fire the ~15-minute WhatsApp alert for businesses that have
- * waiting online live-queue entries. Needed because wall-clock decay of the
- * in-service chair can cross the threshold with no owner mutation.
- * Idempotent via notified_eta_15_at conditional claim inside broadcastQueue.
+ * Recompute ETA / fire wait-window SMS for businesses that have waiting
+ * online live-queue entries. Needed because wall-clock decay of the
+ * in-service chair can cross a threshold with no owner mutation.
+ * Idempotent via notified_eta_15_at / notified_eta_2_at claims inside broadcastQueue.
  */
 export async function etaNotifySweep(): Promise<void> {
   const rows = await many(
     `select business_id from queue_entry
       where status = 'waiting'
         and source = 'online'
-        and appointment_id is null
-        and notified_eta_15_at is null
-        and customer_phone is not null`,
+        and customer_phone is not null
+        and (notified_eta_15_at is null or notified_eta_2_at is null)`,
   );
   if (!rows.length) return;
 

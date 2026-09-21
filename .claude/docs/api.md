@@ -252,10 +252,9 @@ stores where `business.created_by_admin_id` matches. **Employee denial on a stor
 > unless `OTP_ENABLED=true` (default false everywhere, including production). Do not enable it
 > until real OTP verification exists — it is a complete auth bypass.
 
-### `/webhooks` (4) and `/media` (1)
+### `/webhooks` (2) and `/media` (1)
 
-`GET /webhooks/whatsapp` (verify handshake) · `POST /webhooks/whatsapp` ·
-`POST /webhooks/payments` · `POST /webhooks/sms`. The payments and SMS handlers are scaffolding.
+`POST /webhooks/payments` · `POST /webhooks/sms`. Both handlers are scaffolding.
 
 `GET /media/*` — unversioned, unauthenticated, 302-redirects to a freshly signed S3 GET.
 

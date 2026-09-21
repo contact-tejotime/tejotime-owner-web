@@ -85,7 +85,7 @@ These need external credentials and are **off by default** (`.env`):
 
 | Flag | Effect when `false` |
 |---|---|
-| `SMS_ENABLED` | "2-away"/"your-turn"/reminder SMS not dispatched; notifications still persisted + pushed over Socket.IO |
+| `SMS_ENABLED` | When false: join / ~15-min / ~2-min / your-turn SMS not dispatched via Twilio; notifications still persisted + pushed over Socket.IO |
 | `EMAIL_ENABLED` | Email reminders not dispatched |
 | `PAYMENTS_ENABLED` | `POST /subscription/upgrade` flips the plan directly (no charge); webhooks inert |
 | `OTP_ENABLED` | Customer join/book do not require phone OTP |

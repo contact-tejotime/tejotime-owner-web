@@ -414,9 +414,8 @@ clean.
 Thin, and worth being honest about:
 
 - `backend/tests/unit/` — **10 vitest files, 105 tests**: pure functions (`queue-engine`,
-  `eta-notify`, `ttl-cache`, `whatsapp`, `service-pricing`, `open-status`, `chat-faq`) plus three
-  router/seam tests over `supertest` with `fetch` stubbed (`whatsapp-webhook`, `public-chat`,
-  `chatbot`).
+  `eta-notify`, `ttl-cache`, `sms`, `service-pricing`, `open-status`, `chat-faq`) plus two
+  router/seam tests over `supertest` with `fetch` stubbed (`public-chat`, `chatbot`).
 - `frontend/src/theme/engine/__tests__/run.ts` — framework-free theme self-check.
 - `app/src/lib/__tests__/responsive-check.ts` — framework-free self-check for the mobile app's
   breakpoint/grid arithmetic (`npm run test:responsive`).
