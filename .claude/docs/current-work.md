@@ -9,6 +9,12 @@ the system as designed, this one describes where it actually is.
 
 ## 1. What is in flight
 
+### Mobile: subscription/upgrade UI removed for App Store (2026-09-17)
+
+App Review rejected 1.0 (2) under guideline 2.1(b): an "Upgrade to Premium" button with no In-App Purchase behind it. Every
+plan, subscription and upgrade surface was removed from `app/`. `owner-web` and the backend are
+unchanged. See [docs/mobile-no-in-app-purchases.md](../../docs/mobile-no-in-app-purchases.md).
+
 ### Twilio A2P SMS opt-in (2026-09-21)
 
 Optional, unchecked SMS checkbox on the public Check-in and Book forms. Join/book still succeed

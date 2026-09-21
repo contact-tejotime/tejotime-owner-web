@@ -40,7 +40,16 @@ const ACCESS_LABELS: Record<Access, string> = {
   manage: t.team.accessManage,
 };
 
-const MODULE_LABELS: Record<PermissionModule, string> = {
+/**
+ * The app sells nothing, so it never mentions billing: App Review rejected v1.0 (2) under
+ * guideline 2.1(b) for referencing a subscription with no In-App Purchase behind it. `billing`
+ * stays in GRANTABLE_MODULES, so the payload still carries whatever the owner set on the web —
+ * it is only never shown here.
+ */
+type ShownModule = Exclude<PermissionModule, 'billing'>;
+const SHOWN_MODULES = GRANTABLE_MODULES.filter((m): m is ShownModule => m !== 'billing');
+
+const MODULE_LABELS: Record<ShownModule, string> = {
   dashboard: t.team.moduleDashboard,
   queue: t.team.moduleQueue,
   appointments: t.team.moduleAppointments,
@@ -50,7 +59,6 @@ const MODULE_LABELS: Record<PermissionModule, string> = {
   staff: t.team.moduleStaff,
   hours: t.team.moduleHours,
   notifications: t.team.moduleNotifications,
-  billing: t.team.moduleBilling,
   profile: t.team.moduleProfile,
   team: t.team.moduleTeam,
 };
@@ -241,7 +249,7 @@ export default function TeamLogins() {
   };
 
   const summarise = (permissions: Record<PermissionModule, Access>) => {
-    const visible = GRANTABLE_MODULES.filter((m) => permissions?.[m] && permissions[m] !== 'none');
+    const visible = SHOWN_MODULES.filter((m) => permissions?.[m] && permissions[m] !== 'none');
     if (visible.length === 0) return t.team.canSeeNothing;
     return t.team.canSee.replace('{list}', visible.map((m) => MODULE_LABELS[m]).join(', '));
   };
@@ -608,7 +616,7 @@ function PermissionGrid({
   const { colors } = useTheme();
   return (
     <View style={badgeStyles.grid}>
-      {GRANTABLE_MODULES.map((mod) => (
+      {SHOWN_MODULES.map((mod) => (
         <View key={mod} style={[badgeStyles.gridRow, { borderBottomColor: colors.borderSubtle }]}>
           <TText variant="caption" color="textBody" weight="semibold">
             {MODULE_LABELS[mod]}
