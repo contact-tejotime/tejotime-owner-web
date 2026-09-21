@@ -1,4 +1,4 @@
-import { many, one } from '../../db/pool';
+import { exec, many, one } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { Errors } from '../../domain/errors';
 import { normalizePhone } from '../../lib/phone';
@@ -127,17 +127,32 @@ export async function checkIn(businessId: string, appointmentId: string) {
     source: 'online',
   });
 
-  // Same join SMS as online live-queue join (Twilio when SMS_ENABLED).
-  const phoneRow = await one<{ customer_phone: string | null }>(
-    'select customer_phone from queue_entry where id = $1 and business_id = $2',
+  // Copy the booking's A2P flag onto the new ticket. queue_add cannot take it
+  // (overload trap); without this copy, check-in would text anyone with a phone.
+  await exec(
+    `update queue_entry q
+        set sms_opt_in = a.sms_opt_in
+       from appointment a
+      where q.id = $1 and q.business_id = $2
+        and a.id = $3 and a.business_id = $2`,
+    [result.entry.id, businessId, appointmentId],
+  );
+
+  const phoneRow = await one<{ customer_phone: string | null; sms_opt_in: boolean }>(
+    'select customer_phone, sms_opt_in from queue_entry where id = $1 and business_id = $2',
     [result.entry.id, businessId],
   );
   if (phoneRow?.customer_phone) {
+    const biz = await one<{ name: string }>('select name from business where id = $1', [businessId]);
     await recordAlertNotification(
       businessId,
-      { id: result.entry.id, customer_phone: phoneRow.customer_phone },
+      {
+        id: result.entry.id,
+        customer_phone: phoneRow.customer_phone,
+        sms_opt_in: phoneRow.sms_opt_in === true,
+      },
       SMS_TEMPLATES.queueJoined,
-      smsBodyQueueJoined(result.entry.token),
+      smsBodyQueueJoined(result.entry.token, biz?.name ?? 'TejoTime'),
     );
   }
 

@@ -11,14 +11,18 @@ export const SMS_TEMPLATES = {
 export const ETA_NOTIFY_15_MINUTES = 15;
 export const ETA_NOTIFY_2_MINUTES = 2;
 
-export function smsBodyQueueJoined(token: string): string {
-  return `You're in the queue. Token ${token}. We'll text you as your turn gets close.`;
+function brand(businessName: string): string {
+  return businessName.trim() || 'TejoTime';
 }
 
-export function smsBodyEta(waitMinutes: number): string {
-  return `You're about ${waitMinutes} minutes away — almost your turn.`;
+export function smsBodyQueueJoined(token: string, businessName: string): string {
+  return `${brand(businessName)} via TejoTime: You're on the waitlist. Token ${token}. Up to 4 msgs/visit. Reply STOP to opt out, HELP for help.`;
 }
 
-export function smsBodyYourTurn(): string {
-  return "It's your turn — please head in.";
+export function smsBodyEta(waitMinutes: number, businessName: string): string {
+  return `${brand(businessName)} via TejoTime: You're about ${waitMinutes} minutes away. Reply STOP to opt out, HELP for help.`;
+}
+
+export function smsBodyYourTurn(businessName: string): string {
+  return `${brand(businessName)} via TejoTime: It's your turn — please head in. Reply STOP to opt out, HELP for help.`;
 }

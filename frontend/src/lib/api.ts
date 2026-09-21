@@ -162,6 +162,8 @@ export interface JoinBody {
   phone: string;
   preferredStaffId?: string;
   visitorType?: "mr" | "patient";
+  /** Unchecked-by-default A2P opt-in. Omit or false → no SMS for this visit. */
+  smsOptIn?: boolean;
 }
 export interface BookBody extends JoinBody {
   slotStart: string;

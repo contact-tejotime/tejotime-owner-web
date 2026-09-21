@@ -100,8 +100,9 @@ the next customer's clock without the shop deciding to.
 
 `lib/eta-notify.ts` + `queue.service.ts::processTicketBroadcasts`.
 
-Fires **once per ticket**, for **online live-queue joins only** — not walk-ins, not checked-in
-appointments — when `0 < waitMinutes <= ETA_NOTIFY_MINUTES` (default 15).
+Fires **once per ticket**, for **online live-queue joins only** — not walk-ins — when
+`0 < waitMinutes <= ETA_NOTIFY_MINUTES` (default 15) **and** the visit opted in
+(`sms_opt_in = true`). Missing opt-in never texts.
 
 Idempotency is a **conditional claim** on `notified_eta_15_at`: the update only matches rows where
 the column is still null, so exactly one concurrent caller wins. `notified_turn_at` does the same
@@ -225,7 +226,7 @@ vendor SDK from a service.
 | Concern | Provider | State |
 |---|---|---|
 | Object storage | Railway Buckets (S3-compatible), AWS SDK v3 | **live** |
-| SMS / alerts | Twilio SMS | wired, behind `SMS_ENABLED` |
+| SMS / alerts | Twilio SMS | wired, behind `SMS_ENABLED`; A2P opt-in gate — see [docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md) |
 | Email | SES / Postmark | deferred no-op (`EMAIL_ENABLED=false`) |
 | Payments | Razorpay / Stripe | deferred — `upgrade()` flips the plan directly |
 | OTP | — | **deferred stub** (`OTP_ENABLED=false`) — see the warning in `api.md` |
