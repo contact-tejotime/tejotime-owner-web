@@ -1231,8 +1231,8 @@
           "Where enabled for a business, TejoTime sends transactional text messages tied to a specific booking or waitlist visit — for example, confirming that you have joined a waitlist, letting you know your wait is almost over, and letting you know it is your turn. These are not marketing messages, and we do not send recurring or promotional texts.",
           "You opt in by checking the SMS box on a business’s TejoTime page when you book an appointment or join a waitlist. Your number identifies the visit; we only text it if that box is checked. You can finish a booking or waitlist join without agreeing to texts.",
           "Message frequency depends on your booking or waitlist activity and is typically no more than four messages per visit. Message and data rates may apply.",
-          "Reply STOP to any message to stop receiving texts about that booking or visit, or ask the business to remove you. Reply HELP, or contact us at {email} or {phone}, for help. Carriers are not liable for delayed or undelivered messages.",
-          "We do not sell, rent, or share your mobile phone number or your text-message opt-in status with third parties or affiliates for their own marketing or promotional purposes. Businesses are responsible for having an appropriate basis to contact their own clients."
+          "Reply STOP to any message to stop receiving texts from TejoTime, or ask the business to remove you. Reply HELP, or contact us at {email} or {phone}, for help. Carriers are not liable for delayed or undelivered messages.",
+          "We do not sell, rent, or share your mobile phone number or your text-message opt-in status with third parties or affiliates for their own marketing or promotional purposes. Text messaging originator opt-in data and consent will not be shared with any third parties. Businesses are responsible for having an appropriate basis to contact their own clients."
         ],
         "bullets": []
       },
@@ -1475,8 +1475,8 @@
         "paragraphs": [
           "If a business you interact with uses TejoTime’s optional texting feature, you may receive text messages tied to a specific appointment or waitlist visit — for example a confirmation that you joined a waitlist, a heads-up that your wait is almost over, or a notice that it is your turn. These messages are transactional, not marketing, and are not sent on a recurring subscription basis.",
           "You opt in by checking the optional, unchecked-by-default SMS box when you book an appointment or join a waitlist on a business’s TejoTime page. Consenting to receive these texts is not a condition of purchasing any service from the business.",
-          "Message frequency depends on your booking or waitlist activity and is typically no more than four messages per visit. Message and data rates may apply. Reply STOP to any message to stop receiving texts about that booking or visit, or reply HELP, or contact us at {email} or {phone}, for help. Carriers are not liable for delayed or undelivered messages.",
-          "We do not sell, rent, or share your mobile phone number or your text-messaging opt-in status with third parties or affiliates for their own marketing or promotional purposes. See our Privacy Policy for more detail on how we handle information.",
+          "Message frequency depends on your booking or waitlist activity and is typically no more than four messages per visit. Message and data rates may apply. Reply STOP to any message to stop receiving texts from TejoTime, or reply HELP, or contact us at {email} or {phone}, for help. Carriers are not liable for delayed or undelivered messages.",
+          "We do not sell, rent, or share your mobile phone number or your text-messaging opt-in status with third parties or affiliates for their own marketing or promotional purposes. Text messaging originator opt-in data and consent will not be shared with any third parties. See our Privacy Policy for more detail on how we handle information.",
           "Businesses using TejoTime’s texting feature are responsible for having their own appropriate basis to text their clients and for complying with applicable messaging and telemarketing law."
         ],
         "bullets": []
