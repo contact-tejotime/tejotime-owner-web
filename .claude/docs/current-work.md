@@ -21,6 +21,12 @@ Optional, unchecked SMS checkbox on the public Check-in and Book forms. Join/boo
 with the box off; Twilio is only called when `queue_entry.sms_opt_in` / `appointment.sms_opt_in`
 is true and `customer.sms_opt_out_at` is null. Migration `0027_sms_opt_in.sql`. Campaign paste and
 the $15-fee warnings: [docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md).
+2026-09-22 pre-submit pass (US-only campaign): consent text raised to 13px / `--text-strong`,
+Privacy §5 + Terms §18 gained the stock "originator opt-in data" line and now say STOP stops
+texts from TejoTime; the doc lists all 4 samples with a pre-submit checklist. Alerts 2–4 (`smsBodyEta`,
+`smsBodyYourTurn`) no longer repeat "Reply STOP…HELP" — only the join message carries it — and
+the em dash is gone so every body is GSM-7 / one segment. The join message states frequency as
+"We'll text you up to 3 more updates for this visit" (was "Up to 4 msgs/visit").
 
 Owner-web and Expo were **not** given an opt-in control — `message_flow` is website-only, so an
 owner walk-in with a phone must not text. `SMS_ENABLED` stays false until the campaign is Approved.
