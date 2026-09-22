@@ -3,6 +3,7 @@ import { FlatList, Modal, Pressable, StyleSheet, TextInput, TextStyle, View } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TEmptyState } from '@/components/common/TEmptyState';
+import { TKeyboardScreen } from '@/components/common/TKeyboardScreen';
 import { TText } from '@/components/common/TText';
 import { Icon } from '@/components/ui/Icon';
 import { t } from '@/i18n';
@@ -103,7 +104,12 @@ export function PhoneInput({
       )}
 
       <Modal transparent visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
-        <View style={s.overlay}>
+        {/* Keyboard-aware, as every other input surface in the app is (TKeyboardScreen). This was a
+            plain View. The sheet is bottom-anchored, so the keyboard covered it on both platforms.
+            Once a search narrowed the list to a few rows, the sheet shrank and slid entirely behind
+            the keyboard, and the picker looked like it had vanished. The padding lifts the sheet
+            above the keyboard instead. */}
+        <TKeyboardScreen isScrollView={false} style={s.overlay}>
           <Pressable onPress={() => setOpen(false)} style={s.backdrop} />
           <View style={s.sheet}>
             <View style={s.handle} />
@@ -118,8 +124,11 @@ export function PhoneInput({
                 placeholderTextColor={theme.colors.textSubtle}
                 value={query}
                 onChangeText={setQuery}
-                autoFocus
+                // No autoFocus: opening the picker used to throw the keyboard up over the list
+                // before the owner had typed anything. The list shows first, and search is one tap.
                 autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
                 style={s.searchInput}
               />
             </View>
@@ -127,6 +136,8 @@ export function PhoneInput({
               data={results}
               keyExtractor={(c) => c.iso2}
               keyboardShouldPersistTaps="handled"
+              // Scrolling the results puts the keyboard away, so a search can be browsed.
+              keyboardDismissMode="on-drag"
               style={s.list}
               renderItem={({ item }) => {
                 const sel = item.iso2 === iso2;
@@ -148,7 +159,7 @@ export function PhoneInput({
               ListEmptyComponent={<TEmptyState compact icon="search" title={t.phone.noMatches} />}
             />
           </View>
-        </View>
+        </TKeyboardScreen>
       </Modal>
     </View>
   );

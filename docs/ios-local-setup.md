@@ -162,6 +162,10 @@ Android hides three problems that iOS does not, all rooted in one difference: **
 the window under the keyboard (`softwareKeyboardLayoutMode: "resize"`) and has a Back button to
 dismiss it; iOS floats the keyboard over the app and gives number pads no Return key.**
 
+> The resize applies to the **activity window only**. A React Native `Modal` gets its own window,
+> which is not resized. So an input inside a `Modal` needs `TKeyboardScreen` (or `TSheet`'s
+> `keyboardAvoiding`) on **both** platforms. The country picker was covered on Android as well.
+
 | File | Was | Now |
 |---|---|---|
 | `components/settings/EditSheet.tsx` | No height cap, no scroll. The Services/Staff forms it wraps run to five fields plus two buttons — off the bottom of a 667pt phone, and further off with the keyboard up. | `maxHeight: '86%'` + a `ScrollView` with `keyboardShouldPersistTaps="handled"` and `keyboardDismissMode="on-drag"`, matching `AddWalkInSheet`. |
@@ -169,3 +173,4 @@ dismiss it; iOS floats the keyboard over the app and gives number pads no Return
 | `components/feedback/ConfirmSheet.tsx` | The prompt variant (Team → reset password) centres a ~300pt card; iOS buried Confirm/Cancel under the keyboard. | Wrapped in `TKeyboardScreen`. |
 | `components/common/TScreenScroll.tsx` | No keyboard props, so a button under the keyboard took two taps and a number pad had no dismissal gesture. | Same two props `TKeyboardScreen` already used. |
 | `components/common/TToast.tsx` | Leftover debug `backgroundColor: 'red'` on the toast host and `'blue'` on the toast. | Removed. |
+| `components/common/PhoneInput.tsx` (country picker, fixed 2026-09-22) | A plain `View` inside a `Modal`, with `autoFocus` on its search. The keyboard opened over the list at once, and once a search narrowed the results the bottom-anchored sheet slid **entirely** behind the keyboard. This happened on **Android too**: the window resize below does not reach a `Modal`'s window. | Wrapped in `TKeyboardScreen`; no `autoFocus`, so the list shows first; `keyboardDismissMode="on-drag"` on the results. |
