@@ -15,6 +15,13 @@ App Review rejected 1.0 (2) under guideline 2.1(b): an "Upgrade to Premium" butt
 plan, subscription and upgrade surface was removed from `app/`. `owner-web` and the backend are
 unchanged. See [docs/mobile-no-in-app-purchases.md](../../docs/mobile-no-in-app-purchases.md).
 
+### Admin gallery drag-to-reorder (2026-09-22)
+
+`admin-panel` `GalleryUpload` (`components/ImageUpload.tsx`) tiles are now draggable (native HTML5,
+no dependency; Alt+←/→ from the keyboard), and tile 0 carries a "Main" badge because the microsite
+mosaic shows it largest. No backend change — array order was already saved as
+`gallery_image.position`. owner-web (arrows) and Expo (Move up) already reorder and are unchanged.
+
 ### Twilio A2P SMS opt-in (2026-09-21)
 
 Optional, unchecked SMS checkbox on the public Check-in and Book forms. Join/book still succeed

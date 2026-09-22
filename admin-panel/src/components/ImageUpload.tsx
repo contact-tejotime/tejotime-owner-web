@@ -176,6 +176,9 @@ export function GalleryUpload({
   const [err, setErr] = useState("");
   // Index of the photo open in the viewer; null when closed.
   const [preview, setPreview] = useState<number | null>(null);
+  // Drag-to-reorder: the tile being dragged and the tile it is hovering over.
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const full = value.length >= max;
 
@@ -216,22 +219,64 @@ export function GalleryUpload({
 
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i));
 
+  // Order is the product here: the microsite mosaic shows index 0 largest, and the save path
+  // stores array order as `gallery_image.position`. Without this the only way to change the
+  // main photo was to delete every photo and upload them again in sequence.
+  const move = (from: number, to: number) => {
+    if (from === to || to < 0 || to >= value.length) return;
+    const next = value.slice();
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    onChange(next);
+  };
+
+  const endDrag = () => {
+    setDragFrom(null);
+    setDragOver(null);
+  };
+
   return (
     <div>
       {value.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
           {value.map((g, i) => (
             <div
-              key={i}
+              // url + index, not index alone: with index keys React would keep a dragged tile's
+              // DOM in place and just repaint it, so focus and hover state would jump.
+              key={`${g.url}-${i}`}
               role="button"
               tabIndex={0}
-              aria-label={t.imagePreview.open}
-              title={t.imagePreview.open}
+              aria-label={`${t.imagePreview.open}. ${t.imageUpload.galleryReorder}`}
+              title={`${t.imagePreview.open} · ${t.imageUpload.galleryReorder}`}
+              draggable
+              onDragStart={(e) => {
+                setDragFrom(i);
+                e.dataTransfer.effectAllowed = "move";
+                // Firefox will not start a drag without some data on it.
+                e.dataTransfer.setData("text/plain", String(i));
+              }}
+              onDragOver={(e) => {
+                if (dragFrom === null) return; // a file dragged in from the desktop, not a tile
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (dragOver !== i) setDragOver(i);
+              }}
+              onDrop={(e) => {
+                if (dragFrom === null) return;
+                e.preventDefault();
+                move(dragFrom, i);
+                endDrag();
+              }}
+              onDragEnd={endDrag}
               onClick={() => setPreview(i)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   setPreview(i);
+                } else if (e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+                  // Keyboard equivalent of dragging one slot.
+                  e.preventDefault();
+                  move(i, e.key === "ArrowLeft" ? i - 1 : i + 1);
                 }
               }}
               style={{
@@ -241,9 +286,29 @@ export function GalleryUpload({
                 borderRadius: 8,
                 border: "1px solid var(--border-subtle)",
                 ...checkerBehind(g.url),
-                cursor: "zoom-in",
+                cursor: dragFrom === null ? "grab" : "grabbing",
+                opacity: dragFrom === i ? 0.4 : 1,
+                outline: dragOver === i && dragFrom !== i ? "2px solid var(--blue-600)" : undefined,
+                outlineOffset: 2,
               }}
             >
+              {i === 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 6,
+                    bottom: 6,
+                    padding: "2px 7px",
+                    borderRadius: 999,
+                    background: "rgba(15,23,42,.72)",
+                    color: "#fff",
+                    font: "600 11px/1.4 var(--font-sans, system-ui)",
+                    pointerEvents: "none",
+                  }}
+                >
+                  {t.imageUpload.galleryMain}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={(e) => {

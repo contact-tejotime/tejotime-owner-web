@@ -490,6 +490,8 @@
     "partialFail": "{failed} of {total} photo failed: {reason}",
     "partialFailPlural": "{failed} of {total} photos failed: {reason}",
     "galleryCount": "{count} of {max}",
+    "galleryMain": "Main",
+    "galleryReorder": "Drag to reorder (or Alt + arrow keys)",
     "galleryMaxSkipped": "Only {max} photos can be shown, so the extras were skipped.",
     "uploadFailedStatus": "Upload failed ({status})"
   },
@@ -583,7 +585,7 @@
     "aboutPhoto": "About photo",
     "logoPhoto": "Logo (optional)",
     "galleryPhotos": "Gallery photos",
-    "galleryHint": "Upload from your device. Up to 7 photos fill the live-site mosaic (first photo shows largest).",
+    "galleryHint": "Upload from your device. Up to 7 photos fill the live-site mosaic. The first photo shows largest. Drag photos to reorder.",
     "services": "Services *",
     "servicesOptional": "Services",
     "serviceName": "Name",
