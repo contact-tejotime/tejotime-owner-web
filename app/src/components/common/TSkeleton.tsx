@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { AccessibilityInfo, DimensionValue, StyleProp, StyleSheet, ViewStyle } from 'react-native';
+import { AccessibilityInfo, DimensionValue, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -140,3 +140,131 @@ const createSkeletonCardStyles = (
     metaCell: { gap: moderateScale(6) },
     metaLabel: { marginTop: moderateScale(2) },
   });
+
+/**
+ * One `QueueCard`-shaped row: number badge, name, a sub-line, and a status pill on the right.
+ * Also stands in for the Reports staff and queue rows. Their real cards are close enough in height
+ * that the swap does not visibly jump.
+ */
+export function TQueueRowSkeleton() {
+  const { colors, radius } = useTheme();
+  return (
+    <View
+      style={[
+        rowSkeletonStyles.row,
+        {
+          backgroundColor: colors.surfaceCard,
+          borderColor: colors.borderSubtle,
+          borderRadius: moderateScale(radius.lg),
+        },
+      ]}>
+      <TSkeleton width={moderateScale(34)} height={34} radius={radius.md} />
+      <View style={rowSkeletonStyles.body}>
+        <TSkeleton width="60%" height={14} />
+        <TSkeleton width="38%" height={11} />
+      </View>
+      <TSkeleton width={moderateScale(44)} height={12} />
+    </View>
+  );
+}
+
+/**
+ * One seat board on the Home queue: the seat header (avatar, name, sub-line, count pill) over two
+ * queue rows. Same frame as `QueueBoard`'s `seatBoard`, so the real boards replace these in place.
+ */
+export function TSeatBoardSkeleton({ style }: { style?: StyleProp<ViewStyle> }) {
+  const { colors, radius, shadow } = useTheme();
+  return (
+    <View
+      style={[
+        seatSkeletonStyles.board,
+        {
+          backgroundColor: colors.surfaceCard,
+          borderColor: colors.borderSubtle,
+          borderRadius: moderateScale(radius.lg),
+        },
+        shadow.xs,
+        style,
+      ]}>
+      <View style={seatSkeletonStyles.header}>
+        <TSkeleton width={moderateScale(36)} height={36} radius={radius.md} />
+        <View style={rowSkeletonStyles.body}>
+          <TSkeleton width="50%" height={15} />
+          <TSkeleton width="70%" height={11} />
+        </View>
+        <TSkeleton width={moderateScale(52)} height={24} />
+      </View>
+      <View style={seatSkeletonStyles.rows}>
+        <TQueueRowSkeleton />
+        <TQueueRowSkeleton />
+      </View>
+    </View>
+  );
+}
+
+/** One `AppointmentListItem`: the time column beside a card with the brand-coloured left edge. */
+export function TAppointmentRowSkeleton() {
+  const { colors, radius } = useTheme();
+  return (
+    <View style={apptSkeletonStyles.row}>
+      <View style={apptSkeletonStyles.time}>
+        <TSkeleton width={moderateScale(44)} height={13} />
+      </View>
+      <View
+        style={[
+          apptSkeletonStyles.card,
+          {
+            backgroundColor: colors.surfaceCard,
+            borderColor: colors.borderSubtle,
+            borderLeftColor: colors.surfaceSunken,
+            borderRadius: moderateScale(radius.md),
+          },
+        ]}>
+        <View style={rowSkeletonStyles.body}>
+          <TSkeleton width="55%" height={14} />
+          <TSkeleton width="40%" height={11} />
+        </View>
+        <TSkeleton width={moderateScale(78)} height={32} radius={radius.md} />
+      </View>
+    </View>
+  );
+}
+
+const rowSkeletonStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: moderateScale(11),
+    padding: moderateScale(12),
+    borderWidth: moderateScale(1),
+  },
+  body: { flex: 1, minWidth: 0, gap: moderateScale(7) },
+});
+
+const seatSkeletonStyles = StyleSheet.create({
+  board: { borderWidth: moderateScale(1), padding: moderateScale(12) },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: moderateScale(11),
+    paddingHorizontal: moderateScale(2),
+    paddingTop: moderateScale(2),
+    paddingBottom: moderateScale(12),
+  },
+  rows: { gap: moderateScale(8) },
+});
+
+const apptSkeletonStyles = StyleSheet.create({
+  row: { flexDirection: 'row', gap: moderateScale(12) },
+  time: { width: moderateScale(56), alignItems: 'flex-end', paddingTop: moderateScale(16) },
+  card: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: moderateScale(8),
+    borderWidth: moderateScale(1),
+    borderLeftWidth: moderateScale(3),
+    paddingVertical: moderateScale(12),
+    paddingHorizontal: moderateScale(16),
+  },
+});

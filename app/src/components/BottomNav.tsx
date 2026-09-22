@@ -17,7 +17,9 @@ import { useTheme } from '@/theme/ThemeProvider';
 
 /** `module: null` means always shown — Settings is where you change your own password. */
 const NAV: { id: TabId; label: string; icon: IconName; module: PermissionModule | null }[] = [
-  { id: 'dashboard', label: t.nav.home, icon: 'layoutDashboard', module: 'dashboard' },
+  // A house, not `layoutDashboard`: that one's four rounded squares were indistinguishable from
+  // Calendar's `grid` at tab-bar size, so two of six tabs wore the same glyph.
+  { id: 'dashboard', label: t.nav.home, icon: 'home', module: 'dashboard' },
   { id: 'stats', label: t.nav.stats, icon: 'star', module: 'dashboard' },
   { id: 'appointments', label: t.nav.appts, icon: 'calendar', module: 'appointments' },
   { id: 'calendar', label: t.nav.calendar, icon: 'grid', module: 'calendar' },

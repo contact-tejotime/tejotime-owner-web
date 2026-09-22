@@ -2,7 +2,7 @@ import React from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { CustomerCard } from '@/components/cards/CustomerCard';
-import { THeader, TKeyboardScreen, TSearchInput, TText } from '@/components/common';
+import { TEmptyState, THeader, TKeyboardScreen, TSearchInput } from '@/components/common';
 import { TCustomerCardSkeleton } from '@/components/common/TSkeleton';
 import { Badge } from '@/components/ui/Badge';
 import { useTabContent } from '@/hooks/useResponsive';
@@ -76,7 +76,9 @@ export default function Customers() {
         renderItem={renderCustomer}
         numColumns={numColumns}
         columnWrapperStyle={numColumns > 1 ? s.gridRow : undefined}
-        contentContainerStyle={[styles.screenPadding, styles.pb6, styles.g3]}
+        // `flexGrow` only while the list is empty, so the empty state can fill the screen and sit
+        // in its middle rather than hugging the top under the search bar.
+        contentContainerStyle={[styles.screenPadding, styles.pb6, styles.g3, shown.length === 0 && s.emptyGrow]}
         showsVerticalScrollIndicator={false}
         initialNumToRender={10}
         maxToRenderPerBatch={10}
@@ -92,9 +94,11 @@ export default function Customers() {
               ))}
             </View>
           ) : (
-            <TText variant="bodySm" color="textMuted" style={styles.pt4}>
-              {store.search ? t.customers.noMatch : t.customers.empty}
-            </TText>
+            <TEmptyState
+              fill
+              icon={store.search ? 'search' : 'users'}
+              title={store.search ? t.customers.noMatch : t.customers.empty}
+            />
           )
         }
         refreshControl={
@@ -118,4 +122,5 @@ const s = StyleSheet.create({
   // row and collapses the grid back to one column. The list's own `g3`
   // supplies the vertical rhythm between rows.
   gridRow: { ...styles.justifyBetween },
+  emptyGrow: { flexGrow: 1 },
 });

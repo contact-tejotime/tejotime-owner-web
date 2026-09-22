@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { View } from 'react-native';
 
+import { TSplashScreen } from '@/components/common';
 import { AddWalkInSheet } from '@/components/feedback/AddWalkInSheet';
 import { DayAppointmentsSheet } from '@/components/feedback/DayAppointmentsSheet';
 import { DetailPanel } from '@/components/feedback/DetailPanel';
@@ -15,7 +16,8 @@ export default function AppLayout() {
   const { authed, authLoading } = useAppState();
   const { dark, colors } = useTheme();
 
-  if (authLoading) return null;
+  // Was `null`: a blank frame between the launch screen and the app on every cold start.
+  if (authLoading) return <TSplashScreen />;
   if (!authed) return <Redirect href="/(auth)/login" />;
 
   return (

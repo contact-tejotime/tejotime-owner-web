@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 
-import { TButton, TInput, TText } from '@/components/common';
+import { TButton, TEmptyState, TInput, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
 import { t } from '@/i18n';
 import { DEFAULT_DIAL_CODE } from '@/lib/phone';
@@ -263,11 +263,7 @@ export function OwnerStoreProfileForm() {
       </Section>
 
       <Section title={t.profile.sectionGallery} hint={t.profile.galleryHint}>
-        {gallery.length === 0 ? (
-          <TText variant="bodySm" color="textMuted">
-            {t.profile.galleryEmpty}
-          </TText>
-        ) : null}
+        {gallery.length === 0 ? <TEmptyState compact icon="grid" title={t.profile.galleryEmpty} /> : null}
         {gallery.map((g, i) => (
           <View key={`${g.url}-${i}`} style={s.galleryRow}>
             <Image source={{ uri: g.url }} style={s.galleryThumb} contentFit="cover" />

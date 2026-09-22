@@ -52,7 +52,13 @@ export default function Settings() {
 
   return (
     <>
-      <THeader title={t.settings.title} subtitle={storeLabel} avatar avatarName={storeLabel} />
+      <THeader
+        title={t.settings.title}
+        subtitle={storeLabel}
+        avatar
+        avatarName={storeLabel}
+        avatarUrl={biz?.logoUrl || undefined}
+      />
       <TScreenScroll>
         {showBusiness ? (
           <Section title={t.settings.groupBusiness} styles={s}>

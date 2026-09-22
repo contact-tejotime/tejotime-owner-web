@@ -12,15 +12,16 @@ import {
 } from 'react-native';
 
 import { QueueCard } from '@/components/cards/QueueCard';
-import { TButton, TText } from '@/components/common';
+import { TEmptyState, TSeatBoardSkeleton, TText } from '@/components/common';
 import { useTabContent } from '@/hooks/useResponsive';
 import { Icon } from '@/components/ui/Icon';
 import { t } from '@/i18n';
 import { CardVM, SeatGroupVM } from '@/lib/queue';
 import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
-import { inkOn } from '@/theme/ink';
+import { inkOn, withAlpha } from '@/theme/ink';
 import { useTheme } from '@/theme/ThemeProvider';
+import { space } from '@/theme/tokens';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
@@ -210,6 +211,7 @@ function DropSlot({ active, s }: { active: boolean; s: ReturnType<typeof createQ
 
 function SeatHeader({ group, s }: { group: SeatGroupVM; s: ReturnType<typeof createQueueStyles> }) {
   const resolveColor = useServiceColor();
+  const { colors } = useTheme();
   return (
     <View style={s.seatHeader}>
       <View style={queueAvatarStyle(s.seatHeaderAvatar, resolveColor(group.color))}>
@@ -221,9 +223,14 @@ function SeatHeader({ group, s }: { group: SeatGroupVM; s: ReturnType<typeof cre
         <TText variant="bodyMd" color="textStrong" weight="bold">
           {group.name}
         </TText>
-        <TText variant="caption" color="textMuted" numberOfLines={1} style={s.seatHeaderSubline}>
-          {group.subLine}
-        </TText>
+        <View style={s.seatHeaderStatus}>
+          {/* Green while the chair is free, brand colour while it is serving: readable at a
+              glance down a column of seats, before the words are. */}
+          <View style={[s.seatHeaderDot, { backgroundColor: group.serving ? colors.primary : colors.success }]} />
+          <TText variant="caption" color="textMuted" numberOfLines={1} style={s.seatHeaderSubline}>
+            {group.subLine}
+          </TText>
+        </View>
       </View>
       <WaitBadge group={group} s={s} />
     </View>
@@ -241,16 +248,25 @@ function WaitBadge({ group, s }: { group: SeatGroupVM; s: ReturnType<typeof crea
 }
 
 /**
- * Live queue board (filters, Walk-in, seat cards). Used on Home; the old Queue tab redirects here.
- * Long-press drag reorders within a seat or drops onto another seat (Kanban).
- */
-/**
  * Narrowest a seat board stays usable at: it holds queue cards showing a name,
  * a service and an ETA, plus a header with an avatar and a wait badge.
  */
 const SEAT_BOARD_MIN_WIDTH = 320;
 
-export function QueueBoard() {
+/** `styles.screenPadding`'s horizontal inset (`ph5`), for the chip strip that bleeds past it. */
+const SCREEN_GUTTER = moderateScale(space[5]);
+
+/**
+ * Live queue board: seat filter chips and one board per seat. Used on Home; the old Queue tab
+ * redirects here. Long-press drag reorders within a seat or drops onto another seat (Kanban).
+ *
+ * `header` is drawn at the top of the board's own scroll view, so Home's summary cards scroll
+ * away with the seats and share their pull-to-refresh. They used to sit fixed above a separately
+ * scrolling list, which left the seats a letterbox on smaller phones. Drag-and-drop is
+ * unaffected: seat positions are measured in window coordinates on every move, wherever the
+ * boards sit in the scroll.
+ */
+export function QueueBoard({ header }: { header?: React.ReactNode }) {
   const theme = useTheme();
   const store = useAppState();
   const { columns, gridItemWidth } = useTabContent();
@@ -297,40 +313,28 @@ export function QueueBoard() {
     Math.max(groups.length, 1),
   );
 
+  /**
+   * First load after sign-in. Until it lands, the board would otherwise say "No one in queue" (no
+   * seats yet) or "Seat free" (staff loaded, queue not yet). Both are false, and an owner glancing
+   * at the phone acts on them. As many boards as seats already known, 1 when none are, capped at 3,
+   * so a one-chair shop does not watch two placeholders collapse into one.
+   */
+  const skeletonBoards = store.bootstrapping ? Math.min(Math.max(groups.length, 1), 3) : 0;
+
+  /** Only worth saying once there is something to drag: two cards in a seat, or seats to move to. */
+  const showDragTip = groups.some((g) => g.cards.filter((c) => c.isWaiting).length > 1) || (canCrossSeat && waitingTotal > 0);
+
+  /**
+   * An empty seat's own shortcut: the walk-in sheet with that seat already chosen. Not for the
+   * seatless group, whose id is not a seat the API would accept.
+   */
+  const addWalkInTo = (seatId: string) => {
+    store.openWalkin();
+    if (seatId !== '__unassigned__') store.setWalkinStaff(seatId);
+  };
+
   return (
     <>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={s.chipScroll}
-        contentContainerStyle={s.chipScrollContent}>
-        {hideAllChip && groupsAll.length <= 1 ? (
-          <View style={s.waitingPill}>
-            <TText variant="bodySm" weight="bold" color="textStrong">
-              {waitingTotal} waiting
-            </TText>
-          </View>
-        ) : (
-          chips.map((ch) => {
-            const on = store.queueStaff === ch.id;
-            return (
-              <Pressable key={ch.id} onPress={() => store.setQueueStaff(ch.id)} style={queueChipStyle(s, on)}>
-                <TText variant="bodySm" weight="semibold" style={queueChipLabelStyle(s, on) as TextStyle}>
-                  {ch.label}
-                </TText>
-                <View style={queueChipCountStyle(s, on)}>
-                  <TText weight="bold" style={queueChipCountTextStyle(s, on) as StyleProp<TextStyle>}>
-                    {ch.count}
-                  </TText>
-                </View>
-              </Pressable>
-            );
-          })
-        )}
-        <TButton variant="primary" size="sm" onPress={store.openWalkin} leadingIcon={<Icon name="plus" size={16} color={theme.colors.textOnBrand} />}>
-          {t.queue.walkIn}
-        </TButton>
-      </ScrollView>
 
       {store.dragId != null && (
         <View style={s.dragBanner}>
@@ -355,10 +359,54 @@ export function QueueBoard() {
             colors={[theme.colors.primary]}
           />
         }>
-        {groups.length === 0 ? (
-          <TText variant="bodySm" color="textMuted" align="center" style={styles.pt6}>
-            {t.queue.empty}
+        {header}
+
+        <View style={s.sectionHead}>
+          <TText variant="h5" color="textStrong">
+            {t.dashboard.seatsTitle}
           </TText>
+          {showDragTip ? (
+            <TText variant="caption" color="textSubtle" numberOfLines={1} style={s.sectionTip}>
+              {t.dashboard.dragTip}
+            </TText>
+          ) : null}
+        </View>
+
+        {/* Filter chips only when there is something to filter: two or more seats. The old
+            single-seat "0 waiting" pill repeated the live card, and its Walk-in button repeated
+            the live card's main action. */}
+        {!hideAllChip ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={s.chipScroll}
+            contentContainerStyle={s.chipScrollContent}>
+            {chips.map((ch) => {
+              const on = store.queueStaff === ch.id;
+              return (
+                <Pressable key={ch.id} onPress={() => store.setQueueStaff(ch.id)} style={queueChipStyle(s, on)}>
+                  <TText variant="bodySm" weight="semibold" style={queueChipLabelStyle(s, on) as TextStyle}>
+                    {ch.label}
+                  </TText>
+                  <View style={queueChipCountStyle(s, on)}>
+                    <TText weight="bold" style={queueChipCountTextStyle(s, on) as StyleProp<TextStyle>}>
+                      {ch.count}
+                    </TText>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
+
+        {skeletonBoards > 0 ? (
+          <View style={seatColumns > 1 ? s.groupGrid : s.groupList}>
+            {Array.from({ length: skeletonBoards }, (_, i) => (
+              <TSeatBoardSkeleton key={i} style={seatColumns > 1 ? { width: gridItemWidth(seatColumns) } : undefined} />
+            ))}
+          </View>
+        ) : groups.length === 0 ? (
+          <TEmptyState compact icon="users" title={t.queue.empty} style={s.emptyBoard} />
         ) : (
           <View style={seatColumns > 1 ? s.groupGrid : s.groupList}>
             {groups.map((g) => {
@@ -414,11 +462,22 @@ export function QueueBoard() {
                     })}
                     <DropSlot active={isDropSeat && dropIdx === waitingCards.length} s={s} />
                     {g.empty && !isDropSeat && (
-                      <View style={s.emptySeat}>
-                        <TText variant="bodySm" color="textSubtle" align="center">
-                          {t.queue.seatFree}
-                        </TText>
-                      </View>
+                      <Pressable
+                        onPress={() => addWalkInTo(g.id)}
+                        accessibilityRole="button"
+                        style={({ pressed }) => [s.emptySeat, pressed && s.emptySeatPressed]}>
+                        <View style={s.emptySeatIcon}>
+                          <Icon name="plus" size={16} color={theme.colors.primary} strokeWidth={2.6} />
+                        </View>
+                        <View style={styles.flex}>
+                          <TText variant="bodySm" color="textStrong" weight="semibold">
+                            {t.dashboard.seatFreeTitle}
+                          </TText>
+                          <TText variant="caption" color="textMuted">
+                            {t.dashboard.seatFreeHint}
+                          </TText>
+                        </View>
+                      </Pressable>
                     )}
                     {g.empty && isDropSeat && (
                       <TText variant="caption" color="primarySoftFg" align="center">
@@ -438,18 +497,19 @@ export function QueueBoard() {
 
 const createQueueStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
   StyleSheet.create({
-    chipScroll: { flexGrow: 0 },
-    chipScrollContent: { ...styles.g2, ...styles.screenPadding, ...styles.pb2, ...styles.itemsCenter },
-    waitingPill: {
-      minHeight: moderateScale(34),
-      paddingHorizontal: moderateScale(12),
-      borderRadius: moderateScale(999),
-      backgroundColor: colors.surfaceCard,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.borderSubtle,
+    // The chips live inside the padded board scroll now. Pulling the strip back out to the screen
+    // edges (and padding its content back in) lets it scroll edge to edge instead of clipping at
+    // the gutter.
+    chipScroll: { flexGrow: 0, marginHorizontal: -SCREEN_GUTTER, marginBottom: moderateScale(12) },
+    chipScrollContent: { ...styles.g2, ...styles.itemsCenter, paddingHorizontal: SCREEN_GUTTER },
+    sectionHead: {
+      ...styles.flexRow,
       ...styles.itemsCenter,
-      ...styles.justifyCenter,
+      ...styles.justifyBetween,
+      marginTop: moderateScale(22),
+      marginBottom: moderateScale(12),
     },
+    sectionTip: { flexShrink: 1, marginLeft: moderateScale(12), textAlign: 'right' },
     chip: {
       ...styles.flexRow,
       ...styles.itemsCenter,
@@ -474,7 +534,8 @@ const createQueueStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
       borderRadius: moderateScale(999),
       backgroundColor: colors.surfaceSunken,
     },
-    chipCountOn: { backgroundColor: 'rgba(255,255,255,0.25)' },
+    // Derived from the brand's ink, not a fixed white: in dark mode the ink is dark.
+    chipCountOn: { backgroundColor: withAlpha(colors.textOnBrand, 0.25) },
     chipCountText: { fontSize: moderateScale(11), color: colors.textMuted },
     chipCountTextOn: { color: colors.textOnBrand },
     dragBanner: {
@@ -505,8 +566,8 @@ const createQueueStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
       borderWidth: moderateScale(1),
       borderColor: colors.borderSubtle,
       borderRadius: moderateScale(radius.lg),
-      padding: moderateScale(12),
-      ...shadow.xs,
+      padding: moderateScale(14),
+      ...shadow.sm,
     },
     seatBoardDrop: {
       borderColor: colors.primary,
@@ -519,11 +580,32 @@ const createQueueStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
       opacity: 0.55,
     },
     emptySeat: {
+      ...styles.flexRow,
+      ...styles.itemsCenter,
+      gap: moderateScale(12),
       borderWidth: moderateScale(1),
       borderColor: colors.borderDefault,
       borderStyle: 'dashed',
+      borderRadius: moderateScale(radius.md),
+      paddingVertical: moderateScale(12),
+      paddingHorizontal: moderateScale(12),
+      backgroundColor: colors.surfacePage,
+    },
+    emptySeatPressed: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+    emptySeatIcon: {
+      ...styles.nonFlexCenter,
+      width: moderateScale(32),
+      height: moderateScale(32),
+      borderRadius: moderateScale(16),
+      backgroundColor: colors.primarySoft,
+    },
+    // The shared empty state, framed as a dashed board so it sits among the seat boards.
+    emptyBoard: {
       borderRadius: moderateScale(radius.lg),
-      padding: moderateScale(14),
+      borderWidth: moderateScale(1),
+      borderStyle: 'dashed',
+      borderColor: colors.borderDefault,
+      backgroundColor: colors.surfaceCard,
     },
     seatHeader: {
       ...styles.flexRow,
@@ -535,13 +617,15 @@ const createQueueStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
     },
     seatHeaderAvatar: {
       ...styles.nonFlexCenter,
-      width: moderateScale(36),
-      height: moderateScale(36),
+      width: moderateScale(40),
+      height: moderateScale(40),
       borderRadius: moderateScale(radius.md),
     },
-    seatHeaderAvatarText: { fontSize: moderateScale(15) },
+    seatHeaderAvatarText: { fontSize: moderateScale(16) },
     seatHeaderBody: { ...styles.flex, ...styles.minWidth0 },
-    seatHeaderSubline: { ...styles.mt1 },
+    seatHeaderStatus: { ...styles.flexRow, ...styles.itemsCenter, gap: moderateScale(6), ...styles.mt1 },
+    seatHeaderDot: { width: moderateScale(7), height: moderateScale(7), borderRadius: moderateScale(4) },
+    seatHeaderSubline: { flexShrink: 1 },
     waitBadge: {
       paddingHorizontal: moderateScale(10),
       paddingVertical: moderateScale(5),

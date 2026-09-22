@@ -545,6 +545,59 @@ falls back to the engine's own `onColor()` picker when it is not. This lives in 
 store's customer microsite too, and `resolve.ts`'s force-the-override behaviour has tests pinning
 it deliberately.
 
+### White first on brand fills (owner app, 2026-09-22)
+
+On top of that guard, the owner app **prefers white** ink on a coloured fill whenever white reaches
+**3:1** (`WHITE_INK_MIN_CONTRAST` in `app/src/theme/ink.ts`). That is WCAG's minimum for large
+text and interface elements. It applies to `textOnBrand` in `fromEngine.ts` and to `inkOn()`, so
+buttons, selected chips, the Home live-queue card and seat avatars all follow it.
+
+Why: the engine's `onColor()` takes whichever of white or near-black scores higher, and for a
+mid-tone brand that is near-black. An owner on orange `#E0612C` (white 3.55, near-black 5.03) got
+black numbers on Home and a navy "Add walk-in" button, and reported it as not matching their theme.
+
+| Brand | White | Near-black | Ink before | Ink now |
+|---|---|---|---|---|
+| orange `#E0612C` | 3.55 | 5.03 | dark | **white** |
+| green `#16A34A` | 3.30 | 5.42 | dark | **white** |
+| teal `#0D9488` | 3.74 | 4.77 | dark | **white** |
+| red / blue / purple / pink | 4.6–5.7 | — | white | white |
+| amber / yellow / sky | 1.9–2.2 | 8.3–9.3 | dark | dark |
+
+Pale fills keep dark ink, and so does dark mode: the engine lightens the brand there, and white
+falls under 3:1 on it. The trade-off is deliberate: small labels (button text, chip labels) on a
+mid-tone brand sit between 3:1 and AA body text's 4.5:1. That is the same place most orange and
+green brands already put white text. The customer microsite is unaffected.
+
+**owner-web applies the same rule** (since later on 2026-09-22). `StoreThemeStyle.tsx` appends
+`--text-on-brand` and `--tt-ink-secondary`, computed by the same white-first test, after the
+engine's CSS, in the same three places the engine writes a mode (light, `data-tt-mode="dark"`, and
+`auto` under a dark OS). `WHITE_INK_MIN_CONTRAST` lives in both files. **Change them together.**
+
+### Why owner-web and the app looked different
+
+Asked 2026-09-22: "why is my theme a different colour on the app and the web?" The engine copies
+were in sync, and both surfaces resolve the same config from `/auth/me`. For warm, luxury and
+minimal presets on an orange brand, every token the app reads matched owner-web's CSS exactly,
+except the ink above. The rest of the difference was owner-web CSS that ignored the theme:
+
+| owner-web rule | Was | Now |
+|---|---|---|
+| Labels on brand fills (`.btn`, active filter / perm chips, selected calendar day, seat avatars) | hardcoded `#fff`: unreadable on a pale brand, and unlike the app on a mid-tone one | `var(--text-on-brand)` |
+| `.seat-avatar-primary` | `var(--blue-600, var(--primary))`. `--blue-600` is always defined, so the fallback never ran and **a brand-coloured chair was blue on every store** | `var(--primary)` |
+| Other seat colours | `-700` palette shades with white | the app's fills (`secondary`, amber-500, green-500) and inks |
+| `.seat-pick-avatar` (walk-in seat picker) | white text with **no background**: the initial was invisible. `StaffRow` had also dropped the API's `colorToken`. | the chair's colour; `colorToken` restored on `StaffRow` |
+| `.chip.in_service`, `.phone-opt.sel`, `.settings-tile:hover` | fixed blue | the store's `--primary` / `--primary-soft` |
+| 16 surfaces (cards, sheets, inputs, secondary buttons) | `background: #fff`, so **white cards on a dark-mode page** | `var(--surface-card)` |
+| Default text colour | only on `body`, which resolves outside the theme's scope, so unstyled text kept light-mode ink in dark mode | also declared on `.app` |
+
+Still intentionally white: the login page (outside the store theme), toasts, the toggle knob,
+success/danger buttons, Appearance swatches, and the QR frame (scanners need white).
+
+The app has one difference by design: its own **Dark mode switch** (Settings) overrides the store's
+mode on that phone. The web follows the store's Appearance mode, or the computer's setting when that
+is `auto`.
+
 ### No hardcoded ink on a themed fill
 
 Dark mode lightens every brand-ish fill, which turns a hardcoded white label invisible. Nine of

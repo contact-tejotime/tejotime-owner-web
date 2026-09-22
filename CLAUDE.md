@@ -393,7 +393,9 @@ portrait** — declared in `ios.infoPlist` for iPad and enforced at runtime by
 library never stops growing (a `moderateScale(16)` padding became 35–60dp on an iPad, inflating
 the whole UI 2.4–3.9×) and samples the window once at import time, which only worked while the
 app was portrait-locked. Tablets earn their room through **layout** — wider columns, 2-up grids —
-not bigger text.
+not bigger text. Separately, the phone's **system text size** (iOS Dynamic Type / Android Font size) is capped at
+`MAX_FONT_SCALE` (1.15×, `styles/scale.ts`) by `TText` and every `TextInput`. Uncapped, it made labels
+~1.3× on a real iPhone while their dp-sized controls stayed put. A new `TextInput` must pass it itself.
 
 **Theme engine** (`frontend/src/theme/engine/`) — pure TS (no React/DOM/node), generates the
 per-store microsite theme from `business.theme` jsonb: 6 presets × light/dark, OKLCH colour
@@ -563,10 +565,9 @@ Checklist for any owner-facing change:
 5. If a surface is deliberately left out, say so explicitly in the PR/summary rather than leaving
    it to be discovered.
 
-> Known drift worth fixing when touched: the Calendar tab uses the `grid` icon on **both**
-> owner-web and mobile, which renders as the same four rounded squares as Home's
-> `layoutDashboard` — two tabs with effectively the same glyph. Fixing it means changing both
-> surfaces together.
+> Resolved 2026-09-22: Home's tab used `layoutDashboard`, which rendered as the same four rounded
+> squares as Calendar's `grid`. Home is now the `home` (house) icon on both owner-web (bottom nav
+> and sidebar) and mobile. Change the two together if either moves again.
 
 ---
 

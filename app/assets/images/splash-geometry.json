@@ -1,0 +1,22 @@
+{
+  "markArt": {
+    "width": 0.8091,
+    "height": 0.768
+  },
+  "lockup": {
+    "width": 538,
+    "height": 156,
+    "mark": {
+      "x": 8,
+      "y": 8,
+      "width": 144,
+      "height": 139
+    },
+    "wordmark": {
+      "x": 143,
+      "y": 20,
+      "width": 388,
+      "height": 123
+    }
+  }
+}

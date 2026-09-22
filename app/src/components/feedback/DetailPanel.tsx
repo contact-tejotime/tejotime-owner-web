@@ -14,7 +14,7 @@ import { formatMoney } from '@/lib/mappers';
 import { extrasForCategory } from '@/lib/service-extras';
 import { showToast } from '@/lib/toast';
 import { styles } from '@/styles';
-import { moderateScale } from '@/styles/scale';
+import { MAX_FONT_SCALE, moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { useAppState } from '@/state/store';
 import { useServiceColor } from '@/theme/serviceColor';
@@ -277,6 +277,7 @@ export function DetailPanel() {
                       ₹
                     </TText>
                     <TextInput
+                      maxFontSizeMultiplier={MAX_FONT_SCALE}
                       style={s.amountInput}
                       value={amount}
                       onChangeText={setAmount}

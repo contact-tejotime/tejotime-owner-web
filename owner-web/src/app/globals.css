@@ -99,6 +99,9 @@ button {
   display: flex;
   min-height: 100vh;
   min-height: 100dvh;
+  /* body's colour resolves against :root, outside the store theme's scope, so any text without its
+     own colour kept the light-mode ink on a dark-mode page. Re-declared here, inside the scope. */
+  color: var(--text-body);
 }
 .sidebar-nav {
   display: flex;
@@ -284,7 +287,7 @@ button {
   border: 1px solid var(--border-default);
   border-radius: 8px;
   font: inherit;
-  background: #fff;
+  background: var(--surface-card, #fff);
 }
 .logout-btn {
   display: flex;
@@ -294,7 +297,7 @@ button {
   padding: 10px 12px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface-card, #fff);
   color: var(--text-body);
   font-weight: 600;
   text-align: left;
@@ -525,8 +528,9 @@ button {
   color: var(--amber-700);
 }
 .chip.in_service {
-  background: var(--blue-50);
-  color: var(--blue-700);
+  /* The store's colour, as the app shows "In service", not a fixed blue. */
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg);
 }
 .chip.confirmed {
   background: var(--green-50);
@@ -557,14 +561,16 @@ button {
   font-weight: 700;
   border: 1px solid transparent;
   background: var(--primary);
-  color: #fff;
+  /* The store's ink on its brand (StoreThemeStyle), same rule as the app. A hardcoded white was
+     unreadable on a pale brand, and disagreed with the app on a mid-tone one. */
+  color: var(--text-on-brand, #fff);
   touch-action: manipulation;
 }
 .btn:hover {
   background: var(--primary-hover);
 }
 .btn.secondary {
-  background: #fff;
+  background: var(--surface-card, #fff);
   color: var(--text-body);
   border-color: var(--border-default);
 }
@@ -626,7 +632,7 @@ button {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 8px;
-  background: #fff;
+  background: var(--surface-card, #fff);
 }
 .cal-cell .day {
   font-size: 12px;
@@ -669,7 +675,7 @@ button {
   transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
 .settings-tile:hover {
-  border-color: var(--blue-100);
+  border-color: var(--primary);
   box-shadow: var(--shadow-md);
 }
 .settings-tile .title {
@@ -1239,7 +1245,7 @@ textarea {
   border-radius: 8px;
   font: inherit;
   color: var(--text-strong);
-  background: #fff;
+  background: var(--surface-card, #fff);
 }
 /* Checkbox rows — reset global input/label styles so control + text sit on one line. */
 .check-list {
@@ -1554,7 +1560,7 @@ textarea:focus {
   padding: 0 14px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle);
-  background: #fff;
+  background: var(--surface-card, #fff);
   color: var(--text-body);
   font-weight: 600;
   font-size: 13px;
@@ -1577,7 +1583,7 @@ textarea:focus {
 .filter-chip.active {
   background: var(--primary);
   border-color: var(--primary);
-  color: #fff;
+  color: var(--text-on-brand, #fff);
 }
 .filter-chip.active .filter-chip-count {
   opacity: 0.95;
@@ -1585,14 +1591,14 @@ textarea:focus {
 .filter-chip-cta {
   background: var(--primary);
   border-color: var(--primary);
-  color: #fff;
+  color: var(--text-on-brand, #fff);
   gap: 5px;
   margin-left: 2px;
 }
 .filter-chip-cta:hover {
   background: var(--primary-hover);
   border-color: var(--primary-hover);
-  color: #fff;
+  color: var(--text-on-brand, #fff);
 }
 
 .seat-list {
@@ -1641,7 +1647,7 @@ textarea:focus {
   padding: 14px;
   border-radius: 16px;
   border: 1px solid var(--border-subtle);
-  background: #fff;
+  background: var(--surface-card, #fff);
   touch-action: manipulation;
 }
 .seat-card-board {
@@ -1662,7 +1668,8 @@ textarea:focus {
   width: 40px;
   height: 40px;
   border-radius: 11px;
-  color: #fff;
+  /* Fill and ink come from the .seat-avatar-<token> classes below. */
+  color: var(--text-on-brand, #fff);
   font-weight: 800;
   font-size: 15px;
   display: inline-flex;
@@ -1671,10 +1678,14 @@ textarea:focus {
   flex-shrink: 0;
   background: var(--primary);
 }
-.seat-avatar-primary { background: var(--blue-600, var(--primary)); }
-.seat-avatar-secondary { background: var(--gray-600, #475569); }
-.seat-avatar-amber500 { background: var(--amber-700, #b45309); }
-.seat-avatar-green500 { background: var(--green-700, #15803d); }
+/* Same fills and inks as the app (serviceColor.ts + ink.ts), so a chair is one colour everywhere.
+   `primary` used to be `var(--blue-600, var(--primary))`: --blue-600 is always defined, so the
+   fallback never ran and a brand-coloured chair was blue on every store. Amber and green are fixed
+   palette fills, pale enough that white fails 3:1, so their ink is fixed dark as in the app. */
+.seat-avatar-primary { background: var(--primary); color: var(--text-on-brand, #fff); }
+.seat-avatar-secondary { background: var(--secondary, #475569); color: var(--tt-ink-secondary, #fff); }
+.seat-avatar-amber500 { background: #f59e0b; color: #0f172a; }
+.seat-avatar-green500 { background: #22c55e; color: #0f172a; }
 .seat-body {
   flex: 1;
   min-width: 0;
@@ -1740,7 +1751,7 @@ textarea:focus {
   min-height: 48px;
   padding-left: 42px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface-card, #fff);
   border-color: var(--border-subtle);
 }
 .customer-list {
@@ -1749,7 +1760,7 @@ textarea:focus {
   gap: 12px;
 }
 .customer-card {
-  background: #fff;
+  background: var(--surface-card, #fff);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
   overflow: hidden;
@@ -1801,7 +1812,7 @@ textarea:focus {
   margin-top: 16px;
   padding: 20px 16px;
   text-align: center;
-  background: #fff;
+  background: var(--surface-card, #fff);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
 }
@@ -1836,7 +1847,7 @@ textarea:focus {
   color: var(--text-subtle);
 }
 .settings-card {
-  background: #fff;
+  background: var(--surface-card, #fff);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
   overflow: hidden;
@@ -2026,7 +2037,7 @@ textarea:focus {
 }
 .cal-app-day.selected .cal-app-day-num {
   background: var(--primary);
-  color: #fff;
+  color: var(--text-on-brand, #fff);
 }
 .cal-app-day.today:not(.selected) .cal-app-day-num {
   box-shadow: inset 0 0 0 1.5px var(--primary);
@@ -2062,7 +2073,7 @@ textarea:focus {
   align-items: flex-start;
   gap: 12px;
   padding: 14px;
-  background: #fff;
+  background: var(--surface-card, #fff);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
 }
@@ -2113,7 +2124,7 @@ textarea:focus {
   z-index: 1;
   max-height: min(92dvh, 900px);
   overflow-y: auto;
-  background: #fff;
+  background: var(--surface-card, #fff);
   border-radius: 20px 20px 0 0;
   padding: 10px 16px calc(16px + env(safe-area-inset-bottom));
   box-shadow: var(--shadow-md);
@@ -2151,7 +2162,7 @@ textarea:focus {
   min-height: 44px;
   border: 1px solid var(--border-default);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-card, #fff);
   overflow: hidden;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -2215,7 +2226,7 @@ textarea:focus {
   left: 0;
   width: min(340px, 100%);
   max-height: min(320px, calc(100dvh - 120px));
-  background: #fff;
+  background: var(--surface-card, #fff);
   border: 1px solid var(--border-default);
   border-radius: 10px;
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
@@ -2263,7 +2274,7 @@ textarea:focus {
   background: var(--gray-100);
 }
 .phone-opt.sel {
-  background: var(--blue-50);
+  background: var(--primary-soft);
 }
 .phone-optname {
   flex: 1 1 auto;
@@ -2300,7 +2311,7 @@ textarea:focus {
   padding: 12px;
   border-radius: 14px;
   border: 1.5px solid var(--border-subtle);
-  background: #fff;
+  background: var(--surface-card, #fff);
 }
 .service-pick.selected,
 .seat-pick.selected {
@@ -2344,7 +2355,10 @@ textarea:focus {
   width: 40px;
   height: 40px;
   border-radius: 999px;
-  color: #fff;
+  /* Paired with a .seat-avatar-<token> class for its fill. Alone it had no background at all, so
+     its white initial sat invisible on the white card. */
+  background: var(--primary);
+  color: var(--text-on-brand, #fff);
   font-weight: 800;
   display: inline-flex;
   align-items: center;
@@ -3077,7 +3091,7 @@ textarea:focus {
 }
 .report-staff-card.is-top {
   border-color: color-mix(in srgb, var(--primary) 35%, var(--border-subtle));
-  background: color-mix(in srgb, var(--primary-soft, #eff6ff) 55%, #fff);
+  background: color-mix(in srgb, var(--primary-soft, #eff6ff) 55%, var(--surface-card, #fff));
 }
 .report-staff-identity {
   display: flex;
@@ -3360,7 +3374,7 @@ textarea:focus {
 .perm-chip.active {
   border-color: var(--primary);
   background: var(--primary);
-  color: #fff;
+  color: var(--text-on-brand, #fff);
 }
 
 /* ---------------------------------------------------------------- scope notices */

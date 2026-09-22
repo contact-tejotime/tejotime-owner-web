@@ -1,8 +1,12 @@
 import React from 'react';
 import { ActivityIndicator, StyleProp, View, ViewStyle } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { styles } from '@/styles';
 import { useTheme } from '@/theme/ThemeProvider';
+
+/** A load that finishes inside this never shows a spinner at all, so fast screens don't flicker. */
+const SPINNER_DELAY_MS = 250;
 
 export function TLoader({
   fullScreen = true,
@@ -19,7 +23,9 @@ export function TLoader({
         fullScreen ? [styles.flex, styles.flexCenter, { backgroundColor: colors.surfacePage }] : styles.flexCenter,
         style,
       ]}>
-      <ActivityIndicator size="large" color={colors.primary} />
+      <Animated.View entering={FadeIn.delay(SPINNER_DELAY_MS).duration(250)}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </Animated.View>
     </View>
   );
 }
