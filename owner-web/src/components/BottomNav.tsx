@@ -7,7 +7,8 @@ import { NavLink } from "@/components/NavLink";
 import { can, type Module, type ModuleAccess } from "@/lib/roles";
 
 const TABS: { href: string; label: string; match: string; icon: IconName; module: Module | null }[] = [
-  { href: "/dashboard", label: t.bottomNav.home, match: "/dashboard", icon: "layoutDashboard", module: "dashboard" },
+  // A house, not `layoutDashboard`: its four squares were indistinguishable from Calendar's `grid`.
+  { href: "/dashboard", label: t.bottomNav.home, match: "/dashboard", icon: "home", module: "dashboard" },
   { href: "/stats", label: t.bottomNav.reports, match: "/stats", icon: "star", module: "dashboard" },
   { href: "/appointments", label: t.bottomNav.appts, match: "/appointments", icon: "calendarCheck", module: "appointments" },
   { href: "/calendar", label: t.bottomNav.calendar, match: "/calendar", icon: "grid", module: "calendar" },

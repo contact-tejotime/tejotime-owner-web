@@ -149,11 +149,11 @@ export function landingPath(access: ModuleAccess): string {
 export const NAV_ITEMS: {
   href: string;
   label: string;
-  icon: "layoutDashboard" | "star" | "calendar" | "grid" | "user" | "settings";
+  icon: "home" | "star" | "calendar" | "grid" | "user" | "settings";
   /** Primary module for the item; Home also allows queue-only via navItemsFor. */
   module: Module | null;
 }[] = [
-  { href: "/dashboard", label: t.nav.home, icon: "layoutDashboard", module: "dashboard" },
+  { href: "/dashboard", label: t.nav.home, icon: "home", module: "dashboard" },
   { href: "/stats", label: t.nav.reports, icon: "star", module: "dashboard" },
   { href: "/appointments", label: t.nav.appointments, icon: "calendar", module: "appointments" },
   { href: "/calendar", label: t.nav.calendar, icon: "grid", module: "calendar" },

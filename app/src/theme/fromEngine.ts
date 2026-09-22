@@ -26,6 +26,7 @@ import {
   type ThemeConfig,
   type TokenMap,
 } from './engine';
+import { WHITE_INK_MIN_CONTRAST } from './ink';
 import { darkColors, lightColors, radius as baseRadius, controlHeight as baseControlHeight } from './tokens';
 import type { SemanticColors } from './tokens';
 
@@ -57,10 +58,18 @@ export function colorsFromTokens(t: TokenMap, base: SemanticColors): SemanticCol
   // it is legible and falls back to the engine's own `onColor` picker when it is not. Kept here in
   // the adapter rather than in `engine/` on purpose: that folder is a generated mirror of
   // frontend's, and changing it would move every store's customer microsite too.
+  //
+  // White comes first, though (2026-09-22). On a mid-tone brand the engine prefers near-black ink,
+  // which owners read as off-theme (see WHITE_INK_MIN_CONTRAST in ink.ts). So white is used wherever
+  // it reaches 3:1, and only below that do the preference and `onColor` decide.
   const brandFill = pick('--primary', base.primary);
   const preferredInk = pick('--text-on-brand', base.textOnBrand);
   const legibleInk =
-    contrastRatio(preferredInk, brandFill) >= AA_BODY ? preferredInk : onColor(brandFill);
+    contrastRatio('#ffffff', brandFill) >= WHITE_INK_MIN_CONTRAST
+      ? '#ffffff'
+      : contrastRatio(preferredInk, brandFill) >= AA_BODY
+        ? preferredInk
+        : onColor(brandFill);
 
   return {
     surfacePage: pick('--surface-page', base.surfacePage),

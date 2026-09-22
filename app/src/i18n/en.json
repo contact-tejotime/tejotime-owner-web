@@ -85,7 +85,20 @@
     "viewAll": "View all",
     "activeQueue": "Active queue",
     "todaysSummary": "Today's summary",
-    "emptyQueue": "No one in the queue right now"
+    "emptyQueue": "No one in the queue right now",
+    "greetingMorning": "Good morning",
+    "greetingAfternoon": "Good afternoon",
+    "greetingEvening": "Good evening",
+    "liveQueue": "Live queue",
+    "statWaiting": "Waiting",
+    "statInService": "In service",
+    "statWalkInWait": "Walk-in wait",
+    "waitNow": "Now",
+    "waitMins": "{min} min",
+    "seatsTitle": "Seats",
+    "dragTip": "Press and hold a card to move it",
+    "seatFreeTitle": "Seat free",
+    "seatFreeHint": "Tap to add a walk-in here"
   },
   "queue": {
     "all": "All",
@@ -124,7 +137,7 @@
     "visits": "Visits",
     "lastVisit": "Last visit",
     "spend": "Spend",
-    "empty": "No customers yet",
+    "empty": "No customers",
     "noMatch": "No customers match your search"
   },
   "settings": {
@@ -726,5 +739,76 @@
     "ownChairOnly": "Showing your chair only.",
     "noChairTitle": "Your login isn't linked to a chair yet.",
     "noChairBody": "Until the business owner links it, this screen will stay empty. Ask them to open Settings → Team logins and pick your chair."
+  },
+  "onboarding": {
+    "skip": "Skip",
+    "next": "Next",
+    "getStarted": "Get started",
+    "progress": "Page {n} of {total}",
+    "slides": {
+      "queue": {
+        "title": "Your live queue, in your pocket",
+        "body": "Add walk-ins in seconds, see every seat at a glance and keep wait times honest. It all updates live."
+      },
+      "bookings": {
+        "title": "Bookings that fit your day",
+        "body": "Customers book a time from your page. See every appointment on the calendar and check people in with one tap."
+      },
+      "customers": {
+        "title": "Know every customer",
+        "body": "Visits, spend and last visit for everyone who comes in, plus reports that show how the day is going."
+      },
+      "share": {
+        "title": "Share your booking page",
+        "body": "Print your QR code or share your link. Customers join the queue or book a slot from their own phone."
+      }
+    },
+    "art": {
+      "seatName": "Aman",
+      "seatSub": "Serving · 2 waiting",
+      "busy": "Busy",
+      "waitMins": "~{mins} min",
+      "avgWait": "Avg wait {mins} min",
+      "queue": [
+        {
+          "token": "A-12",
+          "name": "Rohan",
+          "service": "Haircut"
+        },
+        {
+          "token": "A-13",
+          "name": "Priya",
+          "service": "Hair spa"
+        },
+        {
+          "token": "A-14",
+          "name": "Kabir",
+          "service": "Beard trim"
+        }
+      ],
+      "newBooking": "New booking · 4:00 PM",
+      "appointments": [
+        {
+          "time": "10:30",
+          "name": "Neha",
+          "service": "Facial"
+        },
+        {
+          "time": "11:15",
+          "name": "Vikram",
+          "service": "Haircut + Beard"
+        }
+      ],
+      "customerName": "Sneha Kapoor",
+      "customerPhone": "+91 98••• ••210",
+      "visitsValue": "12",
+      "lastVisitValue": "3d ago",
+      "spendValue": "₹4,850",
+      "today": "Today",
+      "todayRevenue": "₹12,400",
+      "shopLink": "tejotime.com/your-shop",
+      "scanToBook": "Scan to book",
+      "joinedQueue": "Joined the queue · A-15"
+    }
   }
 }

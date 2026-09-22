@@ -227,6 +227,9 @@ export interface ServiceRow {
 export interface StaffRow {
   id: string;
   name: string;
+  /** The chair's colour ('primary' | 'secondary' | 'amber500' | 'green500'). The API always sent
+   *  it; this mirror had dropped it, so the walk-in seat picker had no colour to draw. */
+  colorToken: string;
   roleLabel: string | null;
   avatarUrl: string | null;
   acceptsWalkIns: boolean;

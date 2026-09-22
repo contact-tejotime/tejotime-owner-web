@@ -7,6 +7,7 @@ import { SeatGroupVM, CardVM, flatCards } from '@/lib/queue';
 import type { ServiceFormValues } from '@/components/settings';
 import { api, ApiError, getAccessToken, initSession, setOnAuthFail } from '@/lib/api';
 import { connectOwner } from '@/lib/socket';
+import { getOnboarded, setOnboarded } from '@/lib/tokenStore';
 import {
   COLOR_PALETTE,
   mapAppointment,
@@ -123,6 +124,8 @@ interface BusinessInfo {
 type State = {
   authed: boolean;
   authLoading: boolean;
+  /** First-run tour finished (or skipped). Read alongside the session, so `authLoading` covers it. */
+  onboarded: boolean;
   signInLoading: boolean;
   signOutLoading: boolean;
   bootstrapping: boolean; // first parallel data load after auth
@@ -181,6 +184,7 @@ type Store = State & {
   closeWalkin: () => void;
   openQr: () => void;
   closeQr: () => void;
+  completeOnboarding: () => void;
   setWalkinPosition: (p: WalkInPosition) => void;
   setWalkinStaff: (id: string) => void;
   setWalkinVisitorType: (v: VisitorType) => void;
@@ -305,6 +309,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [s, setS] = useState<State>({
     authed: false,
     authLoading: true,
+    onboarded: false,
     signInLoading: false,
     signOutLoading: false,
     bootstrapping: false,
@@ -568,7 +573,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       showToast(t.toast.sessionExpired, 'error');
     });
     (async () => {
-      const has = await initSession();
+      // Read together: the first screen (onboarding, login or dashboard) depends on both, and
+      // `authLoading` is what holds the splash until it is known.
+      const [has, onboarded] = await Promise.all([initSession(), getOnboarded()]);
       if (has) {
         try {
           const me: any = await api.me();
@@ -578,6 +585,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             ...p,
             authed: true,
             authLoading: false,
+            onboarded,
             business: me.business
               ? {
                   id: me.business.id,
@@ -602,7 +610,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           /* fall through to logged-out */
         }
       }
-      if (alive) setS((p) => ({ ...p, authLoading: false }));
+      if (alive) setS((p) => ({ ...p, authLoading: false, onboarded }));
     })();
     return () => {
       alive = false;
@@ -697,6 +705,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       },
       closeWalkin: () => patch(() => ({ sheet: null })),
       openQr: () => patch(() => ({ qr: true })),
+      completeOnboarding: () => {
+        patch(() => ({ onboarded: true }));
+        // Fire-and-forget: a failed write only means the tour shows once more next launch.
+        void setOnboarded().catch(() => {});
+      },
       closeQr: () => patch(() => ({ qr: false })),
       setWalkinPosition: (position) => patch((p) => ({ walkin: { ...p.walkin, position } })),
       setWalkinStaff: (staffId) => patch((p) => ({ walkin: { ...p.walkin, staffId } })),

@@ -105,3 +105,17 @@ export function rSize(size: number, factor = 0.5): number {
 
 /** Responsive font size — `rSize` tuned for typography. */
 export const scaleFont = (size: number): number => rSize(size, 0.5);
+
+/**
+ * Ceiling on the OS text-size setting, passed as `maxFontSizeMultiplier` to every `Text` (via
+ * `TText`) and every `TextInput`.
+ *
+ * React Native honours iOS Dynamic Type and Android "Font size" by default, with NO upper bound.
+ * Controls are sized in dp, so only the text grows. On an iPhone set to a large text size, labels
+ * reached ~1.35× while their buttons, chips and tab-bar cells stayed put. "Add walk-in" filled its
+ * 44dp button, and the six tab labels crowded each other. Capping, not opting out
+ * (`allowFontScaling={false}`), still gives a larger-text user some of what they asked for, while
+ * keeping every label inside the control it was designed for. Raise this only together with a
+ * layout that can take it.
+ */
+export const MAX_FONT_SCALE = 1.15;

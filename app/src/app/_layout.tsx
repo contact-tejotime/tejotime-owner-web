@@ -7,13 +7,15 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { applyOrientationPolicy } from '@/lib/orientation';
 import { AppStateProvider } from '@/state/store';
-import { TSplashScreen, TToast } from '@/components/common';
+import { TAnimatedSplash, TSplashScreen, TToast } from '@/components/common';
+import { NATIVE_SPLASH_FADE_MS } from '@/components/common/TSplashScreen';
 import { ThemeProvider, useTheme } from '@/theme/ThemeProvider';
 import { styles } from '@/styles';
 
 import '../global.css';
 
 SplashScreen.preventAutoHideAsync();
+SplashScreen.setOptions({ duration: NATIVE_SPLASH_FADE_MS, fade: false });
 
 /**
  * Every navigator needs `contentStyle`, because React Navigation paints its OWN opaque scene
@@ -58,10 +60,6 @@ export default function RootLayout() {
     'PlusJakartaSans-ExtraBoldItalic': require('../../assets/fonts/PlusJakartaSans-ExtraBoldItalic.ttf'),
   });
 
-  useEffect(() => {
-    if (loaded) SplashScreen.hideAsync();
-  }, [loaded]);
-
   // Tablets rotate, phones stay portrait. Fire-and-forget: a device that refuses
   // the request (an Android OEM that pins orientation system-wide) should not
   // take the app down with an unhandled rejection.
@@ -69,6 +67,8 @@ export default function RootLayout() {
     void applyOrientationPolicy().catch(() => {});
   }, []);
 
+  // The native splash stays up until TAnimatedSplash has drawn its identical first frame, and
+  // TAnimatedSplash hides it then. This static copy only ever sits underneath the native splash.
   if (!loaded) return <TSplashScreen />;
 
   return (
@@ -78,6 +78,8 @@ export default function RootLayout() {
           <AppStateProvider>
             <RootNavigator />
             <TToast />
+            {/* Last, so it covers the navigator and any early toast until it has played. */}
+            <TAnimatedSplash />
           </AppStateProvider>
         </ThemeProvider>
       </SafeAreaProvider>

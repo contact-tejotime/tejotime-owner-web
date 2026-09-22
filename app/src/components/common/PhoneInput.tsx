@@ -2,12 +2,13 @@ import React, { useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, TextInput, TextStyle, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TEmptyState } from '@/components/common/TEmptyState';
 import { TText } from '@/components/common/TText';
 import { Icon } from '@/components/ui/Icon';
 import { t } from '@/i18n';
 import { flagEmoji, searchCountries, type Country } from '@/lib/phone';
 import { styles } from '@/styles';
-import { moderateScale, rSize, scaleFont } from '@/styles/scale';
+import { MAX_FONT_SCALE, moderateScale, rSize, scaleFont } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -83,6 +84,7 @@ export function PhoneInput({
         </Pressable>
         <View style={s.divider} />
         <TextInput
+          maxFontSizeMultiplier={MAX_FONT_SCALE}
           placeholder={placeholder}
           placeholderTextColor={theme.colors.textSubtle}
           keyboardType="phone-pad"
@@ -111,6 +113,7 @@ export function PhoneInput({
             <View style={s.searchWrap}>
               <Icon name="search" size={18} color={theme.colors.textMuted} />
               <TextInput
+                maxFontSizeMultiplier={MAX_FONT_SCALE}
                 placeholder={t.phone.searchPlaceholder}
                 placeholderTextColor={theme.colors.textSubtle}
                 value={query}
@@ -142,11 +145,7 @@ export function PhoneInput({
                   </Pressable>
                 );
               }}
-              ListEmptyComponent={
-                <TText variant="bodySm" color="textMuted" style={s.empty}>
-                  {t.phone.noMatches}
-                </TText>
-              }
+              ListEmptyComponent={<TEmptyState compact icon="search" title={t.phone.noMatches} />}
             />
           </View>
         </View>
@@ -241,5 +240,4 @@ const createPhoneInputStyles = (
     },
     optionSel: { backgroundColor: theme.colors.surfaceSunken },
     optionName: { ...styles.flex, ...styles.minWidth0 },
-    empty: { ...styles.mt4, textAlign: 'center' },
   });

@@ -29,19 +29,9 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#FFFFFF",
-          "image": "./assets/images/logo-full.png",
-          "imageWidth": 280,
-          "resizeMode": "contain",
-          "ios": {
-            "backgroundColor": "#FFFFFF",
-            "image": "./assets/images/logo-full.png",
-            "imageWidth": 280
-          },
-          "android": {
-            "backgroundColor": "#FFFFFF",
-            "image": "./assets/images/splash-logo-android.png",
-            "imageWidth": 190
-          }
+          "image": "./assets/images/splash-mark.png",
+          "imageWidth": 150,
+          "resizeMode": "contain"
         }
       ],
       "expo-font",
