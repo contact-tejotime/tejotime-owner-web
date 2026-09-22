@@ -2104,7 +2104,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                           onChange={(e) => setSmsOptIn(e.target.checked)}
                           style={{ marginTop: 3, flexShrink: 0, width: 16, height: 16, accentColor: "var(--primary)" }}
                         />
-                        <div style={{ font: "var(--fw-regular) 11.5px/1.45 var(--font-sans)", color: "var(--text-subtle)" }}>
+                        {/* Body-size, full-contrast text: A2P reviewers reject disclosures that
+                            are not "clearly and conspicuously" visible — small grey type reads as fine print. */}
+                        <div style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-strong)" }}>
                           <label htmlFor="tt-sms-opt-in" style={{ cursor: "pointer" }}>
                             {format(t.microsite.join.consentOptIn, { name: site.name })}
                           </label>
