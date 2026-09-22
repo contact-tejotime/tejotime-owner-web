@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { TButton, TText } from '@/components/common';
+import { TButton, TEmptyState, TText } from '@/components/common';
 import { ServiceEditSheet, SettingsPageShell, type ServiceFormValues } from '@/components/settings';
 import { Icon } from '@/components/ui/Icon';
 import { t } from '@/i18n';
@@ -44,12 +44,9 @@ export default function ServicesPricing() {
 
   return (
     <SettingsPageShell title={t.services.title}>
-      {store.services.length === 0 && (
-        <TText variant="bodySm" color="textMuted" style={styles.pt2}>
-          {t.services.empty}
-        </TText>
-      )}
-      <View style={s.card}>
+      {/* Empty: a centred message in place of an empty bordered card, with Add right below it. */}
+      {store.services.length === 0 ? <TEmptyState icon="scissors" title={t.services.empty} /> : null}
+      <View style={[s.card, store.services.length === 0 && s.cardHidden]}>
         {store.services.map((sv, i) => (
           <Pressable key={sv.id} onPress={() => openEdit(sv)} style={[s.row, i < store.services.length - 1 && s.rowBorder]}>
             <View style={[s.accent, { backgroundColor: serviceColor(sv.colorToken) }]} />
@@ -98,6 +95,8 @@ const createServicesStyles = ({ colors, radius }: ThemeStyleProps) =>
       overflow: 'hidden',
       ...styles.mt1,
     },
+    // Nothing to list: no empty bordered box under the centred message.
+    cardHidden: { display: 'none' },
     row: {
       ...styles.flexRow,
       ...styles.itemsCenter,

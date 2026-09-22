@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text as RNText, TextProps, TextStyle, StyleProp } from 'react-native';
 
+import { MAX_FONT_SCALE } from '@/styles/scale';
 import { getTextVariantStyle } from '@/styles/typography';
 import { useTheme } from '@/theme/ThemeProvider';
 import { fontFamily, SemanticColors, TextVariant } from '@/theme/tokens';
@@ -29,6 +30,8 @@ export function TText({
 
   return (
     <RNText
+      // Before `{...props}`, so a caller that genuinely needs a different ceiling can still pass one.
+      maxFontSizeMultiplier={MAX_FONT_SCALE}
       style={[
         getTextVariantStyle(variant),
         weight ? { fontFamily: fontFamily[weight] } : null,

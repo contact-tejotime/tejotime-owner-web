@@ -9,13 +9,15 @@ export const TScreenScroll = forwardRef<ScrollView, {
   /** When `onRefresh` is provided, adds pull-to-refresh. */
   refreshing?: boolean;
   onRefresh?: () => void;
-}>(function TScreenScroll({ children, refreshing, onRefresh }, ref) {
+  /** Let the content fill the screen, so a `TEmptyState fill` can centre in it. Set while empty. */
+  grow?: boolean;
+}>(function TScreenScroll({ children, refreshing, onRefresh, grow = false }, ref) {
   const { colors } = useTheme();
   return (
     <ScrollView
       ref={ref}
       style={styles.flex}
-      contentContainerStyle={[styles.screenPadding, styles.pb6]}
+      contentContainerStyle={[styles.screenPadding, styles.pb6, grow && growStyle]}
       showsVerticalScrollIndicator={false}
       // Same pair TKeyboardScreen already uses. "handled" makes a button under the keyboard
       // take one tap instead of two (the first was being spent dismissing), and on-drag gives
@@ -36,3 +38,5 @@ export const TScreenScroll = forwardRef<ScrollView, {
     </ScrollView>
   );
 });
+
+const growStyle = { flexGrow: 1 };

@@ -160,7 +160,7 @@ export function WalkInSheet({ onClose, staff, services, onAdded }: WalkInSheetPr
               className={`seat-pick ${seatId === seat.id ? "selected" : ""}`}
               onClick={() => setSeatId(seat.id)}
             >
-              <span className="seat-pick-avatar">{seat.name[0]}</span>
+              <span className={`seat-pick-avatar seat-avatar-${seat.colorToken || "secondary"}`}>{seat.name[0]}</span>
               <span className="seat-pick-body">
                 <span className="nm">{seat.name}</span>
                 <span className="meta">{seat.roleLabel ?? t.walkin.teamMember}</span>

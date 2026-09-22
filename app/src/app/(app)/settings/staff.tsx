@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { TButton, TText } from '@/components/common';
+import { TButton, TEmptyState, TText } from '@/components/common';
 import { SettingsPageShell, StaffEditSheet } from '@/components/settings';
 import { Icon } from '@/components/ui/Icon';
 import { t } from '@/i18n';
@@ -48,12 +48,9 @@ export default function StaffSeats() {
 
   return (
     <SettingsPageShell title={t.staff.title}>
-      {store.staff.length === 0 && (
-        <TText variant="bodySm" color="textMuted" style={styles.pt2}>
-          {t.staff.empty}
-        </TText>
-      )}
-      <View style={s.card}>
+      {/* Empty: a centred message in place of an empty bordered card, with Add right below it. */}
+      {store.staff.length === 0 ? <TEmptyState icon="users" title={t.staff.empty} /> : null}
+      <View style={[s.card, store.staff.length === 0 && s.cardHidden]}>
         {store.staff.map((st, i) => (
           <Pressable key={st.id} onPress={() => openEdit(st)} style={[s.row, i < store.staff.length - 1 && s.rowBorder]}>
             {st.photoUrl ? (
@@ -110,6 +107,8 @@ const createStaffStyles = ({ colors, radius }: ThemeStyleProps) =>
       overflow: 'hidden',
       ...styles.mt1,
     },
+    // Nothing to list: no empty bordered box under the centred message.
+    cardHidden: { display: 'none' },
     row: {
       ...styles.flexRow,
       ...styles.itemsCenter,

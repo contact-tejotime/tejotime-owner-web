@@ -4,7 +4,7 @@ import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { TButton, TKeyboardScreen, TText } from '@/components/common';
 import { t } from '@/i18n';
 import { styles } from '@/styles';
-import { moderateScale } from '@/styles/scale';
+import { MAX_FONT_SCALE, moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -78,6 +78,7 @@ export function ConfirmSheet({
                 {input.label}
               </TText>
               <TextInput
+                maxFontSizeMultiplier={MAX_FONT_SCALE}
                 style={s.input}
                 value={value}
                 onChangeText={(v) => {

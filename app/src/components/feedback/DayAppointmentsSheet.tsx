@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppointmentListItem } from '@/components/appointments/AppointmentListItem';
-import { TSheet, TText } from '@/components/common';
+import { TEmptyState, TSheet, TText } from '@/components/common';
 import { useResponsive } from '@/hooks/useResponsive';
 import { t } from '@/i18n';
 import { styles } from '@/styles';
@@ -52,9 +52,7 @@ export function DayAppointmentsSheet() {
           </TText>
           <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
             {dayAppts.length === 0 ? (
-              <TText variant="bodySm" color="textMuted">
-                {t.calendar.empty}
-              </TText>
+              <TEmptyState compact icon="calendar" title={t.calendar.empty} />
             ) : (
               <View style={styles.g2}>
                 {dayAppts.map((a) => (

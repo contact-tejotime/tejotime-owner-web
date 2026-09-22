@@ -3,7 +3,17 @@ import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { QueueCard } from '@/components/cards/QueueCard';
-import { TButton, THeader, TScopeNotice, TScreenScroll, TSectionTitle, TText } from '@/components/common';
+import {
+  TButton,
+  TEmptyState,
+  THeader,
+  TQueueRowSkeleton,
+  TScopeNotice,
+  TScreenScroll,
+  TSectionTitle,
+  TSkeleton,
+  TText,
+} from '@/components/common';
 import { useTabContent } from '@/hooks/useResponsive';
 import { format, t } from '@/i18n';
 import { can } from '@/lib/permissions';
@@ -47,6 +57,8 @@ export default function Stats() {
   const showByStaff = !scoped && store.session?.role != null;
   const range = store.reportRange;
   const d = store.dashboard;
+  /** First load: pulse where the figures and rows will be, rather than "—" and "No staff yet". */
+  const loading = store.bootstrapping;
   const staffRows = useMemo(() => sortStaff(store.dashboardByStaff), [store.dashboardByStaff]);
 
   const queuePreview = range === 'today' ? flatCards(store.seats).slice(0, 3) : [];
@@ -125,9 +137,13 @@ export default function Stats() {
               <TText variant="caption" color="textMuted" weight="bold">
                 {revenueLabel.toUpperCase()}
               </TText>
-              <TText variant="h3" color="textStrong" weight="extrabold" style={s.heroRevenueValue}>
-                {revenue}
-              </TText>
+              {loading && !d ? (
+                <TSkeleton width={moderateScale(88)} height={28} style={s.heroRevenueValue} />
+              ) : (
+                <TText variant="h3" color="textStrong" weight="extrabold" style={s.heroRevenueValue}>
+                  {revenue}
+                </TText>
+              )}
             </View>
           </View>
 
@@ -143,9 +159,13 @@ export default function Stats() {
                 <TText variant="caption" color="textMuted" weight="bold">
                   {m.label.toUpperCase()}
                 </TText>
-                <TText variant="h4" color="textStrong" weight="extrabold" style={s.metricValue}>
-                  {m.value}
-                </TText>
+                {loading && !d ? (
+                  <TSkeleton width={moderateScale(32)} height={22} style={s.metricValue} />
+                ) : (
+                  <TText variant="h4" color="textStrong" weight="extrabold" style={s.metricValue}>
+                    {m.value}
+                  </TText>
+                )}
               </View>
             ))}
           </View>
@@ -167,10 +187,13 @@ export default function Stats() {
               {range === 'month' ? t.stats.byStaffLeadMonth : t.stats.byStaffLeadToday}
             </TText>
 
-            {staffRows.length === 0 ? (
-              <TText variant="bodySm" color="textMuted">
-                {t.stats.emptyStaff}
-              </TText>
+            {loading && staffRows.length === 0 ? (
+              <View style={s.staffList}>
+                <TQueueRowSkeleton />
+                <TQueueRowSkeleton />
+              </View>
+            ) : staffRows.length === 0 ? (
+              <TEmptyState compact icon="users" title={t.stats.emptyStaff} />
             ) : (
               <View style={staffColumns > 1 ? s.staffGrid : s.staffList}>
                 {staffRows.map((row, i) => {
@@ -249,10 +272,13 @@ export default function Stats() {
               {scoped ? t.stats.yourQueue : t.dashboard.activeQueue}
             </TSectionTitle>
             <View style={s.queueList}>
-              {queuePreview.length === 0 ? (
-                <TText variant="bodySm" color="textMuted">
-                  {scoped ? t.stats.emptyYourQueue : t.dashboard.emptyQueue}
-                </TText>
+              {loading && queuePreview.length === 0 ? (
+                <>
+                  <TQueueRowSkeleton />
+                  <TQueueRowSkeleton />
+                </>
+              ) : queuePreview.length === 0 ? (
+                <TEmptyState compact icon="clock" title={scoped ? t.stats.emptyYourQueue : t.dashboard.emptyQueue} />
               ) : (
                 queuePreview.map((c) => <QueueCard key={c.id} card={c} onPress={() => store.openDetail(c.id)} />)
               )}

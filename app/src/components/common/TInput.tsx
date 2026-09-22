@@ -4,7 +4,7 @@ import { StyleProp, StyleSheet, TextInput, TextInputProps, TextStyle, View, View
 import { TText } from '@/components/common/TText';
 import { Icon } from '@/components/ui/Icon';
 import { styles } from '@/styles';
-import { moderateScale, rSize, scaleFont } from '@/styles/scale';
+import { MAX_FONT_SCALE, moderateScale, rSize, scaleFont } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { fontFamily } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -54,6 +54,7 @@ export function TInput({
           </TText>
         )}
         <TextInput
+          maxFontSizeMultiplier={MAX_FONT_SCALE}
           placeholderTextColor={theme.colors.textSubtle}
           textAlignVertical={multiline ? 'top' : rest.textAlignVertical}
           {...rest}

@@ -103,6 +103,28 @@ Two things it fixes that the library does not do:
 **Tablets gain their extra room through layout, not through bigger text.** A tablet should show
 *more*, not a scaled-up phone.
 
+### The OS text-size setting is capped at 1.15×
+
+The ramp above is not the only thing that sizes text. React Native also multiplies every font by
+the **system text size**: iOS Dynamic Type (Settings → Display & Brightness → Text Size, or
+Accessibility → Larger Text) and Android's Font size. By default it does this **with no upper
+bound**, and only for text. Buttons, chips and tab-bar cells are sized in dp and stay put.
+
+This was reported from a real iPhone (2026-09-22). The "Add walk-in" button was its designed 44dp,
+but its label was ~1.3× the designed 16pt. Headings and the six tab labels were oversized too. The
+simulator, at the default text size, never showed it.
+
+`MAX_FONT_SCALE` in `app/src/styles/scale.ts` (**1.15**) is passed as `maxFontSizeMultiplier` by
+`TText` (every `Text` in the app goes through it; nothing imports RN `Text` directly) and by every
+`TextInput` (`TInput`, `PhoneInput`, `ConfirmSheet`, `DetailPanel`'s amount field).
+
+- **Cap, don't opt out.** `allowFontScaling={false}` would ignore the user's setting entirely.
+  1.15× still honours part of it.
+- **A new `TextInput` must pass `maxFontSizeMultiplier={MAX_FONT_SCALE}` itself.** Only `TText`
+  applies it automatically.
+- To check a screen, set the simulator's text size to the largest non-accessibility step:
+  `xcrun simctl ui booted content_size extra-extra-extra-large`. Reset it with `large`.
+
 ---
 
 ## 5. Writing a responsive screen
