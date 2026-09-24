@@ -98,7 +98,12 @@ async function main() {
     const passwordHash = await bcrypt.hash(OWNER_PASSWORD + (process.env.PASSWORD_PEPPER ?? ''), 10);
     must(
       await insertRows(client, 'app_user', [
-        { business_id: bid, handle: OWNER_HANDLE, phone: OWNER_PHONE, name: 'Sharp Cuts Owner', role: 'owner', password_hash: passwordHash },
+        // is_super_owner must be set here, not left to default. The admin portal sets it when it
+        // provisions a real business (admin.service.ts), so leaving it false made the seeded tenant
+        // the one place where the super owner was not flagged: /users reported isSuperOwner=false
+        // for role 'owner', the app showed no "Owner account" badge, and anything behind
+        // requireSuperOwner would have 403'd against the only fixture we have.
+        { business_id: bid, handle: OWNER_HANDLE, phone: OWNER_PHONE, name: 'Sharp Cuts Owner', role: 'owner', password_hash: passwordHash, is_super_owner: true },
       ]),
       'app_user',
     );

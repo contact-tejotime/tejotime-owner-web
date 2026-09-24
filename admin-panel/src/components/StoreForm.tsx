@@ -40,7 +40,7 @@ interface Props {
 }
 
 /**
- * The four social links, as one list rather than four near-identical blocks of JSX.
+ * The five social links, as one list rather than five near-identical blocks of JSX.
  *
  * A full URL is required (the backend's `.url()` rejects a bare "@handle") because these become
  * clickable icons on a customer-facing page — a value that cannot be opened is worse than an
@@ -51,6 +51,7 @@ const SOCIAL_FIELDS = [
   { key: "facebookUrl", placeholder: "https://facebook.com/yourshop" },
   { key: "twitterUrl", placeholder: "https://x.com/yourshop" },
   { key: "linkedinUrl", placeholder: "https://linkedin.com/company/yourshop" },
+  { key: "yelpUrl", placeholder: "https://yelp.com/biz/yourshop" },
 ] as const;
 
 export default function StoreForm({ mode, categories, initial, storeId, embedded = false }: Props) {
@@ -406,6 +407,12 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
             id="store-phone"
             label={t.storeForm.phoneLabel}
             required
+            // Locked once the store exists: the number is its web address and is baked into every
+            // printed QR code. The API refuses a change too (PHONE_LOCKED), so this is not the guard.
+            disabled={mode === "edit" && !!initial?.phoneNumber}
+            hint={
+              mode === "edit" && initial?.phoneNumber ? <p className="hint">{t.storeForm.phoneLockedHint}</p> : undefined
+            }
             value={{ dialCode: form.countryCode, national: form.phoneNumber, iso2: phoneIso2 }}
             onChange={(v) => {
               set("countryCode", v.dialCode);

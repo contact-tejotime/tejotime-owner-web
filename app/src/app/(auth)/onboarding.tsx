@@ -123,13 +123,16 @@ export default function Onboarding() {
             {t.common.brand}
           </TText>
         </View>
-        {/* Kept in the layout on the last page, just hidden, so the header doesn't jump. */}
+        {/* Kept in the layout on the last page, just hidden, so the header doesn't jump.
+            `accessibilityElementsHidden` is iOS-only, so Android needs its own prop or TalkBack
+            still announces an invisible "Skip" on the last page. */}
         <Pressable
           onPress={finish}
           disabled={last}
           hitSlop={12}
           accessibilityRole="button"
           accessibilityElementsHidden={last}
+          importantForAccessibility={last ? "no-hide-descendants" : "auto"}
           style={[s.skip, last && s.hidden]}>
           <TText variant="bodyMd" weight="semibold" color="textMuted">
             {t.onboarding.skip}

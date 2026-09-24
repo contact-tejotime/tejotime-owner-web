@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TKeyboardScreen, TText } from '@/components/common';
@@ -35,6 +35,23 @@ interface Billing {
   suggestedAmount: { amount: number; currency: string } | null;
   amountRequired: boolean;
   extras: { id: string; label: string; minutes: number; pricePaise: number }[];
+}
+
+/**
+ * What this entry is worth, worded the way the rest of the product words a price: a fixed amount,
+ * a band, or "price on request". Never a bare number for a range or an unpriced service — that
+ * derived figure is exactly what migration 0024 exists to keep out of sight.
+ */
+function priceLabel(billing: Billing | null): string {
+  if (!billing) return t.common.dash;
+  if (billing.servicePriceType === 'range' && billing.serviceMaxAmount) {
+    return format(t.serviceSheet.rangeLabel, {
+      min: formatMoney(billing.serviceAmount),
+      max: formatMoney(billing.serviceMaxAmount),
+    });
+  }
+  if (billing.servicePriceType === 'unset') return t.detail.priceOnRequest;
+  return formatMoney(billing.suggestedAmount ?? billing.serviceAmount);
 }
 
 export function DetailPanel() {
@@ -157,6 +174,38 @@ export function DetailPanel() {
     store.checkout(card!.id, Math.round(rupees * 100));
   };
 
+  /**
+   * Only what the queue card behind this panel does NOT already show. The card carries the name,
+   * the service and the ETA; the price, the exact position and the visitor type are the reasons to
+   * open the panel. Waiting entries get their place in line and their wait; an entry in the chair
+   * does not (both are meaningless once the service has started).
+   */
+  const infoRows = useMemo(() => {
+    if (!card) return [];
+    const rows: { key: string; label: string; value: string }[] = [];
+    if (card.isWaiting) rows.push({ key: 'pos', label: t.detail.position, value: `#${card.pos}` });
+    rows.push({ key: 'seat', label: t.detail.seat, value: seat?.name ?? t.common.dash });
+    rows.push({ key: 'service', label: t.detail.service, value: card.service });
+    rows.push({ key: 'price', label: t.detail.price, value: priceLabel(billing) });
+    if (card.isWaiting) rows.push({ key: 'wait', label: t.detail.estWait, value: card.rightText });
+    rows.push({ key: 'source', label: t.detail.source, value: card.srcLabel });
+    if (card.visitorType) {
+      rows.push({
+        key: 'visitor',
+        label: t.detail.visitorType,
+        value: card.visitorType === 'mr' ? t.queue.mr : t.queue.patient,
+      });
+    }
+    return rows;
+  }, [card, seat?.name, billing]);
+
+  /** Two per row. An odd last fact keeps its half and leaves the other empty. */
+  const infoPairs = useMemo(() => {
+    const out: [(typeof infoRows)[number], (typeof infoRows)[number] | undefined][] = [];
+    for (let i = 0; i < infoRows.length; i += 2) out.push([infoRows[i], infoRows[i + 1]]);
+    return out;
+  }, [infoRows]);
+
   return (
     <Modal transparent visible={open} animationType="fade" onRequestClose={close}>
       {card && (
@@ -176,27 +225,73 @@ export function DetailPanel() {
               </TText>
             </View>
 
-            <View style={s.content}>
+            {/* Scrollable, with the actions pinned in the footer below. An earlier cut put the
+                seat/service/source/position grid here as full-width cards and pushed the price and
+                buttons off a small phone; the fix then was to delete it and print one muted line
+                instead, which left the screen two-thirds empty. Now it is a compact details card
+                that scrolls, so the actions cannot be pushed anywhere. */}
+            <ScrollView
+              style={styles.flex}
+              contentContainerStyle={s.content}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled">
               <View style={s.hero}>
                 <View style={s.avatar}>
                   <TText weight="bold" style={s.avatarText}>
                     {card.initials}
                   </TText>
                 </View>
-                <TText variant="h4" weight="bold">
+                <TText variant="h4" weight="bold" align="center" numberOfLines={2}>
                   {card.name}
                 </TText>
-                <StatusBadge status={card.status} />
+                {/* StatusBadge pins itself `alignSelf: flex-start` (right for a list row, wrong
+                    under a centred name). A child's alignSelf beats the parent's alignItems, so
+                    centring it takes a ROW whose justifyContent does the centring instead. */}
+                <View style={s.badgeRow}>
+                  <StatusBadge status={card.status} />
+                </View>
               </View>
 
-              {/* The seat / service / source / position grid is gone. It restated what the
-                  queue card behind this panel already showed, and pushed the thing you opened
-                  the panel for — the price and the actions — below the fold on a small phone.
-                  What is still worth knowing sits on one line under the name. */}
-              <TText variant="bodySm" color="textMuted" align="center" style={styles.mt1}>
-                {[seat?.name, card.service, card.srcLabel].filter(Boolean).join(' · ')}
-              </TText>
-            </View>
+              {/* The card only while they are waiting. Once they are in the chair the footer owns
+                  the screen — amount, add-ons, breakdown, two buttons — and it already prints the
+                  service and the price, so a details card there would just push the amount box
+                  under the fold. That state keeps the one muted line it had. */}
+              {card.isWaiting ? (
+                /* Two columns, label above value. Six stacked full-width rows ran past the footer on a
+                   phone with a larger system text size, so the last fact (Source) was cut in half.
+                   Paired, the same six facts are half as tall and everything fits without a scroll. */
+                <View style={s.infoCard}>
+                  {infoPairs.map(([left, right], i) => (
+                    <View key={left.key} style={[s.infoRow, i > 0 && s.infoRowBorder]}>
+                      <View style={s.infoCell}>
+                        <TText variant="caption" color="textMuted">
+                          {left.label}
+                        </TText>
+                        <TText variant="bodyMd" color="textStrong" weight="semibold" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                          {left.value}
+                        </TText>
+                      </View>
+                      <View style={[s.infoCell, s.infoCellRight]}>
+                        {right ? (
+                          <>
+                            <TText variant="caption" color="textMuted">
+                              {right.label}
+                            </TText>
+                            <TText variant="bodyMd" color="textStrong" weight="semibold" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                              {right.value}
+                            </TText>
+                          </>
+                        ) : null}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <TText variant="bodySm" color="textMuted" align="center">
+                  {[seat?.name, card.service, card.srcLabel].filter(Boolean).join(' · ')}
+                </TText>
+              )}
+            </ScrollView>
 
             <View style={s.footer}>
               {card.status === 'waiting' && (
@@ -397,28 +492,36 @@ const createDetailPanelStyles = ({ colors, radius }: ThemeStyleProps) => {
       width: moderateScale(40),
       height: moderateScale(40),
     },
-    content: { ...styles.flex, ...styles.ph5 },
-    hero: { ...styles.itemsCenter, gap: moderateScale(10), ...styles.pt2, paddingBottom: moderateScale(18) },
+    content: { ...styles.ph5, paddingBottom: moderateScale(20), flexGrow: 1 },
+    hero: { ...styles.itemsCenter, gap: moderateScale(6), ...styles.pt1, paddingBottom: moderateScale(12) },
+    badgeRow: { ...styles.flexRow, ...styles.justifyCenter, alignSelf: 'stretch' },
     avatar: {
       ...styles.nonFlexCenter,
-      width: moderateScale(72),
-      height: moderateScale(72),
-      borderRadius: moderateScale(36),
+      width: moderateScale(56),
+      height: moderateScale(56),
+      borderRadius: moderateScale(28),
       backgroundColor: colors.primarySoft,
     },
-    avatarText: { fontSize: moderateScale(26), color: colors.primarySoftFg },
-    rows: { gap: moderateScale(10) },
-    row: {
-      ...styles.rowSpaceBetween,
+    avatarText: { fontSize: moderateScale(21), color: colors.primarySoftFg },
+    // One card of label/value rows, hairline-divided: five separate bordered cards (the shape the
+    // old grid used) read as five things to act on rather than one set of facts.
+    infoCard: {
       backgroundColor: colors.surfaceCard,
       borderWidth: moderateScale(1),
       borderColor: colors.borderSubtle,
       borderRadius: moderateScale(radius.lg),
-      ...styles.pv4,
-      ...styles.ph4,
+      overflow: 'hidden',
     },
-    seatRow: { ...styles.flexRow, ...styles.itemsCenter, gap: moderateScale(7) },
-    seatDot: { width: moderateScale(9), height: moderateScale(9), borderRadius: moderateScale(4.5) },
+    infoRow: { ...styles.flexRow },
+    infoRowBorder: { borderTopWidth: StyleSheet.hairlineWidth * 2, borderTopColor: colors.borderSubtle },
+    infoCell: {
+      ...styles.flex,
+      ...styles.minWidth0,
+      gap: moderateScale(2),
+      paddingVertical: moderateScale(10),
+      paddingHorizontal: moderateScale(14),
+    },
+    infoCellRight: { borderLeftWidth: StyleSheet.hairlineWidth * 2, borderLeftColor: colors.borderSubtle },
     footer: {
       ...styles.ph5,
       paddingTop: moderateScale(14),
@@ -458,7 +561,6 @@ const createDetailPanelStyles = ({ colors, radius }: ThemeStyleProps) => {
 
   return {
     ...base,
-    seatDotBg: (color: string) => [base.seatDot, { backgroundColor: color }],
     chipDotBg: (color: string) => [base.chipDot, { backgroundColor: color }],
   };
 };

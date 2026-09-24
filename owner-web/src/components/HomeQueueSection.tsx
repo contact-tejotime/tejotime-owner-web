@@ -4,14 +4,14 @@ import { useState } from "react";
 import { t } from "@/i18n";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { Icon } from "@/components/Icon";
+import { LiveQueueCard } from "@/components/LiveQueueCard";
 import { QueueBoard } from "@/components/QueueBoard";
-import { StoreBookingQr } from "@/components/StoreBookingQr";
 import type { SeatGroup, ServiceRow, StaffRow } from "@/lib/server-api";
 
 /**
- * Home quick actions + live queue. Owns the walk-in sheet so "Add walk-in" and the board
- * chip open the same bottom sheet (same flow as the Expo app).
+ * Home's live card + seat boards, the same blocks as the app's Home (docs/mobile-home-screen.md).
+ * Owns the walk-in sheet so the card's "Add walk-in" and an empty seat's shortcut open the same
+ * sheet — the latter with its seat already chosen.
  */
 export function HomeQueueSection({
   seats,
@@ -27,7 +27,7 @@ export function HomeQueueSection({
   staff: StaffRow[];
   services: ServiceRow[];
   showQr: boolean;
-  /** Staff / one-seat shops — tighter layout, no redundant seat filter chips. */
+  /** Staff / one-seat shops — no seat filter chips (nothing to filter). */
   singleChair?: boolean;
   category?: string | null;
   /** Public booking chooser URL encoded into the Contact QR (from GET /business/qr). */
@@ -38,6 +38,7 @@ export function HomeQueueSection({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [manuallyOpen, setManuallyOpen] = useState(false);
+  const [walkInSeat, setWalkInSeat] = useState<string | null>(null);
 
   /**
    * Deep link / bookmark: /dashboard?walkin=1 opens the sheet.
@@ -62,33 +63,30 @@ export function HomeQueueSection({
   };
 
   const qrReady = showQr && !!cardUrl;
-  const soloAction = !qrReady;
+
+  /** An empty seat's shortcut opens the same sheet with that seat already chosen. */
+  const openWalkIn = (seatId: string | null = null) => {
+    setWalkInSeat(seatId);
+    setWalkInOpen(true);
+  };
 
   return (
     <>
-      <h2 className="home-section-title">{t.dashboard.quickActions}</h2>
-      <div className={`home-actions${soloAction ? " home-actions-solo" : ""}`}>
-        <button type="button" className="btn home-action-primary" onClick={() => setWalkInOpen(true)}>
-          <Icon name="plus" size={18} color="#fff" />
-          {t.dashboard.addWalkIn}
-        </button>
-        {qrReady ? (
-          <StoreBookingQr
-            variant="button"
-            label={t.dashboard.contactQr}
-            cardUrl={cardUrl!}
-            storeName={storeName || t.dashboard.storeFallback}
-          />
-        ) : null}
-      </div>
+      <LiveQueueCard
+        seats={seats}
+        onAddWalkIn={() => openWalkIn()}
+        cardUrl={qrReady ? cardUrl : null}
+        storeName={storeName || t.dashboard.storeFallback}
+      />
 
-      <h2 className="home-section-title">{singleChair ? t.dashboard.yourQueue : t.dashboard.queue}</h2>
       <QueueBoard
         initialSeats={seats}
         staff={staff}
         services={services}
         walkInOpen={walkInOpen}
+        walkInSeatId={walkInSeat}
         onWalkInOpenChange={setWalkInOpen}
+        onAddWalkInTo={openWalkIn}
         singleChair={singleChair}
         category={category}
       />

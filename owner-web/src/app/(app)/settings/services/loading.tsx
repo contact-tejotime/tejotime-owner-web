@@ -1,14 +1,16 @@
-import { Skeleton, SkeletonCards, SkeletonHeader, SkeletonScreen } from "@/components/Skeleton";
 import { t } from "@/i18n";
+
+import { SkeletonScreen } from "@/components/Skeleton";
+import { SettingsSubpageShell } from "@/components/SettingsSubpageShell";
+import { SbListSkeleton } from "@/components/store-settings/Skeletons";
+import "@/styles/settings-b.css";
 
 export default function Loading() {
   return (
     <SkeletonScreen label={t.loading.generic}>
-      <div className="wrap">
-        <SkeletonHeader />
-        <Skeleton height={120} radius={12} className="skeleton-mt-lg" />
-        <SkeletonCards count={3} height={70} />
-      </div>
+      <SettingsSubpageShell title={t.services.title} width="wide">
+        <SbListSkeleton rows={5} />
+      </SettingsSubpageShell>
     </SkeletonScreen>
   );
 }

@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { t, format } from "@/i18n";
 
-import { Icon } from "@/components/Icon";
+import { OverlayPortal } from "@/components/OverlayPortal";
 import { Spinner } from "@/components/Skeleton";
+import "@/styles/shell-sheets.css";
 
 /**
- * Our own confirm / prompt, replacing `window.confirm` and `window.prompt`.
+ * Our own confirm / prompt, replacing `window.confirm` and `window.prompt` — the web twin of the
+ * app's `ConfirmSheet`: a centred card with the title, the body, an optional field, then the
+ * confirm button over Cancel, both full width.
  *
  * Those were never acceptable here. They are unstyled OS chrome that reads as a browser
  * security warning rather than part of the product, they block the whole tab, some browsers let
@@ -17,6 +20,11 @@ import { Spinner } from "@/components/Skeleton";
  *
  * The mobile twin has the same problem in a worse form: `Alert.prompt` is iOS-only, so the
  * Android build's "reset password" did nothing at all.
+ *
+ * The header × this used to carry is gone, as on the app: Cancel, Escape and a click on the
+ * backdrop all dismiss it, and a fourth way only competed with the two buttons.
+ *
+ * Portalled (see OverlayPortal) so no ancestor's stacking context can paint over it.
  *
  * The caller gives this a `key` that changes per opening, so each one mounts fresh — that is
  * what stops the next confirm inheriting the last dialog's typed password, and it is cheaper
@@ -48,6 +56,8 @@ export function ConfirmDialog({
 }) {
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
+  const titleId = useId();
+  const inputId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -69,66 +79,63 @@ export function ConfirmDialog({
   }
 
   return (
-    <div
-      className="sheet-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onCancel();
-      }}
-    >
-      <div className="sheet confirm-sheet">
-        <header className="sheet-head">
-          <h2>{title}</h2>
-          <button type="button" className="icon-btn" onClick={onCancel} aria-label={t.confirm.close}>
-            <Icon name="x" size={18} />
-          </button>
-        </header>
+    <OverlayPortal>
+      <div
+        className="cfm-backdrop"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) onCancel();
+        }}
+      >
+        <div className="cfm-card" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+          <h2 id={titleId} className="cfm-title">
+            {title}
+          </h2>
 
-        {body ? <p className="confirm-body">{body}</p> : null}
+          {body ? <p className="cfm-body">{body}</p> : null}
 
-        {input ? (
-          <div className="field">
-            <label htmlFor="confirm-input">{input.label}</label>
-            <input
-              id="confirm-input"
-              type={input.type ?? "text"}
-              value={value}
-              autoFocus
-              onChange={(e) => {
-                setValue(e.target.value);
-                setError("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") confirm();
-              }}
-            />
-            {input.hint ? <p className="field-hint">{input.hint}</p> : null}
+          {input ? (
+            <div className="cfm-field">
+              <label htmlFor={inputId}>{input.label}</label>
+              <input
+                id={inputId}
+                className="cfm-input"
+                type={input.type ?? "text"}
+                value={value}
+                autoFocus
+                onChange={(e) => {
+                  setValue(e.target.value);
+                  setError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirm();
+                }}
+              />
+              {input.hint ? <p className="cfm-hint">{input.hint}</p> : null}
+            </div>
+          ) : null}
+
+          {error ? (
+            <p className="ss-error cfm-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="cfm-actions">
+            <button
+              type="button"
+              className={`ss-btn block ${destructive ? "danger" : "primary"}`}
+              onClick={confirm}
+              disabled={busy}
+            >
+              {busy ? <Spinner size={14} /> : null}
+              {confirmLabel}
+            </button>
+            <button type="button" className="ss-btn outline block" onClick={onCancel} disabled={busy}>
+              {cancelLabel}
+            </button>
           </div>
-        ) : null}
-
-        {error ? (
-          <div className="alert err" role="alert">
-            {error}
-          </div>
-        ) : null}
-
-        <div className="sheet-actions">
-          <button
-            type="button"
-            className={`btn ${destructive ? "danger" : ""}`}
-            onClick={confirm}
-            disabled={busy}
-          >
-            {busy ? <Spinner size={14} /> : null}
-            {confirmLabel}
-          </button>
-          <button type="button" className="btn secondary" onClick={onCancel} disabled={busy}>
-            {cancelLabel}
-          </button>
         </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }

@@ -53,6 +53,7 @@ const patchSchema = z
     facebookUrl: socialUrl,
     twitterUrl: socialUrl,
     linkedinUrl: socialUrl,
+    yelpUrl: socialUrl,
     payments: z.array(z.string().min(1).max(60)).max(15).optional(),
     faqs: z.array(z.object({ q: z.string().min(1).max(200), a: z.string().min(1).max(1000) })).max(20).optional(),
     reviews: z

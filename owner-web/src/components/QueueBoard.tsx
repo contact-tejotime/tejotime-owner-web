@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { t, format } from "@/i18n";
 
 import { QueueDetailSheet } from "@/components/QueueDetailSheet";
-import { Spinner } from "@/components/Skeleton";
+import { QueueTicketCard } from "@/components/QueueTicketCard";
 import { showToast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 
@@ -83,7 +83,9 @@ export function QueueBoard({
   staff,
   services,
   walkInOpen,
+  walkInSeatId = null,
   onWalkInOpenChange,
+  onAddWalkInTo,
   singleChair = false,
   category,
 }: {
@@ -91,7 +93,11 @@ export function QueueBoard({
   staff: StaffRow[];
   services: ServiceRow[];
   walkInOpen: boolean;
+  /** Seat the walk-in sheet opens on (an empty seat's shortcut); null = Any. */
+  walkInSeatId?: string | null;
   onWalkInOpenChange: (open: boolean) => void;
+  /** An empty seat's "add a walk-in here". */
+  onAddWalkInTo: (seatId: string) => void;
   singleChair?: boolean;
   /** Business category — gates checkout add-on chips in the detail sheet. */
   category?: string | null;
@@ -104,7 +110,7 @@ export function QueueBoard({
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [running, setRunning] = useState<string | null>(null);
   const [held, setHeld] = useState<string | null>(null);
-  const [openCard, setOpenCard] = useState<QueueCard | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
   const dragSourceSeat = useRef<string | null>(null);
   const committing = useRef(false);
 
@@ -133,8 +139,25 @@ export function QueueBoard({
   const isRunning = (id: string, action: string) => pending === `${id}:${action}`;
   const cardBusy = (id: string) => !!pending && pending.startsWith(`${id}:`);
 
+  /**
+   * The open card, read from the LIVE board on every render — as the app's DetailPanel reads it
+   * from the store. A snapshot taken at click time kept offering Start to a customer another
+   * device had already started (the API then refused it), and kept the old service line after an
+   * add-on. A card that has left the board (completed or no-showed elsewhere) closes the screen,
+   * as on the app.
+   */
+  const openCard = openId ? (findCard(seatsState, openId)?.card ?? null) : null;
+
   const seats = filter === "all" ? seatsState : seatsState.filter((s) => s.id === filter);
   const totalWaiting = seatsState.reduce((n, s) => n + waitingCards(s).length, 0);
+  /**
+   * A card can only move to another seat that is on screen — the All view, as the app's
+   * `canCrossSeat`. With one seat picked from the chips, the tip used to promise a move even on an
+   * empty seat with nothing to drag.
+   */
+  const canCrossSeat = !singleChair && filter === "all" && seatsState.length > 1;
+  /** Only worth saying once there is something to drag: two in a seat, or seats to move to. */
+  const showDragTip = seats.some((s) => waitingCards(s).length > 1) || (canCrossSeat && totalWaiting > 0);
 
   function refresh() {
     startTransition(() => router.refresh());
@@ -194,7 +217,7 @@ export function QueueBoard({
       refresh();
     } catch (e) {
       committing.current = false;
-      showToast(e instanceof Error ? e.message : "That didn't work. Try again.", "error");
+      showToast(e instanceof Error ? e.message : t.queue.actionFailed, "error");
       refresh();
     }
   }
@@ -250,49 +273,45 @@ export function QueueBoard({
 
   return (
     <>
-      <div className={`chip-row${singleChair ? " chip-row-staff" : ""}`}>
-        {singleChair ? (
-          <span className="queue-waiting-pill">{totalWaiting} waiting</span>
-        ) : (
-          <>
-            <button
-              type="button"
-              className={`filter-chip ${filter === "all" ? "active" : ""}`}
-              onClick={() => setFilter("all")}
-            >
-              All <span className="filter-chip-count">{totalWaiting}</span>
-            </button>
-            {seatsState.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                className={`filter-chip ${filter === s.id ? "active" : ""}`}
-                onClick={() => setFilter(s.id)}
-              >
-                <span className="filter-chip-label">{s.name}</span>
-                <span className="filter-chip-count">{waitingCards(s).length}</span>
-              </button>
-            ))}
-          </>
-        )}
-        <button type="button" className="filter-chip filter-chip-cta" onClick={() => onWalkInOpenChange(true)}>
-          <Icon name="plus" size={15} color="#fff" />
-          {t.queue.walkIn}
-        </button>
+      <div className="home-section-row seats-head">
+        <h2 className="home-section-title">{singleChair ? t.dashboard.yourQueue : t.dashboard.seatsTitle}</h2>
+        {showDragTip ? <span className="seats-tip">{t.dashboard.dragTip}</span> : null}
       </div>
 
+      {/* Filter chips only when there is something to filter: two or more seats. The old
+          single-seat "N waiting" pill repeated the live card, and the Walk-in chip repeated the
+          card's main action. */}
+      {!singleChair ? (
+        <div className="chip-row">
+          <button
+            type="button"
+            className={`filter-chip ${filter === "all" ? "active" : ""}`}
+            onClick={() => setFilter("all")}
+          >
+            {t.queue.all} <span className="filter-chip-count">{totalWaiting}</span>
+          </button>
+          {seatsState.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className={`filter-chip ${filter === s.id ? "active" : ""}`}
+              onClick={() => setFilter(s.id)}
+            >
+              <span className="filter-chip-label">{s.name}</span>
+              <span className="filter-chip-count">{waitingCards(s).length}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {dragId ? (
-        <p className="queue-drag-hint">
-          {singleChair
-            ? t.queue.dragHintSingle
-            : t.queue.dragHint}
-        </p>
+        <p className="queue-drag-hint">{canCrossSeat ? t.queue.dragHint : t.queue.dragHintSingle}</p>
       ) : null}
 
       {seats.length === 0 ? (
         <p className="home-empty">{t.queue.noSeats}</p>
       ) : (
-        <div className={`seat-list${singleChair ? " seat-list-single" : ""}${dragId ? " is-dragging" : ""}`}>
+        <div className={`seat-list${singleChair || seats.length === 1 ? " seat-list-single" : ""}${dragId ? " is-dragging" : ""}`}>
           {seats.map((seat) => {
             const waiting = waitingCards(seat);
             const serving = servingCards(seat);
@@ -311,48 +330,29 @@ export function QueueBoard({
                   </span>
                   <span className="seat-body">
                     <span className="nm">{seat.name}</span>
-                    <span className="meta">{seat.subLine}</span>
+                    {/* Green while the chair is free, brand colour while serving: readable down a
+                        column of seats before the words are. The line wraps rather than
+                        truncating, so "~30m" is never cut off. */}
+                    <span className="meta seat-subline">
+                      <span className={`seat-dot ${seat.serving ? "serving" : "free"}`} aria-hidden />
+                      {seat.subLine}
+                    </span>
                   </span>
-                  <span className={`seat-status ${seat.serving ? "busy" : "free"}`}>
-                    {seat.serving ? t.queue.busy : t.queue.free}
-                  </span>
+                  <span className={`seat-status ${seat.free ? "free" : "waiting"}`}>{seat.waitBadge}</span>
                 </header>
 
                 <ul className="home-queue-list seat-queue-list">
+                  {/* Cards are the app's QueueCard (see QueueTicketCard): number tile, name,
+                      "Walk-in · Haircut", status dot + ETA. */}
                   {serving.map((card) => (
-                    <li key={card.id} className="home-queue-card serving">
-                      <button
-                        type="button"
-                        className="card-open"
-                        onClick={() => setOpenCard(card)}
-                        aria-label={format(t.queue.openCard, { name: card.name })}
+                    <li key={card.id} className="qc-item">
+                      <QueueTicketCard
+                        card={card}
+                        busy={cardBusy(card.id)}
+                        noShowRunning={isRunning(card.id, "no-show")}
+                        onOpen={() => setOpenId(card.id)}
+                        onNoShow={() => act(card.id, "no-show", card.name)}
                       />
-                      <div className="card-main">
-                        <div className="title">{card.name}</div>
-                        <div className="meta">
-                          {[card.service, card.rightText].filter(Boolean).join(" · ")}
-                        </div>
-                      </div>
-                      <div className="card-actions">
-                        <button
-                          type="button"
-                          className="btn danger btn-sm card-action-btn"
-                          disabled={cardBusy(card.id)}
-                          onClick={() => setOpenCard(card)}
-                        >
-                          {t.queue.end}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn secondary btn-sm btn-icon card-action-x"
-                          disabled={cardBusy(card.id)}
-                          onClick={() => act(card.id, "no-show", card.name)}
-                          title={t.queue.markNoShow}
-                          aria-label={format(t.queue.markNoShowAria, { name: card.name })}
-                        >
-                          {isRunning(card.id, "no-show") ? <Spinner size={13} /> : <Icon name="x" size={15} />}
-                        </button>
-                      </div>
                     </li>
                   ))}
 
@@ -374,54 +374,20 @@ export function QueueBoard({
                           onDropSeat(e, seat.id, waitIdx);
                         }}
                       />
-                      <div
-                        className={`home-queue-card ${dragId === card.id ? "is-dragging-card" : ""}`}
-                        draggable={false}
-                      >
-                        <button
-                          type="button"
-                          className="card-drag-grip"
-                          draggable
-                          aria-label={format(t.queue.dragCard, { name: card.name })}
-                          onDragStart={(e) => onDragStart(e, card, seat.id)}
-                          onDragEnd={onDragEnd}
-                        >
-                          <Icon name="gripVertical" size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          className="card-open"
-                          onClick={() => setOpenCard(card)}
-                          aria-label={format(t.queue.openCard, { name: card.name })}
-                        />
-                        <div className="card-main">
-                          <div className="title">{card.name}</div>
-                          <div className="meta">
-                            {[card.service, card.rightText].filter(Boolean).join(" · ")}
-                          </div>
-                        </div>
-                        <div className="card-actions">
-                          <button
-                            type="button"
-                            className="btn success btn-sm card-action-btn"
-                            disabled={cardBusy(card.id)}
-                            onClick={() => act(card.id, "start", card.name)}
-                          >
-                            {isRunning(card.id, "start") ? <Spinner size={13} /> : null}
-                            {t.queue.start}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn secondary btn-sm btn-icon card-action-x"
-                            disabled={cardBusy(card.id)}
-                            onClick={() => act(card.id, "no-show", card.name)}
-                            title={t.queue.markNoShow}
-                            aria-label={format(t.queue.markNoShowAria, { name: card.name })}
-                          >
-                            {isRunning(card.id, "no-show") ? <Spinner size={13} /> : <Icon name="x" size={15} />}
-                          </button>
-                        </div>
-                      </div>
+                      <QueueTicketCard
+                        card={card}
+                        dragging={dragId === card.id}
+                        busy={cardBusy(card.id)}
+                        startRunning={isRunning(card.id, "start")}
+                        noShowRunning={isRunning(card.id, "no-show")}
+                        onOpen={() => setOpenId(card.id)}
+                        // No quick Start while the chair is busy: queue_start refuses it with
+                        // SEAT_BUSY every time. The Customer screen explains why and offers the move.
+                        onStart={serving.length > 0 ? undefined : () => act(card.id, "start", card.name)}
+                        onNoShow={() => act(card.id, "no-show", card.name)}
+                        onDragStart={(e) => onDragStart(e, card, seat.id)}
+                        onDragEnd={onDragEnd}
+                      />
                     </li>
                   ))}
 
@@ -443,7 +409,20 @@ export function QueueBoard({
                   />
 
                   {seat.cards.length === 0 ? (
-                    <p className="seat-empty seat-empty-drop">{t.queue.dropHere}</p>
+                    dragId ? (
+                      <p className="seat-empty seat-empty-drop">{t.queue.dropHere}</p>
+                    ) : (
+                      // An empty seat is a shortcut: the walk-in sheet with this seat chosen.
+                      <button type="button" className="seat-free-cta" onClick={() => onAddWalkInTo(seat.id)}>
+                        <span className="seat-free-icon" aria-hidden>
+                          <Icon name="plus" size={16} />
+                        </span>
+                        <span className="seat-free-text">
+                          <span className="nm">{t.dashboard.seatFreeTitle}</span>
+                          <span className="meta">{t.dashboard.seatFreeHint}</span>
+                        </span>
+                      </button>
+                    )
                   ) : null}
                 </ul>
               </section>
@@ -454,10 +433,12 @@ export function QueueBoard({
 
       {openCard ? (
         <QueueDetailSheet
+          // One instance per customer, so a typed amount can never carry over to the next card.
+          key={openCard.id}
           card={openCard}
           seats={seatsState}
           category={category}
-          onClose={() => setOpenCard(null)}
+          onClose={() => setOpenId(null)}
           onChanged={() => refresh()}
         />
       ) : null}
@@ -466,9 +447,13 @@ export function QueueBoard({
       {walkInOpen ? (
       <WalkInSheet
         onClose={() => onWalkInOpenChange(false)}
+        initialSeatId={walkInSeatId}
         staff={staff}
         services={services}
+        seats={seatsState}
+        category={category}
         onAdded={() => {
+          // The sheet has already toasted "Added as next" / "Added to queue" (see WalkInSheet).
           onWalkInOpenChange(false);
           refresh();
         }}

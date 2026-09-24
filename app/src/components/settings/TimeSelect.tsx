@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TSheet, TText } from '@/components/common';
@@ -11,8 +11,22 @@ import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { useTheme } from '@/theme/ThemeProvider';
 
-/** Compact dropdown chip for picking a time; opens a bottom-sheet list of TIME_OPTIONS. */
-export function TimeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+/**
+ * Compact dropdown chip for picking a time; opens a bottom-sheet list of TIME_OPTIONS.
+ *
+ * `style` exists so a caller can make the chip flex. Left at its natural width, a row of "9:00 AM"
+ * and one of "10:00 AM" are different widths, so the separator between a pair landed at a different
+ * x on every row of the hours editor.
+ */
+export function TimeSelect({
+  value,
+  onChange,
+  style,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  style?: StyleProp<ViewStyle>;
+}) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
@@ -26,7 +40,7 @@ export function TimeSelect({ value, onChange }: { value: string; onChange: (v: s
 
   return (
     <>
-      <Pressable onPress={() => setOpen(true)} style={s.chip}>
+      <Pressable onPress={() => setOpen(true)} style={[s.chip, style]}>
         <TText variant="bodySm" color="textStrong" weight="medium">
           {value}
         </TText>
@@ -58,6 +72,8 @@ const createTimeSelectStyles = ({ colors, radius }: ThemeStyleProps, bottomInset
     chip: {
       ...styles.flexRow,
       ...styles.itemsCenter,
+      // space-between so the chevron stays on the right edge when a caller stretches the chip.
+      ...styles.justifyBetween,
       gap: moderateScale(4),
       backgroundColor: colors.surfacePage,
       borderWidth: moderateScale(1),

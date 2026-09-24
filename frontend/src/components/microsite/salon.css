@@ -415,7 +415,10 @@
   .ttServiceGrid { grid-template-columns: repeat(3, 1fr); }
 }
 
-@media (max-width: 1120px) { [data-shed] { display: none !important; } }
+/* 1280, not 1120: between the two the links squeezed the store name down to "5th Avenue …".
+   The name (up to 30 characters) keeps its full width on desktop; the links go first instead. */
+@media (max-width: 1280px) { [data-shed] { display: none !important; } }
+@media (min-width: 861px) { .ttName { flex-shrink: 0; } }
 /* Below 860 the sticky action bar takes over from the desktop header CTAs. */
 .ttMobileBar { display: none; }
 @media (max-width: 860px) {

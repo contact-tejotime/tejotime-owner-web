@@ -71,10 +71,10 @@ const createTSettingsRowStyles = ({ colors, radius }: ThemeStyleProps) =>
     rowPressed: { backgroundColor: colors.surfaceHover },
     iconWrap: {
       ...styles.nonFlexCenter,
-      width: moderateScale(38),
-      height: moderateScale(38),
+      width: moderateScale(36),
+      height: moderateScale(36),
       borderRadius: moderateScale(radius.md),
-      marginVertical: moderateScale(10),
+      marginVertical: moderateScale(8),
     },
     body: {
       ...styles.flex,
@@ -82,10 +82,12 @@ const createTSettingsRowStyles = ({ colors, radius }: ThemeStyleProps) =>
       ...styles.itemsCenter,
       ...styles.g3,
       ...styles.minWidth0,
-      // Comfortable row height — label + optional sub without feeling cramped.
-      paddingVertical: moderateScale(14),
+      // Comfortable without being wasteful. Settings carries ~11 rows across six groups, and at
+      // the old 14/58 only five fitted on a phone — the whole Account, Support and Sign out half
+      // of the screen was two scrolls away.
+      paddingVertical: moderateScale(11),
       paddingRight: moderateScale(2),
-      minHeight: moderateScale(58),
+      minHeight: moderateScale(52),
     },
     bodyBorder: {
       borderBottomWidth: StyleSheet.hairlineWidth,

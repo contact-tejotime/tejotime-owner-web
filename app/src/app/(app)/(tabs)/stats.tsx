@@ -16,11 +16,13 @@ import {
 } from '@/components/common';
 import { useTabContent } from '@/hooks/useResponsive';
 import { format, t } from '@/i18n';
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { can } from '@/lib/permissions';
 import { flatCards } from '@/lib/queue';
 import { formatMoney } from '@/lib/mappers';
 import { TAB_ROUTES } from '@/navigation/routes';
 import { useAppState, type DashboardStaffRow, type ReportRange } from '@/state/store';
+import { withAlpha } from '@/theme/ink';
 import { useTheme } from '@/theme/ThemeProvider';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
@@ -67,15 +69,31 @@ export default function Stats() {
   const headerTitle = scoped ? t.stats.myReport : t.stats.storeReport;
   const revenueLabel = scoped ? t.stats.kpiYourRevenue : t.stats.kpiRevenue;
   const revenue = d ? formatMoney(d.revenue) : t.common.dash;
+  const ink = colors.textOnBrand;
+  // Average ticket: the one number a day's revenue can't tell on its own. Derived here from two
+  // figures the API already returns, so it can never disagree with them.
+  const revenueNote = !d
+    ? null
+    : d.completed > 0
+      ? format(t.stats.avgPerVisit, {
+          avg: formatMoney({ ...d.revenue, amount: Math.round(d.revenue.amount / d.completed) }),
+        })
+      : t.stats.noVisitsYet;
+  const totalStaffRevenue = staffRows.reduce((n, r) => n + r.revenue.amount, 0);
 
-  const metrics = [
+  // Labels are sentence case and held to one line. Uppercase caption labels in three tiles
+  // across a phone broke mid-word ("APPOINT / MENTS", "COMPLET / ED"): a single word wider
+  // than its tile wraps at a letter, because there is no space to wrap at.
+  const metrics: { key: string; icon: IconName; label: string; value: string }[] = [
     {
       key: 'appts',
+      icon: 'calendar',
       label: t.stats.kpiAppts,
       value: d ? String(d.todaysAppointments) : t.common.dash,
     },
     {
       key: 'completed',
+      icon: 'checkCircle',
       label: t.stats.kpiCompleted,
       value: d ? String(d.completed) : t.common.dash,
     },
@@ -83,7 +101,8 @@ export default function Stats() {
       ? [
           {
             key: 'queue',
-            label: t.stats.kpiInQueue,
+            icon: 'users' as IconName,
+            label: t.stats.kpiInQueueShort,
             value: d ? String(d.activeNow + d.waitingNow) : t.common.dash,
           },
         ]
@@ -118,57 +137,78 @@ export default function Stats() {
           })}
         </View>
 
-        <View style={[s.hero, { backgroundColor: colors.surfaceCard, borderColor: colors.borderSubtle }]}>
-          <View style={s.heroTop}>
-            <View style={s.heroCopy}>
-              <TText variant="caption" weight="bold" style={{ color: colors.primary }}>
-                {rangeEyebrow.toUpperCase()}
-              </TText>
-              <TText variant="h4" color="textStrong" weight="extrabold" style={s.heroTitle}>
-                {headerTitle}
-              </TText>
-              {scoped && store.session?.name ? (
-                <TText variant="caption" color="textMuted" style={s.heroSub}>
-                  {format(t.stats.chairOf, { name: store.session.name })}
-                </TText>
-              ) : null}
-            </View>
-            <View style={s.heroRevenue}>
-              <TText variant="caption" color="textMuted" weight="bold">
-                {revenueLabel.toUpperCase()}
-              </TText>
+        {/* Revenue leads, on the store's brand colour like Home's live-queue card: it is the figure
+            an owner opens Reports for. Everything on it takes the brand's ink, never a fixed white,
+            because in dark mode the brand turns light and its ink turns dark. */}
+        <View style={s.hero}>
+          <View style={[s.disc, s.discA]} pointerEvents="none" />
+          <View style={[s.disc, s.discB]} pointerEvents="none" />
+          <TText variant="caption" weight="bold" style={[s.heroEyebrow, { color: withAlpha(ink, 0.9) }]}>
+            {`${rangeEyebrow} · ${headerTitle}`.toUpperCase()}
+          </TText>
+          {scoped && store.session?.name ? (
+            <TText variant="caption" weight="semibold" style={[s.heroSub, { color: withAlpha(ink, 0.85) }]}>
+              {format(t.stats.chairOf, { name: store.session.name })}
+            </TText>
+          ) : null}
+          <TText variant="bodySm" weight="semibold" style={[s.heroLabel, { color: withAlpha(ink, 0.85) }]}>
+            {revenueLabel}
+          </TText>
+          {loading && !d ? (
+            <View style={[s.heroSkeleton, { backgroundColor: withAlpha(ink, 0.22) }]} />
+          ) : (
+            <TText
+              variant="h1"
+              weight="extrabold"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+              style={[s.heroRevenue, { color: ink }]}>
+              {revenue}
+            </TText>
+          )}
+          {revenueNote ? (
+            <TText variant="bodySm" weight="semibold" style={{ color: withAlpha(ink, 0.9) }}>
+              {revenueNote}
+            </TText>
+          ) : null}
+        </View>
+
+        <View style={s.metricRow}>
+          {metrics.map((m) => (
+            <View
+              key={m.key}
+              style={[s.metric, { backgroundColor: colors.surfaceCard, borderColor: colors.borderSubtle }]}
+              accessible
+              accessibilityLabel={`${m.label}: ${m.value}`}>
+              <View style={[s.metricIcon, { backgroundColor: colors.primarySoft }]}>
+                <Icon name={m.icon} size={16} color={colors.primarySoftFg} />
+              </View>
               {loading && !d ? (
-                <TSkeleton width={moderateScale(88)} height={28} style={s.heroRevenueValue} />
+                <TSkeleton width={moderateScale(32)} height={22} style={s.metricValue} />
               ) : (
-                <TText variant="h3" color="textStrong" weight="extrabold" style={s.heroRevenueValue}>
-                  {revenue}
+                <TText
+                  variant="h3"
+                  color="textStrong"
+                  weight="extrabold"
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.6}
+                  style={s.metricValue}>
+                  {m.value}
                 </TText>
               )}
+              <TText
+                variant="caption"
+                color="textMuted"
+                weight="semibold"
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}>
+                {m.label}
+              </TText>
             </View>
-          </View>
-
-          <View style={s.metricRow}>
-            {metrics.map((m) => (
-              <View
-                key={m.key}
-                style={[
-                  s.metric,
-                  { backgroundColor: colors.surfaceHover },
-                  metrics.length === 3 ? s.metricThird : s.metricHalf,
-                ]}>
-                <TText variant="caption" color="textMuted" weight="bold">
-                  {m.label.toUpperCase()}
-                </TText>
-                {loading && !d ? (
-                  <TSkeleton width={moderateScale(32)} height={22} style={s.metricValue} />
-                ) : (
-                  <TText variant="h4" color="textStrong" weight="extrabold" style={s.metricValue}>
-                    {m.value}
-                  </TText>
-                )}
-              </View>
-            ))}
-          </View>
+          ))}
         </View>
 
         {showByStaff ? (
@@ -198,6 +238,8 @@ export default function Stats() {
               <View style={staffColumns > 1 ? s.staffGrid : s.staffList}>
                 {staffRows.map((row, i) => {
                   const top = i === 0 && row.revenue.amount > 0;
+                  const share =
+                    totalStaffRevenue > 0 ? Math.round((row.revenue.amount / totalStaffRevenue) * 100) : null;
                   return (
                     <View
                       key={row.staffId}
@@ -222,6 +264,21 @@ export default function Stats() {
                           {row.name}
                         </TText>
                       </View>
+
+                      {/* Share of the shop's takings: who carried the day, readable without
+                          comparing figures card to card. Hidden on a day with no revenue, where
+                          every bar would be empty. */}
+                      {share !== null ? (
+                        <View style={s.shareRow}>
+                          <View
+                            style={[s.shareTrack, { backgroundColor: top ? colors.surfaceCard : colors.surfaceHover }]}>
+                            <View style={[s.shareFill, { width: `${share}%`, backgroundColor: colors.primary }]} />
+                          </View>
+                          <TText variant="caption" color="textMuted" weight="semibold">
+                            {format(t.stats.shareOfRevenue, { pct: share })}
+                          </TText>
+                        </View>
+                      ) : null}
 
                       <View style={s.staffStats}>
                         <View style={s.staffStat}>
@@ -290,7 +347,7 @@ export default function Stats() {
   );
 }
 
-const createReportStyles = ({ colors, radius }: ThemeStyleProps) =>
+const createReportStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
   StyleSheet.create({
     segmented: {
       ...styles.flexRow,
@@ -308,34 +365,48 @@ const createReportStyles = ({ colors, radius }: ThemeStyleProps) =>
       borderRadius: moderateScale(7),
     },
     hero: {
+      backgroundColor: colors.primary,
+      borderRadius: moderateScale(radius.xl),
+      paddingHorizontal: moderateScale(18),
+      paddingVertical: moderateScale(16),
+      marginBottom: moderateScale(10),
+      overflow: 'hidden',
+      ...shadow.md,
+    },
+    // Same two ink discs as Home's live-queue card, so the two filled cards read as one family.
+    disc: { position: 'absolute', borderRadius: 999, backgroundColor: withAlpha(colors.textOnBrand, 0.08) },
+    discA: { width: moderateScale(180), height: moderateScale(180), top: moderateScale(-70), right: moderateScale(-50) },
+    discB: { width: moderateScale(120), height: moderateScale(120), bottom: moderateScale(-60), left: moderateScale(-30) },
+    heroEyebrow: { letterSpacing: 1.2 },
+    heroSub: { marginTop: moderateScale(2) },
+    heroLabel: { marginTop: moderateScale(14) },
+    heroRevenue: { marginTop: moderateScale(2), marginBottom: moderateScale(4), letterSpacing: -1 },
+    heroSkeleton: {
+      width: moderateScale(120),
+      height: moderateScale(40),
+      marginTop: moderateScale(4),
+      marginBottom: moderateScale(8),
+      borderRadius: moderateScale(10),
+    },
+    // `flex: 1` tiles with a fixed gap, not percent widths: nothing here wraps, so the
+    // percent-plus-gap overflow the staff grid guards against can't happen.
+    metricRow: { ...styles.flexRow, gap: moderateScale(8), marginBottom: moderateScale(18) },
+    metric: {
+      ...styles.flex,
+      ...styles.minWidth0,
       borderWidth: moderateScale(1),
       borderRadius: moderateScale(radius.lg),
-      padding: moderateScale(16),
-      marginBottom: moderateScale(18),
-    },
-    heroTop: {
-      ...styles.flexRow,
-      ...styles.justifyBetween,
-      ...styles.g3,
-      paddingBottom: moderateScale(14),
-      marginBottom: moderateScale(12),
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.borderSubtle,
-    },
-    heroCopy: { ...styles.flex, ...styles.minWidth0 },
-    heroTitle: { marginTop: moderateScale(4), letterSpacing: -0.4 },
-    heroSub: { marginTop: moderateScale(4) },
-    heroRevenue: { alignItems: 'flex-end', flexShrink: 0 },
-    heroRevenueValue: { marginTop: moderateScale(4), letterSpacing: -0.6 },
-    metricRow: { ...styles.flexRow, ...styles.g2, ...styles.wrap },
-    metric: {
-      borderRadius: moderateScale(10),
-      paddingVertical: moderateScale(10),
+      paddingVertical: moderateScale(12),
       paddingHorizontal: moderateScale(12),
     },
-    metricHalf: { width: '48%', flexGrow: 1 },
-    metricThird: { width: '31%', flexGrow: 1 },
-    metricValue: { marginTop: moderateScale(6), letterSpacing: -0.4 },
+    metricIcon: {
+      width: moderateScale(30),
+      height: moderateScale(30),
+      borderRadius: moderateScale(9),
+      ...styles.itemsCenter,
+      ...styles.justifyCenter,
+    },
+    metricValue: { marginTop: moderateScale(10), letterSpacing: -0.6 },
     lead: { marginTop: moderateScale(-8), marginBottom: moderateScale(12), lineHeight: moderateScale(18) },
     staffList: { ...styles.g2, marginBottom: moderateScale(8) },
     // `rowGap` only, never `gap`: the cards are sized in percent, and an
@@ -363,6 +434,9 @@ const createReportStyles = ({ colors, radius }: ThemeStyleProps) =>
       ...styles.justifyCenter,
     },
     staffName: { ...styles.flex, ...styles.minWidth0 },
+    shareRow: { ...styles.flexRow, ...styles.itemsCenter, gap: moderateScale(10) },
+    shareTrack: { ...styles.flex, height: moderateScale(6), borderRadius: moderateScale(3), overflow: 'hidden' },
+    shareFill: { height: '100%', borderRadius: moderateScale(3) },
     staffStats: { ...styles.flexRow, ...styles.justifyBetween, ...styles.g2 },
     staffStat: { ...styles.itemsCenter, ...styles.flex, ...styles.g1 },
     queueList: { ...styles.g2 },

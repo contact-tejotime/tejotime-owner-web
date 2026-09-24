@@ -10,7 +10,7 @@
  * with no social presence rather than four dead icons.
  */
 
-type SocialKey = "instagram" | "facebook" | "twitter" | "linkedin";
+type SocialKey = "instagram" | "facebook" | "twitter" | "linkedin" | "yelp";
 
 /** Simple Icons paths, 24×24, filled. */
 const MARKS: Record<SocialKey, { label: string; path: string }> = {
@@ -29,6 +29,14 @@ const MARKS: Record<SocialKey, { label: string; path: string }> = {
   linkedin: {
     label: "LinkedIn",
     path: "M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.13 1.45-2.13 2.94v5.67H9.35V9h3.42v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zm1.78 13.02H3.55V9h3.57v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.72V1.72C24 .77 23.2 0 22.22 0z",
+  },
+  // The five-petal burst is drawn as geometry (five rounded wedges around the centre), not traced
+  // from a found path — a copied "yelp icon" SVG rendered with a malformed top-left petal and a
+  // stray sliver when checked against the real logo (rendered and eyeballed with sharp before
+  // this was kept). Matches the logo's slight counter-clockwise tilt.
+  yelp: {
+    label: "Yelp",
+    path: "M11.805 8.838Q11.71 10.836 10.687 9.117L7.495 3.748Q6.473 2.029 8.414 1.545L10.258 1.086Q12.199 0.602 12.103 2.599ZM15.677 10.663Q13.696 10.94 14.814 9.282L16.735 6.431Q17.853 4.773 18.913 6.469L20.002 8.212Q21.062 9.908 19.081 10.186ZM14.408 15.084Q13.532 13.286 15.455 13.836L18.76 14.782Q20.682 15.333 19.397 16.865L18.075 18.44Q16.79 19.972 15.914 18.174ZM9.812 15.243Q11.251 13.854 11.321 15.853L11.443 19.289Q11.513 21.287 9.659 20.538L7.753 19.768Q5.899 19.019 7.338 17.63ZM8.239 10.921Q10.005 11.86 8.126 12.545L4.896 13.722Q3.017 14.407 3.156 12.412L3.3 10.361Q3.439 8.366 5.205 9.306Z",
   },
 };
 

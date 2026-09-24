@@ -199,7 +199,13 @@ function Chip({ s, icon, iconColor, iconBg, label }: { s: ArtStyles; icon: IconN
 function QueueScene({ s, progress }: { s: ArtStyles; progress: Progress }) {
   const { colors } = useTheme();
   const rows = t.onboarding.art.queue;
+  // Row ETAs, then the seat's own clear time, which must sit past the last of them: it is when
+  // this chair frees up, not when its last customer starts.
   const waits = [12, 30];
+  const seatClearMins = 45;
+  // The Home card's walk-in wait is shop-wide — the SOONEST seat, not this one — so it is
+  // deliberately below Aman's 45: another chair frees up first. Same reading as the real card.
+  const walkInWaitMins = 15;
   return (
     <>
       <Card progress={progress} style={[s.card, s.queueCard]}>
@@ -213,15 +219,21 @@ function QueueScene({ s, progress }: { s: ArtStyles; progress: Progress }) {
             <ArtText size={14} weight="bold" color="textStrong">
               {t.onboarding.art.seatName}
             </ArtText>
-            <ArtText size={11} color="textMuted">
-              {t.onboarding.art.seatSub}
+            <ArtText size={10} color="textMuted">
+              {format(t.format.servingEta, { name: rows[0].name, min: seatClearMins })}
             </ArtText>
           </View>
-          <View style={[s.pill, { backgroundColor: colors.surfaceSunken }]}>
-            <ArtText size={10} weight="semibold" color="textMuted">
-              {t.onboarding.art.busy}
-            </ArtText>
-          </View>
+        </View>
+        {/* The waiting pill floats over the card's corner rather than taking width in the header
+            row. In the row it left the sub-line ~115dp inside this 252dp card, and the real string
+            ("Serving Rohan · ~45 min") truncated mid-word; a separate row fixed that but grew the
+            card until its last ticket ran under the Walk-in wait chip. Out of flow, the sub-line
+            gets the full 184dp and the card keeps its height. It clears the name line horizontally,
+            so nothing overlaps. */}
+        <View style={[s.pill, s.seatWaitingPill, { backgroundColor: colors.surfaceSunken }]}>
+          <ArtText size={10} weight="semibold" color="textMuted">
+            {format(t.format.waitingCount, { count: rows.length - 1 })}
+          </ArtText>
         </View>
         <View style={s.stack}>
           {rows.map((r, i) => (
@@ -263,7 +275,17 @@ function QueueScene({ s, progress }: { s: ArtStyles; progress: Progress }) {
         </ArtText>
       </Float>
       <Float progress={progress} depth={0.8} delay={500} style={s.queueChip}>
-        <Chip s={s} icon="clock" iconColor={colors.primary} iconBg={colors.primarySoft} label={format(t.onboarding.art.avgWait, { mins: 14 })} />
+        <Chip
+          s={s}
+          icon="clock"
+          iconColor={colors.primary}
+          iconBg={colors.primarySoft}
+          label={format(t.onboarding.art.walkInWait, {
+            label: t.dashboard.statWalkInWait,
+            mins: walkInWaitMins,
+            unit: t.dashboard.waitUnitMin,
+          })}
+        />
       </Float>
     </>
   );
@@ -518,6 +540,8 @@ const createArtStyles = ({ colors, shadow }: ThemeStyleProps) =>
 
     /* queue */
     queueCard: { left: 34, top: 44, width: 252 },
+    // Card padding is 14, so this sits flush with the header row's top-right.
+    seatWaitingPill: { position: 'absolute', top: 14, right: 14 },
     avatarSquare: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     queueRow: {
       flexDirection: 'row',

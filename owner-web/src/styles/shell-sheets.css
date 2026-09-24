@@ -1,0 +1,1491 @@
+/*
+ * App chrome + queue sheets — the web twins of the owner app's tab bar (BottomNav), support strip,
+ * page headers (THeader, SettingsPageShell), bottom sheets (TSheet → AddWalkInSheet, QRSheet), the
+ * Customer screen (DetailPanel), ConfirmSheet and the seat board's QueueCard.
+ *
+ * Sizes, radii and weights are the app's tokens (app/src/theme/tokens.ts): radius md 10 / lg 14 /
+ * xl 20, controls 36 / 44 / 52, type h4 21 · h5 18 · bodyMd 15 · bodySm 13 · caption 12.
+ *
+ * Colours are ONLY the store theme's tokens (StoreThemeStyle), never globals.css's --gray-* ramp:
+ * the theme engine does not emit --gray-*, so anything painted with it stays light in dark mode.
+ * The two fixed exceptions are deliberate and commented where they occur (the green/red action
+ * fills, which read the same in both modes, and the QR's white quiet zone).
+ *
+ * Every selector is either a class only these components render (.ss-*, .bs-*, .wk-*, .qr-sheet-*,
+ * .dp-*, .cfm-*, .qc-*, .sub-head*) or is prefixed with `.app` to outrank the shared globals.css
+ * rule it adjusts, whatever order the two stylesheets load in.
+ *
+ * Widths: phone <=640 · tablet 641–1024 · desktop >=1025 (sidebar on, bottom nav off).
+ */
+
+/* ============================================================== buttons (app TButton) */
+
+.ss-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  touch-action: manipulation;
+  transition:
+    background var(--dur-fast, 120ms) ease,
+    border-color var(--dur-fast, 120ms) ease;
+}
+.ss-btn.block {
+  width: 100%;
+}
+.ss-btn.lg {
+  height: 52px;
+  padding: 0 22px;
+  font-size: 17px;
+}
+.ss-btn.primary {
+  background: var(--primary);
+  color: var(--text-on-brand, #fff);
+}
+.ss-btn.primary:hover:not(:disabled) {
+  background: var(--primary-hover, var(--primary));
+}
+.ss-btn.outline {
+  background: var(--surface-card);
+  color: var(--text-strong);
+  border-color: var(--border-default);
+}
+.ss-btn.outline:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+.ss-btn.ghost {
+  background: transparent;
+  color: var(--text-body);
+  box-shadow: none;
+}
+.ss-btn.ghost:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+/* Action colour is fixed by MEANING and matches the board's buttons: green = Start (reversible),
+   red = Checkout (writes money to the ledger). Fixed fills with white ink, so they read the same
+   in dark mode — the theme's --success lightens there and white on it would not. */
+.ss-btn.success {
+  background: var(--green-600, #16a34a);
+  color: #fff;
+}
+.ss-btn.success:hover:not(:disabled) {
+  background: var(--green-700, #15803d);
+}
+.ss-btn.danger {
+  background: var(--red-600, #dc2626);
+  color: #fff;
+}
+.ss-btn.danger:hover:not(:disabled) {
+  background: var(--red-700, #b91c1c);
+}
+.ss-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ss-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* A two-way choice (Add to queue as, Visitor type): the app's segmented control. */
+.ss-seg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--surface-sunken);
+}
+.ss-seg-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ss-seg-btn[aria-checked="true"] {
+  background: var(--surface-card);
+  color: var(--primary);
+  box-shadow: var(--shadow-xs);
+}
+.ss-seg-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* An inline error, in the error colour rather than the pale `.alert` box (whose fixed pink border
+   and dark-red text were light-mode only). */
+.ss-error {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--error);
+}
+
+/* ============================================================== bottom nav + support strip */
+
+@media (max-width: 1024px) {
+  /* The app's bar: 64px tall, a hairline on top and no shadow. Its tab row is capped at 640px
+     (NAV_MAX_WIDTH) — six tabs spread across a 1024px tablet read as six unrelated buttons. The
+     bar's fill still runs edge to edge; only the padding pulls the tabs together. The nav is
+     fixed, so the percentage is of the viewport. */
+  .app .bottom-nav {
+    height: calc(64px + env(safe-area-inset-bottom));
+    padding: 0 max(4px, calc((100% - 640px) / 2)) calc(6px + env(safe-area-inset-bottom));
+    box-shadow: none;
+  }
+  .app .bottom-nav-item {
+    justify-content: center;
+    gap: 4px;
+    padding-top: 8px;
+    font-weight: 500;
+  }
+  .app .bottom-nav-item.active {
+    font-weight: 600;
+  }
+  .app .bottom-nav-item:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -4px;
+    border-radius: 10px;
+  }
+
+  /* The strip sits directly on the taller bar. */
+  .app .support-strip {
+    bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+  /* 34px tap targets on the two links without making the strip any taller: the padding grows
+     the hit area, the matching negative margin gives the space back. */
+  .app .support-strip a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    margin: -8px -4px;
+    padding: 0 4px;
+  }
+
+  /* The page ends above strip + bar (31 + 64), not under them. */
+  .app > .main {
+    padding-bottom: calc(104px + env(safe-area-inset-bottom));
+  }
+  /* The strip IS the support contact here, as on the app; the footer copy under every page said
+     the same thing a second time. It stays on desktop, where there is no strip. */
+  .app .main-support {
+    display: none;
+  }
+  /* Toasts clear the strip and the bar. globals.css drops them to 24px from 900px up, but the bar
+     is on screen until 1025px, so between 900 and 1024 a toast used to land on the tabs. */
+  .app .toast-stack {
+    bottom: calc(108px + env(safe-area-inset-bottom));
+  }
+}
+@media (max-width: 1024px) and (hover: hover) {
+  .app .bottom-nav-item:not(.active):hover {
+    color: var(--text-body);
+  }
+}
+
+/* ============================================================== tab header (app THeader) */
+
+.app .app-header {
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.app .app-header-left {
+  flex: 1 1 auto;
+  gap: 12px;
+}
+.app .app-header-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app .app-header-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.app .app-header-sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+/* THeader draws the store mark at 44 (Home's own header is 46). */
+.app .app-header .store-mark {
+  width: 44px;
+  height: 44px;
+}
+/* A header action is the app's IconButton variant="soft": a 44px rounded square on the sunken
+   surface. The shared .icon-btn is a --gray-100 circle, which also stayed light in dark mode. */
+.app .app-header .icon-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--surface-sunken);
+  color: var(--text-body);
+}
+.app .app-header .icon-btn:hover {
+  background: color-mix(in srgb, var(--text-strong) 8%, var(--surface-sunken));
+}
+.app .app-header .icon-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* The gear duplicates the bottom nav's Settings tab, which is on screen at these widths. */
+@media (max-width: 1024px) {
+  .app .app-header-settings {
+    display: none;
+  }
+}
+
+/* ============================================================== sub-page header (SettingsPageShell) */
+
+/* Same measurements as SettingsSubpageShell's header, so the two read as one design. */
+.sub-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.sub-head-back {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--surface-sunken);
+  color: var(--text-strong);
+  touch-action: manipulation;
+}
+.sub-head-back:hover {
+  background: color-mix(in srgb, var(--text-strong) 8%, var(--surface-sunken));
+}
+.sub-head-back:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.sub-head-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sub-head-title.is-start {
+  text-align: left;
+}
+.sub-head-spacer {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+.sub-head-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sub-head-lead {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+@media (min-width: 641px) {
+  .sub-head-title {
+    font-size: 20px;
+  }
+}
+
+/* ============================================================== bottom sheet (app TSheet) */
+
+@keyframes ss-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ss-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes ss-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Above the bottom nav (50), the strip (49) and Next's dev overlays; toasts (10001) stay on top. */
+.bs-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+.bs-scrim {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: rgb(15 23 42 / 0.45);
+  cursor: default;
+  animation: ss-fade-in 260ms cubic-bezier(0.33, 1, 0.68, 1);
+}
+/*
+ * The panel slides, the scrim fades — as TSheet does. No animation fill-mode on purpose: an
+ * element holding a filled transform animation stays a stacking context and a containing block
+ * for fixed descendants, and once the slide lands this panel should carry no transform at all.
+ */
+.bs-panel {
+  --bs-max: 86dvh;
+  --bs-cap: 560px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 86vh;
+  max-height: var(--bs-max);
+  padding: 18px 20px calc(26px + env(safe-area-inset-bottom));
+  border-radius: 20px 20px 0 0;
+  background: var(--surface-card);
+  color: var(--text-body);
+  box-shadow: 0 -8px 32px rgb(15 23 42 / 0.18);
+  outline: none;
+  animation: ss-slide-up 260ms cubic-bezier(0.33, 1, 0.68, 1);
+}
+.bs-handle {
+  flex-shrink: 0;
+  width: 40px;
+  height: 4px;
+  margin: 0 auto 16px;
+  border-radius: 99px;
+  background: var(--border-default);
+}
+/* Tablet: the same sheet, capped and centred like the app's `centerStyle`. */
+@media (min-width: 641px) {
+  .bs-panel {
+    max-width: var(--bs-cap);
+  }
+}
+/* Desktop: a centred dialog. A panel rising from the bottom of a monitor reads as a toast. */
+@media (min-width: 1025px) {
+  .bs-root {
+    justify-content: center;
+    padding: 24px;
+  }
+  .bs-panel {
+    max-width: 520px;
+    max-height: min(88vh, 820px);
+    padding: 22px 24px 24px;
+    border-radius: 20px;
+    box-shadow: 0 20px 48px rgb(15 23 42 / 0.28);
+    animation-name: ss-pop-in;
+    animation-duration: 180ms;
+  }
+  .bs-handle {
+    display: none;
+  }
+}
+
+/* ============================================================== walk-in (app AddWalkInSheet) */
+
+.wk-title {
+  flex-shrink: 0;
+  margin: 0 0 16px;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  line-height: 1.3;
+  color: var(--text-strong);
+}
+/* Only the form scrolls; the title and the Add button stay put. The 4px inset keeps the inputs'
+   focus ring from being clipped by the scroll box. */
+.wk-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 -4px;
+  padding: 0 4px 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.wk-sheet .field {
+  margin-bottom: 16px;
+}
+.wk-sheet .field > label,
+.wk-sheet .phone-field > label {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-body);
+}
+.wk-sheet .phone-field {
+  margin-bottom: 0;
+}
+/* 16px on a phone, not the app's 15: iOS Safari zooms the whole page into any smaller input. The
+   phone number and the country search sit inside PhoneField, not directly under `.field`, and
+   inherited the body's 14px — so the second field in the form still zoomed the page. */
+.wk-sheet .field > input,
+.wk-sheet .phone-number,
+.wk-sheet .phone-search {
+  font-size: 16px;
+}
+.wk-sheet .field > input {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+}
+.wk-sheet .phone-row {
+  border-radius: 10px;
+}
+.wk-label {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-body);
+}
+.wk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* A service row: the app's ServiceCard with multiSelect. */
+.wk-service {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 16px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow-xs);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast, 120ms) ease;
+}
+.wk-service[aria-checked="true"] {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+.wk-service-accent {
+  flex-shrink: 0;
+  width: 4px;
+  align-self: stretch;
+  border-radius: 999px;
+}
+/* The app's chair palette (serviceColor.ts); amber and green are fixed there too. */
+.wk-accent-primary {
+  background: var(--primary);
+}
+.wk-accent-secondary {
+  background: var(--secondary, #475569);
+}
+.wk-accent-amber500 {
+  background: #f59e0b;
+}
+.wk-accent-green500 {
+  background: #22c55e;
+}
+/* Square, deliberately: a circle would read as "pick one of these". The tick is drawn in the
+   card colour, as on the app, so it reads as cut out of the brand fill. */
+.wk-tick {
+  flex-shrink: 0;
+  width: 21px;
+  height: 21px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--surface-card);
+}
+.wk-service[aria-checked="true"] .wk-tick {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.wk-service-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.wk-service-name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.wk-service-dur {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.wk-service-price {
+  flex-shrink: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-strong);
+  white-space: nowrap;
+}
+.wk-summary {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* A seat row, with the chair's colour tile and its load line. */
+.wk-seat {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 11px 13px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--surface-card);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast, 120ms) ease;
+}
+.wk-seat[aria-checked="true"] {
+  border-color: var(--primary);
+}
+.wk-service:focus-visible,
+.wk-seat:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* Fill and ink come from `.seat-avatar-<token>` (globals.css) — the same chair colour as Home. */
+.wk-seat-avatar {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+/* "Any seat": the app's textSubtle tile. Its ink tracks the mode — dark on the light-mode grey,
+   light on the dark-mode one — which is what --text-strong does. */
+.wk-seat-avatar.auto {
+  background: var(--text-subtle);
+  color: var(--text-strong);
+}
+.wk-seat-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wk-seat-name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.wk-seat-sub {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+.wk-seat-check {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+.wk-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text-subtle);
+}
+.wk-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+@media (min-width: 641px) {
+  .wk-sheet .field > input,
+  .wk-sheet .phone-number,
+  .wk-sheet .phone-search {
+    font-size: 15px;
+  }
+}
+/* 320–360: a range price ("₹2,000–₹6,000") at 18px left the service name a few letters wide. */
+@media (max-width: 360px) {
+  .wk-service {
+    gap: 12px;
+    padding: 14px 12px;
+  }
+  .wk-service-price {
+    font-size: 15px;
+  }
+}
+
+/* ============================================================== booking QR (app QRSheet) */
+
+.qr-sheet {
+  --bs-max: 92dvh;
+  --bs-cap: 520px;
+}
+/* Scrolls only when the height cap bites (a short landscape phone). */
+.qr-sheet-body {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.qr-sheet-title {
+  margin: 0;
+  text-align: center;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  line-height: 1.3;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.qr-sheet-sub {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+/* White in both modes, as on the app: a QR needs a light quiet zone to scan, and a dark-mode
+   surface behind it made phones miss the code. */
+.qr-sheet-box {
+  width: 200px;
+  height: 200px;
+  margin: 20px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #fff;
+  border-radius: 14px;
+  background: #fff;
+}
+.qr-sheet-box img {
+  display: block;
+  width: 176px;
+  height: 176px;
+}
+.qr-sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ============================================================== Customer screen (app DetailPanel) */
+
+/*
+ * Phone: the app's full-screen page — the root IS the page (surface-page), with a top bar, a
+ * scrolling middle and a pinned footer. Tablet/desktop: the root becomes the dimmed backdrop and
+ * the same page sits in a centred dialog.
+ */
+.dp-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  background: var(--surface-page);
+  animation: ss-fade-in 180ms ease-out;
+}
+.dp {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background: var(--surface-page);
+  color: var(--text-body);
+  outline: none;
+}
+.dp-top {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+.dp-close {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-body);
+  cursor: pointer;
+}
+.dp-close:hover {
+  background: var(--surface-sunken);
+}
+.dp-close:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.dp-close .dp-icon-x {
+  display: none;
+}
+.dp-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-strong);
+}
+.dp-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 20px 20px;
+}
+.dp-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 12px;
+  text-align: center;
+}
+/* A person, so the quiet tint (the app's InitialsAvatar), not the store's solid mark. */
+.dp-avatar {
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg, var(--primary));
+  font-size: 21px;
+  font-weight: 700;
+}
+.dp-name {
+  max-width: 100%;
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  line-height: 1.3;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* The app's StatusBadge: waiting in the warning tone, in service in the brand tone, with a live
+   dot that pulses. */
+.dp-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.dp-status.waiting {
+  background: var(--warning-soft);
+  color: var(--warning-soft-fg, var(--warning));
+}
+.dp-status.serving {
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg, var(--primary));
+}
+.dp-status-dot {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: currentColor;
+}
+.dp-status-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentColor;
+  animation: ss-pulse 1.6s ease-out infinite;
+}
+@keyframes ss-pulse {
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+/* One card of label/value pairs, hairline-divided. Separate bordered boxes read as things to act
+   on rather than one set of facts. */
+.dp-info {
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--surface-card);
+  overflow: hidden;
+}
+.dp-info-row {
+  display: flex;
+}
+.dp-info-row + .dp-info-row {
+  border-top: 1px solid var(--border-subtle);
+}
+.dp-info-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+}
+.dp-info-cell + .dp-info-cell {
+  border-left: 1px solid var(--border-subtle);
+}
+.dp-info-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.dp-info-value {
+  min-height: 21px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dp-line {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+/* Pinned, so the actions can never be pushed off a small phone. It scrolls itself only if the
+   in-service footer (amount, eight add-ons, breakdown, two buttons) outgrows a tiny screen. */
+.dp-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 72dvh;
+  overflow-y: auto;
+  padding: 14px 20px calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+}
+.dp-label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-body);
+}
+.dp-hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.dp-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-muted);
+}
+.dp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.dp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--surface-page);
+  color: var(--text-body);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dp-chip:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg, var(--primary));
+}
+.dp-chip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.dp-chip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* A chip never outgrows the footer: a long chair name ("Dr. Radhakrishnan …") at 320px used to
+   push a nowrap chip past the edge. Its label truncates instead; the dot and "+Nm" keep their size. */
+.dp-chip {
+  max-width: 100%;
+  min-width: 0;
+}
+.dp-chip > span:not([class]) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dp-chip-dot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+.dp-chip-mins {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* The amount: the largest thing on the checkout — it is the number that lands in the ledger. */
+.dp-amount {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  background: var(--surface-card);
+}
+.dp-amount:focus-within {
+  border-color: var(--primary);
+  box-shadow: var(--ring);
+}
+.dp-amount-prefix {
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.dp .dp-amount-input,
+.dp .dp-amount-input:focus {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text-strong);
+  font-size: 28px;
+  font-weight: 800;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.dp .dp-amount-input::-webkit-outer-spin-button,
+.dp .dp-amount-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.dp-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dp-breakdown li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.dp-breakdown li.total {
+  font-weight: 600;
+  color: var(--text-body);
+}
+.dp-breakdown-loading {
+  display: grid;
+  gap: 7px;
+}
+@media (min-width: 641px) {
+  .dp-root {
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgb(15 23 42 / 0.45);
+  }
+  .dp {
+    flex: 0 1 auto;
+    width: min(560px, 100%);
+    max-height: min(88vh, 860px);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 20px 48px rgb(15 23 42 / 0.28);
+    animation: ss-pop-in 180ms ease-out;
+  }
+  .dp-top {
+    padding: 14px 14px 6px 20px;
+  }
+  /* A dialog closes from its corner with an ×, not with a back chevron on the left. */
+  .dp-close {
+    order: 2;
+    margin-left: auto;
+  }
+  .dp-close .dp-icon-back {
+    display: none;
+  }
+  .dp-close .dp-icon-x {
+    display: inline-block;
+  }
+  /* Still bounded, and still scrolls itself: the dialog clips (overflow: hidden), and 641px+ is
+     also a phone on its side — 844×390 gives a 343px dialog, while the in-service footer (amount,
+     eight add-ons, breakdown, two buttons) is ~470px. Unbounded, Complete & start next sat below
+     the clip with no way to reach it. The 64px is the top bar. */
+  .dp-footer {
+    max-height: calc(min(88vh, 860px) - 64px);
+    padding-bottom: 18px;
+  }
+}
+
+/* ============================================================== confirm (app ConfirmSheet) */
+
+.cfm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 0.45);
+  animation: ss-fade-in 160ms ease-out;
+}
+.cfm-card {
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  padding: 18px;
+  border-radius: 14px;
+  background: var(--surface-card);
+  color: var(--text-body);
+  box-shadow: 0 20px 48px rgb(15 23 42 / 0.28);
+  animation: ss-pop-in 180ms ease-out;
+}
+.cfm-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.cfm-body {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.cfm-field {
+  margin-top: 12px;
+}
+.cfm-field > label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-body);
+}
+/* 16px on a phone so iOS does not zoom the page into the field (the app's is 15). */
+.cfm-card .cfm-input {
+  margin-top: 6px;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  font-size: 16px;
+}
+/* The `border` shorthand above outranks globals.css's `input:focus` border colour, so without
+   this the field kept its grey edge while focused and only the ring moved. */
+.cfm-card .cfm-input:focus {
+  border-color: var(--primary);
+}
+.cfm-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.cfm-error {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.cfm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+}
+@media (min-width: 641px) {
+  .cfm-card .cfm-input {
+    font-size: 15px;
+  }
+}
+
+/* ============================================================== queue card (app QueueCard) */
+
+.qc-item {
+  list-style: none;
+}
+.qc {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow-xs);
+  transition:
+    border-color var(--dur-fast, 120ms) ease,
+    opacity var(--dur-fast, 120ms) ease;
+}
+/* The person in the chair: tinted in the brand, not badged — the board answers "who is being
+   served" at a glance. color-mix instead of a fixed rgba so the tint follows the store's brand. */
+.qc.qc-active {
+  border-color: color-mix(in srgb, var(--primary) 32%, transparent);
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface-card));
+  box-shadow: none;
+}
+/* The source card stays in place under an HTML5 drag (the browser draws the ghost), so it dims
+   rather than lifting as the app's card does. */
+.qc.qc-dragging {
+  opacity: 0.55;
+  border-style: dashed;
+  border-color: var(--primary);
+}
+/* Whole-card hit target: above the text so clicking the name opens the card; the handle and the
+   quick actions sit above it in turn so they keep their own clicks. */
+.qc-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.qc-open:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.qc-num {
+  position: relative;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* In the chair (or being dragged) the tile fills with the brand, in the brand's own ink — a fixed
+   white scored ~2:1 on the light dark-mode brand. */
+.qc-active .qc-num,
+.qc-dragging .qc-num {
+  background: var(--primary);
+  color: var(--text-on-brand, #fff);
+}
+button.qc-num {
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-family: inherit;
+  cursor: grab;
+}
+button.qc-num:active {
+  cursor: grabbing;
+}
+.qc-num-grip {
+  display: none;
+}
+.qc-body {
+  flex: 1;
+  min-width: 0;
+}
+.qc-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.qc-name {
+  min-width: 0;
+  flex-shrink: 1;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The app's Badge size sm: MR in the info tone, Patient in the secondary tone. */
+.qc-badge {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.qc-badge.info {
+  background: var(--info-soft, var(--primary-soft));
+  color: var(--info-soft-fg, var(--primary));
+}
+.qc-badge.secondary {
+  background: var(--secondary-soft, var(--surface-sunken));
+  color: var(--secondary-soft-fg, var(--text-body));
+}
+.qc-sub {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qc-right {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+/* Amber while waiting, brand while in the chair. */
+.qc-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--warning);
+}
+.qc-active .qc-dot {
+  background: var(--primary);
+}
+.qc-eta {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.qc-active .qc-eta {
+  color: var(--primary);
+}
+
+/* Quick actions: mouse only (see QueueTicketCard). Touch screens tap the card, as on the app. */
+.qc-actions {
+  display: none;
+}
+.qc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+/* Same fixed meaning-colours as .ss-btn: green Start, red End (the checkout). */
+.qc-btn.success {
+  background: var(--green-600, #16a34a);
+  color: #fff;
+}
+.qc-btn.success:hover:not(:disabled) {
+  background: var(--green-700, #15803d);
+}
+.qc-btn.danger {
+  background: var(--red-600, #dc2626);
+  color: #fff;
+}
+.qc-btn.danger:hover:not(:disabled) {
+  background: var(--red-700, #b91c1c);
+}
+/* The no-show × stays neutral: red is spoken for by checkout. */
+.qc-btn-x {
+  width: 34px;
+  padding: 0;
+  border-color: var(--border-default);
+  background: var(--surface-card);
+  color: var(--text-body);
+}
+.qc-btn-x:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+.qc-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.qc-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .qc:not(.qc-active):hover {
+    border-color: var(--border-default);
+  }
+  /* The number tile announces itself as the drag handle only under the mouse. */
+  .qc:hover button.qc-num .qc-num-text {
+    display: none;
+  }
+  .qc:hover button.qc-num .qc-num-grip {
+    display: block;
+  }
+  /* Over the ETA at the right edge, on the card's own fill (`inherit`, so the in-service tint
+     carries through). Hidden with visibility, not display, so Tab from the card reaches them the
+     moment :focus-within reveals them. */
+  .qc-actions {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 11px 0 14px;
+    border-radius: 0 13px 13px 0;
+    background: inherit;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--dur-fast, 120ms) ease,
+      visibility var(--dur-fast, 120ms) ease;
+  }
+  .qc:hover .qc-actions,
+  .qc:focus-within .qc-actions {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+/* ============================================================== motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .bs-scrim,
+  .bs-panel,
+  .dp-root,
+  .dp,
+  .cfm-backdrop,
+  .cfm-card {
+    animation: none;
+  }
+  .dp-status-dot::after {
+    animation: none;
+    opacity: 0;
+  }
+}

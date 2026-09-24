@@ -246,6 +246,11 @@ Stores: `GET /businesses` · `GET /businesses/:id` · `POST /businesses` · `PUT
 `GET /businesses/:id/customers` · `GET /businesses/:id/customers/:customerId/visits` ·
 `GET /businesses/:id/visits` · `GET /businesses/:id/appointments`.
 
+**A store's phone number is write-once.** It is the microsite address (`/{phone_full}`) and is
+baked into every printed QR code, so `PUT /businesses/:id` with a number different from the stored
+one is **409 `PHONE_LOCKED`** (a legacy store with no number may still set one). The admin form
+disables the field in edit mode; owner-web and the app already showed it read-only.
+
 The admin router **re-checks the `admins` row on every request**, so a demotion or deactivation
 bites immediately rather than at token expiry.
 

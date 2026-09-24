@@ -14,6 +14,7 @@ import {
   PermissionModule,
   toPermissionPayload,
 } from '@/lib/permissions';
+import { formatPhone } from '@/lib/phone';
 import { showToast } from '@/lib/toast';
 import { useAppState } from '@/state/store';
 import { styles } from '@/styles';
@@ -295,9 +296,16 @@ export default function TeamLogins() {
                   </View>
                   <TText variant="caption" color="textMuted" style={styles.mt1}>
                     {[
-                      user.role === 'staff' ? t.team.staff : t.team.coOwner,
+                      // Three roles reach this line, not two. Falling through to "Co-owner" for
+                      // anything non-staff labelled the super owner a co-owner — beside an "Owner
+                      // account" badge saying the opposite.
+                      user.role === 'staff'
+                        ? t.team.staff
+                        : user.isSuperOwner
+                          ? t.team.owner
+                          : t.team.coOwner,
                       user.staffName,
-                      user.phone,
+                      formatPhone(user.phone),
                     ]
                       .filter(Boolean)
                       .join(' · ')}
@@ -519,7 +527,10 @@ export default function TeamLogins() {
               >
                 {t.team.addStaff}
               </TButton>
-              <TButton variant="secondary" size="md" onPress={() => startAdd('co_owner')}>
+              {/* Outline, not `secondary`. `secondary` is a FILLED teal, so the two sat side by
+                  side as equal-weight fills and the rarer, higher-consequence action (a co-owner
+                  gets everything the owner has) read as the louder one. */}
+              <TButton variant="outline" size="md" onPress={() => startAdd('co_owner')}>
                 {t.team.addCoOwner}
               </TButton>
             </View>

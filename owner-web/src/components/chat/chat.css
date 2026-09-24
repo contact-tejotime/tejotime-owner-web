@@ -221,10 +221,19 @@
   padding: 0 14px 10px;
 }
 
-@media (max-width: 860px) {
+/*
+ * Up to 1024px the fixed bottom nav (64px, styles/shell-sheets.css) and the "Need help?" strip
+ * above it (~30px) own the bottom of the screen. At 22px the button sat right on the nav's
+ * Settings tab and swallowed taps meant for it; lifted clear of both, with the same 12px of air.
+ */
+@media (max-width: 1024px) {
   .ttChatFab {
-    bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    right: 16px;
+    bottom: calc(106px + env(safe-area-inset-bottom, 0px));
   }
+}
+
+@media (max-width: 860px) {
   .ttChatFab.isOpen {
     display: none;
   }

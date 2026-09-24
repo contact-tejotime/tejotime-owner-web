@@ -7,7 +7,7 @@ real screen with a short headline, then hands over to the login screen.
 
 | # | Page (`kind`) | Headline | The miniature shows |
 |---|---|---|---|
-| 1 | `queue` | Your live queue, in your pocket | A seat board with three tokens (one in service), a Walk-in pill, an "Avg wait" chip |
+| 1 | `queue` | Your live queue, in your pocket | A seat board with three tokens (one in service), a `2 waiting` pill, a Walk-in pill, a "Walk-in wait" chip |
 | 2 | `bookings` | Bookings that fit your day | This week's date strip (today highlighted), two appointments with Check in, a "New booking" toast |
 | 3 | `customers` | Know every customer | A customer card with visits, last visit and spend, and a "Today" revenue card with a bar chart |
 | 4 | `share` | Share your booking page | A real QR code for the TejoTime site, a "Joined the queue" toast, the shop link |
@@ -15,6 +15,16 @@ real screen with a short headline, then hands over to the login screen.
 All copy lives in `app/src/i18n/en.json` under `onboarding` (the page text in `slides`, the
 sample names and figures in `art`). Where the app already has a word (Walk-in, Check in, Visits,
 In service, VIP), the art reuses that string, so the tour and the real screens can't disagree.
+
+> **The tour must not invent product vocabulary.** It shipped with three strings of its own that
+> the app never says — a `Busy` seat pill, a `Serving · 2 waiting` sub-line, and an **`Avg wait`**
+> chip. The last was the worst: the product has no average anywhere. Home's third figure is
+> **Walk-in wait**, what someone walking in *now* would wait on the soonest seat (CLAUDE.md §7),
+> and the tour was teaching a different, wrong model of the number an owner quotes at the door.
+> Corrected on 2026-09-24 to the real strings — `format.servingEta`, `format.waitingCount` and
+> `dashboard.statWalkInWait` — so page 1 now reads as the Home screen it hands over to. A new art
+> string is fine for sample **data** (a name, a figure); it is not fine for a **label** the app
+> already has.
 
 > **Never put a price, plan, trial or "Premium" in this tour.** App Review rejected 1.0 (2) for
 > exactly that kind of reference with no In-App Purchase behind it
@@ -78,9 +88,21 @@ cold start ─► splash (authLoading) ─► index.tsx
   individually would drift them apart. Its text ignores the system text size
   (`maxFontSizeMultiplier={1}`), because the canvas already scales as a unit. The page text
   still honours it, up to the app-wide `MAX_FONT_SCALE`.
-- **Everything is theme tokens.** It follows dark mode and needs no image assets, except the brand
-  mark in the header (`splash-mark.png`).
+- **Everything is theme tokens** and needs no image assets, except the brand mark in the header
+  (`splash-mark.png`). It does **not** actually render dark, though, and cannot today: the tour is
+  pre-login, `ThemeProvider`'s `themeConfig` is null until `/business` is fetched (which needs
+  auth), and its `initialDark` prop is declared but **never passed by any caller**, so `isDark`
+  falls back to `undefined` → light. Every pre-sign-in screen is light even with the OS in dark
+  mode. Using tokens means it *would* follow a dark theme the moment one is supplied; wiring
+  `initialDark` to `useColorScheme()` is the one-line change, but it is a product decision, not a
+  tidy-up — a store whose Appearance is pinned to Light would flash dark and then correct itself
+  just after sign-in. Confirmed on 2026-09-24 with the emulator in night mode (`cmd uimode night
+  yes` reported "Night mode: yes" and the tour still rendered light).
 - **Decorative**, so it's hidden from screen readers. The dots row announces "Page n of 4".
+  Skip is hidden rather than unmounted on the last page so the header can't jump, which means it
+  has to be hidden from **both** accessibility APIs: `accessibilityElementsHidden` is iOS-only, so
+  Android also needs `importantForAccessibility="no-hide-descendants"` or TalkBack keeps
+  announcing an invisible "Skip".
 - **Tablets:** pages are as wide as the pager's *measured* width, not the window's. In tablet
   landscape the safe area insets the sides, and a window-wide page would never snap back to
   centre. A rotation re-seats the current page at its new offset. The text column and button cap
@@ -108,7 +130,16 @@ E2E (no Detox). What was checked on 2026-09-22, on release builds:
 | Relaunch after finishing goes straight to login | ✅ | not checked |
 | Status bar icons dark and readable on the tour and login | ✅ (white before the fix) | ✅ |
 
-Also `tsc --noEmit` and `eslint` clean. Not checked: dark mode, tablet landscape, Reduce Motion.
+Also `tsc --noEmit` and `eslint` clean. Not checked: tablet landscape, Reduce Motion. Dark mode
+is not reachable before sign-in at all — see the theme-tokens note above.
+
+**2026-09-24**, release APK on the Pixel 10 emulator, after the page-1 vocabulary fix: page 1 shows
+`Aman · Serving Rohan · ~45 min`, a `2 waiting` pill, A-12 Rohan **In service**, A-13 Priya ~12 min,
+A-14 Kabir ~30 min, and the floating **+ Walk-in** and **Walk-in wait · 15 min**. Two layout bugs
+were found *by screenshot* on the way and fixed, neither visible in the diff: the real sub-line
+truncated mid-word in the header row, and moving it to its own row grew the card until the last
+ticket ran under the Walk-in wait chip. The waiting pill is now out of flow. iOS not checked
+(`simctl` can't tap).
 
 **Driving it on Android:** `uiautomator dump` can't find the buttons while the chips are bobbing
 ("could not get idle state"). Tap by coordinates during the first ~13 s, or wait for the bob to

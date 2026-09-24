@@ -150,6 +150,7 @@ export function mapBusinessDetail(r: any) {
     facebookUrl: r.facebookUrl ?? '',
     twitterUrl: r.twitterUrl ?? '',
     linkedinUrl: r.linkedinUrl ?? '',
+    yelpUrl: r.yelpUrl ?? '',
     payments: Array.isArray(r.payments) ? r.payments.map(String) : [],
     amenities: Array.isArray(r.amenities) ? r.amenities.map(String) : [],
     faqs: Array.isArray(r.faqs)

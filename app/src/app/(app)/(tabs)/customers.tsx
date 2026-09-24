@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { FlatList, Linking, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { CustomerCard } from '@/components/cards/CustomerCard';
 import { TEmptyState, THeader, TKeyboardScreen, TSearchInput } from '@/components/common';
@@ -40,12 +40,23 @@ export default function Customers() {
       ? format(t.customers.latestShown, { shown: shown.length, total })
       : format(t.customers.total, { total });
 
+  // Someone with no visits yet is a new customer, not a row of zeros: "0 · — · ₹0" read like
+  // missing data. A VIP badge still wins, since VIP is something the owner set on purpose.
   const renderCustomer = ({ item: c }: { item: Customer }) => (
     <View style={numColumns > 1 ? { width: gridItemWidth(numColumns) } : undefined}>
       <CustomerCard
         name={c.name}
         phone={c.phone}
-        tag={c.vip ? <Badge tone="primary">{t.customers.vip}</Badge> : null}
+        tag={
+          c.vip ? (
+            <Badge tone="primary">{t.customers.vip}</Badge>
+          ) : c.visits === 0 ? (
+            <Badge tone="success">{t.customers.newCustomer}</Badge>
+          ) : null
+        }
+        note={c.visits === 0 ? t.customers.noVisitsYet : undefined}
+        onCall={c.phone ? () => void Linking.openURL(`tel:${c.phone}`) : undefined}
+        callLabel={format(t.customers.call, { name: c.name })}
         meta={[
           { label: t.customers.visits, value: c.visits },
           { label: t.customers.lastVisit, value: c.last },

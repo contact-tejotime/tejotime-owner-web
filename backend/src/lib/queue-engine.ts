@@ -194,9 +194,15 @@ function buildGroup(
     initials: seat.name[0] ?? '?',
     serving: serving.length > 0,
     servingName: serving.length ? serving[0]!.name : '',
+    // Compact on purpose. This string is rendered on the owner's seat board beside the avatar and
+    // the waiting badge, which leaves it room for ~26 characters on a 411dp phone — so
+    // "Serving Darshil · ~30 min" (25) fitted on Android and cut on a 393pt iPhone. `~{n}m` is the
+    // form the walk-in sheet already uses, and losing " min" buys back three characters. The client
+    // also wraps this to two lines, because a long first name with a three-digit ETA still reaches
+    // the edge and a truncated "~30…" drops the number the line exists to show.
     subLine: serving.length
-      ? `Serving ${serving[0]!.name.split(' ')[0]} · ~${clearM} min`
-      : 'Available · ready for walk-in',
+      ? `Serving ${serving[0]!.name.split(' ')[0]} · ~${clearM}m`
+      : 'Ready for walk-ins',
     waitBadge: waits.length > 0 ? `${waits.length} waiting` : 'Free',
     waitingCount: waits.length,
     clearMinutes: clearM,

@@ -1,0 +1,382 @@
+/*
+ * Appointments — the web twin of the app's Appointments tab (app/src/app/(app)/(tabs)/appointments.tsx,
+ * components/appointments/AppointmentListItem.tsx, ui/StatusBadge.tsx, ui/Badge.tsx, TEmptyState,
+ * TSectionTitle, TAppointmentRowSkeleton).
+ *
+ * Two families, both prefixed so nothing here can reach another screen:
+ *   .appts-*    the screen: section titles, the list grid, the empty states.
+ *   .appt-item* one booking row, plus .appt-status / .appt-badge. The row component imports this
+ *               file itself, so any screen that renders `AppointmentListItem` gets these styles.
+ * (`.appt-list` / `.appt-card` / `.appt-time` in globals.css are the older rows Appointments and
+ * the Calendar agenda both used; neither renders them now. Left alone because globals.css is shared.)
+ *
+ * Sizes are the app's: TText bodyMd 15 / bodySm 13 / caption 12, h5 18, its 4/8/12/16 spacing,
+ * and the store theme's radius / control-height / shadow tokens, which the app reads from the same
+ * theme engine. Colours are tokens only, so owner-web's dark mode (the account setting, applied by
+ * StoreThemeStyle as `data-tt-mode`) needs nothing extra here. Fallbacks are for the few status
+ * tokens globals.css does not declare at :root.
+ *
+ * Widths: one column on a phone (<=640px). From 641px the rows flow into as many 340px+ columns as
+ * fit — the app's APPOINTMENT_MIN_WIDTH — which is two on a tablet inside `.page-app`'s 720px
+ * column (the app's tablet 2-up). Beside the sidebar (>=1025px) the floor is 400px, so a desktop
+ * gets one to three columns in which every row stays on one line (see the grid rule for why).
+ */
+
+/* ---- Section title: TSectionTitle (h5 — 18px semibold), 20px above and 12px below ---- */
+.appts-section-title {
+  margin: 20px 0 12px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-strong);
+}
+/* The first one sits under the header, whose own 16px margin already separates them. */
+.appts-screen > .appts-section-title:first-of-type {
+  margin-top: 4px;
+}
+
+/* ---- The list: rows 8px apart (the app's g2) ---- */
+.appts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.appts-list > li {
+  min-width: 0;
+}
+
+@media (min-width: 641px) {
+  /* The app's grid is `rowGap` 8 with the columns spread apart; 12px between columns reads the
+     same at web widths. `auto-fill` with the app's 340 floor, so the width decides the count. */
+  .appts-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 8px 12px;
+    align-items: start;
+  }
+}
+
+@media (min-width: 1025px) {
+  /* The app's 340 floor was sized for its row, which has no no-show ×. With the web's × a 340px
+     column (three of them on a 1440px screen) left the name ~100px, so some rows broke to two
+     lines while their neighbours didn't. At 400 the name keeps >=130px beside both buttons —
+     clear of the 120px at which the row wraps (below) — so every desktop row is one line: one
+     column up to ~1140px, two to ~1550px, then three. The cap stops a very wide monitor adding more. */
+  .appts-list {
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    max-width: 1440px;
+  }
+}
+
+/* ---- One booking: AppointmentListItem ---- */
+.appt-item {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+/* The time sits outside the card in a 56px column, right-aligned level with the name. A long
+   "10:30 AM" wraps its meridiem under the digits, as the app's fixed-width column does. */
+.appt-item-time {
+  flex: 0 0 56px;
+  width: 56px;
+  padding-top: 14px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.appt-item-card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  /* The row's right side drops under the name only when the name would get less than 64px —
+     at 320px with the web's extra no-show button. An app-width row never wraps. (120px from
+     641px up: see the rule under `.appt-item-side`.) */
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--surface-card, #fff);
+  border: 1px solid var(--border-subtle);
+  /* The store's colour down the left edge: the app's 3px `borderLeftColor: primary`. */
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: var(--shadow-xs);
+}
+.appt-item-body {
+  flex: 1 1 64px;
+  min-width: 0;
+}
+/* Wraps, unlike the app's row: at 320px the name column is ~76px, and a nowrap row would leave the
+   name a few characters wide beside the MR / Patient badge. The badge drops under it instead. */
+.appt-item-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+}
+/* Names wrap rather than truncate, as the app's Text does — a clipped name is the wrong person. */
+.appt-item-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.appt-item-service {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.appt-item-side {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+@media (min-width: 641px) {
+  /* Wider screens only; a phone keeps the app's 56px column and its wrapped meridiem. On a grid
+     "12:30\nPM" beside a one-line "1:00 PM" in the next column reads as misaligned, and there is
+     room: the longest label ("10:00 AM") is ~60px. Calendar's agenda row is 62px for the same reason. */
+  .appt-item-time {
+    flex-basis: 62px;
+    width: 62px;
+    white-space: nowrap;
+  }
+  /* A tablet column is 340px, which left the name 79px beside "Add to queue" and the web's ×, so
+     "Neha Gupta" broke after "Neha" and a long single-word name broke mid-word. When the name would
+     get less than 120px the buttons drop under it instead, right-aligned (as Calendar's row does).
+     120 rather than Calendar's 96 so that on a tablet every card — with or without the × — takes
+     the same two-line shape, instead of a grid of mismatched heights. The desktop column floor
+     (400px, above) is what keeps rows one line beside the sidebar. */
+  .appt-item-body {
+    flex-basis: 120px;
+  }
+}
+
+/* "Add to queue": TButton ghost, size sm — transparent, brand label, 36px tall, 14px sides. */
+.appt-item-checkin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: max(34px, var(--control-h-sm, 36px));
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 10px);
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.appt-item-checkin:hover:not(:disabled) {
+  background: var(--surface-hover, var(--gray-100));
+}
+/* Web-only: the no-show shortcut, the same quiet × the queue board's cards carry. */
+.appt-item-noshow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md, 10px);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.appt-item-noshow:hover:not(:disabled) {
+  background: var(--error-soft, var(--red-50));
+  color: var(--error-soft-fg, var(--red-700));
+}
+.appt-item-checkin:disabled,
+.appt-item-noshow:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.appt-item-checkin:focus-visible,
+.appt-item-noshow:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ---- StatusBadge: a pill with a 7px dot in the tone's ink ---- */
+.appt-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--surface-sunken, var(--gray-100));
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.appt-status-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: currentColor;
+}
+.appt-status.tone-info,
+.appt-badge.tone-info {
+  background: var(--info-soft, var(--blue-50));
+  color: var(--info-soft-fg, var(--blue-700));
+}
+.appt-status.tone-primary {
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg);
+}
+.appt-status.tone-success {
+  background: var(--success-soft, var(--green-50));
+  color: var(--success-soft-fg, var(--green-700));
+}
+.appt-status.tone-error {
+  background: var(--error-soft, var(--red-50));
+  color: var(--error-soft-fg, var(--red-700));
+}
+
+/* ---- Badge size sm: the Hospital MR / Patient tag beside the name ---- */
+.appt-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: var(--radius-pill, 999px);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.appt-badge.tone-secondary {
+  background: var(--secondary-soft, var(--surface-sunken));
+  color: var(--secondary-soft-fg, var(--text-body));
+}
+
+/* ---- TEmptyState: an icon in a soft brand disc, the message, an optional hint — centred ---- */
+.appts-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 24px;
+  text-align: center;
+}
+/* `fill`: take the height left under the header and centre in it, nudged up a little (the app's
+   56px bottom padding) because dead centre above a tab bar reads as low. */
+.appts-empty-fill {
+  min-height: max(240px, calc(100dvh - 280px));
+  padding-bottom: 56px;
+}
+.appts-empty-compact {
+  gap: 8px;
+  padding: 20px 24px;
+}
+.appts-empty-disc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 2px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.appts-empty-compact .appts-empty-disc {
+  width: 44px;
+  height: 44px;
+}
+.appts-empty-title {
+  max-width: 300px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.appts-empty-compact .appts-empty-title {
+  font-size: 13px;
+}
+.appts-empty-hint {
+  max-width: 300px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-subtle, var(--text-muted));
+}
+
+@media (min-width: 1025px) {
+  /* No bottom nav to clear beside the sidebar, but the desktop "Need help?" footer (~68px) and
+     `.page-app`'s 80px foot sit below it. At 100dvh - 240 the empty page overflowed a 900px-tall
+     window by ~40px and scrolled the footer off; - 300 keeps the whole page on screen. */
+  .appts-empty-fill {
+    min-height: max(280px, calc(100dvh - 300px));
+  }
+}
+
+/* ---- TAppointmentRowSkeleton (loading.tsx) ---- */
+/* SkeletonHeader carries its own 10px foot, where the real header has a 16px margin. */
+.appts-screen > .appts-skel-title {
+  margin-top: 10px;
+}
+.appt-item-skel .appt-item-time {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 18px;
+}
+/* The app greys the brand edge while loading, so the placeholder doesn't look like a booking. */
+.appt-item-skel .appt-item-card {
+  flex-wrap: nowrap;
+  border-left-color: var(--surface-sunken, var(--gray-100));
+}
+/* 45px: the real body's name line (22.5) + 4 + service line (18). Without it the placeholder card
+   was 58px against a real 71px one, so the list jumped as it landed. */
+.appt-item-skel-body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  min-height: 45px;
+}
+/* The header's "+" as a placeholder, so it doesn't pop in beside the title when the page lands. */
+.appts-skel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.appts-skel-header > .skeleton {
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.appt-item-skel .appt-item-card > .skeleton {
+  flex-shrink: 0;
+}

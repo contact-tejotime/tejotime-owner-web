@@ -573,6 +573,7 @@
     "phoneSection": "Website address (phone)",
     "phoneLabel": "Phone number",
     "liveUrl": "Live at",
+    "phoneLockedHint": "Locked: this number is the store's web address and is printed in its QR codes, so it can't be changed.",
     "weeklyHours": "Weekly hours",
     "opensAt": "{day} opens at",
     "closesAt": "{day} closes at",
@@ -647,6 +648,7 @@
     "facebookUrl": "Facebook",
     "twitterUrl": "X (Twitter)",
     "linkedinUrl": "LinkedIn",
+    "yelpUrl": "Yelp",
     "paymentsDefault": "UPI, Card, Cash"
   },
   "appearance": {
