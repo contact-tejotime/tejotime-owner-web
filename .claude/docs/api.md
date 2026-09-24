@@ -73,7 +73,7 @@ The `(IP, phone)` key exists so colleagues on one shop Wi-Fi cannot lock each ot
 
 ## 2. Authentication
 
-Four JWT types (`modules/auth/token.service.ts`):
+Five JWT types (`modules/auth/token.service.ts`):
 
 | Token | Secret | TTL | `typ` | Claims |
 |---|---|---|---|---|
@@ -81,6 +81,7 @@ Four JWT types (`modules/auth/token.service.ts`):
 | Owner refresh | `JWT_REFRESH_SECRET` | 30d | `refresh` | `sub`, `jti` — **rotating**, `jti` stored as sha256 in `auth_session` |
 | Admin | `JWT_ACCESS_SECRET` | 12h | `admin` | `sub` (admin mobile) |
 | Customer | `CUSTOMER_TOKEN_SECRET` | 30m | `customer` | `phone`, `bid` |
+| Socket ticket | `JWT_ACCESS_SECRET` | 60s | `socket` | `sub`, `bid`, `role`, `sid`: opens the `/owner` socket only (owner-web) |
 
 Admin tokens share the owner secret; only the `typ` discriminator stops `authenticate` from
 accepting one. Plus `TICKET_URL_HMAC_SECRET` → `ticketKey(ticketId)`, an unguessable HMAC used for
@@ -103,7 +104,7 @@ Login nuances:
 
 Legend: `perm=module:level` is `requirePermission`; `ownRow` is row-level scoping for staff logins.
 
-### `/auth` (5)
+### `/auth` (6)
 
 | Method | Path | Guards |
 |---|---|---|
@@ -112,6 +113,7 @@ Legend: `perm=module:level` is `requirePermission`; `ownRow` is row-level scopin
 | POST | `/logout` | — |
 | GET | `/me` | returns the **resolved** permission map |
 | POST | `/password` | `ownerWrite` |
+| POST | `/socket-ticket` | `ownerRead`; returns `{ ticket, expiresIn: 60 }`, built from the caller token only |
 
 `/auth/me` returns the same `effectiveAccess` the route guards use, so the UI cannot drift from
 the API.

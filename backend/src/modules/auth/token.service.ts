@@ -87,6 +87,48 @@ export function verifyAdminToken(token: string): AdminClaims {
   return jwt.verify(token, env.JWT_ACCESS_SECRET) as AdminClaims;
 }
 
+export interface SocketClaims {
+  sub: string;
+  bid: string;
+  role: UserRole;
+  sid?: string | null;
+  typ: 'socket';
+}
+
+/** How long a socket ticket is valid for. It only has to survive one handshake. */
+export const SOCKET_TICKET_TTL = 60;
+
+/**
+ * Short-lived, socket-only credential for the `/owner` namespace.
+ *
+ * owner-web keeps its access token in an httpOnly cookie, so browser JS cannot hand it to the
+ * socket handshake — and a BFF route that returned it would undo the point of the cookie. The
+ * BFF asks for one of these instead: it opens a socket and nothing else, because `authenticate`
+ * accepts only `typ === 'access'`, and it expires before it is worth stealing.
+ */
+export function signSocketTicket(p: {
+  userId: string;
+  businessId: string;
+  role: UserRole;
+  staffId?: string | null;
+}): string {
+  const claims: SocketClaims = {
+    sub: p.userId,
+    bid: p.businessId,
+    role: p.role,
+    sid: p.staffId ?? null,
+    typ: 'socket',
+  };
+  return jwt.sign(claims, env.JWT_ACCESS_SECRET, { expiresIn: SOCKET_TICKET_TTL });
+}
+
+/** Verifies either an owner access token (mobile app) or a socket ticket (owner-web). */
+export function verifyOwnerSocketCredential(token: string): AccessClaims | SocketClaims {
+  const claims = jwt.verify(token, env.JWT_ACCESS_SECRET) as { typ?: string };
+  if (claims.typ !== 'access' && claims.typ !== 'socket') throw new Error('wrong token type');
+  return claims as AccessClaims | SocketClaims;
+}
+
 /** Signed, unguessable key for public ticket access (HMAC of the ticket id). */
 export function ticketKey(ticketId: string): string {
   return createHmac('sha256', env.TICKET_URL_HMAC_SECRET).update(ticketId).digest('hex').slice(0, 24);

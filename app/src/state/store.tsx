@@ -5,7 +5,8 @@ import type { Socket } from 'socket.io-client';
 import { AppointmentEntry, CalendarAppointmentEntry, Customer, ServiceVM, Staff } from '@/data/sample';
 import { SeatGroupVM, CardVM, flatCards } from '@/lib/queue';
 import type { ServiceFormValues } from '@/components/settings';
-import { api, ApiError, getAccessToken, initSession, setOnAuthFail } from '@/lib/api';
+import { AppState as RNAppState } from 'react-native';
+import { api, ApiError, getAccessToken, initSession, refreshSession, setOnAuthFail } from '@/lib/api';
 import { connectOwner } from '@/lib/socket';
 import { getOnboarded, setOnboarded } from '@/lib/tokenStore';
 import {
@@ -521,12 +522,50 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [loadAll]);
 
+  const redialTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const connectSocket = useCallback(() => {
-    const token = getAccessToken();
-    if (!token) return;
+    if (!getAccessToken()) return;
     socketRef.current?.close();
-    const sock = connectOwner(token);
+    if (redialTimer.current) clearTimeout(redialTimer.current);
+    redialTimer.current = null;
+    const sock = connectOwner(getAccessToken);
     socketRef.current = sock;
+
+    /*
+     * The socket has to survive a whole day, idle or not. Idle is fine (the server pings every
+     * 25s). What killed it was a refused handshake: after the 15-minute access token expired, a
+     * reconnect was rejected and Socket.IO does NOT retry that (`sock.active` goes false). So on
+     * a refusal, refresh the access token and re-dial by hand, with backoff. Ordinary drops —
+     * phone locked, network switch, a deploy — keep `active` true and Socket.IO retries itself.
+     */
+    let redialDelay = 2_000;
+    let connectedBefore = false;
+    const redial = () => {
+      if (sock.active || redialTimer.current || socketRef.current !== sock) return;
+      redialTimer.current = setTimeout(async () => {
+        redialTimer.current = null;
+        if (socketRef.current !== sock || sock.connected) return;
+        // False means the refresh token is gone too; the next REST call signs the user out.
+        if (await refreshSession()) sock.connect();
+      }, redialDelay);
+      redialDelay = Math.min(redialDelay * 2, 30_000);
+    };
+    sock.on('connect_error', redial);
+    // "io server disconnect" is the other case Socket.IO will not retry on its own.
+    sock.on('disconnect', (reason) => {
+      if (reason !== 'io client disconnect') redial(); // our own close() — sign-out, reconnect
+    });
+    sock.on('connect', () => {
+      redialDelay = 2_000;
+      // Events sent while we were offline are gone — re-read instead of trusting the last snapshot.
+      if (connectedBefore) {
+        loadQueue();
+        loadAppointments();
+      }
+      connectedBefore = true;
+    });
+
     sock.on('queue:snapshot', (d: any) =>
       setS((p) => ({ ...p, seats: seatsForUser(d.seats, p.session) })),
     );
@@ -557,9 +596,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, [loadAppointments, loadDashboard, loadQueue, loadCustomers, loadCalendarAppointments]);
 
   const teardown = useCallback(() => {
-    socketRef.current?.close();
+    const sock = socketRef.current;
     socketRef.current = null;
+    sock?.close();
+    if (redialTimer.current) clearTimeout(redialTimer.current);
+    redialTimer.current = null;
   }, []);
+
+  // Back in the foreground: iOS and Android suspend a backgrounded app's socket, so re-dial now
+  // rather than waiting out a backoff, and re-read the queue the owner is about to look at.
+  useEffect(() => {
+    const sub = RNAppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      const sock = socketRef.current;
+      if (!sock) return;
+      if (!sock.connected && !sock.active) {
+        if (redialTimer.current) clearTimeout(redialTimer.current);
+        redialTimer.current = null;
+        refreshSession().then((ok) => {
+          if (ok && socketRef.current === sock) sock.connect();
+        });
+      }
+      loadQueue();
+    });
+    return () => sub.remove();
+  }, [loadQueue]);
 
   // ---------- session restore on mount ----------
   useEffect(() => {

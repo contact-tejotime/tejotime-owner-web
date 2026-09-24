@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { AppointmentActions } from "@/components/AppointmentActions";
 import { AppPageHeader } from "@/components/AppPageHeader";
 import { Icon } from "@/components/Icon";
+import { LiveRefresh } from "@/components/LiveRefresh";
 import { ScopeNotice } from "@/components/ScopeNotice";
 import { formatTime } from "@/lib/format";
 import { getAppointments, getMe, type AppointmentRow } from "@/lib/server-api";
@@ -121,6 +122,11 @@ export default async function CalendarPage({
         subtitle={
           plural(inMonthCount, t.calendar.bookingsOne, t.calendar.bookings)
         }
+      />
+
+      <LiveRefresh
+        events={["appointment:created", "appointment:updated", "appointment:checked_in"]}
+        pollOnly={me.user.role === "staff"}
       />
 
       <ScopeNotice me={me} context={t.calendar.scopeContext} />
