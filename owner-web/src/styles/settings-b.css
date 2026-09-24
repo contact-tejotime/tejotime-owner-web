@@ -667,6 +667,17 @@
     opacity: 1;
   }
 }
+/* Desktop dialog entrance; no fill-mode, for the same reason as sb-sheet-in. */
+@keyframes sb-pop-in {
+  from {
+    transform: translateY(12px) scale(0.98);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
 @keyframes sb-fade-in {
   from {
     opacity: 0;
@@ -1356,6 +1367,10 @@
 }
 .sb-ap-frame iframe {
   display: block;
+  /* Centres the phone (390px) when the frame is wider than it. A scaled-down device is laid out
+     wider than the frame, where auto margins resolve to 0 and it stays pinned to the left edge
+     that its top-left transform origin needs. */
+  margin-inline: auto;
   border: 0;
   background: var(--surface-card);
 }
@@ -1467,6 +1482,14 @@
     border-radius: var(--radius-lg, 14px);
     box-shadow: 0 -4px 16px rgb(15 23 42 / 0.06);
   }
+  /* The help-chat button (chat.css: 52px at right 16px, bottom 106px up to 1024px) sits at the
+     same height as this pinned bar and covered the right end of Save. Where the bar reaches under
+     it, the bar's own right padding grows to keep the buttons ~12px clear of it: 55px when the
+     720px column fills the page, shrinking as the column's centring margin appears (768px + the
+     24px page gutters). */
+  .sb-savebar {
+    padding-right: max(14px, calc(55px - max(0px, (100vw - 768px) / 2)));
+  }
   .sb-savebar-note {
     text-align: left;
   }
@@ -1498,19 +1521,40 @@
   /* Nothing sits under the page any more — the nav is a sidebar. */
   .sb-savebar {
     bottom: 12px;
+    border-radius: 16px;
+    /* Same FAB clearance as the tablet rule; here the button is at right 22px, bottom 22px, and
+       the 720px column sits beside the 264px sidebar with 32px gutters (264 + 64 + 720). */
+    padding-right: max(14px, calc(53px - max(0px, (100vw - 1048px) / 2)));
   }
 
-  /* The sheet becomes a centred dialog, as the walk-in sheet does beside the sidebar. */
+  /* The desktop card look every other screen shares (16px radius, hairline shadow); a phone and
+     a tablet keep the app's radius.lg, which follows the store theme. */
+  .sb-card,
+  .sb-srow-card,
+  .sb-store,
+  .sb-item,
+  .sb-ap-frame {
+    border-radius: 16px;
+  }
+  .sb-card,
+  .sb-srow-card,
+  .sb-store {
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  }
+
+  /* The sheet becomes a centred dialog, drawn like the shared BottomSheet / queue-detail dialogs
+     (shell-sheets.css): 20px radius, the same shadow and padding, popping in rather than sliding. */
   .sb-sheet-root {
     justify-content: center;
     padding: 24px;
   }
   .sb-sheet {
     max-width: 520px;
-    max-height: min(88vh, 800px);
-    padding: 20px 22px 22px;
-    border-radius: 16px;
-    box-shadow: 0 12px 40px rgb(15 23 42 / 0.22);
+    max-height: min(88vh, 820px);
+    padding: 22px 24px 24px;
+    border-radius: 20px;
+    box-shadow: 0 20px 48px rgb(15 23 42 / 0.28);
+    animation: sb-pop-in 180ms ease-out;
   }
   .sb-sheet-handle {
     display: none;
@@ -1547,6 +1591,15 @@
   }
   .sb-profile-main {
     order: 1;
+  }
+  /* FAB clearance again, per layout. The profile's bar now lives in the form column, far from
+     the chat button; Appearance's spans the whole (up to 1100px) page, which is centred beside
+     the sidebar from 264 + 1100 = 1364px. */
+  .sb-profile .sb-savebar {
+    padding-right: 14px;
+  }
+  .sb-ap .sb-savebar {
+    padding-right: max(14px, calc(53px - max(0px, (100vw - 1364px) / 2)));
   }
 
   /* Appearance: controls on the left, the live site beside them, pinned while you tweak. */
