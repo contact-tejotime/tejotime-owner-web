@@ -9,6 +9,30 @@ the system as designed, this one describes where it actually is.
 
 ## 1. What is in flight
 
+### owner-web: live queue without a reload (2026-09-24)
+
+Microsite check-ins showed up on the mobile app immediately but on the web dashboard only after a
+hard refresh. The cause: owner-web never had a socket client.
+
+It now uses a 60-second `typ: 'socket'` ticket (`POST /auth/socket-ticket`), which keeps the
+access cookie httpOnly. `LiveRefresh` listens on `/owner` and calls `router.refresh()` on
+Dashboard, Appointments and Calendar. Staff logins, and any case where the socket can't connect,
+poll every 15s instead.
+
+Deploy needs two settings:
+- `NEXT_PUBLIC_SOCKET_URL` on owner-web, followed by a redeploy;
+- the owner-web origin added to the backend's `CORS_ALLOWED_ORIGINS`.
+
+Also fixed the same day: the **mobile** socket stopped for good about 15 minutes after sign-in.
+- Cause: it reconnected with the expired access token captured at login, the server refused it,
+  and Socket.IO does not retry a refusal.
+- Fix: the socket now uses a token getter; a refused or kicked connection refreshes the session
+  and re-dials; and it re-dials when the app returns to the foreground.
+- owner-web re-dials the same way.
+
+See [docs/owner-web-live-queue.md](../../docs/owner-web-live-queue.md). The smoke-socket E2E
+section is written but has **not been run** yet: it needs a local API and a seeded throwaway DB.
+
 ### Theme parity: app vs owner-web (2026-09-22)
 
 Same store, different colours on phone and laptop. The engine copies and the configs matched. The

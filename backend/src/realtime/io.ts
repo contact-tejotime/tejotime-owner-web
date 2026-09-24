@@ -4,8 +4,7 @@ import { corsOrigins } from '../config/env';
 import { logger } from '../config/logger';
 import { UserRole } from '../domain/enums';
 import { isOwnerRole } from '../domain/permissions';
-import { verifyAccessToken } from '../modules/auth/token.service';
-import { verifyTicketKey } from '../modules/auth/token.service';
+import { verifyOwnerSocketCredential, verifyTicketKey } from '../modules/auth/token.service';
 
 let io: Server | null = null;
 let ownerNs: Namespace | null = null;
@@ -14,6 +13,13 @@ let customerNs: Namespace | null = null;
 export function initRealtime(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
     cors: { origin: corsOrigins.length ? corsOrigins : true, credentials: true },
+    // Socket.IO's defaults, pinned on purpose: owner dashboards sit idle for hours. A ping every
+    // 25s keeps load balancers and proxies from reaping a quiet connection, and a peer that
+    // stops answering (laptop asleep, network gone) is dropped within ~45s so the client
+    // reconnects instead of sitting on a half-dead socket. Credentials are checked only at the
+    // handshake, so an expired token or ticket never ends a connection that is already open.
+    pingInterval: 25_000,
+    pingTimeout: 20_000,
   });
 
   // --- /owner: JWT-authenticated; auto-joins its business room ---
@@ -21,8 +27,9 @@ export function initRealtime(httpServer: HttpServer): Server {
   ownerNs.use((socket, nextFn) => {
     try {
       const token = (socket.handshake.auth?.token as string) || '';
-      const claims = verifyAccessToken(token.replace(/^Bearer\s+/i, ''));
-      if (claims.typ !== 'access') return nextFn(new Error('unauthorized'));
+      // The mobile app sends its access token; owner-web sends a 60s socket ticket, because its
+      // access token is an httpOnly cookie (see signSocketTicket). Either carries the same claims.
+      const claims = verifyOwnerSocketCredential(token.replace(/^Bearer\s+/i, ''));
       (socket.data as any).businessId = claims.bid;
       (socket.data as any).userId = claims.sub;
       (socket.data as any).role = claims.role;

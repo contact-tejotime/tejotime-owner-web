@@ -130,7 +130,7 @@ Two Socket.IO namespaces, initialised in `realtime/io.ts`:
 
 | Namespace | Auth | Rooms |
 |---|---|---|
-| `/owner` | access JWT in `handshake.auth.token` | `business:{id}` for owner/co_owner/manager; `business:{id}:seat:{staffId}` for staff |
+| `/owner` | access JWT (mobile app) **or** a 60s socket ticket (owner-web) in `handshake.auth.token` | `business:{id}` for owner/co_owner/manager; `business:{id}:seat:{staffId}` for staff |
 | `/customer` | anonymous; ticket access via HMAC `ticketKey` | `public:{businessId}`, `ticket:{ticketId}` |
 
 Events: `queue:snapshot`, `queue:entry.started`, `queue:entry.completed`, `availability:updated`,
@@ -141,6 +141,18 @@ Events: `queue:snapshot`, `queue:entry.started`, `queue:entry.completed`, `avail
 A staff socket deliberately does *not* join the business room; that would leak the whole shop's
 queue to a single chair. Seat-scoped emits are **not implemented**, so staff clients currently
 fall back to polling. See `current-work.md`.
+
+**owner-web and the socket.** owner-web's access token is an httpOnly cookie, which browser JS
+cannot read. So `components/LiveRefresh.tsx` trades it for a ticket:
+- It calls `POST /api/realtime/ticket`, which forwards to `POST /auth/socket-ticket`. That returns
+  a `typ: 'socket'` JWT valid for 60s. `authenticate` refuses it as a REST bearer.
+- It connects to `/owner` using that ticket. The ticket is re-fetched on every reconnect.
+- When a listed event arrives, it runs a debounced `router.refresh()`.
+- It polls every 15s instead in any of these cases: `NEXT_PUBLIC_SOCKET_URL` is unset, the
+  connection fails, or the user is staff.
+
+The pages that use it are Dashboard, Appointments and Calendar. Details are in
+[docs/owner-web-live-queue.md](../../docs/owner-web-live-queue.md).
 
 ---
 

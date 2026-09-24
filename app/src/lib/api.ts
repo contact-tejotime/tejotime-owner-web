@@ -43,7 +43,25 @@ export async function clearSession() {
   await clearTokens();
 }
 
-async function tryRefresh(): Promise<boolean> {
+/**
+ * Single-flight: the REST 401 path and the socket re-dial (state/store.tsx) can both need a
+ * fresh access token at the same moment. Refresh ROTATES — the backend revokes the old refresh
+ * token — so two concurrent calls would have the loser sign the user out. Share one attempt.
+ */
+let refreshing: Promise<boolean> | null = null;
+function tryRefresh(): Promise<boolean> {
+  refreshing ??= doRefresh().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+/** Refresh the access token (e.g. before re-opening the socket). False = session is gone. */
+export function refreshSession(): Promise<boolean> {
+  return tryRefresh();
+}
+
+async function doRefresh(): Promise<boolean> {
   if (!refreshToken) return false;
   try {
     const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
