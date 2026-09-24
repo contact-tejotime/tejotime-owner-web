@@ -3,6 +3,7 @@ import { t } from "@/i18n";
 
 import { AppointmentActions } from "@/components/AppointmentActions";
 import { AppPageHeader } from "@/components/AppPageHeader";
+import { LiveRefresh } from "@/components/LiveRefresh";
 import { ScopeNotice } from "@/components/ScopeNotice";
 import { formatTime } from "@/lib/format";
 import { getAppointments, getMe } from "@/lib/server-api";
@@ -16,6 +17,11 @@ export default async function AppointmentsPage() {
   return (
     <div className="page-app">
       <AppPageHeader title={t.appointments.title} subtitle={t.appointments.today} />
+
+      <LiveRefresh
+        events={["appointment:created", "appointment:updated", "appointment:checked_in"]}
+        pollOnly={me.user.role === "staff"}
+      />
 
       <ScopeNotice me={me} context="your appointments" />
 

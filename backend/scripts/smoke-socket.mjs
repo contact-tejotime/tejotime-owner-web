@@ -67,6 +67,26 @@ async function main() {
   const avail = await availP;
   ok(!!avail && typeof avail.queueCount === 'number', 'customer receives availability:updated');
 
+  // owner-web holds its access token in an httpOnly cookie, so it opens /owner with a 60s
+  // socket ticket instead. The flow that matters: a customer checks in from the microsite and
+  // the web dashboard hears about it without a reload.
+  console.log('OWNER-WEB SOCKET TICKET');
+  const minted = await call('POST', '/auth/socket-ticket', { token });
+  ok(minted.status === 200 && typeof minted.json.ticket === 'string', 'owner mints a socket ticket');
+  const web = io(`${ORIGIN}/owner`, { auth: { token: minted.json.ticket }, transports: ['websocket'] });
+  ok(!!(await once(web, 'connected')), 'owner socket connects with a socket ticket');
+  const webSnapP = once(web, 'queue:snapshot', 5000);
+  await call('POST', '/public/businesses/sharp-cuts/queue', { body: { serviceId: haircut.id, name: 'Web Live Cust', phone: '+919000999000', preferredStaffId: 'any' } });
+  const webSnap = await webSnapP;
+  const names = (webSnap?.seats ?? []).flatMap((s) => (s.cards ?? []).map((c) => c.name));
+  ok(names.includes('Web Live Cust'), 'ticket socket receives queue:snapshot containing the microsite check-in');
+  web.close();
+
+  const asBearer = await call('GET', '/auth/me', { token: minted.json.ticket });
+  ok(asBearer.status === 401, 'socket ticket is refused as a REST bearer → 401');
+  const noAuth = await call('POST', '/auth/socket-ticket');
+  ok(noAuth.status === 401, 'socket ticket needs a signed-in caller → 401');
+
   owner.close();
   cust.close();
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

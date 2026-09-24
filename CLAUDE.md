@@ -170,7 +170,7 @@ Two namespaces, initialized in `realtime/io.ts`:
 
 | Namespace | Auth | Rooms |
 |---|---|---|
-| `/owner` | access JWT in `handshake.auth.token` | `business:{id}` (owner/co_owner/manager only) or `business:{id}:seat:{staffId}` (staff) |
+| `/owner` | access JWT (app) or 60s `socket` ticket (owner-web, via `/api/realtime/ticket` → `POST /auth/socket-ticket`) in `handshake.auth.token` | `business:{id}` (owner/co_owner/manager only) or `business:{id}:seat:{staffId}` (staff) |
 | `/customer` | anonymous; ticket access via HMAC `ticketKey` | `public:{businessId}`, `ticket:{ticketId}` |
 
 Events: `queue:snapshot`, `queue:entry.started|completed`, `availability:updated`,

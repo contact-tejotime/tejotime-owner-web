@@ -6,6 +6,7 @@ import { limiters } from '../../middleware/rate-limit';
 import { changePasswordSchema, loginSchema, refreshSchema } from './auth.schemas';
 import * as authService from './auth.service';
 import { changeOwnPassword } from '../users/users.service';
+import { signSocketTicket, SOCKET_TICKET_TTL } from './token.service';
 
 export const authRouter = Router();
 
@@ -43,6 +44,21 @@ authRouter.get(
   authenticate,
   asyncHandler(async (req, res) => {
     res.json(await authService.me(req.principal!));
+  }),
+);
+
+/**
+ * Mint a 60-second ticket for the `/owner` socket. Used by owner-web, whose access token is an
+ * httpOnly cookie the browser cannot read (see signSocketTicket). Built from the principal only.
+ */
+authRouter.post(
+  '/socket-ticket',
+  authenticate,
+  limiters.ownerRead,
+  asyncHandler(async (req, res) => {
+    const p = req.principal!;
+    const ticket = signSocketTicket({ userId: p.userId, businessId: p.businessId, role: p.role, staffId: p.staffId });
+    res.json({ ticket, expiresIn: SOCKET_TICKET_TTL });
   }),
 );
 

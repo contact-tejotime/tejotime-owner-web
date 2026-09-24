@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { HomeQueueSection } from "@/components/HomeQueueSection";
 import { Icon } from "@/components/Icon";
+import { LiveRefresh } from "@/components/LiveRefresh";
 import { ScopeNotice } from "@/components/ScopeNotice";
 import { StoreBookingQr } from "@/components/StoreBookingQr";
 import { can, NO_ACCESS } from "@/lib/roles";
@@ -23,7 +24,8 @@ function initials(name: string) {
  * Home. Quick actions + the full live queue board.
  *
  * The queue read is uncached — customers join from the microsite, and nothing there
- * revalidates this app's cache.
+ * revalidates this app's cache. `LiveRefresh` re-renders the page when the socket says the
+ * queue changed, so those joins appear without a reload.
  */
 export default async function DashboardPage() {
   const me = await getMe();
@@ -74,6 +76,10 @@ export default async function DashboardPage() {
       </header>
 
       <ScopeNotice me={me} context="your dashboard" />
+
+      {showQueue ? (
+        <LiveRefresh events={["queue:snapshot", "appointment:checked_in"]} pollOnly={staffScoped} />
+      ) : null}
 
       {showQueue ? (
         <Suspense fallback={null}>
