@@ -1,21 +1,22 @@
 "use client";
 
-import { useRef, type KeyboardEvent } from "react";
+import { useId, useRef, type KeyboardEvent } from "react";
 import { RAMP_STOPS, type ModeId, type ResolvedTheme } from "@/theme/engine";
+import { SbField, SbSection } from "@/components/store-settings/ui";
 import { t, formatAppearance as format } from "./appearanceCopy";
 import { Icon } from "@/components/Icon";
 
 /**
- * Brand colour: 12 curated swatches, a free hex field, the generated 50→900 ramp, and a live
- * WCAG verdict.
+ * "Brand color" — the app's section: 12 swatches, the hex field, the generated 50→900 ramp.
  *
- * The verdict is the point. This hex seeds every link, chip and hero stop on the microsite, and
- * a store owner asking for #FFE066 has no way to know it cannot carry readable link text. The
- * engine already computed that; this component just refuses to let the answer stay invisible.
+ * Owner-web adds two things the app does not have: the browser's own colour picker at the head
+ * of the hex field, and a line under the ramp judging LINKS on the page, which is what this
+ * colour still drives. The verdict is the point: a store owner asking for #FFE066 has no way to
+ * know it cannot carry readable link text, and the engine already computed that.
  *
- * The primary BUTTON is judged separately, in ButtonColorPicker — it has had its own colour axis
- * since `theme.button` landed, so a verdict here would describe a control this colour may not
- * even touch.
+ * The primary BUTTON is judged separately, in ButtonColorPicker — it has its own colour axis
+ * since `theme.button` landed, so a button verdict here would describe a control this colour may
+ * not even touch. The overall "all checks pass" line sits there too, where the app puts it.
  */
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -23,7 +24,8 @@ const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 /**
  * Twelve starting points across the hue circle. The first is the TejoTime blue — the value
  * every existing store resolves to — and the next four are the preset accent colours, so the
- * curated (hand-tuned) ramps in the engine get used rather than generated near-misses.
+ * curated (hand-tuned) ramps in the engine get used rather than generated near-misses. Same list,
+ * same order as the app.
  */
 const SWATCHES: readonly { hex: string; key: keyof typeof t.appearance.swatches }[] = [
   { hex: "#2563EB", key: "blue" },
@@ -41,36 +43,29 @@ const SWATCHES: readonly { hex: string; key: keyof typeof t.appearance.swatches 
 ];
 
 interface Props {
-  /** Raw field value — may be mid-typing and invalid; that is the form's business, not ours. */
+  /** Raw field value — may be mid-typing and invalid; the page's Save refuses it until fixed. */
   value: string;
   onChange: (hex: string) => void;
-  /** Resolved from the *current* config, so the ramp and badge always match the live preview. */
+  /** Resolved from the *current* config, so the ramp and verdict always match the live preview. */
   resolved: ResolvedTheme;
-  /** Which face of the theme the badge should judge. `auto` is judged as light. */
+  /** Which face of the theme the verdict judges. `auto` is judged as light. */
   mode: ModeId;
 }
 
 export default function BrandColorPicker({ value, onChange, resolved, mode }: Props) {
+  const titleId = useId();
   const valid = HEX_RE.test(value.trim());
   const swatchRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const face = mode === "dark" ? "dark" : "light";
-  const tokens = face === "dark" ? resolved.dark : resolved.light;
 
-  // The engine's verdict on LINKS — the thing this colour still decides. The button's own
-  // legibility is judged in ButtonColorPicker, against the button's own colour.
   const linkCheck = resolved.contrast[face].find((c) => c.id === `${face}/text-link-on-bg`);
   const linkRatio = linkCheck ? linkCheck.ratio.toFixed(2) : "—";
   const linkFails = linkCheck != null && !linkCheck.pass;
 
-  // Decorative pairs are reported but never gated — see ContrastTier in the engine. Counting
-  // them here would show a permanent red badge on the parity theme.
-  const gatedFailures = resolved.contrast.failures.filter((c) => c.tier !== "decorative");
-
   /**
-   * Roving tabindex over the swatch row, matching every other axis in the panel (OptionCards).
-   * Without it these 12 buttons are 12 separate tab stops between the panel heading and the hex
-   * field. They stay `aria-pressed` toggles rather than radios: a custom hex means NONE is
-   * pressed, which a radiogroup cannot express — so index 0 anchors the tab stop in that case.
+   * Roving tabindex over the swatch row, so these 12 buttons are one tab stop between the
+   * heading and the hex field. They stay `aria-pressed` toggles rather than radios: a custom hex
+   * means NONE is pressed, which a radiogroup cannot express — so index 0 anchors the tab stop.
    */
   const activeSwatch = Math.max(
     0,
@@ -90,15 +85,8 @@ export default function BrandColorPicker({ value, onChange, resolved, mode }: Pr
   }
 
   return (
-    <div className="ap-group">
-      <div className="ap-group-head">
-        <span className="ap-group-legend" id="ap-brand-legend">
-          {t.appearance.brandTitle}
-        </span>
-        <span className="ap-group-hint">{t.appearance.brandHint}</span>
-      </div>
-
-      <div className="ap-swatches" role="group" aria-labelledby="ap-brand-legend">
+    <SbSection title={t.appearance.brandTitle} hint={t.appearance.brandHint} titleId={titleId}>
+      <div className="sb-ap-swatches" role="group" aria-labelledby={titleId}>
         {SWATCHES.map((s, i) => {
           const selected = valid && value.trim().toUpperCase() === s.hex;
           return (
@@ -108,7 +96,7 @@ export default function BrandColorPicker({ value, onChange, resolved, mode }: Pr
                 swatchRefs.current[i] = el;
               }}
               type="button"
-              className={`ap-swatch${selected ? " is-selected" : ""}`}
+              className={`sb-ap-swatch${selected ? " is-selected" : ""}`}
               style={{ background: s.hex }}
               aria-pressed={selected}
               tabIndex={i === activeSwatch ? 0 : -1}
@@ -119,94 +107,54 @@ export default function BrandColorPicker({ value, onChange, resolved, mode }: Pr
                 hex: s.hex,
               })}
               onClick={() => onChange(s.hex)}
-            >
-              {selected && <Icon name="check" size={14} />}
-            </button>
+            />
           );
         })}
       </div>
 
-      <div className="ap-hex-row">
+      <SbField
+        id="sf-themeColor"
+        label={t.appearance.brandCustom}
+        error={valid ? undefined : t.storeForm.invalidThemeColor}
+      >
         <input
-          id="sf-themeColor-swatch"
           type="color"
-          className="ap-hex-native"
+          className="sb-ap-native"
           aria-label={t.appearance.brandPickerLabel}
           value={valid ? value.trim() : "#2563EB"}
           onChange={(e) => onChange(e.target.value.toUpperCase())}
         />
-        {/* Same id, same `required`/`pattern`, same normalise-on-type behaviour as the field
-            this panel replaced: the browser still blocks a malformed hex, and StoreForm's own
-            check still produces the identical error UI. */}
         <input
           id="sf-themeColor"
-          className="ap-hex-text"
           value={value}
           onChange={(e) => {
+            // Normalised as typed, as in the app: a leading # and upper case, capped at 7.
             const v = e.target.value.trim();
-            onChange(v.startsWith("#") ? v.toUpperCase() : `#${v}`.toUpperCase());
+            onChange((v.startsWith("#") ? v.toUpperCase() : `#${v}`.toUpperCase()).slice(0, 7));
           }}
           placeholder="#2563EB"
           maxLength={7}
-          required
-          pattern="^#[0-9A-Fa-f]{6}$"
-          aria-label={t.appearance.brandCustom}
           aria-invalid={valid ? undefined : true}
-          // Point at the error text, so refocusing the field announces WHY it is invalid.
-          aria-describedby={valid ? undefined : "sf-themeColor-error"}
+          autoCapitalize="characters"
+          autoComplete="off"
           spellCheck={false}
         />
-      </div>
-      {!valid && (
-        <p className="ap-warn" role="alert" id="sf-themeColor-error">
-          {t.storeForm.invalidThemeColor}
-        </p>
-      )}
+      </SbField>
 
-      <div className="ap-ramp" aria-label={t.appearance.rampTitle} role="img">
+      <div className="sb-ap-ramp" aria-label={t.appearance.rampTitle} role="img">
         {RAMP_STOPS.map((stop) => (
           <span
             key={stop}
-            className="ap-ramp-step"
             style={{ background: resolved.brandRamp[stop] }}
             title={format(t.appearance.rampStep, { step: stop, hex: resolved.brandRamp[stop] })}
           />
         ))}
       </div>
-      <p className="ap-ramp-caption">
-        {/* --text-link, not --brand: the button has its own colour axis now, so --brand no
-            longer describes what this ramp drives. */}
-        {format(t.appearance.rampCaption, { brand: tokens["--text-link"] ?? resolved.brandRamp[600] })}
-      </p>
 
-      {/* Judged on LINKS, which is what this colour still drives. The primary button has its
-          own colour and its own verdict, in the Button colour group. */}
-      <div className={`ap-badge ${linkFails ? "is-warn" : "is-ok"}`} role={linkFails ? "alert" : undefined}>
-        <Icon name={linkFails ? "alertTriangle" : "checkCircle"} size={15} />
+      <p className={`sb-ap-caption ${linkFails ? "is-warn" : "is-ok"}`} role={linkFails ? "alert" : undefined}>
+        <Icon name={linkFails ? "alertTriangle" : "checkCircle"} size={14} />
         <span>{format(linkFails ? t.appearance.linkAaFail : t.appearance.linkAa, { ratio: linkRatio })}</span>
-      </div>
-
-      {gatedFailures.length > 0 ? (
-        <div className="ap-badge is-warn" role="alert">
-          <Icon name="alertTriangle" size={15} />
-          <span>
-            {format(
-              gatedFailures.length === 1 ? t.appearance.aaFail : t.appearance.aaFailPlural,
-              { count: gatedFailures.length },
-            )}
-            {": "}
-            {gatedFailures
-              .slice(0, 2)
-              .map((c) => `${c.label} ${c.ratio}:1`)
-              .join(", ")}
-          </span>
-        </div>
-      ) : (
-        <div className="ap-badge is-ok">
-          <Icon name="checkCircle" size={15} />
-          <span>{t.appearance.aaPass}</span>
-        </div>
-      )}
-    </div>
+      </p>
+    </SbSection>
   );
 }

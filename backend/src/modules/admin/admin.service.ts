@@ -42,6 +42,7 @@ export interface StoreFields {
   facebookUrl?: string;
   twitterUrl?: string;
   linkedinUrl?: string;
+  yelpUrl?: string;
   timezone?: string;
   /** ISO 4217 code (e.g. 'INR', 'USD'). Omitted → keeps existing / env default. */
   currency?: string;
@@ -133,6 +134,7 @@ function businessColumns(input: StoreFields) {
     facebook_url: input.facebookUrl || null,
     twitter_url: input.twitterUrl || null,
     linkedin_url: input.linkedinUrl || null,
+    yelp_url: input.yelpUrl || null,
     // faqs/reviews are jsonb — serialize explicitly, otherwise pg would send a
     // JS array as a Postgres array literal and the insert would fail.
     faqs: JSON.stringify(input.faqs ?? []),
@@ -367,12 +369,22 @@ export async function createBusiness(input: CreateBusinessInput, createdByAdminI
 }
 
 export async function updateBusiness(id: string, input: UpdateBusinessInput) {
-  const existing = await one('select id, currency, theme_color from business where id = $1', [id]);
+  const existing = await one(
+    'select id, currency, theme_color, phone_full from business where id = $1',
+    [id],
+  );
   if (!existing) throw Errors.notFound('Store not found');
 
   const countryCode = input.countryCode.replace(/\D/g, '');
   const phoneNumber = input.phoneNumber.replace(/\D/g, '');
   const phoneFull = countryCode + phoneNumber;
+  // The number is the store's web address (`/{phone_full}`): it is printed in every QR code and
+  // shared link, so changing it would send all of them to a 404. Once set it is locked here, not
+  // just greyed out in the admin form. A legacy store with no number yet may still get one.
+  const current = (existing.phone_full as string | null) ?? '';
+  if (current && phoneFull !== current) {
+    throw Errors.conflict('PHONE_LOCKED', "A store's phone number is its web address and can't be changed.");
+  }
   await assertPhoneFree(phoneFull, id);
 
   // Payloads that omit currency keep the store's existing one (never reset to the default).
@@ -761,6 +773,7 @@ export async function getBusinessDetail(id: string) {
     facebookUrl: b.facebook_url ?? '',
     twitterUrl: b.twitter_url ?? '',
     linkedinUrl: b.linkedin_url ?? '',
+    yelpUrl: b.yelp_url ?? '',
     currency: b.currency ?? 'INR',
     themeColor: b.theme_color ?? '',
     theme: (b.theme ?? null) as ThemeConfigInput | null,

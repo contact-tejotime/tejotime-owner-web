@@ -5,7 +5,7 @@ import { ActivityIndicator, Linking, Pressable, StyleSheet, View } from 'react-n
 import { THeader, TScreenScroll, TSettingsRow, TSwitch, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
 import { t, format } from '@/i18n';
-import { appVersion, businessProfile, notificationsSub } from '@/data/settings';
+import { appVersion, notificationsSub } from '@/data/settings';
 import { hoursSummary } from '@/lib/hours';
 import { SUPPORT } from '@/lib/support';
 import { SETTINGS_ROUTES, SettingsPageId } from '@/navigation/routes';
@@ -33,7 +33,9 @@ export default function Settings() {
     can(access, 'profile') || can(access, 'hours') || can(access, 'services') || can(access, 'staff');
   const showBookings = can(access, 'notifications') || can(access, 'profile');
   const storeLabel = biz?.name ?? t.common.brand;
-  const signedInAs = store.session?.name?.trim() || businessProfile.username;
+  // No name on the session → drop the clause rather than fall back. The old fallback was the demo
+  // tenant's handle ('sharpcuts'), so a real owner could be told they were signed in as someone else.
+  const signedInAs = store.session?.name?.trim() || null;
 
   const businessRows = [
     can(access, 'profile') ? 'profile' : null,
@@ -176,7 +178,7 @@ export default function Settings() {
         <Section title={t.settings.groupSupport} styles={s}>
           <View style={s.card}>
             <TSettingsRow
-              icon="bell"
+              icon="mail"
               label={t.settings.supportEmail}
               sub={SUPPORT.email}
               onPress={() => void Linking.openURL(`mailto:${SUPPORT.email}`)}
@@ -209,7 +211,9 @@ export default function Settings() {
         </Pressable>
 
         <TText variant="caption" color="textSubtle" align="center" style={s.footer}>
-          {format(t.settings.footer, { version: appVersion, username: signedInAs })}
+          {signedInAs
+            ? format(t.settings.footer, { version: appVersion, username: signedInAs })
+            : format(t.settings.footerNoUser, { version: appVersion })}
         </TText>
       </TScreenScroll>
     </>
@@ -238,7 +242,7 @@ function Section({
 const createSettingsStyles = ({ colors, radius }: ThemeStyleProps) =>
   StyleSheet.create({
     // Title sits tight above its card; sections breathe more between each other.
-    section: { marginBottom: moderateScale(22) },
+    section: { marginBottom: moderateScale(16) },
     groupTitle: {
       letterSpacing: moderateScale(0.15),
       marginBottom: moderateScale(6),

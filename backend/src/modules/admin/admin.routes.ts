@@ -111,6 +111,7 @@ const storeFieldsSchema = z.object({
   facebookUrl: z.union([z.string().url().max(300), z.literal('')]).optional(),
   twitterUrl: z.union([z.string().url().max(300), z.literal('')]).optional(),
   linkedinUrl: z.union([z.string().url().max(300), z.literal('')]).optional(),
+  yelpUrl: z.union([z.string().url().max(300), z.literal('')]).optional(),
   timezone: z.string().max(64).optional(),
   currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Expected ISO 4217 code').optional(),
   /** Per-store brand/accent hex for the customer microsite (#RRGGBB). */

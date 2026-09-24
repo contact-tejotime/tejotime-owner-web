@@ -25,18 +25,20 @@ export default function WorkingHours() {
       <View style={s.card}>
         {hours.map((h, i) => (
           <View key={h.dayOfWeek} style={[s.row, i < hours.length - 1 && s.rowBorder]}>
-            <TSwitch checked={h.open} onChange={(open) => update(h.dayOfWeek, { open })} />
-            <TText variant="bodyMd" color="textStrong" weight="medium" style={styles.flex} numberOfLines={1}>
-              {h.day}
-            </TText>
+            <View style={s.topLine}>
+              <TText variant="bodyMd" color="textStrong" weight="semibold" style={styles.flex}>
+                {h.day}
+              </TText>
+              <TSwitch checked={h.open} onChange={(open) => update(h.dayOfWeek, { open })} />
+            </View>
             {h.open ? (
-              <>
-                <TimeSelect value={h.from} onChange={(from) => update(h.dayOfWeek, { from })} />
+              <View style={s.times}>
+                <TimeSelect style={styles.flex} value={h.from} onChange={(from) => update(h.dayOfWeek, { from })} />
                 <TText variant="bodySm" color="textSubtle">
                   {t.hours.separator}
                 </TText>
-                <TimeSelect value={h.to} onChange={(to) => update(h.dayOfWeek, { to })} />
-              </>
+                <TimeSelect style={styles.flex} value={h.to} onChange={(to) => update(h.dayOfWeek, { to })} />
+              </View>
             ) : (
               <TText variant="bodySm" color="textSubtle" weight="medium">
                 {t.hours.closed}
@@ -62,13 +64,20 @@ const createHoursStyles = ({ colors, radius }: ThemeStyleProps) =>
       overflow: 'hidden',
       ...styles.mt1,
     },
+    // Two lines, not one. On one line the row was switch + day + two pickers + a separator, which
+    // came to ~325pt inside a ~327pt row on a 393pt-wide phone: there was no slack to widen the day
+    // column with, so "Mon" and "Wed" — the two widest abbreviations — still clipped to "Mor" and
+    // "W…" even after the names were shortened. Giving the times their own line drops the
+    // horizontal constraint entirely, which is what lets the **full** day name come back, on any
+    // width and at any system text size. The card grew ~160pt and there was ~220pt spare below it.
     row: {
-      ...styles.flexRow,
-      ...styles.itemsCenter,
-      ...styles.g2,
       ...styles.ph4,
-      paddingVertical: moderateScale(11),
+      paddingVertical: moderateScale(12),
+      gap: moderateScale(10),
     },
+    // Switch on the right, where a row toggle belongs on both platforms.
+    topLine: { ...styles.flexRow, ...styles.itemsCenter, ...styles.g3 },
+    times: { ...styles.flexRow, ...styles.itemsCenter, gap: moderateScale(8) },
     rowBorder: {
       borderBottomWidth: moderateScale(1),
       borderBottomColor: colors.borderSubtle,

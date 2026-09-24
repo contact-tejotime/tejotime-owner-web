@@ -227,7 +227,13 @@ function SeatHeader({ group, s }: { group: SeatGroupVM; s: ReturnType<typeof cre
           {/* Green while the chair is free, brand colour while it is serving: readable at a
               glance down a column of seats, before the words are. */}
           <View style={[s.seatHeaderDot, { backgroundColor: group.serving ? colors.primary : colors.success }]} />
-          <TText variant="caption" color="textMuted" numberOfLines={1} style={s.seatHeaderSubline}>
+          {/* Two lines, not one. The sub-line shares the row with the avatar and the waiting badge
+              and has room for ~26 characters at 411dp — so "Serving Darshil · ~30 min" (25) fitted
+              on an Android emulator and cut on a 393pt iPhone. The string is shorter now, but a
+              long first name with a three-digit ETA would still reach the edge, and a truncated
+              "~30…" loses the number the owner is reading it for. Wrapping only costs height on
+              the seats that actually need it. */}
+          <TText variant="caption" color="textMuted" numberOfLines={2} style={s.seatHeaderSubline}>
             {group.subLine}
           </TText>
         </View>
@@ -506,8 +512,8 @@ const createQueueStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
       ...styles.flexRow,
       ...styles.itemsCenter,
       ...styles.justifyBetween,
-      marginTop: moderateScale(22),
-      marginBottom: moderateScale(12),
+      marginTop: moderateScale(14),
+      marginBottom: moderateScale(10),
     },
     sectionTip: { flexShrink: 1, marginLeft: moderateScale(12), textAlign: 'right' },
     chip: {

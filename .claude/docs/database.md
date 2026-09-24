@@ -97,7 +97,7 @@ Everything cascades from here (`on delete cascade` throughout).
 Added later: `country_code`, `phone_number`, **`phone_full` (generated column,
 `country_code || phone_number`, uniquely indexed)**, `about_heading`, `faqs` jsonb,
 `about_image_url`, `hero_subtitle`, `stat_value`, `stat_label`, `reviews` jsonb, `theme_color`,
-`theme` jsonb, `instagram_url`, `facebook_url`, `twitter_url`, `linkedin_url`,
+`theme` jsonb, `instagram_url`, `facebook_url`, `twitter_url`, `linkedin_url`, `yelp_url`,
 `created_by_admin_id`.
 
 `phone_full` is the microsite's by-phone lookup key (`/{phone}` route → `GET

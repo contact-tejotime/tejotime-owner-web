@@ -220,6 +220,10 @@ export interface ServiceRow {
   priceType: ServicePriceType;
   /** The maximum of a range. Null for every other mode. */
   priceMax: Money | null;
+  /** The service's colour ('primary' | 'secondary' | 'amber500' | 'green500') — the accent bar on
+   *  the Services list, as in the app. The API always sent it; optional so a cached response from
+   *  before this mirror carried it still type-checks honestly. */
+  colorToken?: string;
   isActive: boolean;
   position: number;
 }
@@ -247,6 +251,9 @@ export interface AppointmentRow {
   scheduledStartAt: string;
   scheduledEndAt: string | null;
   status: string;
+  /** Hospital stores only: who the visitor is. The API always sent it; the calendar now shows it
+   *  as the app's MR / Patient badge. Optional so an older cached payload still type-checks. */
+  visitorType?: "mr" | "patient" | null;
 }
 
 export interface CustomerRow {
@@ -257,6 +264,12 @@ export interface CustomerRow {
   visitsCount: number;
   totalSpend: Money;
   lastVisitAt: string | null;
+  /**
+   * "Today" / "3d" / "2w" / "5mo" / "—", from `backend/src/lib/time.ts` `lastVisitLabel`. The app
+   * shows exactly this string; optional so a response from an older API renders a dash, as the
+   * app's mapper does.
+   */
+  lastVisitLabel?: string;
 }
 
 export interface DashboardSummary {
@@ -327,6 +340,7 @@ export interface BusinessDetail {
   facebookUrl: string;
   twitterUrl: string;
   linkedinUrl: string;
+  yelpUrl: string;
   payments: string[];
   theme: ThemeConfig | null;
   themeColor: string | null;
@@ -374,6 +388,16 @@ export const getDashboard = (range: "today" | "month" = "today") =>
 /** Store-wide roles only; staff get 403 from the API. */
 export const getDashboardByStaff = (range: "today" | "month" = "today") =>
   getFresh<DashboardByStaff>(`/dashboard/by-staff?range=${range}`);
+
+/**
+ * Uncached, unlike `getAppointments` below. GET /appointments is narrowed to a staff login's own
+ * chair (`scopeStaffId`), but `get()` keys its cache by business + path only — so an owner and a
+ * staff login opening the same range share one entry, and whoever reads second sees the first
+ * one's list for up to `TTL.appointments`: a staff login shown the whole shop's bookings, or an
+ * owner shown one chair's.
+ */
+export const getAppointmentsFresh = (query = "") =>
+  getFresh<{ data: AppointmentRow[] }>(`/appointments${query}`);
 
 export const getAppointments = (query = "") =>
   get<{ data: AppointmentRow[] }>(
@@ -442,7 +466,13 @@ export const getPermissionCatalogue = () =>
   }>("/users/modules", [TAGS.staff], TTL.staff);
 
 export const getSubscription = () =>
-  get<{ plan: string; status: string; trialEndsAt: string | null }>(
+  get<{
+    plan: string;
+    status: string;
+    trialEndsAt: string | null;
+    /** How many customers a free store's list shows (`FREE_PLAN_CUSTOMER_LIMIT`); null on Premium. */
+    limits?: { customerListLimit: number | null };
+  }>(
     "/subscription",
     [TAGS.subscription],
     TTL.subscription,

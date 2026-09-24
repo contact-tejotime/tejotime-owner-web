@@ -279,6 +279,7 @@ async function buildMicrosite(b: any) {
       { key: 'facebook', url: b.facebook_url },
       { key: 'twitter', url: b.twitter_url },
       { key: 'linkedin', url: b.linkedin_url },
+      { key: 'yelp', url: b.yelp_url },
     ].filter((s): s is { key: string; url: string } => !!s.url),
     currency: b.currency ?? env.DEFAULT_CURRENCY,
     themeColor: b.theme_color ?? null,

@@ -829,7 +829,8 @@
       "takeToken": "Take a Token",
       "checkIn": "Check in",
       "openMenu": "Open menu",
-      "closeMenu": "Close menu"
+      "closeMenu": "Close menu",
+      "backToTop": "{name}, back to top"
     },
     "hero": {
       "since": "Since {year}",

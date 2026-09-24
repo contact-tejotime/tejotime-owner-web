@@ -1,0 +1,890 @@
+/*
+ * Reports (/stats) — the web twin of the app's Reports tab (app/src/app/(app)/(tabs)/stats.tsx).
+ *
+ * Same blocks in the same order as the app: Today / This month switch, the brand-coloured revenue
+ * card, the metric tiles, the staff breakdown cards, then the queue preview. Sizes, weights and
+ * radii are the app's values at its 350dp design baseline, which is 1:1 with CSS px on a phone.
+ *
+ * Every colour is a store-theme token, never a fixed light value, so the account's dark mode
+ * (`.app[data-tt-mode="dark"]`, see StoreThemeStyle) re-colours all of it. Note `--gray-*` is NOT
+ * re-declared in dark mode — that is why the switch's track is `--surface-hover` (as the app's
+ * `colors.surfaceHover`) and not the shared `.segmented`'s `--gray-100`.
+ *
+ * Everything is scoped under `.rp-*`; nothing here styles another screen.
+ */
+
+/* ------------------------------------------------------------------ range switch */
+
+/* The shared notice leaves 4px under itself; the app keeps ~10px before the switch. */
+.rp > .scope-notice {
+  margin-bottom: 12px;
+}
+
+.rp-range {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 0 0 14px;
+  background: var(--surface-hover);
+  border-radius: 10px;
+}
+.rp-range-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color var(--dur-fast, 120ms) var(--ease-standard, ease),
+    color var(--dur-fast, 120ms) var(--ease-standard, ease);
+}
+.rp-range-btn:hover:not(.is-active) {
+  color: var(--text-strong);
+}
+.rp-range-btn.is-active {
+  background: var(--surface-card);
+  color: var(--text-strong);
+}
+.rp-range-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* ------------------------------------------------------------------ revenue card */
+
+/*
+ * The one filled surface on Reports, drawn like Home's live card (`.live-card`) so the two read as
+ * one family — the app says the same of its two cards. Everything on it takes the brand's ink
+ * (`--text-on-brand`), dimmed with `color-mix`, never a fixed white: in dark mode the brand turns
+ * light and its ink turns dark.
+ *
+ * `container-type` lets the revenue figure size against the card rather than the viewport — the
+ * web's stand-in for the app's `adjustsFontSizeToFit`, which shrinks it to stay on one line.
+ */
+.rp-hero {
+  --rp-ink: var(--text-on-brand, #fff);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  container-type: inline-size;
+  padding: 16px 18px;
+  border-radius: var(--radius-xl, 20px);
+  background: var(--primary);
+  color: var(--rp-ink);
+  box-shadow: 0 8px 24px -12px color-mix(in srgb, var(--primary) 70%, transparent);
+}
+/* The app's two ink discs (180 and 120 across), behind the text. */
+.rp-hero::before,
+.rp-hero::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rp-ink) 8%, transparent);
+  z-index: -1;
+  pointer-events: none;
+}
+.rp-hero::before {
+  width: 180px;
+  height: 180px;
+  top: -70px;
+  right: -50px;
+}
+.rp-hero::after {
+  width: 120px;
+  height: 120px;
+  bottom: -60px;
+  left: -30px;
+}
+.rp-hero-eyebrow {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--rp-ink) 90%, transparent);
+}
+.rp-hero-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--rp-ink) 85%, transparent);
+}
+.rp-hero-label {
+  margin: 14px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--rp-ink) 85%, transparent);
+}
+/* One line, like the app, whose `adjustsFontSizeToFit` shrinks the figure only when it would not
+   otherwise fit. The web does the same by sizing against the card: the page passes the figure's
+   length as `--rp-chars`, and at ~0.6em a character (a digit's width in Inter at this weight; the
+   commas are narrower, so it errs small) the figure takes the largest size that fits. A flat
+   `14cqi` sized "₹0" and "₹12,34,567" alike, so a short figure shrank for no reason.
+   The px values are the fallback for a browser without container units; `@supports` guards the
+   `var()` form, because a `var()` declaration a browser cannot use falls back to the inherited
+   size, not to the declaration before it. The ellipsis is only a last resort. */
+.rp-hero-revenue {
+  margin: 2px 0 4px;
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+  color: var(--rp-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rp-hero-revenue.is-long {
+  font-size: 32px;
+}
+@supports (width: 1cqi) {
+  .rp-hero-revenue,
+  .rp-hero-revenue.is-long {
+    font-size: min(40px, calc(100cqi / (var(--rp-chars, 12) * 0.6)));
+  }
+}
+/* Balanced, so a note that wraps in a narrow desktop card breaks as "No completed / visits yet"
+   rather than leaving "yet" alone on a line. */
+.rp-hero-note {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--rp-ink) 90%, transparent);
+  text-wrap: balance;
+}
+/* Desktop-only pieces of the four-card row (see the >=1025px block): the app's card has neither
+   a heading row above it nor an icon on the revenue card. */
+.rp-summary-eyebrow,
+.rp-hero-icon,
+.rp-link-chev {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ metric tiles */
+
+/* Equal tiles on one row with a fixed gap — never wrapping, so no tile is ever left alone. */
+.rp-metrics {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.rp-metric {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 14px);
+  background: var(--surface-card);
+}
+.rp-metric-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg, var(--primary));
+}
+.rp-metric-figures {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rp-metric-value {
+  margin-top: 10px;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: -0.6px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/*
+ * Sentence case and one line, as on the app — whose comment records why: uppercase labels in three
+ * tiles across a phone broke mid-word ("APPOINT / MENTS"). The app shrinks the label to fit (down
+ * to 0.75×, i.e. 9px); sizing it against the tile does the same here, so "Appointments" still
+ * fits a 320px phone's ~70px tile.
+ */
+.rp-metric-label {
+  font-size: 12px;
+  font-size: max(9px, min(12px, 14cqi));
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------------ sections */
+
+/*
+ * The app's rhythm, measured from its styles rather than eyeballed: the tiles keep 18px under
+ * themselves and `TSectionTitle` adds 20px above (38px to the first heading); a staff list keeps
+ * 8px under itself, so the next heading sits 28px below it. The heading row then leaves 12px, and
+ * the lead line is pulled up 8px to sit 4px under its heading.
+ */
+.rp-section {
+  margin-top: 28px;
+}
+.rp-summary + .rp-section {
+  margin-top: 38px;
+}
+.rp-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.rp-section-head + .rp-lead {
+  margin-top: -8px;
+}
+/* The shared `.home-section-title` is already the app's TSectionTitle (18px semibold); inside the
+   head row it only loses its bottom margin. */
+.rp-section-head .home-section-title {
+  margin: 0;
+  min-width: 0;
+}
+.rp-section-meta {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.rp-lead {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+/* "View all" — a text button in the brand colour, as the app's ghost button; 36px tall to tap. */
+.rp-link {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 10px;
+  margin-right: -10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  white-space: nowrap;
+}
+.rp-link:hover {
+  background: var(--primary-soft);
+}
+.rp-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* The app's compact empty state: an icon in a soft brand disc over one centred line. */
+.rp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 24px;
+  text-align: center;
+}
+.rp-empty-disc {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 2px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.rp-empty-title {
+  margin: 0;
+  max-width: 300px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------------ staff breakdown */
+
+.rp-staff-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.rp-staff {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-card);
+}
+/* The day's top earner: soft brand fill and a brand outline, as on the app. */
+.rp-staff.is-top {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
+.rp-staff-id {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.rp-staff-avatar {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg, var(--primary));
+  font-size: 12px;
+  font-weight: 800;
+}
+.rp-staff.is-top .rp-staff-avatar {
+  background: var(--surface-card);
+}
+/* Wraps rather than truncates, like the app's (it sets no line limit). */
+.rp-staff-name {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.rp-share {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rp-share-track {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--surface-hover);
+}
+.rp-staff.is-top .rp-share-track {
+  background: var(--surface-card);
+}
+.rp-share-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--primary);
+}
+.rp-share-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.rp-staff-stats {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+}
+.rp-staff-stat {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.rp-staff-stat dt {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.rp-staff-stat dd {
+  max-width: 100%;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/*
+ * The revenue column shrinks its figure to fit rather than cutting it: on a 320px phone a column
+ * is ~85px, and a month's "₹12,34,567" ellipsised to "₹12,34,…" — a wrong number, not a short
+ * one. The app never cuts it (it sets no line limit). Sized against the column; 15px wherever
+ * it fits, which is every width above ~360px for a figure of up to ten characters.
+ */
+.rp-staff-stat.is-revenue {
+  container-type: inline-size;
+}
+.rp-staff-stat.is-revenue dd {
+  font-size: min(15px, 17.5cqi);
+  color: var(--primary);
+}
+.rp-staff-stat.is-revenue dd.is-long {
+  font-size: min(15px, 14cqi);
+}
+
+/* ------------------------------------------------------------------ queue preview */
+
+/* `minmax(0, 1fr)`, never the implicit `auto` track: an auto track grows to the cards' one-line
+   names and pushed a 320px phone into sideways scroll. */
+.rp-queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+/* The app's QueueCard: position badge, name over "seat · service", then the ETA on the right. */
+.rp-qcard {
+  width: 100%;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 14px);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-xs);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast, 120ms) var(--ease-standard, ease),
+    box-shadow var(--dur-fast, 120ms) var(--ease-standard, ease);
+}
+.rp-qcard:hover {
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-sm);
+}
+.rp-qcard:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* Being served: a brand tint, as the app's `tint(primary, 0.06)` fill and 0.32 outline. */
+.rp-qcard.is-active {
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface-card));
+  border-color: color-mix(in srgb, var(--primary) 32%, transparent);
+  box-shadow: none;
+}
+.rp-qcard-num {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* The brand's ink on the brand fill — a fixed white numeral fails on a light (dark-mode) brand. */
+.rp-qcard.is-active .rp-qcard-num {
+  background: var(--primary);
+  color: var(--text-on-brand, #fff);
+}
+.rp-qcard-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rp-qcard-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.rp-qcard-name {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Hospital visitor type, as the app's small Badge (MR = info tone, Patient = secondary tone). */
+.rp-badge {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.rp-badge.is-info {
+  background: var(--info-soft, var(--primary-soft));
+  color: var(--info-soft-fg, var(--primary-soft-fg));
+}
+.rp-badge.is-secondary {
+  background: var(--secondary-soft, var(--surface-sunken));
+  color: var(--secondary-soft-fg, var(--text-body));
+}
+.rp-qcard-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 4px;
+}
+.rp-qcard-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: var(--secondary, var(--text-subtle));
+}
+/* The chair's colour — the same fills as its avatar on Home (`.seat-avatar-*`) and on the app. */
+.rp-qcard-dot.rp-seat-primary {
+  background: var(--primary);
+}
+.rp-qcard-dot.rp-seat-amber500 {
+  background: #f59e0b;
+}
+.rp-qcard-dot.rp-seat-green500 {
+  background: #22c55e;
+}
+.rp-qcard-sub-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rp-qcard-right {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.rp-qcard-status {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--warning);
+}
+.rp-qcard.is-active .rp-qcard-right {
+  color: var(--primary);
+}
+.rp-qcard.is-active .rp-qcard-status {
+  background: var(--primary);
+}
+
+/* ------------------------------------------------------------------ loading sketch */
+
+/* Placeholder bars on the brand card, in its ink, as the app's revenue skeleton. */
+.rp-skel-ink {
+  display: block;
+  max-width: 100%;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--rp-ink) 22%, transparent);
+}
+/* The revenue figure's placeholder: the app's 40px skeleton; 30px on desktop, as the figure. */
+.rp-skel-figure {
+  height: 40px;
+}
+.rp-skel-ink + .rp-skel-ink {
+  margin-top: 10px;
+}
+.rp-skel-gap {
+  display: block;
+  height: 14px;
+}
+.rp-metric .skeleton + .skeleton {
+  margin-top: 8px;
+}
+.rp-metric-figures .skeleton:first-child {
+  margin-top: 10px;
+}
+
+/* ------------------------------------------------------------------ widths */
+
+/* Smallest phones (≤360): a little tighter, so three tiles and the staff figures still fit. */
+@media (max-width: 360px) {
+  .rp-hero {
+    padding: 14px 16px;
+  }
+  .rp-metric {
+    padding: 10px;
+  }
+  .rp-metric-value {
+    font-size: 22px;
+  }
+  .rp-staff {
+    padding: 12px;
+  }
+  .rp-qcard {
+    gap: 9px;
+    padding: 10px;
+  }
+}
+
+/* Tablet and up: the switch keeps a control's width instead of spanning the page. */
+@media (min-width: 641px) {
+  .rp-range {
+    max-width: 360px;
+  }
+  /* Two staff cards a row, as the app's tablet grid (300dp minimum, two at most). A lone card
+     stays at half width there too. */
+  .rp-staff-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/*
+ * Desktop, beside the sidebar — the same layout language as Home. Full width like Home (a 1120px
+ * cap left Reports narrower than the screen next to it). The revenue card and the tiles become
+ * equal cards drawn by the shared `.kpi-card` rules in globals.css (the same as Home's live-queue
+ * cards), at the owner's request: a wide brand banner beside three small tiles read as unrelated
+ * blocks. Only what is particular to Reports lives here.
+ *
+ * Four across only from 1280px. Beside the sidebar at 1025px four cards are ~165px each and
+ * "Appointments" clips, so Today is a 2×2 grid there (`--rp-cols-md`); This month's three cards
+ * fit across at every desktop width.
+ */
+@media (min-width: 1025px) {
+  /* The eyebrow takes the first (auto) row; every card row after it is `1fr`, so on Today's 2×2
+     the lower pair matches the revenue row's height instead of sitting ~20px shorter under it. */
+  .rp-summary {
+    display: grid;
+    grid-template-columns: repeat(var(--rp-cols-md, 2), minmax(0, 1fr));
+    grid-template-rows: auto;
+    grid-auto-rows: 1fr;
+    gap: 14px;
+    align-items: stretch;
+  }
+  /* The tiles join the summary grid as siblings of the revenue card, so all four share one track
+     size — a nested row could never be exactly as wide as the card beside it. */
+  .rp-metrics {
+    display: contents;
+  }
+  /* The heading row Home's live queue has: "● TODAY · STORE REPORT" over the cards. */
+  .rp-summary-eyebrow {
+    /* `.live-card-dot` draws its ring from `--live-ink`, which only exists inside `.live-card`.
+       Unset, its `border` shorthand is invalid and the dot lost the ring it has on Home. */
+    --live-ink: var(--text-strong);
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 -2px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .rp-summary-eyebrow .live-card-dot {
+    border-color: color-mix(in srgb, var(--success) 30%, var(--surface-card, #fff));
+  }
+  /* Off the brand fill: the revenue card is a plain KPI card like its neighbours. */
+  .rp-hero {
+    --rp-ink: var(--text-strong);
+  }
+  .rp-hero::before,
+  .rp-hero::after {
+    display: none;
+  }
+  .rp-hero-icon {
+    display: inline-flex;
+  }
+  /* The heading moved to the row above; kept for screen readers (it labels the section). */
+  .rp-hero-eyebrow {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* Figure first, then its label, as on every other card in the row. */
+  .rp-hero-text {
+    display: flex;
+    flex-direction: column;
+  }
+  .rp-hero-revenue {
+    order: 1;
+  }
+  .rp-hero-label {
+    order: 2;
+  }
+  .rp-hero-note {
+    order: 3;
+  }
+  .rp-hero-sub {
+    order: 4;
+    margin-top: 2px;
+    color: var(--text-muted);
+  }
+  /*
+   * The revenue must fit beside its icon, and the shared 30px KPI figure does not always: a card
+   * here is ~228px at 1280 on Today (four across) and at 1025 on This month (three across),
+   * leaving ~125px of text, and "₹1,23,456" at 30px is ~141px — a month's takings in lakhs
+   * clipped to "₹1,23,4…". So the text column is the container and the figure shrinks against it
+   * by its length (`--rp-chars`, as on the phone card above), the app's `adjustsFontSizeToFit`.
+   * It used to shrink by the column alone (`17.5cqi`), which drew even "₹0" at 22px beside its
+   * neighbours' 30px figures. Three classes, so it outranks `.app .kpi-card-value` whichever
+   * stylesheet the browser happens to load last. The px values are the no-`cqi` fallback.
+   */
+  .rp-hero-text {
+    flex: 1 1 0;
+    container-type: inline-size;
+  }
+  .rp .rp-hero .rp-hero-revenue {
+    font-size: 30px;
+  }
+  .rp .rp-hero .rp-hero-revenue.is-long {
+    font-size: 24px;
+  }
+  @supports (width: 1cqi) {
+    .rp .rp-hero .rp-hero-revenue,
+    .rp .rp-hero .rp-hero-revenue.is-long {
+      font-size: min(30px, calc(100cqi / (var(--rp-chars, 12) * 0.6)));
+    }
+  }
+  /* loading.tsx: the desktop card has no eyebrow or label above its figure, so neither does its
+     sketch, and the figure's bar takes the figure's height and the KPI text column's spacing. */
+  .rp-skel-phone {
+    display: none;
+  }
+  .rp .rp-skel-figure {
+    height: 30px;
+    margin-top: 0;
+  }
+  .rp .rp-metric-figures .skeleton:first-child {
+    margin-top: 0;
+  }
+
+  .rp-section,
+  .rp-summary + .rp-section {
+    margin-top: 34px;
+  }
+  .rp-staff-grid,
+  .rp-queue-list {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 14px;
+  }
+  .rp-staff {
+    padding: 16px 18px;
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  }
+
+  /* An empty section is a card, not one centred line floating in a monitor's width. */
+  .rp-empty {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 14px;
+    padding: 16px 18px;
+    border: 1px dashed var(--border-subtle);
+    border-radius: 16px;
+    background: var(--surface-card);
+    text-align: left;
+  }
+  .rp-empty-disc {
+    margin: 0;
+  }
+  .rp-empty-title {
+    max-width: none;
+    font-size: 14px;
+  }
+
+  /* "View all" becomes a pill button with a chevron, instead of bare text a screen away. */
+  .rp-link {
+    gap: 4px;
+    height: 36px;
+    padding: 0 12px 0 14px;
+    margin-right: 0;
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    background: var(--surface-card);
+  }
+  .rp-link:hover {
+    background: var(--primary-soft);
+    border-color: color-mix(in srgb, var(--primary) 30%, var(--border-subtle));
+  }
+  .rp-link-chev {
+    display: inline-flex;
+  }
+}
+
+@media (min-width: 1280px) {
+  .rp-summary {
+    grid-template-columns: repeat(var(--rp-cols, 4), minmax(0, 1fr));
+  }
+  /*
+   * From 1280 the staff cards and queue preview take a column count chosen for how many cards
+   * there are (`balancedColumns` in columns.ts, passed as `--rp-grid-lg`/`-xl`), not auto-fill.
+   * Auto-fill could only look at the width: three chairs at 1280 came out as two cards over one
+   * lonely card beside an empty half row, and the three-card queue preview the same. Three across
+   * is ~300px a card here, the app's own minimum for a staff card (STAFF_CARD_MIN_WIDTH); four
+   * across waits for 1600. Below 1280 the auto-fill above still gives two columns.
+   */
+  .rp-staff-grid,
+  .rp-queue-list {
+    grid-template-columns: repeat(var(--rp-grid-lg, 2), minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1600px) {
+  .rp-staff-grid,
+  .rp-queue-list {
+    grid-template-columns: repeat(var(--rp-grid-xl, 2), minmax(0, 1fr));
+  }
+}

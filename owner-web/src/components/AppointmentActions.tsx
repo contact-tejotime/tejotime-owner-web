@@ -1,59 +1,110 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { t } from "@/i18n";
+import { format, t } from "@/i18n";
 import { useState, useTransition } from "react";
 
+import { Icon } from "@/components/Icon";
+import { Spinner } from "@/components/Skeleton";
+import { showToast } from "@/lib/toast";
+
+type Action = "check-in" | "no-show";
+
 /**
- * Check-in moves a booking into the live queue via the backend's `appointment_check_in` RPC,
- * which allocates the token and seat. Only offered while the booking is still `booked` —
- * checking in twice is a 409 the customer shouldn't have to see.
+ * The right-hand side of an Appointments row (see `AppointmentListItem`): the app's ghost
+ * "Add to queue" button, plus a web-only no-show shortcut.
+ *
+ * Check-in moves a booking into the live queue via the backend's `appointment_check_in` RPC, which
+ * allocates the token and seat. Afterwards the app toasts "{name} added to queue" and opens Home,
+ * where the new ticket is — `afterCheckIn` does the same here. Without it the page just refreshes
+ * and the row moves to "Checked in or closed".
+ *
+ * Failures are toasts, as on the app. An inline error line under the button (what this file used
+ * to render) would push the row out of shape and outlive the next refresh.
+ *
+ * The caller decides eligibility (`isCheckInEligible` in lib/appointments.ts). This file's older
+ * `AppointmentActions` (a stacked Check in / No-show pair gated on a `"booked"` status the API
+ * never sends) was removed once neither Appointments nor the Calendar rendered it any more.
  */
-export function AppointmentActions({ id, status }: { id: string; status: string }) {
+export function AppointmentRowActions({
+  id,
+  name,
+  showNoShow = false,
+  afterCheckIn = null,
+}: {
+  id: string;
+  /** The customer, for the toast and the no-show button's accessible name. */
+  name: string;
+  /**
+   * The web keeps a no-show shortcut the app has never had. It is shown only once the booking's
+   * time has come (the page decides), because a future booking can't have been missed yet — and
+   * it keeps every upcoming row exactly as the app draws it: one button.
+   */
+  showNoShow?: boolean;
+  /** Where to go after a successful check-in (the app opens Home); null refreshes in place. */
+  afterCheckIn?: string | null;
+}) {
   const router = useRouter();
-  // `router.refresh()` is async and used to be fired and forgotten, so the button stopped
-  // spinning while the server was still re-rendering — the screen showed stale values and the
-  // save looked like it had failed. The transition keeps `isPending` true until the fresh data
-  // has actually landed.
+  // `router.refresh()` / `push()` are async; the transition keeps the button busy until the fresh
+  // page has actually landed, so it cannot be clicked twice into a 409.
   const [isPending, startTransition] = useTransition();
   const [inFlight, setInFlight] = useState(false);
+  const [action, setAction] = useState<Action | null>(null);
   const busy = inFlight || isPending;
-  const [error, setError] = useState("");
 
-  if (status !== "booked") return null;
-
-  async function act(action: "check-in" | "cancel" | "no-show") {
+  async function act(next: Action) {
+    setAction(next);
     setInFlight(true);
-    setError("");
     try {
-      const res = await fetch(`/api/appointments/${id}/${action}`, { method: "POST" });
+      const res = await fetch(`/api/appointments/${encodeURIComponent(id)}/${next}`, { method: "POST" });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setError(json?.error?.message ?? t.common.thatDidntWork);
+        const fallback = next === "check-in" ? t.appointments.couldNotCheckIn : t.common.thatDidntWork;
+        showToast(json?.error?.message ?? fallback, "error");
         return;
       }
-      startTransition(() => router.refresh());
+      if (next === "check-in") {
+        showToast(format(t.appointments.addedToQueueName, { name }), "success");
+        startTransition(() => {
+          if (afterCheckIn) router.push(afterCheckIn);
+          else router.refresh();
+        });
+      } else {
+        showToast(t.appointments.markedNoShow, "success");
+        startTransition(() => router.refresh());
+      }
     } catch {
-      setError(t.appointments.networkError);
+      showToast(t.appointments.networkError, "error");
     } finally {
       setInFlight(false);
     }
   }
 
   return (
-    <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => act("check-in")}>
-        {t.appointments.checkIn}
-      </button>
+    <>
       <button
         type="button"
-        className="btn secondary btn-sm"
+        className="appt-item-checkin"
         disabled={busy}
-        onClick={() => act("no-show")}
+        aria-busy={busy && action === "check-in"}
+        onClick={() => act("check-in")}
       >
-        {t.appointments.noShow}
+        {busy && action === "check-in" ? <Spinner size={14} /> : null}
+        {t.appointments.addToQueue}
       </button>
-      {error ? <span className="hint" role="alert">{error}</span> : null}
-    </div>
+      {showNoShow ? (
+        <button
+          type="button"
+          className="appt-item-noshow"
+          disabled={busy}
+          aria-busy={busy && action === "no-show"}
+          onClick={() => act("no-show")}
+          title={t.appointments.markNoShow}
+          aria-label={format(t.appointments.markNoShowAria, { name })}
+        >
+          {busy && action === "no-show" ? <Spinner size={13} /> : <Icon name="x" size={16} />}
+        </button>
+      ) : null}
+    </>
   );
 }

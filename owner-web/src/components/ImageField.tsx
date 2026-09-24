@@ -3,12 +3,12 @@
 import { useRef, useState } from "react";
 import { t } from "@/i18n";
 
-import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Skeleton";
 import { ACCEPT_ATTR, CHECKERBOARD, ImageCropModal, ImagePreviewModal, useImageCropQueue } from "@/components/image-crop";
 
 /**
- * One picture: preview, crop, upload, remove.
+ * One picture: preview, crop, upload, remove — drawn as the app's `ImagePickerRow` (label, hint, a
+ * full-width preview once there is a picture, then "Add photo" / "Change" and "Remove").
  *
  * Uploads go through owner-web's existing `/api/upload` proxy, which signs with the owner's
  * token server-side and PUTs the bytes to storage — the browser never sees a storage
@@ -70,64 +70,49 @@ export function ImageField({
   });
 
   return (
-    <div className="image-field">
-      <div className="image-field-head">
-        <span className="image-field-label">{label}</span>
+    <div className="sb-image">
+      <span className="sb-image-label">{label}</span>
+      {hint ? <p className="sb-caption">{hint}</p> : null}
+
+      {value ? (
+        <button
+          type="button"
+          // A logo is cropped square; shown `cover` in the wide preview it would lose its edges.
+          className={`sb-image-preview${assetType === "logo" ? " is-contain" : ""}`}
+          onClick={() => setPreview(true)}
+          aria-label={t.imagePreview.open}
+          title={t.imagePreview.open}
+        >
+          {/* Checker sits on the <img> itself, so it shows through transparent pixels. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={value} alt="" style={CHECKERBOARD} />
+          {busy ? (
+            <span className="sb-image-busy">
+              <Spinner size={18} />
+            </span>
+          ) : null}
+        </button>
+      ) : null}
+
+      <div className="sb-actions-row">
+        <button
+          type="button"
+          className="sb-btn sb-btn--secondary"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+        >
+          {busy ? <Spinner size={14} /> : null}
+          {value ? t.imageField.replace : t.imageField.upload}
+        </button>
         {value ? (
-          <button type="button" className="btn secondary btn-sm" onClick={() => onChange("")}>
+          <button type="button" className="sb-btn sb-btn--secondary" onClick={() => onChange("")} disabled={busy}>
             {t.imageField.remove}
           </button>
         ) : null}
       </div>
-
-      <div className="image-field-body">
-        <div
-          className="image-field-preview"
-          role={value ? "button" : undefined}
-          tabIndex={value ? 0 : undefined}
-          aria-label={value ? t.imagePreview.open : undefined}
-          title={value ? t.imagePreview.open : undefined}
-          onClick={value ? () => setPreview(true) : undefined}
-          onKeyDown={
-            value
-              ? (e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setPreview(true);
-                  }
-                }
-              : undefined
-          }
-          style={value ? { cursor: "zoom-in" } : undefined}
-        >
-          {value ? (
-            // Checker sits on the <img> itself, so it shows through transparent pixels.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={value} alt="" style={CHECKERBOARD} />
-          ) : (
-            <span className="image-field-empty">
-              <Icon name="plus" size={18} />
-            </span>
-          )}
-          {busy ? (
-            <span className="image-field-busy">
-              <Spinner size={18} />
-            </span>
-          ) : null}
-        </div>
-
-        <div className="image-field-actions">
-          <button
-            type="button"
-            className="btn secondary btn-sm"
-            onClick={() => inputRef.current?.click()}
-            disabled={busy}
-          >
-            {value ? t.imageField.replace : t.imageField.upload}
-          </button>
-          <p className="field-hint">{hint ?? t.imageField.hint}</p>
-        </div>
-      </div>
+      {/* Owner-web's own line: the browser enforces the type and size the app's picker does not
+          need to spell out, so say it before the file dialog rejects something. */}
+      <p className="sb-caption">{t.imageField.hint}</p>
 
       <input
         ref={inputRef}
@@ -143,7 +128,7 @@ export function ImageField({
       />
 
       {error ? (
-        <p className="field-hint" role="alert" style={{ color: "var(--error)" }}>
+        <p className="sb-error" role="alert">
           {error}
         </p>
       ) : null}

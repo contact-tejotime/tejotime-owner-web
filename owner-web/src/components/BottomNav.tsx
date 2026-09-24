@@ -5,12 +5,20 @@ import { t } from "@/i18n";
 import { Icon, type IconName } from "@/components/Icon";
 import { NavLink } from "@/components/NavLink";
 import { can, type Module, type ModuleAccess } from "@/lib/roles";
+import "@/styles/shell-sheets.css";
 
+/**
+ * The phone/tablet tab bar — the web twin of the app's `BottomNav`: same six tabs, same order,
+ * same labels and glyphs, same permission rules. Its look (64px bar, 22px icons, 10px labels,
+ * brand colour for the active tab, the row capped at 640px on a tablet) is in shell-sheets.css.
+ */
 const TABS: { href: string; label: string; match: string; icon: IconName; module: Module | null }[] = [
   // A house, not `layoutDashboard`: its four squares were indistinguishable from Calendar's `grid`.
   { href: "/dashboard", label: t.bottomNav.home, match: "/dashboard", icon: "home", module: "dashboard" },
   { href: "/stats", label: t.bottomNav.reports, match: "/stats", icon: "star", module: "dashboard" },
-  { href: "/appointments", label: t.bottomNav.appts, match: "/appointments", icon: "calendarCheck", module: "appointments" },
+  // `calendar`, as on the app's tab bar and this app's own sidebar. It was `calendarCheck`, the
+  // one glyph that differed between the phone app and the phone web.
+  { href: "/appointments", label: t.bottomNav.appts, match: "/appointments", icon: "calendar", module: "appointments" },
   { href: "/calendar", label: t.bottomNav.calendar, match: "/calendar", icon: "grid", module: "calendar" },
   { href: "/customers", label: t.bottomNav.clients, match: "/customers", icon: "user", module: "customers" },
   { href: "/settings", label: t.bottomNav.settings, match: "/settings", icon: "settings", module: null },

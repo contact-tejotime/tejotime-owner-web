@@ -1,0 +1,478 @@
+/*
+ * Settings hub — the web twin of the app's Settings tab (app/src/app/(app)/(tabs)/settings.tsx,
+ * components/common/TSettingsRow.tsx; docs/mobile-settings-screen.md).
+ *
+ * Every selector sits under an `st-` class so nothing here reaches another screen: other screens
+ * are restyled in parallel and share globals.css. Colours are the store theme's tokens only
+ * (StoreThemeStyle), never the fixed `--gray-*` ramp — that lives on :root and does not flip in
+ * dark mode, the theme tokens do.
+ *
+ * Sizes are the app's: THeader's 44px store mark and 22px title, bodySm 13px group titles,
+ * bodyMd 15px row labels, caption 12px subtitles, 36px icon tiles on radius.md, cards on
+ * radius.lg. This file replaced the hub's old `.settings-*` / `.toggle` rules in globals.css.
+ */
+
+/* ------------------------------------------------------------------ header (THeader) */
+
+.st-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+}
+/* THeader passes size 44 to the shared StoreMark; Home's rule sizes it for Home (and shrinks it to
+   42/15px on a phone). The app draws a 44 mark at every width, on radius.md, with initials at
+   round(44 × 0.37) = 16px. */
+.st-head .store-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  font-size: 16px;
+}
+.st-head-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.st-head-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  line-height: 1.2;
+  color: var(--text-strong);
+}
+.st-head-sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ groups + cards */
+
+/* Title sits tight above its card; groups breathe more between each other. */
+.st-group {
+  margin: 0 0 16px;
+}
+.st-group-title {
+  margin: 0 0 6px 2px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.15px;
+  line-height: 1.5;
+  color: var(--text-strong);
+}
+/* A group's explanatory line, between its title and its card (Subscription's "Change plan"). */
+.st-group-lead {
+  margin: -2px 2px 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.st-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ rows (TSettingsRow) */
+
+.st-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 4px 14px 4px 16px;
+  color: inherit;
+  text-decoration: none;
+  text-align: left;
+  background: transparent;
+}
+.st-row-link {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+/* The app's pressed state; hover is the browser's extra, only where there is a pointer. */
+.st-row-link:active {
+  background: var(--surface-hover);
+}
+@media (hover: hover) {
+  .st-row-link:hover {
+    background: var(--surface-hover);
+  }
+}
+.st-row-link:focus-visible,
+.st-row-hit:focus-visible {
+  outline: 2px solid var(--border-focus, var(--primary));
+  outline-offset: -2px;
+}
+
+/* A soft brand tile, as on the app — it was a flat grey `--gray-100` that never went dark. */
+.st-row-icon {
+  width: 36px;
+  height: 36px;
+  margin: 8px 0;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg);
+}
+/* The divider lives on the body, so it starts after the icon (an inset rule, as on the app). */
+.st-row-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 2px 11px 0;
+}
+.st-row:not(:last-child) .st-row-body {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.st-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* Line heights are the app's `lineHeight.normal` (1.5) for both bodyMd and caption. */
+.st-row-label {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+/* Two lines, then an ellipsis — the app's `numberOfLines={2}`. A one-line clamp cut the email
+   address and the hours summary short on a 320px phone. */
+.st-row-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.st-row-chevron {
+  flex-shrink: 0;
+  color: var(--text-subtle);
+}
+
+/* The Booking QR row: StoreBookingQr's own trigger, stretched transparent over the whole row,
+   so the row is the click target while the dialog stays the one Home uses. Its glyph is hidden —
+   the row draws its own icon tile. */
+.st-row-qr .st-row-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.st-row-qr .st-row-hit > svg {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ switch (TSwitch) */
+
+/* The track is the app's 42×24; the button around it pads the hit area to 34px tall. */
+.st-switch {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 34px;
+  padding: 0 3px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.st-switch:focus-visible {
+  outline: 2px solid var(--border-focus, var(--primary));
+  outline-offset: 1px;
+}
+.st-switch-track {
+  position: relative;
+  display: block;
+  width: 42px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--border-default);
+  transition: background-color 200ms var(--ease-standard);
+}
+/* White in both modes, like the app's knob. */
+.st-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform 200ms var(--ease-standard);
+}
+.st-switch.is-on .st-switch-track {
+  background: var(--primary);
+}
+.st-switch.is-on .st-switch-knob {
+  transform: translateX(18px);
+}
+
+/* ------------------------------------------------------------------ sign out + footer */
+
+.st-signout-wrap {
+  margin: 6px 0 4px;
+}
+.st-signout {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--error-soft);
+  color: var(--error);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+.st-signout:active {
+  opacity: 0.88;
+}
+@media (hover: hover) {
+  .st-signout:hover {
+    opacity: 0.92;
+  }
+}
+.st-signout:disabled {
+  cursor: progress;
+  opacity: 0.88;
+}
+.st-signout:focus-visible {
+  outline: 2px solid var(--error);
+  outline-offset: 2px;
+}
+.st-signout-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
+
+.st-footer {
+  margin: 12px 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--text-subtle);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ loading skeleton */
+
+.st-skel-title {
+  margin: 2px 0 8px 2px;
+}
+.st-skel-icon {
+  margin: 8px 0;
+  flex-shrink: 0;
+}
+/* Two lines standing in for `.st-group-lead`. */
+.st-skel-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 2px 2px 10px;
+}
+
+/* ------------------------------------------------------------------ Profile's account fold */
+
+/* AccountSettingsPanel, drawn as one settings row that opens downward. */
+.st-fold {
+  margin: 18px 0;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.st-fold-toggle {
+  border: 0;
+  font: inherit;
+}
+/* One row, so no inset divider — the open body draws its own full-width rule. */
+.st-fold .st-row.st-fold-toggle .st-row-body {
+  border-bottom: 0;
+}
+.st-fold-chevron {
+  flex-shrink: 0;
+  color: var(--text-subtle);
+  transition: transform var(--dur-fast) var(--ease-standard);
+}
+.st-fold.is-open .st-fold-chevron {
+  transform: rotate(180deg);
+}
+.st-fold-body {
+  padding: 0 16px 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+.st-fold-body > .section {
+  margin-top: 16px;
+  margin-bottom: 0;
+  box-shadow: none;
+}
+.st-fold-body > .section + .section {
+  margin-top: 12px;
+}
+
+/* ------------------------------------------------------------------ Your account page */
+
+/* Its loading sketch: the password form's three label + input pairs, then the button. The page
+   itself is drawn by SettingsSubpageShell and ChangePasswordForm (settings-a.css). */
+.st-skel-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.st-skel-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* The form (and its sketch) is bare on a phone, as the app draws it. From tablet up it sits in a
+   card, like every other settings sub-page's content — bare fields on the page background read as
+   an unfinished page in a 560px column with the rest of the screen empty. */
+@media (min-width: 641px) {
+  .st-account {
+    padding: 20px;
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-row-link,
+  .st-switch-track,
+  .st-switch-knob,
+  .st-signout,
+  .st-fold-chevron {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------------------------ wider screens */
+
+/*
+ * The same cards and rows at every width, flowed into columns instead of stretched: two from
+ * tablet up (each ~335px inside the 720px column — a phone's width, which is what a settings row
+ * is drawn for), three on a wide monitor. Multi-column rather than a grid, so a one-row group
+ * (Team) is followed by the next group instead of a hole beside the five-row Business card.
+ */
+@media (min-width: 641px) {
+  .st-columns {
+    columns: 2;
+    column-gap: 20px;
+  }
+  /* A group must never split across the column break. */
+  .st-group,
+  .st-signout-wrap {
+    break-inside: avoid;
+  }
+}
+
+/*
+ * Desktop: the hub takes the look every other tab shares beside the sidebar — 18px semibold
+ * section titles (Home's and Reports' `.home-section-title`) and 16px bordered cards with the
+ * hairline shadow of `.kpi-card` / `.rp-staff`. Below 1025px the app's 13px group labels and
+ * radius.lg cards stand. Scoped to `.st-columns` so the Subscription sub-page, which borrows these
+ * rows, keeps the sub-pages' own 13px group labels on desktop too.
+ *
+ * The title stays at the app's 22px (it was bumped to 24px here, which made Settings the one tab
+ * whose header was bigger than Customers' and Reports').
+ */
+@media (min-width: 1025px) {
+  .st-head,
+  .st-columns,
+  .st-footer {
+    max-width: 960px;
+  }
+  .st-head {
+    margin-bottom: 20px;
+  }
+  .st-columns {
+    column-gap: 24px;
+  }
+  .st-columns .st-group {
+    margin-bottom: 24px;
+  }
+  .st-columns .st-group-title {
+    margin: 0 0 10px 2px;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.3;
+  }
+  .st-columns .st-card {
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  }
+  .st-columns .st-signout {
+    border-radius: 16px;
+  }
+  /* The sketch's 13px bar stands in for the 18px title: 13 + 5 + 15 = 18 × 1.3 + 10. */
+  .st-columns .st-skel-title {
+    margin: 5px 0 15px 2px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .st-head,
+  .st-columns,
+  .st-footer {
+    max-width: 1180px;
+  }
+  .st-columns {
+    columns: 3;
+  }
+}

@@ -1,14 +1,6 @@
-import { Skeleton, SkeletonCards, SkeletonHeader, SkeletonScreen } from "@/components/Skeleton";
-import { t } from "@/i18n";
-
-export default function QueueLoading() {
-  return (
-    <SkeletonScreen label={t.loading.queue}>
-      <div className="page-app">
-        <SkeletonHeader />
-        <Skeleton height={40} radius={10} className="skeleton-mt-lg" />
-        <SkeletonCards count={3} height={150} />
-      </div>
-    </SkeletonScreen>
-  );
-}
+/**
+ * /queue only redirects to Home (the live board lives there, as on the app — its Queue tab is a
+ * redirect too). What flashes during that redirect is therefore Home's skeleton, not a sketch of
+ * the old standalone queue page, which no longer exists to be sketched.
+ */
+export { default } from "../dashboard/loading";

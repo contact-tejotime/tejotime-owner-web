@@ -74,6 +74,7 @@ export interface StoreForm {
   facebookUrl: string;
   twitterUrl: string;
   linkedinUrl: string;
+  yelpUrl: string;
   payments: string; // comma-separated in the form; split before send
   currency: string; // ISO 4217 code; symbol/name come from lib/currencies.ts
   /** Brand/accent hex for the customer microsite (#RRGGBB). Always mirrors `theme.brand`. */
@@ -157,6 +158,7 @@ export const EMPTY_FORM: StoreForm = {
   facebookUrl: "",
   twitterUrl: "",
   linkedinUrl: "",
+  yelpUrl: "",
   payments: t.storeForm.paymentsDefault,
   currency: "INR",
   themeColor: "#2563EB",
@@ -207,6 +209,7 @@ export interface StoreDetail {
   facebookUrl: string;
   twitterUrl: string;
   linkedinUrl: string;
+  yelpUrl: string;
   payments: string;
   currency: string;
   themeColor: string;
@@ -266,6 +269,7 @@ export function fromDetail(d: StoreDetail): StoreForm {
     facebookUrl: d.facebookUrl ?? "",
     twitterUrl: d.twitterUrl ?? "",
     linkedinUrl: d.linkedinUrl ?? "",
+    yelpUrl: d.yelpUrl ?? "",
     payments: d.payments,
     currency: d.currency || "INR",
     // Kept in lockstep with theme.brand — the panel edits one colour, not two.
@@ -327,6 +331,7 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
     facebookUrl: f.facebookUrl.trim(),
     twitterUrl: f.twitterUrl.trim(),
     linkedinUrl: f.linkedinUrl.trim(),
+    yelpUrl: f.yelpUrl.trim(),
     payments: f.payments
       .split(",")
       .map((p) => p.trim())

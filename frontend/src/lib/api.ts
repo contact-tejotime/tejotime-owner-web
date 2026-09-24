@@ -103,7 +103,7 @@ export interface Microsite {
    * Social profiles the store filled in, already filtered to the non-empty ones by the API.
    * Optional because a cached response from before this shipped simply omits it.
    */
-  socials?: { key: "instagram" | "facebook" | "twitter" | "linkedin"; url: string }[];
+  socials?: { key: "instagram" | "facebook" | "twitter" | "linkedin" | "yelp"; url: string }[];
   /** Store-level ISO 4217 code — picks the symbol for every displayed price. */
   currency: string;
   /** Brand/accent hex (#RRGGBB) for microsite theming; null → default TejoTime blue. */

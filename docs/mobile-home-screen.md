@@ -7,7 +7,7 @@ Home is the first tab and the screen an owner looks at most. From top to bottom:
 | Block | File | Shows |
 |---|---|---|
 | Header | `components/home/HomeHeader.tsx` | Store logo (or initials tile), "Good afternoon · Tue, 22 Sep", store name, notifications |
-| Live queue card | `components/home/LiveQueueCard.tsx` | Waiting · In service · Walk-in wait, **Add walk-in**, booking-QR shortcut |
+| Live queue card | `components/home/LiveQueueCard.tsx` | Waiting · In service · Walk-in wait, with **Add walk-in** and the booking-QR shortcut in its top row |
 | Seats | `components/queue/QueueBoard.tsx` | Seat filter chips (2+ seats only), one board per seat, drag to reorder |
 
 Today's bookings are **not** on Home. A "Today" summary card sat between the live card and the
@@ -48,6 +48,11 @@ queue engine), so the card and the boards can't disagree.
   Walk-in pill in the queue header. It's now the one button on the live card. The booking QR
   moved into the card's corner. The single-seat "0 waiting" pill is gone, because the card already
   says so.
+- **The card stays short, because the seats are the point.** "Add walk-in" is a pill in the card's
+  top row beside the QR button, not a full-width button under the figures. As a full-width button
+  the card ran ~210dp and pushed the seat boards — what an owner actually works from — off the
+  first screen. At roughly half that, Home shows the card, the seat chips and a full seat board
+  before the fold on a 1080×2400 phone.
 - **The live card is the store's own brand colour,** and the only filled surface on Home.
   Everything on it uses the brand's **ink** (`textOnBrand`), dimmed with `withAlpha`
   (`theme/ink.ts`), never a fixed white. In dark mode the engine lightens the brand and the ink
@@ -65,6 +70,21 @@ queue engine), so the card and the boards can't disagree.
 - **Seat boards:** a status dot before the sub-line (green free, brand colour serving), a 40dp
   avatar, and a "Press and hold a card to move it" hint. The hint appears only when there is
   something to drag.
+- **The seat board's strings come from the BACKEND, not the app.** `GET /queue` returns each seat
+  already built — `subLine`, `waitBadge` and every card label — and `lib/mappers.ts::mapSeat` passes
+  them straight through. `app/src/lib/queue.ts::buildSeatGroups` still holds a parallel
+  implementation with its own `t.format.*` strings, but **nothing imports it**: editing those keys
+  changes nothing on screen. The live copy is `backend/src/lib/queue-engine.ts`, and two unit tests
+  in `backend/tests/unit/queue-engine.test.ts` assert the exact strings, so a change there fails
+  the suite until they are updated too.
+- **The sub-line is short, and wraps.** It shares its row with the avatar and the waiting badge,
+  which leaves ~26 characters at 411dp. `"Serving Darshil · ~30 min"` is 25 — it fitted on an
+  Android emulator and cut on a 393pt iPhone. It is now `~{n}m` (the form the walk-in sheet already
+  used), and `"Available · ready for walk-in"` became `"Ready for walk-ins"`. Shortening alone is
+  not enough, though: a long first name with a three-digit ETA still reaches the edge, and a
+  truncated `~30…` loses the number the line exists to show — so the sub-line is `numberOfLines={2}`
+  and wraps instead. Verified at font scale 1.15 with `"Serving Darshil · ~266m"`, which wraps and
+  keeps the figure.
 - **Tab icon:** Home is now the `home` (house) icon. `layoutDashboard` rendered as the same four
   squares as Calendar's `grid`. Changed on owner-web too (bottom nav and sidebar).
 
@@ -76,10 +96,49 @@ no QR. A login with neither still gets the header and an empty page, not an erro
 
 ## owner-web
 
-owner-web's Home (`owner-web/src/app/(app)/dashboard/page.tsx`) keeps its own layout: the same
-header, quick actions and queue section, laid out for a browser. Only the tab icon changed there.
-Bringing the live card to the web is a reasonable follow-up. The numbers are all
-available from the same queue payload.
+**Brought across on 2026-09-24.** owner-web's Home (`owner-web/src/app/(app)/dashboard/page.tsx`)
+now has the same blocks, rules and wording:
+
+| Block | owner-web file |
+|---|---|
+| Header: store mark, "Good evening · Thu, 24 Sep", store name, bell | `dashboard/page.tsx` + `components/StoreMark.tsx` |
+| Live queue card: Waiting · In service · Walk-in wait, **Walk-in** pill + QR | `components/LiveQueueCard.tsx` |
+| Seats: heading + drag tip, chips (2+ seats only), boards, empty-seat shortcut | `components/QueueBoard.tsx` (via `HomeQueueSection.tsx`) |
+
+The "Quick actions" row, the queue's Walk-in chip and the single-seat "N waiting" pill are gone,
+as on the app. Differences that are deliberate, because this is a browser:
+
+- **The greeting uses the store's timezone** (`GET /business` → `timezone`, default
+  `Asia/Kolkata`), not the server clock. The page is server-rendered, and Railway's clock is UTC.
+- **The logo comes from `GET /business`**, which is profile-gated, as on the app. A login without
+  `profile` gets the initials tile.
+- **Drag is by the grip**, not press-and-hold, so the tip reads "Drag a card by its handle to move
+  it" and the empty-seat hint says "Click", not "Tap".
+- **The seat board badge is the backend's `waitBadge`** ("2 waiting" / "Free"), green while the
+  chair is free, as on the app. It used to be a web-only Busy/Free pill.
+- **Layout by width:** one column of seats on a phone, two on a tablet (641–1024px), and as many
+  340px+ columns as fit beside the sidebar on desktop. A single seat on screen (a one-chair shop,
+  or one picked from the chips) always spans the full width instead of sitting in half a grid.
+  The live card's top row stays on one line down to 320px.
+- **Desktop (≥1025px): the live card becomes a header row plus three cards,** at the owner's
+  request — "● LIVE QUEUE" with Walk-in and QR on the right, then Waiting, In service and Walk-in
+  wait as separate white cards with an icon each. One brand banner the width of a monitor spread
+  three numbers a screen apart. It is the same markup as the phone card, only restyled, so the
+  numbers and the action can't drift between layouts, and the cards are the shared `.kpi-card`
+  that Reports also uses ([owner-web-app-parity.md](./owner-web-app-parity.md)).
+- **The booking QR renders through `OverlayPortal`.** Rendered in place, it sat under the seat
+  boards on a phone: the live card is `isolation: isolate` (for its discs), which trapped the
+  dialog's z-index inside the card.
+- **Queue tickets** are the app's `QueueCard` (`components/QueueTicketCard.tsx`); on the web the
+  number tile doubles as the drag handle, and Start / End / × appear on mouse hover only.
+
+Verified 2026-09-24 in headless Chrome against a local API on the seeded Sharp Cuts shop at 320,
+375, 414, 768, 1024, 1280, 1440 and 1600px: no horizontal overflow at any width; the card reads
+3 waiting · 2 in service · Now; clicking Mike's empty seat opens the walk-in sheet with Mike
+chosen, and the card's Walk-in opens it on "Any seat". Type check and lint clean. The desktop
+three-card layout was checked at 1100 and 1440px, and dark mode (owner-web follows the store's
+Appearance mode, `data-tt-mode` on `.app`) at 375 and 1280px. Not checked: a staff login, and a
+store with an uploaded logo.
 
 ## Verified (2026-09-22)
 
@@ -95,3 +154,7 @@ four bookings), first on the default blue brand, then on red (`#DC2626`) for the
 - The header mark on a red brand: the initials tile, and the uploaded-logo version.
 - Not checked: iOS (the simulator can't be tapped from the command line), tablet layouts, and a
   staff login.
+
+Re-checked on 2026-09-24 after the card was made compact: the same build and shop, Home shows the
+live card (3 waiting · 2 in service · walk-in wait "Now"), the seat chips, John's whole board and
+the top of Lisa's without scrolling. Type check and lint clean. iOS still unchecked.

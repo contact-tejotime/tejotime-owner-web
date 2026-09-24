@@ -11,6 +11,9 @@ import { Icon } from "@/components/Icon";
  *
  * Pushes the query into the URL so the page re-renders from `GET /customers?search=`. Filtering
  * client-side would only search the slice the free plan lets through, silently hiding matches.
+ *
+ * Drawn as the app's `TSearchInput` (a standard field with a leading search icon, not a pill) —
+ * styles in `styles/customers.css`.
  */
 export function CustomerSearch({ initialQuery }: { initialQuery: string }) {
   const router = useRouter();
@@ -18,16 +21,23 @@ export function CustomerSearch({ initialQuery }: { initialQuery: string }) {
 
   useEffect(() => {
     if (q === initialQuery) return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       router.replace(q ? `/customers?q=${encodeURIComponent(q)}` : "/customers");
     }, 300);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [q, initialQuery, router]);
 
   return (
-    <div className="search-field">
-      <Icon name="search" size={18} className="search-icon" />
+    <div className="cu-search">
+      <Icon name="search" size={18} className="cu-search-icon" />
       <input
+        type="search"
+        inputMode="search"
+        enterKeyHint="search"
+        // Names and phone numbers: the app turns these off too, so "ravi" is not "corrected".
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder={t.search.placeholder}
