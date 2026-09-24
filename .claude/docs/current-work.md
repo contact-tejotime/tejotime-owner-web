@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-09-21 · branch `feat-jay`.
+**Last updated:** 2026-09-24 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,74 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Mobile: customer detail sheet + live-card figures (2026-09-24)
+
+- **Detail sheet** (`components/feedback/DetailPanel.tsx`): a waiting entry now shows a details card
+  (position, seat, service, price, est. wait, source, visitor type) in the space that was blank, laid
+  out **two per row** — six stacked full-width rows ran under the footer on a phone with a larger
+  system text size and cut "Source" in half. Checked at font scale 1.0 and 1.3: no scroll either way. And
+  the status badge is centred under the name (`StatusBadge` pins itself `alignSelf: flex-start`, so
+  centring it needs a ROW with `justifyContent`, not a parent's `alignItems`). The middle scrolls;
+  the actions stay pinned. An **in-service** entry keeps its one muted line: its footer (amount,
+  add-ons, breakdown, two buttons) owns the screen, which is why the details grid was removed from
+  here in the first place.
+- **Home live card:** the figures dropped two steps (h2 → h4) and the unit rides beside the number
+  ("**20** min"), because "60 min" as one h2 string filled its column and crowded the divider. The
+  card is also **half as tall**: "Add walk-in" is now a pill in the top row beside the QR button
+  instead of a full-width button under the figures. At ~210dp it pushed the seat boards off the
+  first screen, and the seats are what an owner works from. `QueueBoard`'s section heading tightened
+  to match. Verified on Android: the card, the seat chips and a full seat board now fit above the
+  fold.
+
+### Mobile: seat sub-line was cut on narrow phones (2026-09-24)
+
+`"Serving Darshil · ~30 min"` truncated on a 393pt iPhone. The sub-line shares its row with the
+avatar and the waiting badge (~26 characters at 411dp), so at 25 characters it fitted on the
+Android emulator and cut on the phone.
+
+- **The string is the BACKEND's.** `GET /queue` ships a built `subLine` and `mapSeat` passes it
+  through; `app/src/lib/queue.ts::buildSeatGroups` is a parallel, **unimported** implementation, so
+  editing the app's `t.format.servingEta` changes nothing on screen. Now noted in that function.
+- `backend/src/lib/queue-engine.ts`: `~{n} min` → **`~{n}m`** (the walk-in sheet's existing form),
+  and `"Available · ready for walk-in"` → **`"Ready for walk-ins"`**. Two unit tests assert these
+  exactly; updated, **150 backend tests pass**.
+- Shortening alone is not robust, so the sub-line is now `numberOfLines={2}`. Verified at font
+  scale 1.15 with `"Serving Darshil · ~266m"`: wraps, keeps the figure, nothing cut.
+- Noticed, not changed: a seat with people queued but nobody started reads "Ready for walk-ins"
+  beside a "3 waiting" badge. The chair is genuinely free; the pair still reads oddly.
+
+### Mobile: Settings correctness + density (2026-09-24)
+
+Four **mobile-only** drifts from owner-web, found by reading the two settings screens side by side.
+See [docs/mobile-settings-screen.md](../../docs/mobile-settings-screen.md).
+
+- The footer showed a hand-written `"v2.4"` while the app shipped **1.0.3** — now read from
+  `expo-constants`, and the key is out of `en.json` (a version is a build fact, not copy).
+- "Signed in as **sharpcuts**" — the demo tenant's handle was the fallback when a session had no
+  name. The clause is now dropped instead of guessed (`settings.footerNoUser`).
+- "Notifications — N of M on" was computed from a hard-coded mock; the Notifications screen has no
+  API behind its toggles. Now a static sub, matching owner-web. **Open gap: notification
+  preferences still do not persist.**
+- Email support used the `bell` icon; a `mail` icon was added to the set.
+
+`TSettingsRow` tightened (14/58 → 11/52) so more than five rows fit on a phone.
+
+Then all eight settings **sub-screens** were walked on a device:
+
+- **Working hours** — every weekday truncated to `Mo…`/`Tu…`/`We…`/`Th…`; the day column had ~38dp.
+  Abbreviating to `Mon`–`Sun` looked fixed on a 411dp emulator but still clipped `Mon`/`Wed` on a
+  393pt iPhone — the row had ~2pt of slack, so there was nothing to widen it with. The row is now
+  **two lines** (full day + switch, times below), which removes the constraint instead of tuning a
+  number, and `TimeSelect` chips flex so every row's separator aligns.
+- **Team logins** — the super owner was labelled "Co-owner" (the sub-line branched on two roles,
+  not three); "Add co-owner" was a filled teal competing with the filled blue primary, now
+  `outline`; the phone is formatted.
+- **`db/seed.ts` never set `is_super_owner`** — the admin portal does, so only the fixture was
+  wrong, but it is the repo's only fixture: `requireSuperOwner` would 403 in any local test.
+  **Re-seed after pulling.**
+- Appearance had "Brand color" beside "Button colour"; the app is now `color` throughout.
+  **owner-web is still mixed and was left alone** — a two-surface copy decision.
 
 ### owner-web: live queue without a reload (2026-09-24)
 

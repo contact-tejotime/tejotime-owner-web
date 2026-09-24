@@ -101,6 +101,9 @@ export const NO_ACCESS: ModuleAccess = {
 /** Which module owns a given path. Longest prefix wins, so /settings/staff beats /settings. */
 const PATH_MODULES: [string, Module][] = [
   ["/settings/profile", "profile"],
+  // The store's microsite look. Same module as the profile it was split out of; the page itself
+  // additionally refuses anyone but an owner / co-owner, as the app's screen does.
+  ["/settings/appearance", "profile"],
   ["/settings/services", "services"],
   ["/settings/staff", "staff"],
   ["/settings/team", "team"],

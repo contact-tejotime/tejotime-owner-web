@@ -1,0 +1,824 @@
+/*
+ * Settings sub-pages, group A: Working hours, Team logins, Notifications, Change password.
+ *
+ * Ported from the owner app so a phone shows the same screen on both surfaces:
+ *   shell   → app/src/components/settings/SettingsPageShell.tsx (back + centred title)
+ *   hours   → app/src/app/(app)/settings/hours.tsx + components/settings/TimeSelect.tsx
+ *   team    → app/src/app/(app)/settings/team.tsx
+ *   notifs  → app/src/app/(app)/settings/notifications.tsx
+ *   pass    → app/src/app/(app)/settings/password.tsx
+ *
+ * Every selector sits under an `sa-` class (settings, group A) so nothing here can reach another
+ * screen — other screens are restyled in parallel and share globals.css. Colours are the store
+ * theme's tokens only (StoreThemeStyle), never the fixed `--gray-*` ramp: those live on :root and
+ * do not flip in dark mode, the theme tokens do.
+ *
+ * Sizes are the app's: h5 18px titles, bodyMd 15px rows, bodySm 13px, caption 12px, radius.lg
+ * cards, radius.md controls, TButton heights 36 / 44 / 52.
+ */
+
+/* ------------------------------------------------------------------ page shell */
+
+.sa-page {
+  --sa-max: 720px;
+  max-width: var(--sa-max);
+  margin: 0 auto;
+  padding: 12px 16px 28px;
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
+}
+/* Team is the one page with enough cards to earn columns; password is one short form. */
+.sa-page--wide {
+  --sa-max: 1100px;
+}
+.sa-page--narrow {
+  --sa-max: 560px;
+}
+
+.sa-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+/* IconButton variant="soft": a filled sunken square, not a bare chevron. */
+.sa-back {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-sunken);
+  color: var(--text-strong);
+  touch-action: manipulation;
+}
+.sa-back:hover {
+  background: var(--surface-hover);
+}
+.sa-back:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.sa-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Balances the back button so the title stays centred, as in the app's shell. */
+.sa-head-spacer {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.sa-lead {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.sa-footnote {
+  margin: 12px 4px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-subtle);
+}
+.sa-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 4px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.sa-error {
+  margin: 0;
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* A list card: one bordered surface, rows divided by hairlines. */
+.sa-card {
+  margin-top: 4px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 14px);
+  overflow: hidden;
+}
+.sa-card > * + * {
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ------------------------------------------------------------------ switch (TSwitch) */
+
+/* The button is the 48×36 hit area; the 42×24 track inside it is what the app draws. The negative
+   margin keeps the bigger target from making the row taller than the app's. */
+.sa-switch {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 36px;
+  margin: -6px -3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.sa-switch-track {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--border-strong, var(--border-default));
+  transition: background-color 200ms var(--ease-standard, ease);
+}
+/* White in both modes, like TSwitch's knob — it sits on the track, never on the page. */
+.sa-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform 200ms var(--ease-standard, ease);
+}
+.sa-switch[aria-checked="true"] .sa-switch-track {
+  background: var(--primary);
+}
+.sa-switch[aria-checked="true"] .sa-switch-knob {
+  transform: translateX(18px);
+}
+.sa-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sa-switch:focus-visible {
+  outline: none;
+}
+.sa-switch:focus-visible .sa-switch-track {
+  box-shadow: var(--ring);
+}
+
+/* ------------------------------------------------------------------ hours */
+
+.sa-hours-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+}
+.sa-hours-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sa-hours-day {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.sa-hours-times {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.sa-hours-times .sa-time {
+  flex: 1;
+}
+.sa-hours-sep {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+.sa-hours-closed {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-subtle);
+}
+
+/* TimeSelect: the app's chip, drawn by us, with a transparent native <select> laid over it. The
+   select does the picking (the OS wheel/list on a phone, a keyboard-reachable list on desktop);
+   it stays at 16px so iOS Safari does not zoom the page on focus, which a 13px select would. */
+.sa-time {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 8px;
+  background: var(--surface-page);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm, 6px);
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 500;
+}
+.sa-time-value {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sa-time-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-subtle);
+}
+.sa-time select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  font-size: 16px;
+  cursor: pointer;
+  appearance: none;
+}
+.sa-time select:disabled {
+  cursor: not-allowed;
+}
+.sa-time:focus-within {
+  border-color: var(--primary);
+  box-shadow: var(--ring);
+}
+.sa-time.is-disabled {
+  opacity: 0.5;
+}
+
+@media (min-width: 641px) {
+  /* One line per day once there is room. The app splits a day over two lines only because a
+     phone row has no slack for day + switch + two pickers (see the comment in hours.tsx). */
+  .sa-hours-row {
+    display: grid;
+    grid-template-columns: minmax(110px, 150px) minmax(0, 340px) 1fr auto;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 18px;
+  }
+  .sa-hours-top {
+    display: contents;
+  }
+  .sa-hours-day {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .sa-hours-times,
+  .sa-hours-closed {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  /* The time chips' 36px, so a closed day's row is as tall as an open one's. On one line the
+     difference showed as a ragged column of rows; stacked on a phone it is the app's own look. */
+  .sa-hours-closed {
+    line-height: 36px;
+  }
+  .sa-hours-row .sa-switch {
+    grid-column: 4;
+    grid-row: 1;
+  }
+}
+
+/* ------------------------------------------------------------------ notifications */
+
+.sa-pref {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+}
+.sa-pref-text {
+  flex: 1;
+  min-width: 0;
+}
+.sa-pref-label {
+  display: block;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-strong);
+}
+.sa-pref-sub {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------------ buttons (TButton) */
+
+.sa-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 10px);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.sa-btn--md {
+  height: 44px;
+  padding: 0 18px;
+  font-size: 15px;
+}
+.sa-btn--lg {
+  height: 52px;
+  padding: 0 22px;
+  font-size: 17px;
+}
+.sa-btn--block {
+  width: 100%;
+}
+.sa-btn--primary {
+  background: var(--primary);
+  color: var(--text-on-brand, #fff);
+}
+.sa-btn--primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+/* The app's `secondary` is a FILLED fill in the store's second colour, not an outline. Its ink is
+   the one StoreThemeStyle computes for that fill, so a pale secondary still reads. */
+.sa-btn--secondary {
+  background: var(--secondary, var(--teal-600));
+  color: var(--tt-ink-secondary, #fff);
+}
+.sa-btn--secondary:hover:not(:disabled) {
+  background: var(--secondary-hover, var(--secondary, var(--teal-600)));
+}
+.sa-btn--outline {
+  background: var(--surface-card);
+  color: var(--text-strong);
+  border-color: var(--border-default);
+}
+.sa-btn--outline:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+.sa-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sa-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* ------------------------------------------------------------------ form fields (TInput) */
+
+.sa-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.sa-field > label,
+.sa-add .phone-field > label {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-body);
+}
+.sa-field > label {
+  margin: 0;
+}
+/* 16px on a phone, not the app's 15: iOS Safari zooms the whole page into any smaller input. */
+.sa-field input {
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-card);
+  color: var(--text-strong);
+  font-size: 16px;
+}
+/* Restated: the `border` shorthand above ties the global `input:focus` on specificity and this
+   file loads later, so without it a focused field kept its grey border (TInput goes to the focus
+   colour). */
+.sa-field input:focus {
+  border-color: var(--primary);
+  box-shadow: var(--ring);
+}
+.sa-field input:disabled {
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+}
+.sa-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+/* PhoneField is shared: only its outer spacing is adjusted, and only inside Team's add form.
+   Scoped to `.sa-add`, not `.sa-page` — the shell's `.sa-page` also wraps settings-b's pages. */
+.sa-add .phone-field {
+  margin-bottom: 0;
+}
+/* The country button's own 44px sat inside the row's 1px border, so the phone box stood 46px
+   tall beside 44px Name / Password boxes on the same line. */
+.sa-add .phone-cc {
+  min-height: 42px;
+}
+.sa-add .phone-field .field-hint {
+  margin-top: 4px;
+}
+
+/* ------------------------------------------------------------------ password */
+
+.sa-pw {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+/* Mounted inside Profile's account fold, the form is still a `.section` card with its heading. */
+.sa-pw.section > h2 {
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------ team */
+
+/* A column on a phone; 340px+ columns side by side once they fit. `min(100%, …)` keeps a single
+   column from overflowing a 320px screen. auto-fit, so one card (a shop with only its owner)
+   spans the row instead of sitting in half of it. */
+.sa-team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.sa-member {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+}
+.sa-member.is-inactive {
+  opacity: 0.6;
+}
+.sa-member-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sa-member-nm {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.sa-member-meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.sa-member-summary {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-body);
+}
+.sa-member-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+.sa-mini-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-body);
+}
+.sa-warn-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--warning-soft-fg, var(--warning));
+}
+.sa-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.sa-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.sa-badge--muted {
+  background: var(--surface-hover);
+  color: var(--text-muted);
+}
+.sa-badge--warn {
+  background: var(--warning-soft);
+  color: var(--warning-soft-fg, var(--warning));
+}
+
+/* Chip: chairs and access levels. 34px tall for a finger; the app's 28px only under a mouse. */
+.sa-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sa-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 5px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--surface-card);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  /* A chair is named by the owner ("Dr. Priyanka Venkataraman, Senior Consultant"), so a chip can
+     be wider than a 258px phone card. Capped and ellipsised through `.sa-chip-text`, or the one
+     long chip pushed the whole page sideways at 320px. */
+  max-width: 100%;
+  min-width: 0;
+}
+.sa-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sa-chip.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--text-on-brand, #fff);
+}
+.sa-chip:hover:not(:disabled):not(.is-active) {
+  background: var(--surface-hover);
+}
+.sa-chip:disabled {
+  cursor: progress;
+}
+.sa-chip:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+@media (hover: hover) and (pointer: fine) {
+  .sa-chip {
+    min-height: 28px;
+    padding: 5px 10px;
+  }
+}
+
+/* Permission grid. Sized by its CONTAINER, not the viewport, because the same grid is drawn in a
+   ~340px team card and in the full-width add form on the same screen. */
+.sa-perm {
+  container-type: inline-size;
+  margin-top: 8px;
+}
+.sa-perm-list {
+  display: grid;
+  gap: 8px;
+}
+.sa-perm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.sa-perm-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-body);
+}
+.sa-perm-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* 400, not 440: a two-up team card on a 1280 monitor is ~438px inside, and at 440 its 11 rows
+   stacked label-over-chips into a card twice as tall as it needed to be. The longest row
+   ("Subscription & billing" + three chips) needs ~380px. */
+@container (min-width: 400px) {
+  .sa-perm-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+}
+@container (min-width: 820px) {
+  .sa-perm-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 28px;
+  }
+}
+
+/* Add a login */
+.sa-add {
+  container: sa-add / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 14px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+}
+.sa-add-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.sa-roles {
+  display: grid;
+  gap: 8px;
+}
+/* Flex, top-aligned: a <button> centres its content vertically, so the shorter blurb of the pair
+   floated mid-card once the two sat side by side. */
+.sa-role {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--surface-card);
+  color: inherit;
+  touch-action: manipulation;
+}
+.sa-role.is-active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.sa-role:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.sa-role-nm {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.sa-role-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.sa-add-fields {
+  display: grid;
+  gap: 14px;
+  align-items: start;
+}
+/* Three fields: one column on a phone, all three side by side on a monitor. In between (a tablet)
+   auto-fit made two columns and left Temporary password alone in half a row; Name takes the full
+   first row instead, so Mobile number and password pair up beneath it. */
+@container sa-add (min-width: 540px) {
+  .sa-add-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sa-add-fields > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+@container sa-add (min-width: 820px) {
+  .sa-add-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .sa-add-fields > :first-child {
+    grid-column: auto;
+  }
+}
+/* A labelled block inside the add form: label, control, hint. */
+.sa-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.sa-group > .sa-perm {
+  margin-top: 0;
+}
+.sa-add-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.sa-caption {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------------ skeleton */
+
+.sa-skel-center {
+  margin: 0 auto;
+}
+.sa-skel-lead {
+  margin: 0 0 16px;
+}
+.sa-skel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+}
+
+/* ------------------------------------------------------------------ widths */
+
+@media (min-width: 641px) {
+  .sa-page {
+    padding: 20px 24px 32px;
+  }
+  .sa-title {
+    font-size: 20px;
+  }
+  .sa-field input {
+    font-size: 15px;
+  }
+  .sa-roles {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1025px) {
+  .sa-page {
+    padding: 28px 32px 48px;
+  }
+  /* The desktop card look every other screen now shares (16px radius, hairline shadow). On a
+     phone these keep the app's radius.lg / 12px. */
+  .sa-card,
+  .sa-member,
+  .sa-add {
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sa-switch-track,
+  .sa-switch-knob {
+    transition: none;
+  }
+}

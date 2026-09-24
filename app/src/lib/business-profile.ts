@@ -21,6 +21,7 @@ export type BusinessProfilePatch = {
   facebookUrl?: string;
   twitterUrl?: string;
   linkedinUrl?: string;
+  yelpUrl?: string;
   payments?: string[];
   faqs?: { q: string; a: string }[];
   reviews?: { stars: number; text: string; authorName: string }[];

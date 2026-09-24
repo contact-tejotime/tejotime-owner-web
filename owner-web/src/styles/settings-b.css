@@ -1,0 +1,1602 @@
+/*
+ * Settings sub-pages, group B: Business profile, Services & pricing, Staff & seats, Appearance.
+ *
+ * Ported from the owner app so a phone shows the same screen on both surfaces:
+ *   profile    → app/src/app/(app)/settings/profile.tsx + components/settings/OwnerStoreProfileForm.tsx
+ *   services   → app/src/app/(app)/settings/services.tsx + components/settings/ServiceEditSheet.tsx
+ *   staff      → app/src/app/(app)/settings/staff.tsx + components/settings/StaffEditSheet.tsx
+ *   appearance → app/src/app/(app)/settings/appearance.tsx + components/settings/MicrositePreview.tsx
+ *   sheets     → app/src/components/settings/EditSheet.tsx
+ * The page chrome (back button + centred title) is settings-a's `SettingsSubpageShell`, shared on
+ * purpose so every settings sub-page has one header.
+ *
+ * Every selector sits under an `sb-` class (settings, group B) so nothing here can reach another
+ * screen. Colours are the store theme's tokens only (StoreThemeStyle), never the fixed `--gray-*`
+ * ramp — those live on :root and do not flip in dark mode; the theme tokens do. The two fixed
+ * fills (amber/green chair colours) are the app's own fixed palette, with its fixed dark ink.
+ *
+ * Sizes are the app's at its 1:1 phone baseline: TText h4 21 / h5 18 / bodyMd 15 / bodySm 13 /
+ * caption 12, spacing 4·8·12·16·20, radius.md controls and radius.lg cards (both follow the store
+ * theme's radius axis, as they do in the app), TButton heights 36 / 44 / 52.
+ *
+ * Widths: a phone (<=640px) is the app. A tablet (641–1024px) keeps the forms in a centred
+ * column, as the app's TResponsiveContainer does, and lays the Services/Staff lists out as a
+ * two-up grid of the app's ServiceCard. A desktop (>=1025px) adds a side column where there is
+ * one worth having (the store card beside the profile form, the live preview beside Appearance).
+ */
+
+/* ------------------------------------------------------------------ section (app `Section`) */
+
+/* Title and hint sit OUTSIDE the card, as in the app's settings forms — not an h2 inside it. */
+.sb-section {
+  margin-bottom: 22px;
+  min-width: 0;
+}
+.sb-section-title {
+  margin: 0 0 6px 2px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--text-strong);
+}
+.sb-section-hint {
+  margin: 0 0 8px 2px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.sb-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 14px);
+}
+.sb-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  min-width: 0;
+}
+/* Appearance's cards are a notch tighter in the app (14 / 14). */
+.sb-ap .sb-card-body {
+  gap: 14px;
+  padding: 14px;
+}
+
+/* ------------------------------------------------------------------ field (app `TInput`) */
+
+.sb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+/* Overrides the global `label` (12px muted caps-ish) with the app's bodySm medium textBody. */
+.sb-field .sb-field-label {
+  display: block;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-body);
+}
+/* The border lives on the wrapper so a prefix (₹, +91) and the lock sit inside the box, as in
+   TInput. The control inside is reset to a bare, borderless text run. */
+.sb-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--control-h-md, 44px);
+  padding: 0 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md, 10px);
+  min-width: 0;
+}
+.sb-input:focus-within {
+  border-color: var(--border-focus, var(--primary));
+  box-shadow: var(--ring);
+}
+.sb-input.is-invalid {
+  border-color: var(--error);
+}
+.sb-input.is-disabled {
+  background: var(--surface-sunken);
+}
+.sb-input.is-multiline {
+  align-items: flex-start;
+  padding: 10px 12px;
+}
+.sb-input input,
+.sb-input select,
+.sb-input textarea {
+  flex: 1;
+  align-self: stretch;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  font-size: 15px;
+  color: var(--text-strong);
+}
+.sb-input input:focus,
+.sb-input select:focus,
+.sb-input textarea:focus {
+  outline: none;
+  box-shadow: none;
+}
+.sb-input input::placeholder,
+.sb-input textarea::placeholder {
+  color: var(--text-subtle);
+}
+.sb-input input:disabled,
+.sb-input input[readonly] {
+  color: var(--text-muted);
+  -webkit-text-fill-color: var(--text-muted);
+}
+.sb-input textarea {
+  /* TInput multiline: twice the large control height as the box, 1.5× as the text area. */
+  min-height: calc(var(--control-h-lg, 52px) * 1.5);
+  line-height: 1.5;
+  resize: vertical;
+}
+.sb-input select {
+  cursor: pointer;
+}
+.sb-input-prefix {
+  flex: 0 0 auto;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+.sb-input-lock {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+}
+.sb-field-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.sb-field-hint.is-error,
+.sb-error {
+  color: var(--error);
+}
+.sb-error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+/* A form-level failure (a save that did not go through), in the theme's error tint so it flips
+   with dark mode — the shared `.alert.err` hardcodes its light-mode border. */
+.sb-alert {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--error-soft);
+  color: var(--error-soft-fg, var(--error));
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+/* Two fields side by side — the app's highlight number/label pair and the sheet's duration/price. */
+.sb-row2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.sb-sheet .sb-row2 {
+  gap: 12px;
+}
+
+/* ------------------------------------------------------------------ buttons (app `TButton`) */
+
+.sb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--control-h-md, 44px);
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 10px);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color var(--dur-fast, 120ms) var(--ease-standard, ease);
+}
+.sb-btn:disabled,
+.sb-btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sb-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.sb-btn--sm {
+  height: var(--control-h-sm, 36px);
+  padding: 0 14px;
+  font-size: 13px;
+}
+.sb-btn--lg {
+  height: var(--control-h-lg, 52px);
+  padding: 0 22px;
+  font-size: 17px;
+}
+.sb-btn--block {
+  width: 100%;
+}
+.sb-btn--primary {
+  background: var(--primary);
+  color: var(--text-on-brand, #fff);
+}
+.sb-btn--primary:hover:not(:disabled) {
+  background: var(--primary-hover, var(--primary));
+}
+/* The app's `secondary` is a FILLED button in the theme's secondary colour, not an outline. */
+.sb-btn--secondary {
+  background: var(--secondary);
+  color: var(--tt-ink-secondary, #fff);
+}
+.sb-btn--secondary:hover:not(:disabled) {
+  background: var(--secondary-hover, var(--secondary));
+}
+.sb-btn--outline {
+  background: var(--surface-card);
+  color: var(--text-strong);
+  border-color: var(--border-default);
+}
+.sb-btn--outline:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+.sb-btn--ghost {
+  background: transparent;
+  color: var(--text-body);
+  box-shadow: none;
+}
+.sb-btn--ghost:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.sb-btn--danger {
+  color: var(--error);
+}
+/* A segmented pair (Fixed / Range): the chosen one is primary, the other outline. */
+.sb-seg {
+  display: flex;
+  gap: 12px;
+}
+.sb-seg > .sb-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.sb-caption {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------------ empty (app `TEmptyState`) */
+
+.sb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 24px;
+  text-align: center;
+}
+.sb-empty-disc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 2px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.sb-empty-title {
+  max-width: 300px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.sb-empty--compact {
+  gap: 8px;
+  padding: 20px 24px;
+}
+.sb-empty--compact .sb-empty-disc {
+  width: 44px;
+  height: 44px;
+}
+.sb-empty--compact .sb-empty-title {
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------------ settings row (TSettingsRow) */
+
+.sb-srow-card {
+  position: relative;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 14px);
+  overflow: hidden;
+}
+.sb-srow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 4px 14px 4px 16px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+.sb-srow:hover {
+  background: var(--surface-hover);
+}
+.sb-srow-icon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 8px 0;
+  border-radius: var(--radius-md, 10px);
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg, var(--primary));
+}
+.sb-srow-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 11px 2px 11px 0;
+}
+.sb-srow-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sb-srow-label {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+}
+.sb-srow-sub {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.sb-srow-chev {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+}
+/* The staff profile's Booking QR row opens the shared QR dialog (StoreBookingQr). Its trigger is
+   laid over the whole row, so the row is the button without re-implementing the dialog here. */
+.sb-srow-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+}
+.sb-srow-cover svg {
+  display: none;
+}
+.sb-srow-cover:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+/* ------------------------------------------------------------------ Services / Staff lists */
+
+/* Phone: one bordered card, rows divided by hairlines — the app's services.tsx / staff.tsx. */
+.sb-list {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 14px);
+  overflow: hidden;
+}
+.sb-list-item + .sb-list-item {
+  border-top: 1px solid var(--border-subtle);
+}
+.sb-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 62px;
+  padding: 13px 16px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.sb-item:hover {
+  background: var(--surface-hover);
+}
+.sb-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.sb-accent {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 4px;
+  border-radius: 999px;
+}
+.sb-item-body {
+  flex: 1;
+  min-width: 0;
+}
+.sb-item-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+  /* The app lets a long name wrap rather than cutting it; `anywhere` stops one unbroken word from
+     pushing the price off a 320px row. */
+  overflow-wrap: anywhere;
+}
+.sb-item-sub {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.sb-item-price {
+  flex: 0 0 auto;
+  /* A range ("₹2,000–₹6,000") stays on one line; the name wraps instead. */
+  max-width: 60%;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-strong);
+  text-align: right;
+}
+.sb-item-icon {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+}
+.sb-avatar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+}
+.sb-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Chair / service colours — the app's serviceColor.ts, with ink from its ink.ts. Amber and green
+   are fixed palette fills pale enough that white fails 3:1, so their ink is fixed dark too. */
+.sb-tone-primary {
+  background: var(--primary);
+  color: var(--text-on-brand, #fff);
+}
+.sb-tone-secondary {
+  background: var(--secondary, #14b8a6);
+  color: var(--tt-ink-secondary, #fff);
+}
+.sb-tone-amber500 {
+  background: #f59e0b;
+  color: #0f172a;
+}
+.sb-tone-green500 {
+  background: #22c55e;
+  color: #0f172a;
+}
+.sb-footnote {
+  margin: 12px 4px 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-subtle);
+}
+.sb-add {
+  margin-top: 16px;
+}
+
+/* ------------------------------------------------------------------ edit sheet (app `EditSheet`) */
+
+.sb-sheet-root {
+  position: fixed;
+  inset: 0;
+  /* Above the bottom nav (50) and support strip (49); toasts (10001) still land on top. */
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+.sb-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: rgb(15 23 42 / 0.45);
+  cursor: default;
+  animation: sb-fade-in 200ms ease-out;
+}
+.sb-sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  /* The app centres the sheet in a 560 column on a tablet (useResponsive(560)). */
+  max-width: 560px;
+  max-height: 86dvh;
+  padding: 18px 20px calc(26px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface-card);
+  border-radius: var(--radius-xl, 20px) var(--radius-xl, 20px) 0 0;
+  box-shadow: 0 -8px 32px rgb(15 23 42 / 0.18);
+  /* No fill-mode on purpose: once the slide lands the panel carries no transform, so the crop
+     and photo-preview dialogs (position: fixed, rendered inside the form) are laid out against
+     the viewport rather than trapped in this box. */
+  animation: sb-sheet-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* EditSheet focuses the panel itself when opening an existing row (so focus is inside the dialog
+   without popping a keyboard); that programmatic focus is not a place to draw a ring. */
+.sb-sheet:focus {
+  outline: none;
+}
+.sb-sheet-handle {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 4px;
+  margin: 0 auto 16px;
+  border-radius: 99px;
+  background: var(--border-default);
+}
+.sb-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.sb-sheet-title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.4px;
+  color: var(--text-strong);
+}
+/* Phones and tablets dismiss by the scrim, as in the app; the desktop dialog shows a close ×. */
+.sb-sheet-close {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-sunken);
+  color: var(--text-body);
+  cursor: pointer;
+}
+.sb-sheet-close:hover {
+  background: var(--surface-hover);
+}
+/* Capped + scrollable, as the app's EditSheet: the forms run to five fields plus two buttons. The
+   side padding/negative margin gives focus rings room inside the scroller. */
+.sb-sheet-body {
+  flex: 0 1 auto;
+  min-height: 0;
+  margin: 0 -4px;
+  padding: 2px 4px 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.sb-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sb-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+@keyframes sb-sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes sb-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Staff photo (StaffEditSheet): a 64px disc beside Add/Change photo. */
+.sb-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.sb-photo {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  color: var(--text-subtle);
+  overflow: hidden;
+  cursor: pointer;
+}
+.sb-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sb-photo:disabled {
+  cursor: default;
+}
+.sb-photo:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.sb-photo-busy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-sunken);
+  color: var(--primary);
+}
+.sb-photo-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.sb-link-danger {
+  min-height: 34px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--error);
+  cursor: pointer;
+}
+.sb-link-danger:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ------------------------------------------------------------------ profile */
+
+/* The store card — owner-web's own header (live status, public link, booking QR), kept from before
+   the port and drawn as an app card. The app shows none of this on its profile screen; it lives in
+   the app's Settings rows instead. */
+.sb-store {
+  padding: 14px 16px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 14px);
+}
+.sb-store-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sb-store-id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+.sb-store-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.sb-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.sb-badge.is-on {
+  background: var(--success-soft);
+  color: var(--success-soft-fg, var(--success));
+}
+.sb-badge.is-off {
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+}
+.sb-store-meta {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.sb-store-visit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  /* A 34px target on a phone without adding visible height: the negative margin eats the pad. */
+  min-height: 34px;
+  margin: 1px 0 -7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-link, var(--primary));
+}
+.sb-store-visit:hover {
+  text-decoration: underline;
+}
+/* The QR trigger: IconButton "soft" (the app's back-button family), 40px. */
+.sb-store-qr {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-sunken);
+  color: var(--text-strong);
+  cursor: pointer;
+}
+.sb-store-qr:hover {
+  background: var(--surface-hover);
+}
+.sb-store-qr:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.sb-profile {
+  display: flex;
+  flex-direction: column;
+}
+.sb-profile-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 22px;
+  min-width: 0;
+}
+.sb-profile-main {
+  min-width: 0;
+}
+
+/* Image slot (the app's ImagePickerRow): label, hint, a full-width preview, then the buttons. */
+.sb-image {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.sb-image:not(:last-child) {
+  padding-bottom: 14px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.sb-image-label {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-strong);
+}
+.sb-image-preview {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 148px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-sunken);
+  overflow: hidden;
+  cursor: zoom-in;
+}
+.sb-image-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* A logo is cropped square; `cover` in a 148px banner would slice off most of it. */
+.sb-image-preview.is-contain img {
+  object-fit: contain;
+}
+.sb-image-preview:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.sb-image-busy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--surface-card) 70%, transparent);
+  color: var(--primary);
+}
+.sb-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Gallery (app: a thumb beside its buttons, one row per photo). */
+.sb-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sb-gallery-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+  min-width: 0;
+}
+.sb-gallery-thumb {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-sunken);
+  overflow: hidden;
+  cursor: zoom-in;
+}
+.sb-gallery-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sb-gallery-thumb:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* Phone: the app's column of buttons beside the thumb, and only its two (Move up, Remove). */
+.sb-gallery-actions {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.sb-gallery-down {
+  display: none;
+}
+
+/* Amenities: an input with a square × beside it. */
+.sb-listrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sb-listrow > .sb-field {
+  flex: 1;
+}
+.sb-iconbtn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.sb-iconbtn:hover {
+  background: var(--surface-hover);
+  color: var(--text-body);
+}
+.sb-iconbtn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.sb-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sb-block-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+/* FAQ / review entry: a sunken card inside the section card. */
+.sb-nested {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-sunken);
+}
+.sb-nested > .sb-btn {
+  align-self: flex-start;
+}
+.sb-self-start {
+  align-self: flex-start;
+}
+
+/*
+ * Save (profile, business form, appearance). The app ends its forms with a full-width primary
+ * button; a phone gets exactly that (the note is hidden there — see the phone block). From a tablet
+ * up the bar sticks above the fold — owner-web's own affordance on a form this long — and clears
+ * the fixed bottom nav (64, shell-sheets.css) plus the support strip (~31) that sit under it up to
+ * 1024px: the same 104px the shell reserves under `.main`.
+ */
+.sb-savebar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 8px;
+}
+.sb-savebar-note {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-align: center;
+}
+.sb-savebar-note.is-dirty {
+  color: var(--warning);
+}
+.sb-savebar-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ------------------------------------------------------------------ account fold (Profile) */
+
+/* The fold itself is the Settings hub's (AccountSettingsPanel, `.st-fold`); only what this page
+   puts inside it is styled here. */
+.sb-account .st-fold-body > .sb-card {
+  margin-top: 16px;
+}
+/* ChangePasswordForm (settings-a's) still draws the global `.section` card when it is mounted
+   here rather than on its own page; give it the app's card padding and section-title type. */
+.sb-account .st-fold-body > .section {
+  padding: 16px;
+  border-radius: var(--radius-lg, 14px);
+}
+.sb-account .st-fold-body > .section > h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+/* ------------------------------------------------------------------ appearance */
+
+.sb-ap-intro {
+  margin: 0 0 16px 2px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.sb-ap-unsaved {
+  margin: 0 0 12px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--warning);
+}
+.sb-ap-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sb-ap-swatch {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid rgb(15 23 42 / 0.14);
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.sb-ap-swatch.is-selected {
+  border: 2px solid var(--text-strong);
+  box-shadow: inset 0 0 0 2px var(--surface-card);
+}
+.sb-ap-swatch:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* The browser's own colour picker, drawn as one more swatch at the head of the hex field.
+   Two classes so it beats the `.sb-input input` reset that makes the text input fill the box. */
+.sb-input .sb-ap-native {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  margin-left: -4px;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm, 6px);
+  background: none;
+  cursor: pointer;
+}
+.sb-input .sb-ap-native::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.sb-input .sb-ap-native::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-sm, 6px) - 1px);
+}
+.sb-input .sb-ap-native::-moz-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-sm, 6px) - 1px);
+}
+.sb-ap-ramp {
+  display: flex;
+  height: 22px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+}
+.sb-ap-ramp > span {
+  flex: 1;
+}
+.sb-ap-caption {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.sb-ap-caption svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.sb-ap-caption.is-warn {
+  color: var(--warning);
+}
+.sb-ap-caption.is-ok svg {
+  color: var(--success);
+}
+
+/* Chips (the app's ChipRow): a radiogroup of pills, the chosen one in the brand's soft tint. */
+.sb-ap-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sb-ap-chip {
+  min-height: 34px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-sunken);
+  color: var(--text-body);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.sb-ap-chip:hover:not(.is-selected) {
+  border-color: var(--border-default);
+}
+.sb-ap-chip.is-selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.sb-ap-chip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Preset cards: the app's 2-up grid, plus owner-web's live thumbnail on top of each. */
+.sb-ap-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.sb-ap-preset {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-sunken);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sb-ap-preset:hover:not(.is-selected) {
+  border-color: var(--border-default);
+}
+.sb-ap-preset.is-selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.sb-ap-preset:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.sb-ap-preset-badge {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--success);
+}
+.sb-ap-preset-label {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+}
+.sb-ap-preset-desc {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.sb-ap-thumb {
+  display: flex;
+  flex-direction: column;
+  height: 84px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  border-style: solid;
+}
+.sb-ap-thumb-hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  height: 44%;
+  padding: 0 10px;
+}
+.sb-ap-thumb-bar {
+  display: block;
+}
+.sb-ap-thumb-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+}
+.sb-ap-thumb-btn {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  font-size: 10px;
+  line-height: 1.2;
+}
+.sb-ap-thumb-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px;
+}
+
+.sb-ap-btnpreview {
+  display: flex;
+  margin-top: 12px;
+}
+.sb-ap-btnpreview > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: var(--radius-md, 10px);
+  font-size: 13px;
+  font-weight: 600;
+}
+.sb-ap-effective {
+  margin: 0 0 16px;
+  padding: 12px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-sunken);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* Live preview (app MicrositePreview), plus owner-web's device switch. */
+.sb-ap-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  min-width: 0;
+}
+.sb-ap-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sb-ap-preview-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+.sb-ap-textbtn {
+  min-height: 34px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+.sb-ap-textbtn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.sb-ap-textbtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.sb-ap-frame {
+  position: relative;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 14px);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+.sb-ap-frame iframe {
+  display: block;
+  border: 0;
+  background: var(--surface-card);
+}
+.sb-ap-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.sb-ap-fallback p {
+  margin: 0;
+}
+.sb-ap-fallback code {
+  max-width: 100%;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ loading skeletons */
+
+.sb-skel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+/* ------------------------------------------------------------------ tablet and up (>=641px) */
+
+@media (min-width: 641px) {
+  /* The forms stay in the app's centred tablet column; the page itself is `wide` so the lists
+     and the desktop side columns have room. */
+  .sb-profile,
+  .sb-ap {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  /* Services / Staff: each row becomes the app's ServiceCard — its own bordered card — two up. */
+  .sb-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+  .sb-list-item + .sb-list-item {
+    border-top: 0;
+  }
+  .sb-item {
+    height: 100%;
+    gap: 16px;
+    padding: 16px;
+    background: var(--surface-card);
+    border: 1.5px solid var(--border-subtle);
+    border-radius: var(--radius-lg, 14px);
+    box-shadow: var(--shadow-xs);
+  }
+  .sb-item:hover {
+    background: var(--surface-card);
+    border-color: var(--border-default);
+  }
+  .sb-item:focus-visible {
+    outline-offset: 2px;
+  }
+  /* The add button sizes to its label under a grid rather than spanning the page. */
+  .sb-add {
+    width: auto;
+    min-width: 220px;
+  }
+
+  .sb-gallery {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 16px;
+  }
+  .sb-gallery-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .sb-gallery-down {
+    display: inline-flex;
+  }
+
+  /* Sticky save bar from a tablet up (see the base rule for why). */
+  .sb-savebar {
+    position: sticky;
+    /* 94px used to be right for a 56px nav; the nav is 64px now, and 94 slid the bar 1px under
+       the strip. 104 leaves the same gap the page itself keeps above strip + nav. */
+    bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+    z-index: 20;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 18px 0 8px;
+    padding: 12px 14px;
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg, 14px);
+    box-shadow: 0 -4px 16px rgb(15 23 42 / 0.06);
+  }
+  .sb-savebar-note {
+    text-align: left;
+  }
+  .sb-savebar-btns {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-left: auto;
+  }
+  .sb-savebar .sb-btn {
+    width: auto;
+  }
+  .sb-savebar .sb-btn--lg {
+    height: var(--control-h-md, 44px);
+    padding: 0 20px;
+    font-size: 15px;
+    min-width: 170px;
+  }
+
+  .sb-ap-presets {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ------------------------------------------------------------------ desktop (>=1025px) */
+
+@media (min-width: 1025px) {
+  /* Nothing sits under the page any more — the nav is a sidebar. */
+  .sb-savebar {
+    bottom: 12px;
+  }
+
+  /* The sheet becomes a centred dialog, as the walk-in sheet does beside the sidebar. */
+  .sb-sheet-root {
+    justify-content: center;
+    padding: 24px;
+  }
+  .sb-sheet {
+    max-width: 520px;
+    max-height: min(88vh, 800px);
+    padding: 20px 22px 22px;
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgb(15 23 42 / 0.22);
+  }
+  .sb-sheet-handle {
+    display: none;
+  }
+  .sb-sheet-close {
+    display: inline-flex;
+  }
+
+  .sb-list {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+}
+
+/* A monitor wide enough for the profile form (~620px) AND a side column: the store card moves
+   beside the profile form, and Appearance's live preview beside its controls, each staying in
+   view while the form scrolls. */
+@media (min-width: 1280px) {
+  /* Only the owner's page has a store card to put beside the form. The staff / account-only
+     branch has no aside, and a two-column grid there left an empty 320px column on the right
+     with the form pushed left — it keeps the centred 720px column instead. */
+  .sb-profile--aside {
+    max-width: 1120px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 24px;
+    align-items: start;
+  }
+  .sb-profile-aside {
+    order: 2;
+    position: sticky;
+    top: 24px;
+    /* Level with the first card, not with the "Basics" title above it. */
+    margin: 25.5px 0 0;
+  }
+  .sb-profile-main {
+    order: 1;
+  }
+
+  /* Appearance: controls on the left, the live site beside them, pinned while you tweak. */
+  .sb-ap {
+    max-width: 1320px;
+  }
+  .sb-ap-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    gap: 28px;
+    align-items: start;
+  }
+  .sb-ap-preview-col {
+    position: sticky;
+    top: 24px;
+  }
+  .sb-ap-presets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ------------------------------------------------------------------ phone (<=640px) */
+
+@media (max-width: 640px) {
+  /* A phone ends the form with the app's bare full-width button(s). The saved/unsaved note is
+     the sticky bar's, from a tablet up; the app shows none on Profile, and on Appearance says
+     "Unsaved changes" once, at the top. */
+  .sb-savebar-note {
+    display: none;
+  }
+  /* The native colour picker inside the hex field is owner-web's extra; on a phone it still
+     needs a 34px target. The 44px box has room for it. */
+  .sb-input .sb-ap-native {
+    width: 34px;
+    height: 34px;
+  }
+  /* 16px stops iOS Safari zooming the page on focus (the app's 15px would trigger it). */
+  .sb-input input,
+  .sb-input select,
+  .sb-input textarea {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-sheet,
+  .sb-sheet-backdrop {
+    animation: none;
+  }
+  .sb-btn {
+    transition: none;
+  }
+}

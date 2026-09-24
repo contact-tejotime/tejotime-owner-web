@@ -114,6 +114,7 @@ interface BusinessInfo {
   facebookUrl?: string;
   twitterUrl?: string;
   linkedinUrl?: string;
+  yelpUrl?: string;
   payments?: string[];
   amenities?: string[];
   faqs?: { q: string; a: string }[];

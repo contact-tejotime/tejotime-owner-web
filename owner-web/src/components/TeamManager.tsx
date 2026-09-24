@@ -2,11 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { t, format } from "@/i18n";
-import { useMemo, useState, useTransition } from "react";
+import { useId, useMemo, useState, useTransition } from "react";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { Icon } from "@/components/Icon";
 import PhoneField from "@/components/PhoneField";
+import { Spinner } from "@/components/Skeleton";
 import {
   ACCESS_LABELS,
   CREATABLE_ROLES,
@@ -26,16 +26,20 @@ import {
 } from "@/lib/phone";
 import type { StaffRow, TeamUser } from "@/lib/server-api";
 import { showToast } from "@/lib/toast";
-import { Spinner } from "@/components/Skeleton";
+import "@/styles/settings-a.css";
 
 /**
- * Team logins: who can sign in to this business, and what each of them sees.
+ * Team logins: who can sign in to this business, and what each of them sees. The web twin of the
+ * app's `settings/team.tsx` — same cards, same order, same chips, same wording.
  *
  * Three rules this screen exists to make obvious, all of which the backend enforces
  * independently:
  *   - the owner account cannot be edited or removed from here (it is the admin panel's),
  *   - a co-owner has the same access as the owner, so there is nothing to configure for one,
  *   - a staff login sees only the modules ticked here, and inside them only its own chair.
+ *
+ * Feedback is by toast, as on the app. It used to be an alert pinned above the list, which on a
+ * long team was off-screen from the button that caused it.
  */
 
 type Draft = {
@@ -59,6 +63,11 @@ const EMPTY_DRAFT: Draft = {
   staffId: "",
   permissions: {},
 };
+
+/** Staff first, as on the app: it is the login an owner adds far more often. */
+const ROLE_CHOICES = (["staff", "co_owner"] as const).map(
+  (value) => CREATABLE_ROLES.find((r) => r.value === value)!,
+);
 
 function errorFrom(json: unknown, fallback: string) {
   const message = (json as { error?: { message?: string } })?.error?.message;
@@ -93,6 +102,7 @@ export function TeamManager({
   currentUserId: string;
 }) {
   const router = useRouter();
+  const idBase = useId();
   // `router.refresh()` is async and used to be fired and forgotten, so the button stopped
   // spinning while the server was still re-rendering — the screen showed stale values and the
   // save looked like it had failed. The transition keeps `isPending` true until the fresh data
@@ -104,8 +114,6 @@ export function TeamManager({
   const [permDraft, setPermDraft] = useState<Partial<Record<Module, Access>>>({});
   const [inFlight, setInFlight] = useState(false);
   const busy = inFlight || isPending;
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   /** Which custom dialog is open, if any. Replaces window.confirm / window.prompt. */
   const [dialog, setDialog] = useState<{ kind: "deactivate" | "password"; user: TeamUser } | null>(
     null,
@@ -121,8 +129,6 @@ export function TeamManager({
 
   async function send(url: string, method: string, body?: unknown, fallback = t.team.genericError) {
     setInFlight(true);
-    setError("");
-    setNotice("");
     try {
       const res = await fetch(url, {
         method,
@@ -131,13 +137,13 @@ export function TeamManager({
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(errorFrom(json, fallback));
+        showToast(errorFrom(json, fallback), "error");
         return false;
       }
       startTransition(() => router.refresh());
       return true;
     } catch {
-      setError(t.team.networkError);
+      showToast(t.team.networkError, "error");
       return false;
     } finally {
       setInFlight(false);
@@ -146,13 +152,11 @@ export function TeamManager({
 
   function startAdd(role: "co_owner" | "staff") {
     if (role === "staff" && freeSeats.length === 0) {
-      setError(t.team.noFreeSeats);
+      showToast(t.team.allSeatsLinked, "error");
       return;
     }
     setEditing(null);
     setAdding(true);
-    setError("");
-    setNotice("");
     // Pre-fill a staff draft with the role's own defaults, so the owner is adjusting a
     // sensible starting point rather than ticking eleven boxes from nothing.
     // Staff must pick a chair — default to the first free one so the form is valid.
@@ -164,14 +168,27 @@ export function TeamManager({
     });
   }
 
-  async function onCreate() {
-    if (!draft.name.trim()) return setError(t.team.errName);
-    if (!isValidNational(draft.national, draft.iso2)) {
-      return setError(t.team.errPhone);
+  function pickRole(role: "co_owner" | "staff") {
+    if (role === "staff" && freeSeats.length === 0) {
+      showToast(t.team.allSeatsLinked, "error");
+      return;
     }
-    if (draft.password.length < 8) return setError(t.team.errPassword);
+    setDraft((d) => ({
+      ...d,
+      role,
+      staffId: role === "staff" ? d.staffId || freeSeats[0]?.id || "" : "",
+      permissions: role === "staff" ? { ...staffDefaults } : {},
+    }));
+  }
+
+  async function onCreate() {
+    if (!draft.name.trim()) return showToast(t.team.errName, "error");
+    if (!isValidNational(draft.national, draft.iso2)) {
+      return showToast(t.team.errPhone, "error");
+    }
+    if (draft.password.length < 8) return showToast(t.team.errPassword, "error");
     if (draft.role === "staff" && !draft.staffId) {
-      return setError(t.team.errSeat);
+      return showToast(t.team.errSeat, "error");
     }
 
     const ok = await send(
@@ -190,15 +207,13 @@ export function TeamManager({
     if (ok) {
       setAdding(false);
       setDraft(EMPTY_DRAFT);
-      setNotice(t.team.okCreate);
+      showToast(t.team.okCreate, "success");
     }
   }
 
   function startEditPermissions(user: TeamUser) {
     setAdding(false);
     setEditing(user.id);
-    setError("");
-    setNotice("");
     setPermDraft({ ...user.permissions });
   }
 
@@ -211,7 +226,7 @@ export function TeamManager({
     );
     if (ok) {
       setEditing(null);
-      setNotice(t.team.okPermissions);
+      showToast(t.team.okPermissions, "success");
     }
   }
 
@@ -231,22 +246,12 @@ export function TeamManager({
    * This exists because without it the team screen could create a stranded account and offer no
    * way back: an unlinked staff login matches no queue entries and no appointments, so every
    * screen it can open is permanently empty, and the only person who can fix that is the owner
-   * looking at this list.
+   * looking at this list. Chips offer only real chairs, so there is no "unlink" to guard against.
    */
   async function onChangeSeat(user: TeamUser, staffId: string) {
-    if (!staffId) {
-      setError(t.team.errSeatRequired);
-      return;
-    }
-    const ok = await send(
-      `/api/users/${user.id}`,
-      "PATCH",
-      { staffId },
-      t.team.errChangeSeat,
-    );
-    if (ok) {
-      setNotice(t.team.okChangeSeat);
-    }
+    if (staffId === user.staffId) return;
+    const ok = await send(`/api/users/${user.id}`, "PATCH", { staffId }, t.team.errChangeSeat);
+    if (ok) showToast(t.team.okChangeSeat, "success");
   }
 
   function onResetPassword(user: TeamUser) {
@@ -282,128 +287,78 @@ export function TeamManager({
   }
 
   return (
-    <div className="team-manager">
-      {error ? (
-        <div className="alert err" role="alert">
-          {error}
-        </div>
-      ) : null}
-      {notice ? (
-        <div className="alert ok" role="status">
-          {notice}
-        </div>
-      ) : null}
-
-      <div className="team-list">
+    <div className="sa-team">
+      <div className="sa-team-grid">
         {users.map((user) => {
           const isSelf = user.id === currentUserId;
           const locked = user.isSuperOwner || isSelf;
+          const chairLabelId = `${idBase}-chair-${user.id}`;
+          // Their own chair stays offered; every other taken or retired chair does not.
+          const seatChoices = staff.filter(
+            (s) => s.id === user.staffId || (s.isActive && !linkedSeatIds.has(s.id)),
+          );
+          const meta = [ROLE_LABELS[user.role], user.staffName, formatPhone(user.phone)]
+            .filter(Boolean)
+            .join(t.team.metaSeparator);
+
           return (
-            <article key={user.id} className={`team-card ${user.isActive ? "" : "inactive"}`}>
-              <div className="team-card-top">
-                <div>
-                  <div className="nm">
-                    {user.name ?? "—"}
-                    {user.isSuperOwner ? <span className="pill-badge">{t.team.badgeOwnerAccount}</span> : null}
-                    {isSelf && !user.isSuperOwner ? <span className="pill-badge">{t.team.badgeYou}</span> : null}
-                    {!user.isActive ? <span className="pill-badge muted">{t.team.badgeTurnedOff}</span> : null}
-                    {user.role === "staff" && user.isActive && !user.staffId ? (
-                      <span className="pill-badge warn">{t.team.badgeNoChair}</span>
-                    ) : null}
-                  </div>
-                  <div className="meta">
-                    {ROLE_LABELS[user.role]}
-                    {user.staffName ? ` ${format(t.team.metaChair, { name: user.staffName })}` : ""}
-                    {user.phone ? ` ${format(t.team.metaPhone, { phone: formatPhone(user.phone) })}` : ""}
-                  </div>
+            <article key={user.id} className={`sa-member${user.isActive ? "" : " is-inactive"}`}>
+              <div>
+                <div className="sa-member-name">
+                  <span className="sa-member-nm">{user.name ?? t.common.dash}</span>
+                  {user.isSuperOwner ? <span className="sa-badge">{t.team.badgeOwnerAccount}</span> : null}
+                  {isSelf && !user.isSuperOwner ? <span className="sa-badge">{t.team.badgeYou}</span> : null}
+                  {!user.isActive ? (
+                    <span className="sa-badge sa-badge--muted">{t.team.badgeTurnedOff}</span>
+                  ) : null}
+                  {user.role === "staff" && user.isActive && !user.staffId ? (
+                    <span className="sa-badge sa-badge--warn">{t.team.badgeNoChair}</span>
+                  ) : null}
                 </div>
-                {!locked ? (
-                  <div className="team-card-actions">
-                    {user.role === "staff" ? (
-                      <button
-                        type="button"
-                        className="btn small secondary"
-                        onClick={() => startEditPermissions(user)}
-                        disabled={busy}
-                      >
-                        {t.team.permissions}
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="btn small secondary"
-                      onClick={() => onResetPassword(user)}
-                      disabled={busy}
-                    >
-                      {t.team.resetPassword}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn small secondary"
-                      onClick={() => onToggleActive(user)}
-                      disabled={busy}
-                    >
-                      {user.isActive ? t.team.turnOff : t.team.turnOn}
-                    </button>
-                  </div>
-                ) : null}
+                <p className="sa-member-meta">{meta}</p>
               </div>
 
               {user.role === "staff" && !locked ? (
-                <div className={`seat-link ${user.staffId ? "" : "warn"}`}>
-                  <label htmlFor={`seat-${user.id}`}>{t.team.chair}</label>
-                  <select
-                    id={`seat-${user.id}`}
-                    value={user.staffId ?? ""}
-                    onChange={(e) => onChangeSeat(user, e.target.value)}
-                    disabled={busy}
-                    required
-                  >
-                    {!user.staffId ? (
-                      <option value="" disabled>
-                        {t.team.pickChair}
-                      </option>
-                    ) : null}
-                    {/* Their own chair stays in the list; every other taken chair does not. */}
-                    {staff
-                      .filter((s) => s.id === user.staffId || (s.isActive && !linkedSeatIds.has(s.id)))
-                      .map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                  </select>
-                  {!user.staffId ? (
-                    <span className="seat-link-warn">
-                      {t.team.pickChairWarn}
-                    </span>
-                  ) : null}
+                <div className="sa-member-block">
+                  <span id={chairLabelId} className="sa-mini-label">
+                    {t.team.chair}
+                  </span>
+                  <div className="sa-chip-row" role="group" aria-labelledby={chairLabelId}>
+                    {seatChoices.map((seat) => (
+                      <button
+                        key={seat.id}
+                        type="button"
+                        className={`sa-chip${user.staffId === seat.id ? " is-active" : ""}`}
+                        aria-pressed={user.staffId === seat.id}
+                        disabled={busy}
+                        title={seat.name}
+                        onClick={() => onChangeSeat(user, seat.id)}
+                      >
+                        <span className="sa-chip-text">{seat.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {!user.staffId ? <p className="sa-warn-text">{t.team.pickChairWarn}</p> : null}
                 </div>
               ) : null}
 
               {user.role === "staff" ? (
                 editing === user.id ? (
-                  <div className="perm-editor">
-                    <PermissionGrid value={permDraft} onChange={setPermDraft} />
-                    <div className="perm-editor-actions">
+                  <div className="sa-member-block">
+                    <PermissionGrid value={permDraft} onChange={setPermDraft} disabled={busy} />
+                    <div className="sa-actions">
                       <button
                         type="button"
-                        className="btn small"
+                        className="sa-btn sa-btn--primary"
                         onClick={() => onSavePermissions(user.id)}
                         disabled={busy}
                       >
-                        {busy ? (
-                          <>
-                            <Spinner size={13} />
-                            {t.team.saving}
-                          </>
-                        ) : (
-                          t.team.savePermissions
-                        )}
+                        {busy ? <Spinner size={13} /> : null}
+                        {t.team.savePermissions}
                       </button>
                       <button
                         type="button"
-                        className="btn small secondary"
+                        className="sa-btn sa-btn--secondary"
                         onClick={() => setEditing(null)}
                         disabled={busy}
                       >
@@ -412,184 +367,195 @@ export function TeamManager({
                     </div>
                   </div>
                 ) : (
-                  <p className="team-card-summary">{summarise(user.permissions)}</p>
+                  <p className="sa-member-summary">{summarise(user.permissions)}</p>
                 )
               ) : (
-                <p className="team-card-summary">
-                  {user.isSuperOwner
-                    ? t.team.superOwnerSummary
-                    : t.team.coOwnerSummary}
+                <p className="sa-member-summary">
+                  {user.isSuperOwner ? t.team.superOwnerSummary : t.team.coOwnerSummary}
                 </p>
               )}
+
+              {/* Under the card's content, as on the app — the actions act on everything above. */}
+              {!locked ? (
+                <div className="sa-actions">
+                  {user.role === "staff" && editing !== user.id ? (
+                    <button
+                      type="button"
+                      className="sa-btn sa-btn--secondary"
+                      onClick={() => startEditPermissions(user)}
+                      disabled={busy}
+                    >
+                      {t.team.permissions}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="sa-btn sa-btn--secondary"
+                    onClick={() => onResetPassword(user)}
+                    disabled={busy}
+                  >
+                    {t.team.resetPassword}
+                  </button>
+                  <button
+                    type="button"
+                    className="sa-btn sa-btn--secondary"
+                    onClick={() => onToggleActive(user)}
+                    disabled={busy}
+                  >
+                    {user.isActive ? t.team.turnOff : t.team.turnOn}
+                  </button>
+                </div>
+              ) : null}
             </article>
           );
         })}
       </div>
 
       {adding ? (
-        <div className="team-add">
-          <h2>{t.team.addTitle}</h2>
+        <section className="sa-add" aria-labelledby={`${idBase}-add`}>
+          <h2 id={`${idBase}-add`} className="sa-add-title">
+            {t.team.addTitle}
+          </h2>
 
-          <div className="role-choice">
-            {CREATABLE_ROLES.map((r) => (
+          <div className="sa-roles">
+            {ROLE_CHOICES.map((r) => (
               <button
                 key={r.value}
                 type="button"
-                className={`role-choice-btn ${draft.role === r.value ? "active" : ""}`}
-                onClick={() => {
-                  if (r.value === "staff" && freeSeats.length === 0) {
-                    setError(t.team.noFreeSeatsShort);
-                    return;
-                  }
-                  setDraft((d) => ({
-                    ...d,
-                    role: r.value,
-                    staffId:
-                      r.value === "staff" ? d.staffId || freeSeats[0]?.id || "" : "",
-                    permissions: r.value === "staff" ? { ...staffDefaults } : {},
-                  }));
-                }}
+                className={`sa-role${draft.role === r.value ? " is-active" : ""}`}
+                aria-pressed={draft.role === r.value}
+                onClick={() => pickRole(r.value)}
               >
-                <span className="nm">{r.label}</span>
-                <span className="sub">{r.blurb}</span>
+                <span className="sa-role-nm">{r.label}</span>
+                <span className="sa-role-sub">{r.blurb}</span>
               </button>
             ))}
           </div>
 
-          <div className="field">
-            <label htmlFor="team-name">{t.team.nameLabel}</label>
-            <input
-              id="team-name"
-              value={draft.name}
-              onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-            />
-          </div>
+          <div className="sa-add-fields">
+            <div className="sa-field">
+              <label htmlFor="team-name">{t.team.nameLabel}</label>
+              <input
+                id="team-name"
+                value={draft.name}
+                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+              />
+            </div>
 
-          <PhoneField
-            id="team-phone"
-            label={t.team.phoneLabel}
-            placeholder={t.team.phonePlaceholder}
-            value={{
-              dialCode: draft.dialCode,
-              national: draft.national,
-              iso2: draft.iso2,
-            }}
-            onChange={(v) =>
-              setDraft((d) => ({
-                ...d,
-                dialCode: v.dialCode,
-                national: v.national,
-                iso2: v.iso2,
-              }))
-            }
-            hint={<p className="field-hint">{t.team.phoneHint}</p>}
-          />
-
-          <div className="field">
-            <label htmlFor="team-password">{t.team.passwordLabel}</label>
-            <input
-              id="team-password"
-              type="text"
-              value={draft.password}
-              onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))}
+            <PhoneField
+              id="team-phone"
+              label={t.team.phoneLabel}
+              placeholder={t.team.phonePlaceholder}
+              value={{
+                dialCode: draft.dialCode,
+                national: draft.national,
+                iso2: draft.iso2,
+              }}
+              onChange={(v) =>
+                setDraft((d) => ({
+                  ...d,
+                  dialCode: v.dialCode,
+                  national: v.national,
+                  iso2: v.iso2,
+                }))
+              }
+              hint={<p className="field-hint">{t.team.phoneHint}</p>}
             />
-            <p className="field-hint">{t.team.passwordHint}</p>
+
+            <div className="sa-field">
+              <label htmlFor="team-password">{t.team.passwordLabel}</label>
+              <input
+                id="team-password"
+                type="text"
+                value={draft.password}
+                onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))}
+              />
+              <p className="sa-hint">{t.team.passwordHint}</p>
+            </div>
           </div>
 
           {draft.role === "staff" ? (
             <>
-              <div className="field">
-                <label htmlFor="team-seat">{t.team.seatLabel}</label>
-                <select
-                  id="team-seat"
-                  value={draft.staffId}
-                  onChange={(e) => setDraft((d) => ({ ...d, staffId: e.target.value }))}
-                  required
-                >
-                  {freeSeats.length === 0 ? (
-                    <option value="">{t.team.noFreeChairsOption}</option>
-                  ) : (
-                    freeSeats.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))
-                  )}
-                </select>
-                <p className="field-hint">
-                  {t.team.seatHint}
-                </p>
+              <div className="sa-group">
+                <span id={`${idBase}-seat`} className="sa-mini-label">
+                  {t.team.seatLabel}
+                </span>
+                <div className="sa-chip-row" role="group" aria-labelledby={`${idBase}-seat`}>
+                  {freeSeats.map((seat) => (
+                    <button
+                      key={seat.id}
+                      type="button"
+                      className={`sa-chip${draft.staffId === seat.id ? " is-active" : ""}`}
+                      aria-pressed={draft.staffId === seat.id}
+                      disabled={busy}
+                      title={seat.name}
+                      onClick={() => setDraft((d) => ({ ...d, staffId: seat.id }))}
+                    >
+                      <span className="sa-chip-text">{seat.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="sa-hint">{t.team.seatHint}</p>
               </div>
 
-              <div className="field">
-                <label>{t.team.permissionsLabel}</label>
+              <div className="sa-group">
+                <span className="sa-mini-label">{t.team.permissionsLabel}</span>
                 <PermissionGrid
                   value={draft.permissions}
                   onChange={(permissions) => setDraft((d) => ({ ...d, permissions }))}
+                  disabled={busy}
                 />
               </div>
             </>
           ) : (
-            <p className="field-hint">
-              {t.team.coOwnerHint}
-            </p>
+            <p className="sa-hint">{t.team.coOwnerHint}</p>
           )}
 
-          <div className="perm-editor-actions">
-            <button type="button" className="btn" onClick={onCreate} disabled={busy}>
-              {busy ? (
-                <>
-                  <Spinner size={14} />
-                  {t.team.creating}
-                </>
-              ) : (
-                t.team.createLogin
-              )}
+          <div className="sa-actions">
+            <button type="button" className="sa-btn sa-btn--primary" onClick={onCreate} disabled={busy}>
+              {busy ? <Spinner size={13} /> : null}
+              {t.team.createLogin}
             </button>
             <button
               type="button"
-              className="btn secondary"
+              className="sa-btn sa-btn--secondary"
               onClick={() => {
                 setAdding(false);
-                setError("");
+                setDraft(EMPTY_DRAFT);
               }}
               disabled={busy}
             >
               {t.team.cancel}
             </button>
           </div>
-        </div>
+        </section>
       ) : (
-        <div className="team-add-actions">
-          <button
-            type="button"
-            className="btn"
-            onClick={() => startAdd("staff")}
-            disabled={busy || freeSeats.length === 0}
-            title={
-              freeSeats.length === 0
-                ? t.team.noFreeSeatsTitle
-                : undefined
-            }
-          >
-            <Icon name="user" size={16} color="#fff" />
-            {t.team.addStaffLogin}
-          </button>
-          <button
-            type="button"
-            className="btn secondary"
-            onClick={() => startAdd("co_owner")}
-            disabled={busy}
-          >
-            {t.team.addCoOwner}
-          </button>
-          {freeSeats.length === 0 ? (
-            <p className="field-hint" style={{ width: "100%", margin: 0 }}>
-              {t.team.allSeatsLinked}
-            </p>
-          ) : null}
-        </div>
+        <>
+          <div className="sa-add-cta">
+            <button
+              type="button"
+              className="sa-btn sa-btn--md sa-btn--primary"
+              onClick={() => startAdd("staff")}
+              disabled={busy || freeSeats.length === 0}
+              title={freeSeats.length === 0 ? t.team.noFreeSeatsTitle : undefined}
+            >
+              {t.team.addStaffLogin}
+            </button>
+            {/* Outline, not the filled secondary: adding a co-owner hands over everything the
+                owner has, so it should not be the louder of the two (the app made the same call). */}
+            <button
+              type="button"
+              className="sa-btn sa-btn--md sa-btn--outline"
+              onClick={() => startAdd("co_owner")}
+              disabled={busy}
+            >
+              {t.team.addCoOwner}
+            </button>
+          </div>
+          {freeSeats.length === 0 ? <p className="sa-caption">{t.team.allSeatsLinked}</p> : null}
+        </>
       )}
+
       <ConfirmDialog
         key={dialog ? `${dialog.kind}:${dialog.user.id}` : "none"}
         open={!!dialog}
@@ -614,7 +580,13 @@ export function TeamManager({
   );
 }
 
-/** A one-line "what they can see" for the collapsed card. */
+/**
+ * A one-line "what they can see" for the collapsed card.
+ *
+ * Billing is counted here, unlike the app. The app never mentions billing (App Review rejected a
+ * subscription reference with no In-App Purchase behind it); the web sells the plan, so an owner
+ * granting it should see it.
+ */
 function summarise(access: ModuleAccess): string {
   const visible = GRANTABLE_MODULES.filter((m) => access[m] && access[m] !== "none");
   if (visible.length === 0) return t.team.noAccessYet;
@@ -624,30 +596,38 @@ function summarise(access: ModuleAccess): string {
 function PermissionGrid({
   value,
   onChange,
+  disabled,
 }: {
   value: Partial<Record<Module, Access>>;
   onChange: (next: Partial<Record<Module, Access>>) => void;
+  disabled?: boolean;
 }) {
   return (
-    <div className="perm-grid">
-      {GRANTABLE_MODULES.map((mod) => (
-        <div key={mod} className="perm-row">
-          <span className="perm-row-label">{MODULE_LABELS[mod]}</span>
-          <div className="perm-row-options">
-            {(["none", "view", "manage"] as Access[]).map((level) => (
-              <button
-                key={level}
-                type="button"
-                className={`perm-chip ${(value[mod] ?? "none") === level ? "active" : ""}`}
-                aria-pressed={(value[mod] ?? "none") === level}
-                onClick={() => onChange({ ...value, [mod]: level })}
-              >
-                {ACCESS_LABELS[level]}
-              </button>
-            ))}
+    <div className="sa-perm">
+      <div className="sa-perm-list">
+        {GRANTABLE_MODULES.map((mod) => (
+          <div key={mod} className="sa-perm-row" role="group" aria-label={MODULE_LABELS[mod]}>
+            <span className="sa-perm-label">{MODULE_LABELS[mod]}</span>
+            <div className="sa-perm-options">
+              {(["none", "view", "manage"] as Access[]).map((level) => {
+                const active = (value[mod] ?? "none") === level;
+                return (
+                  <button
+                    key={level}
+                    type="button"
+                    className={`sa-chip${active ? " is-active" : ""}`}
+                    aria-pressed={active}
+                    disabled={disabled}
+                    onClick={() => onChange({ ...value, [mod]: level })}
+                  >
+                    {ACCESS_LABELS[level]}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

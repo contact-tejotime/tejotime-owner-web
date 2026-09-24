@@ -33,6 +33,7 @@ function businessDTO(b: any, hours: any[], amenities: any[], gallery: any[], pla
     facebookUrl: b.facebook_url ?? '',
     twitterUrl: b.twitter_url ?? '',
     linkedinUrl: b.linkedin_url ?? '',
+    yelpUrl: b.yelp_url ?? '',
     faqs: Array.isArray(b.faqs) ? b.faqs : [],
     reviews: Array.isArray(b.reviews) ? b.reviews : [],
     timezone: b.timezone,
@@ -108,6 +109,7 @@ const OWNER_ONLY_COLUMNS: Record<string, string> = {
   facebookUrl: 'facebook_url',
   twitterUrl: 'twitter_url',
   linkedinUrl: 'linkedin_url',
+  yelpUrl: 'yelp_url',
 };
 
 /** Keys handled specially rather than by a straight column map. */

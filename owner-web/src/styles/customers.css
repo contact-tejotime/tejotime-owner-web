@@ -1,0 +1,426 @@
+/*
+ * Customers — the web twin of the app's Customers tab (app/src/app/(app)/(tabs)/customers.tsx,
+ * components/cards/CustomerCard.tsx, TSearchInput, TEmptyState).
+ *
+ * Every selector hangs off a `.cu-` class so nothing here can reach another screen. Sizes are the
+ * app's: its TText variants (bodyMd 15, bodySm 13, caption 12), its spacing scale (4/8/12/16) and
+ * the store theme's own radius / control-height / shadow tokens, which the app reads from the same
+ * theme engine. Colours are tokens only, so owner-web's dark mode (the account setting, applied
+ * by StoreThemeStyle as `data-tt-mode`) needs nothing extra here.
+ *
+ * Widths: one column on a phone (<=640px); from 641px the grid takes as many 300px+ columns as fit
+ * (the app's CUSTOMER_CARD_MIN_WIDTH is 320 — see the tablet block for why the web's is 300). That
+ * is two on a tablet inside `.page-app`'s 720px column, and two to four beside the sidebar. The
+ * free plan's upsell is the grid's last item and fills the row's empty tracks where it can.
+ */
+
+/* ---- Search: the app's TSearchInput (a standard md field with a leading icon, not a pill) ---- */
+.cu-search {
+  position: relative;
+  /* The app's search wrap has 8px under it before the list starts. */
+  margin-bottom: 8px;
+}
+.cu-search .cu-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.cu-search input {
+  height: var(--control-h-md, 44px);
+  min-height: 44px;
+  /* 12px inset + 18px icon + the app's 8px icon-to-text gap. */
+  padding: 0 12px 0 38px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-strong);
+  /* Safari draws `type="search"` as its own rounded widget and ignores the radius without this. */
+  -webkit-appearance: none;
+  appearance: none;
+}
+.cu-search input::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+.cu-search input::placeholder {
+  color: var(--text-subtle);
+}
+.cu-search input:focus {
+  border-color: var(--border-focus, var(--primary));
+}
+
+/* ---- List ---- */
+.cu-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding-bottom: 24px;
+  /* Queried by the upsell (its last item) to learn how many tracks the grid has — see the
+     tablet block. Inline-size only: the list is a block in normal flow, so its width never
+     depended on its content anyway. */
+  container: cu-list / inline-size;
+}
+
+/* ---- Card: the app's CustomerCard ---- */
+.cu-card {
+  /* A column so that, in a grid row, cards share one height and the metrics band sits on the
+     bottom edge of each — the bands line up across the row instead of floating at different
+     heights beside a "No visits yet" card. */
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 16px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+.cu-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  /* The app's 16px between the name row and the band. Kept here, not as the band's margin-top,
+     because the band's margin-top is `auto` (below) to bottom-align it in a stretched card. */
+  margin-bottom: 16px;
+}
+.cu-avatar {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg);
+  /* The app's InitialsAvatar: 40% of the disc, semibold. */
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cu-card-body {
+  flex: 1;
+  min-width: 0;
+}
+.cu-name {
+  font-size: 15px;
+  font-weight: 600;
+  /* Every TText variant here is `lineHeight.normal` (1.5) in the app; matching it keeps a card the
+     same height on both surfaces. */
+  line-height: 1.5;
+  color: var(--text-strong);
+  /* The app lets a long name wrap rather than cutting it; `anywhere` stops one unbroken word from
+     pushing the tag and call button out of a 320px card. */
+  overflow-wrap: anywhere;
+}
+.cu-phone {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The app's Badge (md): pill, 12px semibold, soft tone. */
+.cu-badge {
+  flex-shrink: 0;
+  /* The app's Badge carries `alignSelf: 'flex-start'`, so in this centred row it sits level with
+     the name line rather than the middle of the avatar. Matched so the tag lands in the same spot. */
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.cu-badge-vip {
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg);
+}
+.cu-badge-new {
+  background: var(--success-soft);
+  color: var(--success-soft-fg, var(--green-700));
+}
+
+/* The app's IconButton (soft, sm): a sunken square with the phone glyph in the brand colour. */
+.cu-call {
+  flex-shrink: 0;
+  /* Compact density takes the theme's sm control to 32px; a phone tap target stays >= 34px. */
+  width: max(34px, var(--control-h-sm, 36px));
+  height: max(34px, var(--control-h-sm, 36px));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--primary);
+  touch-action: manipulation;
+  transition: background var(--dur-fast, 120ms) var(--ease-standard, ease);
+}
+.cu-call:hover {
+  background: var(--primary-soft);
+}
+.cu-call:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* Three equal cells in a tinted band, hairline dividers between. */
+.cu-meta {
+  display: flex;
+  align-items: center;
+  margin-top: auto;
+  padding: 10px 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+}
+.cu-note {
+  margin: auto 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.cu-meta-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 4px;
+  text-align: center;
+}
+.cu-meta-value {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cu-meta-label {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cu-meta-divider {
+  flex-shrink: 0;
+  width: 1px;
+  height: 28px;
+  background: var(--border-subtle);
+}
+
+/* ---- Empty state: the app's TEmptyState (fill) ---- */
+.cu-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  /* The app's `fill` centres in the space left under the search bar, nudged up a little: dead
+     centre between a header and a tab bar reads as low. */
+  min-height: min(420px, 55vh);
+  padding: 32px 24px 56px;
+  text-align: center;
+}
+.cu-empty-disc {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 2px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cu-empty-title {
+  max-width: 300px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.cu-empty-hint {
+  max-width: 300px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-subtle);
+}
+
+/* ---- Upgrade prompt (web only — see page.tsx), in the card's vocabulary ---- */
+.cu-upsell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  /* Only matters when a grid row stretches the box taller than its content (desktop, beside the
+     cards): one line of content centres, as a banner should. */
+  align-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+.cu-upsell-disc {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* A full row of its own in the list (page.tsx renders it as the grid's last item), 24px under the
+   last card as before: it is a prompt, not another customer. The tablet block lets it share the
+   cards' row where there is a free track. */
+.cu-list > .cu-upsell {
+  grid-column: 1 / -1;
+  margin-top: 12px;
+}
+/* 999 : 1 against the button's grow, so on a shared line the text takes the spare room and the
+   button stays its own width, while a button wrapped onto a line of its own fills it. That is
+   the phone's full-width button and the wide banner's trailing one from one rule, decided by
+   the box's actual width rather than a viewport breakpoint — the box is 300px wide in a desktop
+   grid cell and 950px as a desktop row. */
+.cu-upsell-body {
+  flex: 999 1 200px;
+  min-width: 0;
+}
+.cu-upsell-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+}
+.cu-upsell-text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+/* The app's primary Button: md control height, md radius. `.btn` supplies the brand fill and ink. */
+.cu-upsell .cu-upsell-cta {
+  flex: 1 0 auto;
+  min-height: var(--control-h-md, 44px);
+  border-radius: var(--radius-md);
+}
+
+/* ---- Skeleton (loading.tsx) ---- */
+.cu-skel-avatar {
+  flex-shrink: 0;
+}
+.cu-skel-lines {
+  display: grid;
+  gap: 8px;
+}
+.cu-skel-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---- Small phones ---- */
+@media (max-width: 360px) {
+  /*
+   * At 320px a tagged card (VIP / New) left the name column ~100px, and "+91 9820112345" needs
+   * ~113px, so every Indian number broke after its country code. The app's spacing shrinks on a
+   * 320dp screen (app/src/styles/scale.ts); the web's is fixed. 20px from the row's gaps, the
+   * tag's inset and the card's padding brings it back onto one line with no type resized, so the
+   * card still reads as the app's. A longer number still wraps rather than clipping.
+   */
+  .cu-card {
+    padding: 14px;
+  }
+  .cu-card-top {
+    gap: 8px;
+  }
+  .cu-badge {
+    padding-inline: 8px;
+  }
+}
+
+/* ---- Tablet and up ---- */
+@media (min-width: 641px) {
+  .cu-list {
+    /* 300px, not the app's 320. The app never sees a window between a phone and its 720px tablet
+       cap; a browser does. With 320, a 641–679px window (a small tablet or split-screen) got one
+       ~640px card per row — a phone card stretched — and a 1280px laptop beside the sidebar got
+       two 470px cards. 300 gives two and three. The card already has to hold at 296px (a 320px
+       phone), so 300 costs nothing. `min(…, 100%)` so a column never demands more than the page
+       has. */
+    grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  }
+  /* Phones keep the 16px the global phone rule sets (iOS zooms into anything smaller on focus);
+     wider screens take the app's 15px. */
+  .cu-search input {
+    font-size: 15px;
+  }
+
+  /*
+   * The upsell takes the free tracks at the end of the cards' row instead of a row of its own.
+   * `data-after` is the number of cards before it, which is the plan's limit whenever it shows
+   * (the server cuts the list there). Track counts follow from the grid above: N 300px columns
+   * with 12px gaps need N × 312 − 12 px, so 2 tracks from 612px and 3 from 924px — 1280px beside
+   * the sidebar has three, which is where two cards used to leave a hole. Only the default limit
+   * (2) and a limit of 1 are placed; any other keeps its full row, which is never wrong.
+   *
+   * Width-guarded twice: an `N / -1` placement in a grid with fewer than N tracks would open an
+   * implicit column, so each rule needs its query's track count, and the whole block sits under
+   * the tablet breakpoint because phones are a single `minmax(0, 1fr)` column whatever their width.
+   * In exactly one track it is card-sized, so its two lines spread to the cell's edges, putting
+   * the button level with the neighbouring cards' metric bands.
+   */
+  @container cu-list (min-width: 612px) {
+    .cu-list > .cu-upsell[data-after="1"] {
+      grid-column: 2 / -1;
+      margin-top: 0;
+    }
+  }
+  @container cu-list (min-width: 612px) and (max-width: 923.98px) {
+    .cu-list > .cu-upsell[data-after="1"] {
+      align-content: space-between;
+    }
+  }
+  @container cu-list (min-width: 924px) {
+    .cu-list > .cu-upsell[data-after="2"] {
+      grid-column: 3 / -1;
+      margin-top: 0;
+    }
+  }
+  @container cu-list (min-width: 924px) and (max-width: 1235.98px) {
+    .cu-list > .cu-upsell[data-after="2"] {
+      align-content: space-between;
+    }
+  }
+}
+
+/* ---- Desktop (sidebar visible) ---- */
+@media (min-width: 1025px) {
+  /* A search box the width of a monitor is a phone field stretched; the app's field is ~390px. */
+  .cu-search {
+    max-width: 480px;
+    margin-bottom: 12px;
+  }
+  /* No cap on the upsell, unlike the search: as the grid's last item it spans exactly the tracks
+     it takes, so its edges line up with the cards'. */
+}

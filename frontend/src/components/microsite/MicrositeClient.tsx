@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { Socket } from "socket.io-client";
@@ -44,6 +44,8 @@ const DAYS = t.microsite.days;
  * customers actually ask for — without turning the day strip into an endless scroll.
  */
 const BOOKING_DAYS_AHEAD = 14;
+/** Characters of the store name the header shows before cutting it with an ellipsis. */
+const HEADER_NAME_MAX = 30;
 
 /**
  * YYYY-MM-DD in the VIEWER's timezone.
@@ -1314,6 +1316,16 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     ] as [boolean, string, string][]
   ).filter(([show]) => show);
 
+  // The header shows the store's name in full up to 30 characters; past that it is cut with an
+  // ellipsis (the full name is in the tooltip). An exact character cap rather than a pixel width,
+  // so the same name reads the same at every screen size.
+  const headerName = site.name.length > HEADER_NAME_MAX ? `${site.name.slice(0, HEADER_NAME_MAX).trimEnd()}…` : site.name;
+
+  const scrollToTop = (e: ReactMouseEvent) => {
+    e.preventDefault();
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+  };
 
   // The progress bar always matches this business's actual screen count (1-4, depending on
   // whether "visitor" and/or "service" apply) — see flowScreens above.
@@ -1544,15 +1556,17 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         <div className="ttHeader" style={{ maxWidth: 1320, margin: "0 auto", padding: "clamp(16px, 2.4vw, 26px) clamp(18px, 4vw, 30px)", display: "flex", alignItems: "center", gap: 18 }}>
           {/* An uploaded logo sits on nothing — most are transparent PNGs. Only the fallback
               mark gets the brand tile. */}
-          <span className="ttLogo" style={{ width: 40, height: 40, borderRadius: "calc(12px * var(--radius-scale, 1))", overflow: "hidden", flexShrink: 0, background: site.logoUrl ? "transparent" : "var(--primary)", color: "var(--text-on-brand)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {/* Logo and name both take the visitor back to the top, like a site's home link. The
+              name link is hidden from the tab order so a keyboard user meets one link, not two. */}
+          <a href="#top" onClick={scrollToTop} aria-label={format(t.microsite.header.backToTop, { name: site.name })} className="ttLogo" style={{ width: 40, height: 40, borderRadius: "calc(12px * var(--radius-scale, 1))", overflow: "hidden", flexShrink: 0, background: site.logoUrl ? "transparent" : "var(--primary)", color: "var(--text-on-brand)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {site.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={site.logoUrl} alt={site.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             ) : (
               <Icon name="sparkle" size={20} />
             )}
-          </span>
-          <span className="ttName" style={{ font: "var(--fw-extrabold) 18px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{site.name}</span>
+          </a>
+          <a href="#top" onClick={scrollToTop} tabIndex={-1} aria-hidden="true" title={site.name} className="ttName" style={{ font: "var(--fw-extrabold) 18px/1.1 var(--font-sans)", letterSpacing: "-.025em", color: "var(--text-strong)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{headerName}</a>
 
           <span className="ttHeaderSpacer" style={{ flex: 1 }} />
 
@@ -1563,13 +1577,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           </div>
 
           <span data-desk="1" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Button variant="outline" onClick={onSaveContact} leadingIcon={<Icon name="user" size={16} />}>{t.microsite.header.saveContact}</Button>
-            <Button variant="outline" onClick={openTrack}>{t.microsite.header.trackMyTurn}</Button>
+            <Button size="sm" variant="outline" onClick={onSaveContact} leadingIcon={<Icon name="user" size={14} />}>{t.microsite.header.saveContact}</Button>
+            <Button size="sm" variant="outline" onClick={openTrack}>{t.microsite.header.trackMyTurn}</Button>
           </span>
           <span data-desk="1">
             {/* Closed shops get the booking action here rather than a disabled control: the one
                 thing a visitor can still do outside business hours is reserve a time. */}
-            <Button variant="primary" onClick={walkInsClosed ? openBook : openQueue}>
+            <Button size="sm" variant="primary" onClick={walkInsClosed ? openBook : openQueue}>
               {walkInsClosed
                 ? t.microsite.hero.bookSlot
                 : domain.id === "clinic"

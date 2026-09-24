@@ -5,29 +5,28 @@ import { t, format } from "@/i18n";
 import { useState, useTransition } from "react";
 
 import { GalleryEditor, type GalleryImage } from "@/components/GalleryEditor";
-import AppearancePanel from "@/components/appearance/AppearancePanel";
 import { Icon } from "@/components/Icon";
 import { ImageField } from "@/components/ImageField";
 import { Spinner } from "@/components/Skeleton";
+import { SbField, SbSection } from "@/components/store-settings/ui";
 import { showToast } from "@/lib/toast";
 import type { BusinessDetail } from "@/lib/server-api";
-import {
-  LEGACY_THEME_CONFIG,
-  normalizeThemeConfig,
-  type ThemeConfig,
-} from "@/theme/engine";
 
 /**
- * The owner's editor for their own store's public profile.
+ * The owner's editor for their own store's public profile — the web twin of the app's
+ * OwnerStoreProfileForm: the same nine sections in the same order (Basics, Where you are, Your
+ * story, Pictures, Social links, Photos, What you offer, Common questions, Customer reviews), each
+ * a titled card, ending in one Save.
  *
- * This replaces a two-field form whose comment said the richer profile was "the admin panel's
- * job". That was true when only platform admins could edit a store; it is not any more, and the
- * cost of it being true was that an owner who wanted to fix their own tagline had to ask
- * someone at TejoTime.
+ * Appearance used to be a tenth section here, saved by the same button. It is its own page now
+ * (/settings/appearance), as it is in the app: the theme is one object saved on its own, and a
+ * profile save no longer carries it — PATCH /business is partial, so leaving it out leaves the
+ * theme exactly as it was.
  *
  * It is NOT the admin StoreForm ported across. Deliberately absent:
  *   - creating a business, or picking which business to edit — the id comes from the token
- *   - phone number, which is the login identity AND the microsite's URL key
+ *   - changing the phone number, which is the login identity AND the microsite's URL key (it is
+ *     shown read-only with the reason, as in the app)
  *   - currency, which would retroactively mislabel every price already recorded
  *   - rating / review count, which are the platform's numbers, not the shop's
  *   - active/inactive, which is a platform decision about whether a store is live
@@ -56,6 +55,7 @@ type Draft = {
   facebookUrl: string;
   twitterUrl: string;
   linkedinUrl: string;
+  yelpUrl: string;
 };
 
 function toDraft(b: BusinessDetail): Draft {
@@ -79,6 +79,7 @@ function toDraft(b: BusinessDetail): Draft {
     facebookUrl: b.facebookUrl ?? "",
     twitterUrl: b.twitterUrl ?? "",
     linkedinUrl: b.linkedinUrl ?? "",
+    yelpUrl: b.yelpUrl ?? "",
   };
 }
 
@@ -87,30 +88,14 @@ const SOCIALS: { key: keyof Draft; label: string; placeholder: string }[] = [
   { key: "facebookUrl", label: t.profile.socials.facebook, placeholder: "https://facebook.com/yourshop" },
   { key: "twitterUrl", label: t.profile.socials.twitter, placeholder: "https://x.com/yourshop" },
   { key: "linkedinUrl", label: t.profile.socials.linkedin, placeholder: "https://linkedin.com/company/yourshop" },
+  { key: "yelpUrl", label: t.profile.socials.yelp, placeholder: "https://yelp.com/biz/yourshop" },
 ];
-
-function themeFromBusiness(b: BusinessDetail): ThemeConfig {
-  const legacyBrand =
-    typeof b.themeColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(b.themeColor)
-      ? b.themeColor.toUpperCase()
-      : "#2563EB";
-  return normalizeThemeConfig(b.theme, { ...LEGACY_THEME_CONFIG, brand: legacyBrand });
-}
 
 export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [draft, setDraft] = useState<Draft>(() => toDraft(business));
   const [saved, setSaved] = useState<Draft>(() => toDraft(business));
-  /**
-   * Appearance is kept beside the text draft rather than inside it, because it is saved as a
-   * whole object: the API merges `theme.brand` into `theme_color` for us, and sending a partial
-   * theme is how a store ends up with a colour its microsite ignores.
-   */
-  const initialTheme = themeFromBusiness(business);
-  const [theme, setTheme] = useState<ThemeConfig>(initialTheme);
-  const [savedTheme, setSavedTheme] = useState<ThemeConfig>(initialTheme);
-  const phoneFull = `${business.countryCode ?? ""}${business.phoneNumber ?? ""}`.replace(/\D/g, "");
   // Content lists. Each saves through its own endpoint, but behind the one Save button below —
   // the owner is editing one page, not five resources.
   const [payments, setPayments] = useState<string>(() => (business.payments ?? []).join(", "));
@@ -141,23 +126,26 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
     setError("");
   };
 
-  const themeDirty = JSON.stringify(theme) !== JSON.stringify(savedTheme);
   const listsNow = listsSnapshot(payments, amenities, gallery, faqs, reviews);
   const listsDirty = listsNow !== savedLists;
-  const dirty =
-    themeDirty ||
-    listsDirty ||
-    (Object.keys(draft) as (keyof Draft)[]).some((k) => draft[k] !== saved[k]);
+  const dirty = listsDirty || (Object.keys(draft) as (keyof Draft)[]).some((k) => draft[k] !== saved[k]);
 
   async function save() {
     if (!draft.name.trim()) {
       setError(t.profile.errName);
       return;
     }
+    // Same bounds as the app: a typo like "20144" is caught here, naming the field, instead of
+    // coming back from the API as a generic 400.
+    const year = draft.establishedYear.trim();
+    const yearNum = year ? Number(year) : null;
+    if (yearNum !== null && (!Number.isInteger(yearNum) || yearNum < 1800 || yearNum > 2100)) {
+      setError(t.profile.yearInvalid);
+      return;
+    }
     setInFlight(true);
     setError("");
     try {
-      const year = draft.establishedYear.trim();
       const res = await fetch("/api/business", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -174,7 +162,7 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
           statValue: draft.statValue.trim(),
           statLabel: draft.statLabel.trim(),
           // Empty clears the year; a number sets it.
-          establishedYear: year ? Number(year) : null,
+          establishedYear: yearNum,
           // Always send image fields — '' is how you CLEAR them (same as socials).
           logoUrl: draft.logoUrl.trim(),
           heroImageUrl: draft.heroImageUrl.trim(),
@@ -183,9 +171,7 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
           facebookUrl: draft.facebookUrl.trim(),
           twitterUrl: draft.twitterUrl.trim(),
           linkedinUrl: draft.linkedinUrl.trim(),
-          // The full object, never just the colour — the backend dual-writes brand into the
-          // legacy column from here, and a lone `themeColor` is the drift path.
-          theme,
+          yelpUrl: draft.yelpUrl.trim(),
           payments: payments
             .split(",")
             .map((p) => p.trim())
@@ -222,11 +208,7 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
           const j = await r.json().catch(() => ({}));
           // Profile text already saved — say so, then align baselines + refresh.
           setSaved(structuredClone(draft));
-          setSavedTheme(structuredClone(theme));
-          setError(
-            j?.error?.message ??
-              format(t.profile.errPartial, { label }),
-          );
+          setError(j?.error?.message ?? format(t.profile.errPartial, { label }));
           startTransition(() => router.refresh());
           return;
         }
@@ -235,7 +217,6 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
       const nextFaqs = faqs.filter((f) => f.q.trim() && f.a.trim());
       const nextReviews = reviews.filter((r) => r.text.trim() && r.authorName.trim());
       setSaved(structuredClone(draft));
-      setSavedTheme(structuredClone(theme));
       setFaqs(nextFaqs);
       setReviews(nextReviews);
       setAmenities(nextAmenities);
@@ -249,104 +230,91 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
     }
   }
 
+  const dial = business.countryCode ? `+${business.countryCode}` : undefined;
+
   return (
     <>
-      <div className="section">
-        <h2>{t.profile.secBasics}</h2>
-        <div className="field">
-          <label htmlFor="sp-name">{t.profile.name}</label>
+      <SbSection title={t.profile.secBasics}>
+        <SbField id="sp-name" label={t.profile.name}>
           <input id="sp-name" value={draft.name} onChange={(e) => set("name", e.target.value)} />
-        </div>
-        <div className="field">
-          <label htmlFor="sp-category">{t.profile.category}</label>
+        </SbField>
+        <SbField id="sp-category" label={t.profile.category} hint={t.profile.categoryHint}>
           <input
             id="sp-category"
             value={draft.category}
             onChange={(e) => set("category", e.target.value)}
             placeholder={t.profile.categoryPlaceholder}
           />
-          <p className="field-hint">{t.profile.categoryHint}</p>
-        </div>
-        <div className="field">
-          <label htmlFor="sp-tagline">{t.profile.tagline}</label>
+        </SbField>
+        <SbField id="sp-tagline" label={t.profile.tagline}>
           <input
             id="sp-tagline"
             value={draft.tagline}
             onChange={(e) => set("tagline", e.target.value)}
             placeholder={t.profile.taglinePlaceholder}
           />
-        </div>
-        <div className="field">
-          <label htmlFor="sp-heroSubtitle">{t.profile.heroSubtitle}</label>
+        </SbField>
+        <SbField id="sp-heroSubtitle" label={t.profile.heroSubtitle} hint={t.profile.heroSubtitleHint}>
           <input
             id="sp-heroSubtitle"
             value={draft.heroSubtitle}
             onChange={(e) => set("heroSubtitle", e.target.value)}
           />
-          <p className="field-hint">{t.profile.heroSubtitleHint}</p>
-        </div>
-      </div>
+        </SbField>
+      </SbSection>
 
-      <div className="section">
-        <h2>{t.profile.secWhere}</h2>
-        <div className="field">
-          <label htmlFor="sp-address">{t.profile.address}</label>
+      <SbSection title={t.profile.secWhere}>
+        <SbField id="sp-address" label={t.profile.address}>
           <input id="sp-address" value={draft.address} onChange={(e) => set("address", e.target.value)} />
-        </div>
-        <div className="field">
-          <label htmlFor="sp-area">{t.profile.area}</label>
+        </SbField>
+        <SbField id="sp-area" label={t.profile.area}>
           <input id="sp-area" value={draft.area} onChange={(e) => set("area", e.target.value)} />
-        </div>
-        <div className="field">
-          <label htmlFor="sp-city">{t.profile.city}</label>
+        </SbField>
+        <SbField id="sp-city" label={t.profile.city}>
           <input id="sp-city" value={draft.city} onChange={(e) => set("city", e.target.value)} />
-        </div>
-        <p className="field-hint">
-          {t.profile.phoneLockedHint}
-        </p>
-      </div>
+        </SbField>
+        {/* Read-only, with the reason under it — the app shows the number rather than only saying
+            it cannot be changed. */}
+        <SbField id="sp-phone" label={t.profile.phone} prefix={dial} hint={t.profile.phoneLockedHint} disabled>
+          <input id="sp-phone" value={business.phoneNumber ?? ""} readOnly aria-readonly="true" />
+        </SbField>
+      </SbSection>
 
-      <div className="section">
-        <h2>{t.profile.secStory}</h2>
-        <div className="field">
-          <label htmlFor="sp-aboutHeading">{t.profile.aboutHeading}</label>
+      <SbSection title={t.profile.secStory}>
+        <SbField id="sp-aboutHeading" label={t.profile.aboutHeading}>
           <input
             id="sp-aboutHeading"
             value={draft.aboutHeading}
             onChange={(e) => set("aboutHeading", e.target.value)}
           />
-        </div>
-        <div className="field">
-          <label htmlFor="sp-description">{t.profile.aboutText}</label>
+        </SbField>
+        <SbField id="sp-description" label={t.profile.aboutText} multiline>
           <textarea
             id="sp-description"
             rows={5}
             value={draft.description}
             onChange={(e) => set("description", e.target.value)}
           />
-        </div>
-        <div className="field-row">
-          <div className="field">
-            <label htmlFor="sp-statValue">{t.profile.statValue}</label>
+        </SbField>
+        <div className="sb-row2">
+          <SbField id="sp-statValue" label={t.profile.statValue}>
             <input
               id="sp-statValue"
               value={draft.statValue}
               onChange={(e) => set("statValue", e.target.value)}
               placeholder={t.profile.statValuePlaceholder}
             />
-          </div>
-          <div className="field">
-            <label htmlFor="sp-statLabel">{t.profile.statLabel}</label>
+          </SbField>
+          <SbField id="sp-statLabel" label={t.profile.statLabel}>
             <input
               id="sp-statLabel"
               value={draft.statLabel}
               onChange={(e) => set("statLabel", e.target.value)}
               placeholder={t.profile.statLabelPlaceholder}
             />
-          </div>
+          </SbField>
         </div>
-        <div className="field">
-          <label htmlFor="sp-year">{t.profile.establishedYear}</label>
+        <SbField id="sp-year" label={t.profile.establishedYear}>
           <input
             id="sp-year"
             inputMode="numeric"
@@ -354,11 +322,10 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
             onChange={(e) => set("establishedYear", e.target.value)}
             placeholder={t.profile.establishedYearPlaceholder}
           />
-        </div>
-      </div>
+        </SbField>
+      </SbSection>
 
-      <div className="section">
-        <h2>{t.profile.secPictures}</h2>
+      <SbSection title={t.profile.secPictures}>
         <ImageField
           label={t.profile.logo}
           assetType="logo"
@@ -378,102 +345,90 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
           value={draft.aboutImageUrl}
           onChange={(url) => set("aboutImageUrl", url)}
         />
-      </div>
+      </SbSection>
 
-      <div className="section">
-        <h2>{t.profile.secSocial}</h2>
-        <p className="field-hint">
-          {t.profile.socialHint}
-        </p>
-        {/* Four short URL fields pair up from 560px, matching the stat/hero rows above. */}
-        <div className="field-row">
-          {SOCIALS.map((s) => (
-            <div className="field" key={s.key}>
-              <label htmlFor={`sp-${s.key}`}>{s.label}</label>
-              <input
-                id={`sp-${s.key}`}
-                type="url"
-                inputMode="url"
-                placeholder={s.placeholder}
-                value={draft[s.key]}
-                onChange={(e) => set(s.key, e.target.value)}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
+      <SbSection title={t.profile.secSocial} hint={t.profile.socialHint}>
+        {SOCIALS.map((s) => (
+          <SbField key={s.key} id={`sp-${s.key}`} label={s.label}>
+            <input
+              id={`sp-${s.key}`}
+              type="url"
+              inputMode="url"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder={s.placeholder}
+              value={draft[s.key]}
+              onChange={(e) => set(s.key, e.target.value)}
+            />
+          </SbField>
+        ))}
+      </SbSection>
 
-      <div className="section">
-        <h2>{t.profile.secPhotos}</h2>
-        <p className="field-hint">
-          {t.profile.photosHint}
-        </p>
-        <GalleryEditor images={gallery} onChange={(g) => { setGallery(g); setError(""); }} />
-      </div>
+      <SbSection title={t.profile.secPhotos} hint={t.profile.photosHint}>
+        <GalleryEditor
+          images={gallery}
+          onChange={(g) => {
+            setGallery(g);
+            setError("");
+          }}
+        />
+      </SbSection>
 
-      <div className="section">
-        <h2>{t.profile.secOffer}</h2>
-        <div className="field">
-          <label htmlFor="sp-payments">{t.profile.payments}</label>
+      <SbSection title={t.profile.secOffer}>
+        <SbField id="sp-payments" label={t.profile.payments} hint={t.profile.paymentsHint}>
           <input
             id="sp-payments"
             value={payments}
-            onChange={(e) => { setPayments(e.target.value); setError(""); }}
+            onChange={(e) => {
+              setPayments(e.target.value);
+              setError("");
+            }}
             placeholder={t.profile.paymentsPlaceholder}
           />
-          <p className="field-hint">{t.profile.paymentsHint}</p>
-        </div>
+        </SbField>
 
-        <div className="field">
-          <label>{t.profile.amenities}</label>
-          {amenities.length === 0 ? (
-            <p className="field-hint">
-              {t.profile.amenitiesEmpty}
-            </p>
-          ) : null}
+        <div className="sb-block">
+          <p className="sb-block-title">{t.profile.amenities}</p>
+          {amenities.length === 0 ? <p className="sb-caption">{t.profile.amenitiesEmpty}</p> : null}
           {amenities.map((a, i) => (
-            <div className="list-row" key={i}>
-              <input
-                value={a}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setAmenities((xs) => xs.map((x, idx) => (idx === i ? v : x)));
-                  setError("");
-                }}
-                placeholder={t.profile.amenityPlaceholder}
-                aria-label={format(t.profile.amenityAria, { index: i + 1 })}
-              />
+            <div className="sb-listrow" key={i}>
+              <SbField>
+                <input
+                  value={a}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setAmenities((xs) => xs.map((x, idx) => (idx === i ? v : x)));
+                    setError("");
+                  }}
+                  placeholder={t.profile.amenityPlaceholder}
+                  aria-label={format(t.profile.amenityAria, { index: i + 1 })}
+                />
+              </SbField>
               <button
                 type="button"
-                className="btn secondary btn-sm btn-icon"
+                className="sb-iconbtn"
                 onClick={() => setAmenities((xs) => xs.filter((_, idx) => idx !== i))}
                 aria-label={t.profile.removeAmenity}
                 title={t.profile.remove}
               >
-                <Icon name="x" size={15} />
+                <Icon name="x" size={18} />
               </button>
             </div>
           ))}
           <button
             type="button"
-            className="btn secondary btn-sm"
+            className="sb-btn sb-btn--secondary sb-self-start"
             onClick={() => setAmenities((xs) => [...xs, ""])}
           >
-            <Icon name="plus" size={14} />
             {t.profile.addAmenity}
           </button>
         </div>
-      </div>
+      </SbSection>
 
-      <div className="section">
-        <h2>{t.profile.secFaq}</h2>
-        <p className="field-hint">
-          {t.profile.faqHint}
-        </p>
+      <SbSection title={t.profile.secFaq} hint={t.profile.faqHint}>
         {faqs.map((f, i) => (
-          <div className="list-card" key={i}>
-            <div className="field">
-              <label htmlFor={`sp-faq-q-${i}`}>{t.profile.faqQuestion}</label>
+          <div className="sb-nested" key={i}>
+            <SbField id={`sp-faq-q-${i}`} label={t.profile.faqQuestion}>
               <input
                 id={`sp-faq-q-${i}`}
                 value={f.q}
@@ -483,12 +438,11 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
                   setError("");
                 }}
               />
-            </div>
-            <div className="field">
-              <label htmlFor={`sp-faq-a-${i}`}>{t.profile.faqAnswer}</label>
+            </SbField>
+            <SbField id={`sp-faq-a-${i}`} label={t.profile.faqAnswer} multiline>
               <textarea
                 id={`sp-faq-a-${i}`}
-                rows={2}
+                rows={3}
                 value={f.a}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -496,10 +450,10 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
                   setError("");
                 }}
               />
-            </div>
+            </SbField>
             <button
               type="button"
-              className="btn secondary btn-sm"
+              className="sb-btn sb-btn--secondary sb-btn--sm"
               onClick={() => setFaqs((xs) => xs.filter((_, idx) => idx !== i))}
             >
               {t.profile.removeQuestion}
@@ -508,58 +462,50 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
         ))}
         <button
           type="button"
-          className="btn secondary btn-sm"
+          className="sb-btn sb-btn--secondary sb-self-start"
           onClick={() => setFaqs((xs) => [...xs, { q: "", a: "" }])}
         >
-          <Icon name="plus" size={14} />
           {t.profile.addQuestion}
         </button>
-      </div>
+      </SbSection>
 
-      <div className="section">
-        <h2>{t.profile.secReviews}</h2>
-        <p className="field-hint">
-          {t.profile.reviewsHint}
-        </p>
+      <SbSection title={t.profile.secReviews} hint={t.profile.reviewsHint}>
         {reviews.map((r, i) => (
-          <div className="list-card" key={i}>
-            <div className="field-row">
-              <div className="field">
-                <label htmlFor={`sp-rev-a-${i}`}>{t.profile.reviewName}</label>
-                <input
-                  id={`sp-rev-a-${i}`}
-                  value={r.authorName}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setReviews((xs) => xs.map((x, idx) => (idx === i ? { ...x, authorName: v } : x)));
-                    setError("");
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor={`sp-rev-s-${i}`}>{t.profile.reviewStars}</label>
-                <select
-                  id={`sp-rev-s-${i}`}
-                  value={String(r.stars)}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    setReviews((xs) => xs.map((x, idx) => (idx === i ? { ...x, stars: v } : x)));
-                    setError("");
-                  }}
-                >
-                  {[5, 4, 3, 2, 1].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="field">
-              <label htmlFor={`sp-rev-t-${i}`}>{t.profile.reviewText}</label>
+          <div className="sb-nested" key={i}>
+            <SbField id={`sp-rev-a-${i}`} label={t.profile.reviewName}>
+              <input
+                id={`sp-rev-a-${i}`}
+                value={r.authorName}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setReviews((xs) => xs.map((x, idx) => (idx === i ? { ...x, authorName: v } : x)));
+                  setError("");
+                }}
+              />
+            </SbField>
+            {/* A 1–5 picker rather than the app's number box: a browser has one, and it cannot
+                hold an out-of-range value to be clamped later. */}
+            <SbField id={`sp-rev-s-${i}`} label={t.profile.reviewStars}>
+              <select
+                id={`sp-rev-s-${i}`}
+                value={String(r.stars)}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setReviews((xs) => xs.map((x, idx) => (idx === i ? { ...x, stars: v } : x)));
+                  setError("");
+                }}
+              >
+                {[5, 4, 3, 2, 1].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </SbField>
+            <SbField id={`sp-rev-t-${i}`} label={t.profile.reviewText} multiline>
               <textarea
                 id={`sp-rev-t-${i}`}
-                rows={2}
+                rows={3}
                 value={r.text}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -567,10 +513,10 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
                   setError("");
                 }}
               />
-            </div>
+            </SbField>
             <button
               type="button"
-              className="btn secondary btn-sm"
+              className="sb-btn sb-btn--secondary sb-btn--sm"
               onClick={() => setReviews((xs) => xs.filter((_, idx) => idx !== i))}
             >
               {t.profile.removeReview}
@@ -579,40 +525,34 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
         ))}
         <button
           type="button"
-          className="btn secondary btn-sm"
+          className="sb-btn sb-btn--secondary sb-self-start"
           onClick={() => setReviews((xs) => [...xs, { stars: 5, text: "", authorName: "" }])}
         >
-          <Icon name="plus" size={14} />
           {t.profile.addReview}
         </button>
-      </div>
-
-      <AppearancePanel
-        theme={theme}
-        onChange={(next) => {
-          setTheme(next);
-          setError("");
-        }}
-        category={draft.category}
-        phoneFull={phoneFull}
-        savedTheme={savedTheme}
-      />
+      </SbSection>
 
       {error ? (
-        <div className="alert err" role="alert">
+        <p className="sb-alert" role="alert">
           {error}
-        </div>
+        </p>
       ) : null}
 
-      {/* Sticky so the save button is reachable without scrolling back up a long form. */}
-      <div className="save-bar">
-        <span className="save-bar-note">
+      <div className="sb-savebar">
+        <span className={`sb-savebar-note${dirty ? " is-dirty" : ""}`} role="status">
           {dirty ? t.profile.dirty : t.profile.clean}
         </span>
-        <button type="button" className="btn" onClick={save} disabled={busy || !dirty}>
-          {busy ? <Spinner size={14} /> : null}
-          {busy ? t.profile.saving : t.profile.save}
-        </button>
+        <div className="sb-savebar-btns">
+          <button
+            type="button"
+            className="sb-btn sb-btn--primary sb-btn--lg sb-btn--block"
+            onClick={save}
+            disabled={busy || !dirty}
+          >
+            {busy ? <Spinner size={16} /> : null}
+            {busy ? t.profile.saving : t.profile.save}
+          </button>
+        </div>
       </div>
     </>
   );

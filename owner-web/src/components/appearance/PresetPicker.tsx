@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import {
   PRESET_LIST,
   resolveTheme,
@@ -9,17 +9,20 @@ import {
   type PresetId,
   type TokenMap,
 } from "@/theme/engine";
+import { SbSection } from "@/components/store-settings/ui";
 import { t } from "./appearanceCopy";
 import OptionCards, { type OptionCardItem } from "./OptionCards";
 
 /**
- * Preset picker with real thumbnails.
+ * "Theme preset" — the app's 2-up preset cards (Recommended flag, label, one-line description),
+ * with owner-web's live thumbnail on top of each.
  *
- * Each card resolves the *actual* theme for that preset against the store's current brand and
- * mode, then paints a mini hero + button + card straight from the resulting tokens. Nothing is
+ * Each thumbnail resolves the *actual* theme for that preset against the store's current brand
+ * and mode, then paints a mini hero + button + card straight from the resulting tokens. Nothing is
  * hand-drawn or approximated: if a preset ships 2px borders and uppercase labels, the thumbnail
- * shows 2px borders and uppercase labels, and re-tints the instant the brand colour changes.
- * A text-only radio list would make the admin guess.
+ * shows 2px borders and uppercase labels, and re-tints the instant the brand colour changes. The
+ * app has no room for these on a phone; the web keeps them because a label alone makes the owner
+ * guess.
  */
 
 interface Props {
@@ -33,10 +36,11 @@ interface Props {
 }
 
 export default function PresetPicker({ value, brand, mode, recommended, onChange }: Props) {
+  const titleId = useId();
   /**
    * Six resolveTheme calls, memoised on brand+mode. Each one also generates two ramps and a
-   * contrast report, so this is the most expensive thing in the panel — but it is pure
-   * arithmetic on a handful of colours, and re-running it is what keeps the thumbnails honest.
+   * contrast report, so this is the most expensive thing on the page — but it is pure arithmetic
+   * on a handful of colours, and re-running it is what keeps the thumbnails honest.
    */
   const options: OptionCardItem<PresetId>[] = useMemo(
     () =>
@@ -60,22 +64,16 @@ export default function PresetPicker({ value, brand, mode, recommended, onChange
   );
 
   return (
-    <OptionCards
-      legend={t.appearance.presetTitle}
-      hint={t.appearance.presetHint}
-      value={value}
-      options={options}
-      onChange={onChange}
-      variant="cards"
-      gridClassName="ap-preset-grid"
-    />
+    <SbSection title={t.appearance.presetTitle} titleId={titleId}>
+      <OptionCards labelledBy={titleId} value={value} options={options} onChange={onChange} variant="cards" />
+    </SbSection>
   );
 }
 
 /**
- * ~160x110 miniature: hero band with two text bars, then a body strip with a primary button
- * and a card. Values are read straight off the token map (no CSS custom properties), so each
- * thumbnail is self-contained and nothing leaks between cards.
+ * A miniature: hero band with two text bars, then a body strip with a primary button and a card.
+ * Values are read straight off the token map (no CSS custom properties), so each thumbnail is
+ * self-contained and nothing leaks between cards.
  */
 function Thumb({ tokens, label }: { tokens: TokenMap; label: string }) {
   const px = (v: string | undefined, fallback: string) => v || fallback;
@@ -83,7 +81,7 @@ function Thumb({ tokens, label }: { tokens: TokenMap; label: string }) {
 
   return (
     <span
-      className="ap-thumb"
+      className="sb-ap-thumb"
       aria-hidden="true"
       title={label}
       style={{
@@ -94,9 +92,9 @@ function Thumb({ tokens, label }: { tokens: TokenMap; label: string }) {
         boxShadow: px(tokens["--shadow-xs"], "none"),
       }}
     >
-      <span className="ap-thumb-hero" style={{ background: heroBg }}>
+      <span className="sb-ap-thumb-hero" style={{ background: heroBg }}>
         <span
-          className="ap-thumb-bar"
+          className="sb-ap-thumb-bar"
           style={{
             background: px(tokens["--on-hero"], "#ffffff"),
             width: "58%",
@@ -105,7 +103,7 @@ function Thumb({ tokens, label }: { tokens: TokenMap; label: string }) {
           }}
         />
         <span
-          className="ap-thumb-bar"
+          className="sb-ap-thumb-bar"
           style={{
             background: px(tokens["--on-hero"], "#ffffff"),
             width: "36%",
@@ -116,9 +114,9 @@ function Thumb({ tokens, label }: { tokens: TokenMap; label: string }) {
         />
       </span>
 
-      <span className="ap-thumb-body">
+      <span className="sb-ap-thumb-body">
         <span
-          className="ap-thumb-btn"
+          className="sb-ap-thumb-btn"
           style={{
             background: px(tokens["--brand"], "#2563eb"),
             color: px(tokens["--on-brand"], "#ffffff"),
@@ -132,7 +130,7 @@ function Thumb({ tokens, label }: { tokens: TokenMap; label: string }) {
           {t.appearance.previewBook}
         </span>
         <span
-          className="ap-thumb-card"
+          className="sb-ap-thumb-card"
           style={{
             background: px(tokens["--surface-1"], "#ffffff"),
             border: `${px(tokens["--border-w"], "1px")} solid ${px(tokens["--border"], "#cbd5e1")}`,

@@ -1,0 +1,573 @@
+/*
+ * Calendar — the app's Calendar tab (app/src/app/(app)/(tabs)/calendar.tsx) and its day sheet
+ * (app/src/components/feedback/DayAppointmentsSheet.tsx, AppointmentListItem.tsx).
+ *
+ * Every selector is scoped under `.calx` so nothing here reaches another screen. Sizes are the
+ * app's tokens at 1× (bodySm 13, caption 12, bodyMd 15, h5 18, h4 21; radius md 10, xl 20),
+ * colours are the store theme's tokens, so dark mode and the store's brand need nothing extra.
+ *
+ *   ≤640px    the app: the grid on the page, a tap opens the day as a bottom sheet.
+ *   641–767   the same grid full width, with the day docked below it as a card.
+ *   ≥768px    grid and day side by side; on a wide panel the bookings run two to a row,
+ *             the app's Appointments grid (min 340, max 2), and three on a very wide one.
+ */
+
+/* ------------------------------------------------------------------ month */
+
+.calx {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.calx-month {
+  min-width: 0;
+}
+
+.calx-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+/* The app's ghost IconButton: 44px, radius md, no fill until pressed / hovered. */
+.calx-nav-btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-body);
+  -webkit-tap-highlight-color: transparent;
+}
+/* The app's ghost IconButton fills with surfaceHover while pressed. Hover only where a pointer can
+   hover: on a phone `:hover` sticks after the tap and left the chevron grey until the next one. */
+.calx-nav-btn:active {
+  background: var(--surface-hover);
+}
+@media (hover: hover) {
+  .calx-nav-btn:hover {
+    background: var(--surface-hover);
+  }
+}
+.calx-nav-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.calx-month-label {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Single letters in the subtle ink, as on the app — not the old uppercase "SUN" row with a rule. */
+.calx-week,
+.calx-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.calx-week {
+  margin: 0 0 8px;
+}
+.calx-week-day {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-subtle);
+}
+
+.calx-grid {
+  transition: opacity 120ms ease;
+}
+/* The next month is loading. */
+.calx-grid.is-loading {
+  opacity: 0.5;
+}
+
+/* The whole column is the button, so the tap target is ~41×58px even at 320px wide. */
+.calx-cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.calx-num {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-body);
+}
+.calx-cell.is-muted .calx-num {
+  color: var(--text-subtle);
+}
+/* Today is ringed only while it is not the selected day — the fill says enough then. */
+.calx-cell.is-today .calx-num {
+  border-color: var(--primary);
+}
+.calx-cell.is-selected .calx-num {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--text-on-brand, #fff);
+  font-weight: 600;
+}
+/* Web-only: hover, and a focus ring for keyboard use. Hover only where a pointer can hover, so a
+   phone doesn't keep a grey disc on the last day tapped. */
+@media (hover: hover) {
+  .calx-cell:hover:not(.is-selected) .calx-num {
+    background: var(--surface-hover);
+  }
+}
+.calx-cell:focus-visible {
+  outline: none;
+}
+.calx-cell:focus-visible .calx-num {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.calx-dot-slot {
+  height: 6px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.calx-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+/* --------------------------------------------------------------- the day */
+
+.calx-day-backdrop {
+  display: none;
+}
+.calx-day {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--surface-card);
+}
+.calx-day:focus {
+  outline: none;
+}
+.calx-day-handle {
+  flex-shrink: 0;
+  width: 40px;
+  height: 4px;
+  margin: 0 auto 16px;
+  border-radius: 999px;
+  background: var(--border-default);
+}
+.calx-day-title {
+  flex-shrink: 0;
+  margin: 0 0 16px;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.4px;
+  color: var(--text-strong);
+}
+.calx-day-scroll {
+  min-height: 0;
+}
+.calx-day-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The app's compact TEmptyState: an icon in a soft brand disc, the message centred under it. */
+.calx-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 24px;
+  text-align: center;
+}
+.calx-empty-disc {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.calx-empty-title {
+  max-width: 300px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ---------------------------------------------------- one booking (AppointmentListItem) */
+
+.calx-appt {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+/* Fixed width so every card starts on the same line. The app's is 56; "12:30 PM" in the web's
+   font needs a few pixels more, and wrapping it to two lines would misalign the card. */
+.calx-appt-time {
+  flex-shrink: 0;
+  width: 62px;
+  padding-top: 14px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+.calx-appt-card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--primary);
+  border-radius: 10px;
+  box-shadow: var(--shadow-xs);
+}
+/* The body keeps at least ~96px beside the action. Below that (a 320px phone, a narrow docked
+   panel) the action drops under it, right-aligned, rather than squeezing the name to a letter a
+   line — the app wraps the name instead, which RN can do gracefully and CSS cannot. */
+.calx-appt-body {
+  flex: 1 1 96px;
+  min-width: 0;
+}
+/* Wraps so an MR / Patient badge drops under a long name instead of squeezing it: on one line
+   the badge (which cannot shrink) left a 375px sheet ~60px for the name, broken a few letters a
+   line ("Venkata / raghava / n"). The name keeps its full line first; the badge takes the next. */
+.calx-appt-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+}
+.calx-appt-name {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.calx-appt-service {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* MR / Patient — the app's small Badge (info / secondary tone). */
+.calx-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.calx-badge.tone-info {
+  background: var(--info-soft, var(--primary-soft));
+  color: var(--info-soft-fg, var(--primary-soft-fg));
+}
+.calx-badge.tone-secondary {
+  background: var(--secondary-soft, var(--surface-sunken));
+  color: var(--secondary-soft-fg, var(--text-body));
+}
+
+/* The app's ghost TButton (sm) with the brand as its label colour. */
+.calx-add {
+  flex-shrink: 0;
+  margin-left: auto;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Pressed / hovered, like the month chevrons above: hover only where it cannot stick. */
+.calx-add:active:not(:disabled) {
+  background: var(--surface-hover);
+}
+@media (hover: hover) {
+  .calx-add:hover:not(:disabled) {
+    background: var(--surface-hover);
+  }
+}
+.calx-add:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.calx-add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.calx-spinner {
+  width: 14px;
+  height: 14px;
+}
+
+/* The app's StatusBadge: a pill in the status's soft tone with a dot in its ink. */
+.calx-status {
+  --calx-tone-bg: var(--surface-sunken);
+  --calx-tone-fg: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--calx-tone-bg);
+  color: var(--calx-tone-fg);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.calx-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: currentColor;
+}
+.calx-status.tone-primary {
+  --calx-tone-bg: var(--primary-soft);
+  --calx-tone-fg: var(--primary-soft-fg, var(--primary));
+}
+.calx-status.tone-info {
+  --calx-tone-bg: var(--info-soft, var(--primary-soft));
+  --calx-tone-fg: var(--info-soft-fg, var(--primary-soft-fg, var(--primary)));
+}
+.calx-status.tone-success {
+  --calx-tone-bg: var(--success-soft);
+  --calx-tone-fg: var(--success-soft-fg, var(--success));
+}
+.calx-status.tone-error {
+  --calx-tone-bg: var(--error-soft);
+  --calx-tone-fg: var(--error-soft-fg, var(--error));
+}
+
+/* ------------------------------------------------------ phone: the bottom sheet */
+
+@keyframes calx-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes calx-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  /* The stand-in day of a month without today (page.tsx `implicitSelection`). Only wider screens
+     need a day picked for the docked panel; on a phone the app shows no selection until a tap. */
+  .calx-cell.is-selected.is-implicit .calx-num {
+    background: transparent;
+    border-color: transparent;
+    color: var(--text-body);
+    font-weight: 500;
+  }
+  .calx-day-layer {
+    display: none;
+  }
+  /* Above the bottom nav (50) and Next's overlays, like the walk-in sheet. */
+  .calx-day-layer.is-open {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+  }
+  /* The app's scrim colour. It fades while the panel slides: two layers, two motions. */
+  .calx-day-backdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    padding: 0;
+    border: 0;
+    background: rgba(15, 23, 42, 0.45);
+    cursor: default;
+    animation: calx-scrim-in 260ms ease-out;
+  }
+  /* Capped at 86% so the title can never be pushed off the top; the list scrolls inside. 520 is
+     the app's `useResponsive(520)` for the sheet on a wide phone in landscape. */
+  .calx-day {
+    position: relative;
+    width: 100%;
+    max-width: 520px;
+    max-height: 86vh;
+    max-height: 86dvh;
+    padding: 18px 20px calc(28px + env(safe-area-inset-bottom, 0px));
+    border-radius: 20px 20px 0 0;
+    box-shadow: var(--shadow-md);
+    animation: calx-sheet-in 260ms cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  .calx-day-scroll {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+  .calx-day,
+  .calx-day-backdrop {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------ tablet and desktop: the day, docked */
+
+@media (min-width: 641px) {
+  .calx-day-handle {
+    display: none;
+  }
+  /* The sheet's surface as a card beside (or under) the grid rather than over the page, so it
+     takes the card look every other screen shares here: a 16px radius, and an 18px section title
+     (the app's TSectionTitle). The sheet's 21px h4 title out-sized the 18px month label beside it
+     and sat on a different line. The phone sheet keeps the app's 20px corners and h4 title. */
+  .calx-day {
+    container: calx-day / inline-size;
+    padding: 18px 20px 20px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    box-shadow: var(--shadow-xs);
+  }
+  .calx-day-title {
+    font-size: 18px;
+    letter-spacing: 0;
+  }
+}
+
+/* The month's width is a share of the row, clamped, rather than `minmax(280px, 340px)`: grid
+   grows a fixed-max track to its max BEFORE an `fr` track gets anything, which left the bookings
+   pane ~290px wide just above each breakpoint — too narrow for a name beside "Add to queue". */
+@media (min-width: 768px) {
+  .calx {
+    display: grid;
+    grid-template-columns: clamp(280px, 40%, 340px) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  /* Side by side, the month label and the day's title read as one heading row. The title's
+     centre sits 1px border + 18px padding + half its 23.4px line (≈31px) into the card; the
+     month label's is half the 44px nav row (22px) — so the month starts 9px lower. */
+  .calx-month {
+    padding-top: 9px;
+  }
+}
+
+/* Two panes need more than the 720px column every app screen gets on a tablet, or the bookings
+   pane is left too narrow for a name beside "Add to queue". */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .page-app.calx-page {
+    max-width: 960px;
+  }
+}
+
+@media (min-width: 1025px) {
+  .calx {
+    grid-template-columns: clamp(300px, 34%, 380px) minmax(0, 1fr);
+    gap: 28px;
+  }
+}
+
+/* loading.tsx: the title placeholder has no margin of its own, and its discs are not buttons. */
+.calx-skeleton-list {
+  margin-top: 16px;
+}
+.calx-grid > span.calx-cell {
+  cursor: default;
+}
+
+@container calx-day (min-width: 720px) {
+  .calx-day-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 16px;
+  }
+}
+/* A day panel on a very wide monitor (~2200px+) would otherwise draw two ~900px booking cards with
+   the name at one end and "Add to queue" at the other. A third column keeps each near the app's. */
+@container calx-day (min-width: 1100px) {
+  .calx-day-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

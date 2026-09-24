@@ -555,6 +555,10 @@ So it is **three surfaces but two codebases**, and each half of that sentence ca
   ([docs/ios-local-setup.md](docs/ios-local-setup.md)). **Look at a mobile change on both
   platforms before calling it done.**
 
+Which owner-web file mirrors which app screen, the per-width rule (phone = the app; tablet/desktop =
+the same design laid out wider), the shared desktop `.kpi-card`, the `OverlayPortal` rule for
+sheets, and every deliberate web-only difference: [docs/owner-web-app-parity.md](docs/owner-web-app-parity.md).
+
 Checklist for any owner-facing change:
 
 1. Does `owner-web/` need the same change? (Usually yes.)

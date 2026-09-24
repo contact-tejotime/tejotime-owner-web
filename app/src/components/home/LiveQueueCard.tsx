@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { TText } from '@/components/common/TText';
 import { Icon } from '@/components/ui/Icon';
-import { format, t } from '@/i18n';
+import { t } from '@/i18n';
 import type { SeatGroupVM } from '@/lib/queue';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
@@ -56,13 +56,20 @@ export function LiveQueueCard({
   const real = seats.filter((g) => g.id !== UNASSIGNED_GROUP_ID);
   const pool = real.length ? real : seats;
   const soonest = pool.length ? Math.min(...pool.map((g) => (g.empty ? 0 : g.clearMinutes))) : null;
+  // The unit rides beside the figure at a smaller size, rather than inside it. "60 min" as one
+  // h2 string was as wide as its whole column and pushed into the divider, while the two bare
+  // numbers beside it had room to spare: three figures that should read as a set didn't.
   const walkInWait =
-    soonest === null ? t.common.dash : soonest <= 0 ? t.dashboard.waitNow : format(t.dashboard.waitMins, { min: soonest });
+    soonest === null
+      ? { value: t.common.dash }
+      : soonest <= 0
+        ? { value: t.dashboard.waitNow }
+        : { value: String(soonest), unit: t.dashboard.waitUnitMin };
 
-  const stats = [
+  const stats: { key: string; label: string; value: string; unit?: string }[] = [
     { key: 'waiting', label: t.dashboard.statWaiting, value: String(waiting) },
     { key: 'service', label: t.dashboard.statInService, value: String(inService) },
-    { key: 'wait', label: t.dashboard.statWalkInWait, value: walkInWait },
+    { key: 'wait', label: t.dashboard.statWalkInWait, ...walkInWait },
   ];
 
   return (
@@ -78,6 +85,18 @@ export function LiveQueueCard({
             {t.dashboard.liveQueue.toUpperCase()}
           </TText>
         </View>
+        {/* Add walk-in rides up here as a pill instead of a full-width button below the figures.
+            The card was ~210dp tall on Home, which pushed the seat boards — the thing an owner
+            actually works from — off the first screen. This halves it. */}
+        <Pressable
+          onPress={onAddWalkIn}
+          accessibilityRole="button"
+          style={({ pressed }) => [s.cta, pressed && s.pressed]}>
+          <Icon name="plus" size={16} color={theme.colors.primary} strokeWidth={2.8} />
+          <TText variant="bodySm" weight="bold" style={{ color: theme.colors.primary }}>
+            {t.queue.walkIn}
+          </TText>
+        </Pressable>
         {onQr ? (
           <Pressable
             onPress={onQr}
@@ -85,7 +104,7 @@ export function LiveQueueCard({
             accessibilityRole="button"
             accessibilityLabel={t.dashboard.showQr}
             style={({ pressed }) => [s.qrBtn, pressed && s.pressed]}>
-            <Icon name="qrCode" size={18} color={ink} />
+            <Icon name="qrCode" size={16} color={ink} />
           </Pressable>
         ) : null}
       </View>
@@ -94,13 +113,29 @@ export function LiveQueueCard({
         {stats.map((st, i) => (
           <React.Fragment key={st.key}>
             {i > 0 ? <View style={s.divider} /> : null}
-            <View style={s.stat} accessible accessibilityLabel={`${st.label}: ${st.value}`}>
+            <View
+              style={s.stat}
+              accessible
+              accessibilityLabel={`${st.label}: ${st.value}${st.unit ? ` ${st.unit}` : ''}`}>
               {loading ? (
                 <View style={s.valueSkeleton} />
               ) : (
-                <TText variant="h2" weight="extrabold" numberOfLines={1} adjustsFontSizeToFit style={[s.value, { color: ink }]}>
-                  {st.value}
-                </TText>
+                <View style={s.valueRow}>
+                  <TText
+                    variant="h4"
+                    weight="extrabold"
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.6}
+                    style={[s.value, { color: ink }]}>
+                    {st.value}
+                  </TText>
+                  {st.unit ? (
+                    <TText variant="bodySm" weight="bold" numberOfLines={1} style={[s.unit, { color: withAlpha(ink, 0.92) }]}>
+                      {st.unit}
+                    </TText>
+                  ) : null}
+                </View>
               )}
               <TText variant="caption" weight="semibold" numberOfLines={1} style={{ color: withAlpha(ink, 0.92) }}>
                 {st.label}
@@ -109,16 +144,6 @@ export function LiveQueueCard({
           </React.Fragment>
         ))}
       </View>
-
-      <Pressable
-        onPress={onAddWalkIn}
-        accessibilityRole="button"
-        style={({ pressed }) => [s.cta, pressed && s.pressed]}>
-        <Icon name="plus" size={20} color={theme.colors.primary} strokeWidth={2.6} />
-        <TText variant="bodyMd" weight="bold" style={{ color: theme.colors.primary }}>
-          {t.dashboard.addWalkIn}
-        </TText>
-      </Pressable>
     </View>
   );
 }
@@ -129,7 +154,8 @@ const createStyles = ({ colors, radius, shadow }: ThemeStyleProps) => {
     card: {
       backgroundColor: colors.primary,
       borderRadius: moderateScale(radius.xl),
-      padding: moderateScale(18),
+      paddingHorizontal: moderateScale(16),
+      paddingVertical: moderateScale(12),
       overflow: 'hidden',
       ...shadow.md,
     },
@@ -137,8 +163,8 @@ const createStyles = ({ colors, radius, shadow }: ThemeStyleProps) => {
     discA: { width: moderateScale(180), height: moderateScale(180), top: moderateScale(-70), right: moderateScale(-50) },
     discB: { width: moderateScale(120), height: moderateScale(120), bottom: moderateScale(-60), left: moderateScale(-30) },
 
-    topRow: { ...styles.flexRow, ...styles.itemsCenter, ...styles.justifyBetween },
-    eyebrow: { ...styles.flexRow, ...styles.itemsCenter, gap: moderateScale(8) },
+    topRow: { ...styles.flexRow, ...styles.itemsCenter, gap: moderateScale(8) },
+    eyebrow: { ...styles.flex, ...styles.flexRow, ...styles.itemsCenter, ...styles.minWidth0, gap: moderateScale(8) },
     // Green with a ring of the brand's ink: "live" reads the same on any store colour.
     liveDot: {
       width: moderateScale(9),
@@ -150,34 +176,38 @@ const createStyles = ({ colors, radius, shadow }: ThemeStyleProps) => {
     },
     eyebrowText: { letterSpacing: 1.2 },
     qrBtn: {
-      width: moderateScale(36),
-      height: moderateScale(36),
+      width: moderateScale(34),
+      height: moderateScale(34),
       borderRadius: moderateScale(radius.md),
       backgroundColor: withAlpha(ink, 0.16),
       ...styles.itemsCenter,
       ...styles.justifyCenter,
     },
 
-    stats: { ...styles.flexRow, ...styles.itemsCenter, marginTop: moderateScale(16), marginBottom: moderateScale(18) },
+    stats: { ...styles.flexRow, ...styles.itemsCenter, marginTop: moderateScale(10) },
     stat: { ...styles.flex, ...styles.itemsCenter, gap: moderateScale(2) },
-    value: { letterSpacing: -0.8 },
+    // Baseline-aligned, so "min" sits on the figure's feet rather than its middle.
+    valueRow: { ...styles.flexRow, alignItems: 'baseline', gap: moderateScale(3), maxWidth: '100%' },
+    value: { letterSpacing: -0.6, flexShrink: 1 },
+    unit: { marginBottom: moderateScale(1) },
     valueSkeleton: {
-      width: moderateScale(44),
-      height: moderateScale(30),
+      width: moderateScale(40),
+      height: moderateScale(24),
       marginBottom: moderateScale(4),
       borderRadius: moderateScale(8),
       backgroundColor: withAlpha(ink, 0.22),
     },
-    divider: { width: StyleSheet.hairlineWidth * 2, height: moderateScale(36), backgroundColor: withAlpha(ink, 0.24) },
+    divider: { width: StyleSheet.hairlineWidth * 2, height: moderateScale(30), backgroundColor: withAlpha(ink, 0.24) },
 
     // Inverted against the card: the brand's ink as the fill, the brand colour as the label.
     cta: {
       ...styles.flexRow,
       ...styles.itemsCenter,
       ...styles.justifyCenter,
-      gap: moderateScale(8),
-      height: moderateScale(48),
-      borderRadius: moderateScale(radius.md),
+      gap: moderateScale(5),
+      height: moderateScale(34),
+      paddingHorizontal: moderateScale(12),
+      borderRadius: moderateScale(radius.pill),
       backgroundColor: ink,
     },
     pressed: { opacity: 0.85 },

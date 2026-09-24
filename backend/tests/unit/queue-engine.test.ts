@@ -80,14 +80,14 @@ describe('buildSeatGroups', () => {
     expect(john.waitingCount).toBe(2);
     expect(john.waitBadge).toBe('2 waiting');
     expect(john.clearMinutes).toBe(165); // 45 + 90 + 30
-    expect(john.subLine).toBe('Serving Aisha · ~165 min');
+    expect(john.subLine).toBe('Serving Aisha · ~165m');
   });
   it('marks an empty seat free/available', () => {
     const mike = groups.find((g) => g.id === 'mike')!;
     expect(mike.empty).toBe(true);
     expect(mike.free).toBe(true);
     expect(mike.waitBadge).toBe('Free');
-    expect(mike.subLine).toBe('Available · ready for walk-in');
+    expect(mike.subLine).toBe('Ready for walk-ins');
   });
   it('gives "Next up" when the seat is free', () => {
     const q2: EngineEntry[] = [q({ id: '9', name: 'Solo', service: 'Haircut', status: 'waiting', staffId: 'mike' })];

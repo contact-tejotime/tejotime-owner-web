@@ -54,6 +54,7 @@ export function OwnerStoreProfileForm() {
   const [facebookUrl, setFacebookUrl] = useState(biz?.facebookUrl ?? '');
   const [twitterUrl, setTwitterUrl] = useState(biz?.twitterUrl ?? '');
   const [linkedinUrl, setLinkedinUrl] = useState(biz?.linkedinUrl ?? '');
+  const [yelpUrl, setYelpUrl] = useState(biz?.yelpUrl ?? '');
   const [payments, setPayments] = useState((biz?.payments ?? []).join(', '));
   const [amenities, setAmenities] = useState<string[]>(biz?.amenities ?? []);
   const [gallery, setGallery] = useState<GalleryItem[]>(
@@ -117,6 +118,7 @@ export function OwnerStoreProfileForm() {
         facebookUrl: facebookUrl.trim(),
         twitterUrl: twitterUrl.trim(),
         linkedinUrl: linkedinUrl.trim(),
+        yelpUrl: yelpUrl.trim(),
         payments: splitPayments(payments),
         faqs: faqs.filter((f) => f.q.trim() && f.a.trim()),
         reviews: reviews.filter((r) => r.text.trim() && r.authorName.trim()),
@@ -257,6 +259,13 @@ export function OwnerStoreProfileForm() {
           label={t.profile.linkedinLabel}
           value={linkedinUrl}
           onChangeText={setLinkedinUrl}
+          autoCapitalize="none"
+          keyboardType="url"
+        />
+        <TInput
+          label={t.profile.yelpLabel}
+          value={yelpUrl}
+          onChangeText={setYelpUrl}
           autoCapitalize="none"
           keyboardType="url"
         />

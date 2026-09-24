@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
 import { t } from "@/i18n";
 
-import { PageHeader } from "@/components/PageHeader";
+import { SettingsSubpageShell } from "@/components/SettingsSubpageShell";
 import { TeamManager } from "@/components/TeamManager";
 import { isOwnerRole, NO_ACCESS } from "@/lib/roles";
 import { getMe, getPermissionCatalogue, getStaff, getTeam } from "@/lib/server-api";
 
 /**
- * Team logins — the owner's view of everyone who can sign in to this business.
+ * Team logins — the owner's view of everyone who can sign in to this business. The app's
+ * `settings/team.tsx`: subtitle, one card per login, then the add buttons or the add form.
  *
  * Gated on the ROLE rather than a permission, matching `GET /users` on the backend. "Can create
  * logins" is the one thing an owner cannot hand out, because whoever holds it can grant
@@ -25,11 +26,8 @@ export default async function TeamSettingsPage() {
   ]);
 
   return (
-    <div className="wrap">
-      <PageHeader
-        title={t.teamPage.title}
-        subtitle={t.teamPage.subtitle}
-      />
+    <SettingsSubpageShell title={t.teamPage.title} width="wide">
+      <p className="sa-lead">{t.teamPage.subtitle}</p>
 
       {team ? (
         <TeamManager
@@ -42,8 +40,8 @@ export default async function TeamSettingsPage() {
           currentUserId={me.user.id}
         />
       ) : (
-        <p className="home-empty">{t.teamPage.loadError}</p>
+        <p className="sa-error">{t.teamPage.loadError}</p>
       )}
-    </div>
+    </SettingsSubpageShell>
   );
 }

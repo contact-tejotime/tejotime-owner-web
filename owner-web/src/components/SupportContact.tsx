@@ -2,6 +2,7 @@
 
 import { SUPPORT } from "@/lib/support";
 import { t } from "@/i18n";
+import "@/styles/shell-sheets.css";
 
 type Variant = "sidebar" | "settings" | "login" | "mobile" | "main";
 
@@ -48,7 +49,12 @@ export function SupportContact({ variant = "sidebar" }: { variant?: Variant }) {
   );
 }
 
-/** Compact strip for mobile bottom chrome. */
+/**
+ * The strip above the tab bar — the web twin of the app's `SupportContact variant="strip"`:
+ * "Need help? Email · Call" in 12px, the two links in the brand colour. Phone and tablet only; on
+ * desktop the footer under the page carries the full address instead. Its links are padded out to
+ * a 34px tap target in shell-sheets.css without making the strip itself any taller.
+ */
 export function SupportStrip() {
   return (
     <div className="support-strip" role="contentinfo">

@@ -3,8 +3,8 @@
 import { useRef, useState } from "react";
 import { t, format } from "@/i18n";
 
-import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Skeleton";
+import { SbEmpty } from "@/components/store-settings/ui";
 import { ACCEPT_ATTR, CHECKERBOARD, ImageCropModal, ImagePreviewModal, useImageCropQueue } from "@/components/image-crop";
 
 export interface GalleryImage {
@@ -13,11 +13,14 @@ export interface GalleryImage {
 }
 
 /**
- * The store's photo gallery.
+ * The store's photo gallery, drawn as the app's: one row per photo — the thumbnail beside its
+ * buttons — then "Add photo". Two rows sit side by side from a tablet up.
  *
  * Order is the array order and it is what the microsite renders, so moving a photo is a real
- * edit rather than a display preference — hence the arrows rather than a drag surface, which
- * would need a pointer and would be unusable on the phone most owners run this on.
+ * edit rather than a display preference — hence buttons rather than a drag surface, which would
+ * need a pointer and be unusable on the phone most owners run this on. A phone gets exactly the
+ * app's pair (Move up, Remove, stacked beside the thumbnail); from a tablet up the web keeps the
+ * Move down it had before the port, so a photo can go either way in one click.
  *
  * Uploads go through owner-web's `/api/upload` proxy: the token is attached server-side and the
  * bytes are PUT to storage from there, so the browser never holds a storage credential.
@@ -90,60 +93,48 @@ export function GalleryEditor({
     onChange(next);
   }
 
+  const full = images.length >= max;
+
   return (
-    <div>
+    <>
       {images.length === 0 ? (
-        <p className="field-hint">{t.gallery.empty}</p>
+        <SbEmpty compact icon="grid" title={t.gallery.empty} />
       ) : (
-        <ul className="gallery-grid">
+        <ul className="sb-gallery">
           {images.map((img, i) => (
-            <li key={`${img.url}-${i}`} className="gallery-item">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={img.url}
-                alt={img.alt ?? ""}
-                role="button"
-                tabIndex={0}
+            <li key={`${img.url}-${i}`} className="sb-gallery-row">
+              <button
+                type="button"
+                className="sb-gallery-thumb"
+                onClick={() => setPreview(i)}
                 aria-label={t.imagePreview.open}
                 title={t.imagePreview.open}
-                onClick={() => setPreview(i)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setPreview(i);
-                  }
-                }}
-                style={{ ...CHECKERBOARD, cursor: "zoom-in" }}
-              />
-              <div className="gallery-item-bar">
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img.url} alt={img.alt ?? ""} style={CHECKERBOARD} />
+              </button>
+              <div className="sb-gallery-actions">
+                {i > 0 ? (
+                  <button type="button" className="sb-btn sb-btn--secondary sb-btn--sm" onClick={() => move(i, i - 1)}>
+                    {t.gallery.moveUp}
+                  </button>
+                ) : null}
+                {i < images.length - 1 ? (
+                  <button
+                    type="button"
+                    className="sb-btn sb-btn--secondary sb-btn--sm sb-gallery-down"
+                    onClick={() => move(i, i + 1)}
+                  >
+                    {t.gallery.moveDown}
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  className="gallery-btn"
-                  onClick={() => move(i, i - 1)}
-                  disabled={i === 0}
-                  aria-label={t.gallery.moveEarlier}
-                  title={t.gallery.moveEarlier}
-                >
-                  <Icon name="chevronLeft" size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="gallery-btn"
-                  onClick={() => move(i, i + 1)}
-                  disabled={i === images.length - 1}
-                  aria-label={t.gallery.moveLater}
-                  title={t.gallery.moveLater}
-                >
-                  <Icon name="chevronRight" size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="gallery-btn danger"
+                  className="sb-btn sb-btn--secondary sb-btn--sm"
                   onClick={() => onChange(images.filter((_, idx) => idx !== i))}
                   aria-label={t.gallery.removePhoto}
-                  title={t.gallery.remove}
                 >
-                  <Icon name="x" size={14} />
+                  {t.gallery.remove}
                 </button>
               </div>
             </li>
@@ -151,20 +142,21 @@ export function GalleryEditor({
         </ul>
       )}
 
-      <div className="gallery-actions">
+      <div className="sb-actions-row">
         <button
           type="button"
-          className="btn secondary btn-sm"
+          className="sb-btn sb-btn--secondary"
           onClick={() => inputRef.current?.click()}
-          disabled={busy || images.length >= max}
+          disabled={busy || full}
+          title={full ? format(t.gallery.full, { max }) : undefined}
         >
-          {busy ? <Spinner size={13} /> : <Icon name="plus" size={14} />}
+          {/* Label only, as the app's "Add photo" — the spinner stands in while a photo uploads. */}
+          {busy ? <Spinner size={14} /> : null}
           {busy ? t.gallery.uploading : t.gallery.add}
         </button>
-        <span className="field-hint">
-          {format(t.gallery.counter, { count: images.length, max })}
-        </span>
       </div>
+      {/* Owner-web's own count + file rules; the app's gallery shows neither. */}
+      <p className="sb-caption">{format(t.gallery.counter, { count: images.length, max })}</p>
 
       <input
         ref={inputRef}
@@ -178,7 +170,7 @@ export function GalleryEditor({
       />
 
       {error ? (
-        <p className="field-hint" role="alert" style={{ color: "var(--error)" }}>
+        <p className="sb-error" role="alert">
           {error}
         </p>
       ) : null}
@@ -200,6 +192,6 @@ export function GalleryEditor({
           onCancel={crop.cancelCurrent}
         />
       ) : null}
-    </div>
+    </>
   );
 }

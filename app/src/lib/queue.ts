@@ -102,7 +102,15 @@ function buildCard(
   };
 }
 
-/** One group per seat, each with running ETA labels on its waiting cards. */
+/**
+ * One group per seat, each with running ETA labels on its waiting cards.
+ *
+ * **Nothing calls this.** The API already returns built seat groups and `mappers.ts::mapSeat`
+ * passes `subLine`, `waitBadge` and the card labels straight through, so what the seat board shows
+ * comes from `backend/src/lib/queue-engine.ts`, not from here. Editing the strings below changes
+ * nothing on screen — change the backend's, and keep these in step so the two never disagree if
+ * this is ever revived.
+ */
 export function buildSeatGroups(
   queue: QueueEntry[],
   staff: Staff[],

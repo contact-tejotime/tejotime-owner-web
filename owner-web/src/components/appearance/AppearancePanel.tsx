@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import {
   ANIMATION_IDS,
   DENSITY_IDS,
@@ -18,8 +18,8 @@ import {
   type ShadowId,
   type ThemeConfig,
 } from "@/theme/engine";
+import { SbSection } from "@/components/store-settings/ui";
 import { t, formatAppearance as format } from "./appearanceCopy";
-import { Icon } from "@/components/Icon";
 import BrandColorPicker from "./BrandColorPicker";
 import ButtonColorPicker from "./ButtonColorPicker";
 import MicrositePreview from "./MicrositePreview";
@@ -27,20 +27,23 @@ import OptionCards, { type OptionCardItem } from "./OptionCards";
 import PresetPicker from "./PresetPicker";
 
 /**
- * The store's whole microsite appearance, in one section.
+ * The store's microsite appearance — the controls of the app's settings/appearance.tsx, in its
+ * order: intro, "Unsaved changes", Brand color, Button color, Theme preset, Mode, Density,
+ * Corners, Shadow, Motion, the one-line summary, then the live preview. The page around it
+ * (AppearanceEditor) owns the state and the Reset / Open customer site / Save buttons.
  *
  * Design notes worth keeping:
  *
- * - The panel owns NO state. `theme` in, `onChange` out — StoreForm stays the single source of
- *   truth, so the preview, the legacy `themeColor` field and the payload can never disagree.
+ * - The panel owns NO state. `theme` in, `onChange` out — the editor stays the single source of
+ *   truth, so the preview, the legacy `themeColor` column and the payload can never disagree.
  *
  * - The four modifier axes (radius/shadow/density/animation) each offer a leading "Preset
- *   default" card that DELETES the key from the config. That is not cosmetic: the engine fills
- *   an absent axis from the preset, so leaving it absent is what lets a later switch to `bold`
- *   bring bold's sharp corners along instead of silently keeping minimal's. A pinned value is
- *   an explicit override and survives preset changes, which is the other half of the contract.
+ *   default (…)" chip that DELETES the key from the config. That is not cosmetic: the engine
+ *   fills an absent axis from the preset, so leaving it absent is what lets a later switch to
+ *   `bold` bring bold's sharp corners along instead of silently keeping minimal's. A pinned value
+ *   is an explicit override and survives preset changes, which is the other half of the contract.
  *
- * - Nothing here is applied to the live site until the form is saved.
+ * - Nothing here is applied to the live site until the page is saved.
  */
 
 interface Props {
@@ -50,7 +53,7 @@ interface Props {
   category: string;
   /** Digits-only phone; picks the real microsite over the demo store in the preview. */
   phoneFull: string;
-  /** The appearance as last saved. Drives the unsaved-changes indicator. */
+  /** The appearance as last saved. Drives the unsaved-changes line. */
   savedTheme: ThemeConfig;
 }
 
@@ -58,16 +61,35 @@ interface Props {
 const INHERIT = "__preset__";
 type WithInherit<T extends string> = T | typeof INHERIT;
 
+/**
+ * The category's suggested preset. Suggestion only: re-categorising a store must never move its
+ * look, so it is shown as a flag on a card and used by Reset, never auto-applied.
+ */
+export function recommendedPreset(category: string): PresetId | null {
+  return category.trim() ? presetForCategory(category) : null;
+}
+
+/**
+ * Back to the category's recommendation with every override cleared. Brand and light/dark mode
+ * are the store's own decisions, not part of the recommendation, so they are kept; everything
+ * else goes, including the accent, the label ink and the button colour — they are overrides, and
+ * "reset to recommended" means no overrides.
+ */
+export function resetToRecommended(theme: ThemeConfig, category: string): ThemeConfig {
+  return {
+    preset: recommendedPreset(category) ?? "minimal",
+    mode: theme.mode,
+    brand: theme.brand,
+  };
+}
+
 export default function AppearancePanel({ theme, onChange, category, phoneFull, savedTheme }: Props) {
   const resolved = useMemo(() => resolveTheme(theme), [theme]);
   const preset = getPreset(resolved.config.preset);
-
-  // Suggestion only, and only meaningful while creating: re-categorising an existing store must
-  // never move its look. Shown as a flag on a card, never auto-applied.
-  const recommended: PresetId | null = category.trim() ? presetForCategory(category) : null;
+  const recommended = recommendedPreset(category);
   const dirty = key(theme) !== key(savedTheme);
 
-  /** Set an optional axis, or delete it when the admin chooses "Preset default". */
+  /** Set an optional axis, or delete it when the owner chooses "Preset default". */
   function setAxis<K extends "radius" | "shadow" | "density" | "animation">(
     axis: K,
     value: WithInherit<NonNullable<ThemeConfig[K]>>,
@@ -82,12 +104,11 @@ export default function AppearancePanel({ theme, onChange, category, phoneFull, 
    * Switching preset, with one piece of housekeeping.
    *
    * An axis whose stored value is exactly the OUTGOING preset's default was never
-   * differentiated from it — that is the state every store starts in, since EMPTY_FORM pins the
-   * parity config. Carrying those pins into the new preset is the trap the engine warns about:
-   * pick `bold` and you would get bold's colours with minimal's soft shadows and round corners,
-   * with no clue why. Dropping them lets the new preset speak, and the "Preset default" card
-   * lights up so the change is visible rather than magic. A value the admin actually moved off
-   * the default is a real override and survives untouched.
+   * differentiated from it — that is the state every store starts in. Carrying those pins into
+   * the new preset is the trap the engine warns about: pick `bold` and you would get bold's
+   * colours with minimal's soft shadows and round corners, with no clue why. Dropping them lets
+   * the new preset speak, and the "Preset default" chip lights up so the change is visible
+   * rather than magic. A value the owner actually moved off the default survives untouched.
    */
   function setPreset(next: PresetId) {
     const outgoing = getPreset(resolved.config.preset).defaults;
@@ -99,26 +120,11 @@ export default function AppearancePanel({ theme, onChange, category, phoneFull, 
     onChange(cfg);
   }
 
-  /**
-   * Back to the category's recommendation with every override cleared. The brand colour is
-   * deliberately kept — it is the store's identity, not a layout choice.
-   */
-  function resetToRecommended() {
-    onChange({
-      preset: recommended ?? "minimal",
-      // Brand and light/dark mode are the store's own decisions, not part of the category
-      // recommendation. Everything else goes, including the accent, the label ink and the
-      // button colour: they are overrides, and "reset to recommended" means no overrides.
-      mode: theme.mode,
-      brand: theme.brand,
-    });
-  }
-
   /** "Preset default (Soft)" — the label has to say what inheriting actually gets you. */
   function inheritOption<T extends string>(current: string): OptionCardItem<WithInherit<T>> {
     return {
       value: INHERIT,
-      label: t.appearance.presetDefault,
+      label: `${t.appearance.presetDefault} (${current})`,
       description: format(t.appearance.presetDefaultValue, { value: current }),
     };
   }
@@ -166,32 +172,16 @@ export default function AppearancePanel({ theme, onChange, category, phoneFull, 
   ];
 
   return (
-    <section className="section ap">
-      <div className="ap-head">
-        <div>
-          <h2>{t.appearance.title}</h2>
-          <p className="ap-sub">{t.appearance.subtitle}</p>
-        </div>
-        <div className="ap-head-actions">
-          {dirty && (
-            <span className="ap-unsaved" role="status">
-              <span className="ap-unsaved-dot" aria-hidden="true" />
-              {t.appearance.unsaved}
-            </span>
-          )}
-          <button
-            type="button"
-            className="ap-mini-btn"
-            onClick={resetToRecommended}
-            title={t.appearance.resetHint}
-          >
-            {t.appearance.reset}
-          </button>
-        </div>
-      </div>
+    <>
+      <p className="sb-ap-intro">{t.appearance.subtitle}</p>
+      {dirty ? (
+        <p className="sb-ap-unsaved" role="status">
+          {t.appearance.unsaved}
+        </p>
+      ) : null}
 
-      <div className="ap-layout">
-        <div className="ap-controls">
+      <div className="sb-ap-layout">
+        <div className="sb-ap-controls">
           <BrandColorPicker
             value={theme.brand}
             onChange={(brand) => onChange({ ...theme, brand })}
@@ -229,48 +219,38 @@ export default function AppearancePanel({ theme, onChange, category, phoneFull, 
             onChange={setPreset}
           />
 
-          <OptionCards
-            legend={t.appearance.modeTitle}
-            hint={t.appearance.modeHint}
+          <ChipSection
+            title={t.appearance.modeTitle}
             value={resolved.config.mode}
             options={modeOptions}
             onChange={(m) => onChange({ ...theme, mode: m })}
           />
-
-          <OptionCards
-            legend={t.appearance.densityTitle}
-            hint={t.appearance.densityHint}
+          <ChipSection
+            title={t.appearance.densityTitle}
             value={(theme.density ?? INHERIT) as WithInherit<DensityId>}
             options={densityOptions}
             onChange={(v) => setAxis("density", v)}
           />
-
-          <OptionCards
-            legend={t.appearance.radiusTitle}
-            hint={t.appearance.radiusHint}
+          <ChipSection
+            title={t.appearance.radiusTitle}
             value={(theme.radius ?? INHERIT) as WithInherit<RadiusId>}
             options={radiusOptions}
             onChange={(v) => setAxis("radius", v)}
           />
-
-          <OptionCards
-            legend={t.appearance.shadowTitle}
-            hint={t.appearance.shadowHint}
+          <ChipSection
+            title={t.appearance.shadowTitle}
             value={(theme.shadow ?? INHERIT) as WithInherit<ShadowId>}
             options={shadowOptions}
             onChange={(v) => setAxis("shadow", v)}
           />
-
-          <OptionCards
-            legend={t.appearance.animationTitle}
-            hint={t.appearance.animationHint}
+          <ChipSection
+            title={t.appearance.animationTitle}
             value={(theme.animation ?? INHERIT) as WithInherit<AnimationId>}
             options={animationOptions}
             onChange={(v) => setAxis("animation", v)}
           />
 
-          <p className="ap-note ap-effective">
-            <Icon name="info" size={14} />
+          <p className="sb-ap-effective">
             {format(t.appearance.effective, {
               preset: t.appearance.presets[resolved.config.preset].label,
               mode: t.appearance.modes[resolved.config.mode].label,
@@ -282,19 +262,40 @@ export default function AppearancePanel({ theme, onChange, category, phoneFull, 
           </p>
         </div>
 
-        <div className="ap-preview-col">
+        <div className="sb-ap-preview-col">
           <MicrositePreview config={theme} phoneFull={phoneFull} />
         </div>
       </div>
-    </section>
+    </>
+  );
+}
+
+/** One axis: the app's `AxisSection` — a titled card holding a row of chips. */
+function ChipSection<T extends string>({
+  title,
+  value,
+  options,
+  onChange,
+}: {
+  title: string;
+  value: T;
+  options: readonly OptionCardItem<T>[];
+  onChange: (v: T) => void;
+}) {
+  const titleId = useId();
+  return (
+    <SbSection title={title} titleId={titleId}>
+      <OptionCards labelledBy={titleId} value={value} options={options} onChange={onChange} />
+    </SbSection>
   );
 }
 
 /**
  * Stable serialisation for the unsaved-changes check — key order in a spread-built object is
  * insertion order, so a plain JSON.stringify would report a false "changed" after a round trip.
+ * Exported because the editor's Save is gated on the same comparison.
  */
-function key(c: ThemeConfig): string {
+export function key(c: ThemeConfig): string {
   return [
     c.preset,
     c.mode,
