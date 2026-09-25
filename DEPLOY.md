@@ -1,5 +1,10 @@
 # Deploying TejoTime on Railway
 
+> **Hosting moved to Hostinger (Coolify on a VPS).** The CI/CD pipeline and its one-time setup are
+> in [docs/deploy-hostinger-coolify.md](docs/deploy-hostinger-coolify.md). The Railway-specific
+> steps below (dashboard, `railway.toml`, auto-deploy) are superseded; the URL wiring (§4),
+> migration rules (§5) and verification checklist still apply.
+
 Everything lives in **one Railway project** with two environments (`production` and `preprod`) so each env's services share that env's private network (Postgres via `*.railway.internal`).
 
 | Service | Folder | What it is | Production | Preprod |

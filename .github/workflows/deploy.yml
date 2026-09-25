@@ -1,0 +1,83 @@
+name: Deploy (Hostinger / Coolify)
+
+# main → production, preprod → preprod. Coolify on the Hostinger VPS still builds and runs the
+# containers; this workflow is the gate in front of it. CI must pass first, then only the apps that
+# changed are deployed, backend before the web apps (a web app ahead of its API breaks at runtime,
+# and the backend's migrations must land before anything depends on the new schema).
+#
+# Coolify's own "Auto Deploy" on push MUST be off for these apps, or every push deploys twice —
+# once ungated by Coolify, once gated here. Setup: docs/deploy-hostinger-coolify.md.
+on:
+  push:
+    branches: [main, preprod]
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: "Apps to redeploy (space-separated: api web admin owner)"
+        default: "api web admin owner"
+        required: true
+
+# One deploy per branch at a time, and never cancel one halfway — a cancelled run can leave the
+# API on the new release and the web apps on the old one.
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    with:
+      all: ${{ github.event_name == 'workflow_dispatch' }}
+
+  deploy:
+    needs: ci
+    if: ${{ github.ref_name == 'main' || github.ref_name == 'preprod' }}
+    runs-on: ubuntu-latest
+    # GitHub Environments hold the per-env Coolify UUIDs and URLs. Add required reviewers to
+    # `production` in repo settings to make prod deploys wait for a manual approval.
+    environment: ${{ github.ref_name == 'main' && 'production' || 'preprod' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decide which apps to deploy
+        id: plan
+        env:
+          DISPATCH_APPS: ${{ inputs.apps }}
+          CHANGED_API: ${{ needs.ci.outputs.backend }}
+          CHANGED_WEB: ${{ needs.ci.outputs.frontend }}
+          CHANGED_ADMIN: ${{ needs.ci.outputs.admin }}
+          CHANGED_OWNER: ${{ needs.ci.outputs.owner }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            apps="$DISPATCH_APPS"
+          else
+            apps=""
+            [ "$CHANGED_API" = "true" ] && apps="$apps api"
+            [ "$CHANGED_WEB" = "true" ] && apps="$apps web"
+            [ "$CHANGED_ADMIN" = "true" ] && apps="$apps admin"
+            [ "$CHANGED_OWNER" = "true" ] && apps="$apps owner"
+          fi
+          apps="$(echo $apps)"
+          echo "apps=$apps" >> "$GITHUB_OUTPUT"
+          echo "Deploying to ${{ github.ref_name }}: ${apps:-nothing (no deployable app changed)}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy via Coolify
+        if: ${{ steps.plan.outputs.apps != '' }}
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          UUID_API: ${{ vars.COOLIFY_UUID_API }}
+          UUID_WEB: ${{ vars.COOLIFY_UUID_WEB }}
+          UUID_ADMIN: ${{ vars.COOLIFY_UUID_ADMIN }}
+          UUID_OWNER: ${{ vars.COOLIFY_UUID_OWNER }}
+          URL_API: ${{ vars.API_URL }}
+          URL_WEB: ${{ vars.WEB_URL }}
+          URL_ADMIN: ${{ vars.ADMIN_URL }}
+          URL_OWNER: ${{ vars.OWNER_URL }}
+          # Through env, never interpolated into the script: on a manual run it is free text.
+          APPS: ${{ steps.plan.outputs.apps }}
+        run: bash .github/scripts/coolify-deploy.sh $APPS
