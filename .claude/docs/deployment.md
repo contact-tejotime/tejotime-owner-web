@@ -1,5 +1,9 @@
 # Deployment
 
+> **Superseded for hosting:** deploys now go to Hostinger via Coolify, gated by GitHub Actions —
+> see [docs/deploy-hostinger-coolify.md](../../docs/deploy-hostinger-coolify.md). The migration
+> and seed warnings below still hold.
+
 Railway, one project, two environments. **[`DEPLOY.md`](../../DEPLOY.md) at the repo root is the
 authoritative runbook** — this document is the operational summary plus the traps that have
 actually bitten.
