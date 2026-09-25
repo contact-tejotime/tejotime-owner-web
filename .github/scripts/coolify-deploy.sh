@@ -32,14 +32,23 @@ done
 
 # Judges success by the HTTP status itself: curl's `-f` combined with `--retry` has been seen to exit
 # 0 on a non-retryable 4xx (e.g. a 401 from a bad token), which would read as an empty success.
+#   coolify GET  <path>
+#   coolify POST <path> <json-body>
+# Only reads are retried: a retried POST whose first attempt did reach Coolify would queue the
+# deployment twice.
 coolify() {
-  local out code
-  out="$(curl -sS --retry 3 --retry-delay 5 -w '\n%{http_code}' \
-    -H "Authorization: Bearer $COOLIFY_TOKEN" -H "Accept: application/json" "$COOLIFY_URL/api/v1/$1")" || return 1
+  local method="$1" path="$2" out code
+  local args=(-sS -w '\n%{http_code}' -X "$method" -H "Authorization: Bearer $COOLIFY_TOKEN" -H "Accept: application/json")
+  if [ "$method" = GET ]; then
+    args+=(--retry 3 --retry-delay 5)
+  else
+    args+=(-H "Content-Type: application/json" --data "$3")
+  fi
+  out="$(curl "${args[@]}" "$COOLIFY_URL/api/v1/$path")" || return 1
   code="${out##*$'\n'}"
   out="${out%$'\n'*}"
   if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
-    echo "Coolify API $1 → HTTP $code: $out" >&2
+    echo "Coolify API $method $path → HTTP $code: $out" >&2
     return 1
   fi
   echo "$out"
@@ -49,11 +58,13 @@ coolify() {
 trigger() {
   local app="$1" uuid_var="UUID_$(upper "$1")"
   local res dep
-  res="$(coolify "deploy?uuid=${!uuid_var}&force=false")" || {
+  # Coolify moved /deploy from GET to POST (older releases answered GET; newer ones 405 it). The
+  # parameters go in both the query string and the JSON body, since releases differ in which they read.
+  res="$(coolify POST "deploy?uuid=${!uuid_var}&force=false" "{\"uuid\":\"${!uuid_var}\",\"force\":false}")" || {
     echo "::error::Coolify API call failed for $app — check COOLIFY_URL, COOLIFY_TOKEN (deploy permission) and the app UUID" >&2
     return 1
   }
-  dep="$(echo "$res" | jq -r '.deployments[0].deployment_uuid // empty')"
+  dep="$(echo "$res" | jq -r '.deployments[0].deployment_uuid // .deployment_uuid // empty')"
   if [ -z "$dep" ]; then
     echo "::error::Coolify did not queue a deployment for $app: $res" >&2
     return 1
@@ -66,7 +77,7 @@ trigger() {
 wait_for() {
   local app="$1" dep="$2" waited=0 status=""
   while [ "$waited" -lt "$TIMEOUT_SECONDS" ]; do
-    status="$(coolify "deployments/$dep" | jq -r '.status // "unknown"')" || status="unreachable"
+    status="$(coolify GET "deployments/$dep" | jq -r '.status // "unknown"')" || status="unreachable"
     case "$status" in
       finished) echo "[$app] deployment finished"; return 0 ;;
       failed|cancelled*|error) echo "::error::[$app] Coolify deployment $dep ended as '$status' — see its log in Coolify"; return 1 ;;
