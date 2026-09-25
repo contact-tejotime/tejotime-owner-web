@@ -95,6 +95,7 @@ async function postJson(
   try {
     res = await fetch(url, {
       method: 'POST',
+      
       headers: { 'content-type': 'application/json', ...headers },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(env.CHATBOT_TIMEOUT_MS),
