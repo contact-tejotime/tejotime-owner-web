@@ -434,6 +434,12 @@ calling it from a service.
 
 ## 9. Deployment
 
+> **Moved to Hostinger (Coolify on a VPS).** Pushes to `main`/`preprod` now run
+> `.github/workflows/deploy.yml`: CI must pass, then the changed apps are deployed through the
+> Coolify API (backend first, with migrations as its pre-deployment command) and health-checked.
+> Runbook: [docs/deploy-hostinger-coolify.md](docs/deploy-hostinger-coolify.md). The Railway
+> description below is historical except where that doc says it still applies.
+
 **Railway**, one project, two environments (`production`, `preprod`), each with its own Postgres
 plugin and Bucket. Full runbook: [DEPLOY.md](DEPLOY.md).
 

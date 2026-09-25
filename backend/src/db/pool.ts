@@ -39,6 +39,7 @@ export async function one<T extends QueryResultRow = any>(
   sql: string,
   params: readonly unknown[] = [],
 ): Promise<T | null> {
+  
   const { rows } = await pool.query<T>(sql, params as unknown[]);
   return rows[0] ?? null;
 }

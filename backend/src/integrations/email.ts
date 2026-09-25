@@ -9,6 +9,7 @@ export interface EmailSender {
 export const emailSender: EmailSender = {
   async send(to, subject) {
     if (!env.EMAIL_ENABLED) {
+      
       logger.debug({ to, subject }, '[email deferred]');
       return { id: null };
     }
