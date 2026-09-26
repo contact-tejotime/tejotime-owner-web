@@ -46,9 +46,20 @@ const TTL = {
   subscription: 300,
 } as const;
 
-/** `revalidateTag` needs Next 16's explicit profile argument. */
+/**
+ * `revalidateTag` needs Next 16's explicit profile argument — and it MUST be `{ expire: 0 }`,
+ * not the string `"max"`. `"max"` looks like "revalidate fully", but it's the name of Next's
+ * built-in LONGEST cache-life profile (`stale: 5min, revalidate: 30d, expire: 365d` — see
+ * `next/dist/server/config-shared.js`). Next's own `revalidate()` only flags the current
+ * request for "read your own write" when the resolved profile's `expire` is exactly `0`
+ * (`next/dist/server/web/spec-extension/revalidate.js`); a string profile that doesn't resolve
+ * to `expire: 0` still queues the tag for eventual revalidation, but the very next
+ * `router.refresh()` after a mutation is not guaranteed to see it — which is exactly the bug
+ * this used to have (a save would need a manual page reload to show up). An object profile is
+ * used as-is, no `next.config` / cacheComponents changes needed.
+ */
 export function revalidateTags(...tags: string[]): void {
-  for (const t of tags) revalidateTag(t, "max");
+  for (const t of tags) revalidateTag(t, { expire: 0 });
 }
 
 class Unauthorized extends Error {}
