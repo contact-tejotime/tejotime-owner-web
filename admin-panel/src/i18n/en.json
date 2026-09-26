@@ -497,7 +497,9 @@
   },
   "imageCrop": {
     "title": "Crop image",
-    "hint": "Drag to reposition, scroll or use the slider to zoom. The shaded area is what gets saved.",
+    "hint": "Drag to reposition, scroll or use the slider to zoom — zoom out to see the whole photo and leave space around it. The shaded area is what gets saved.",
+    "sizeHint": "Recommended size: {rec} px. Minimum: {min} px.",
+    "marginWhiteHint": "Empty space around the photo will be filled white.",
     "step": "Image {index} of {total}",
     "zoom": "Zoom",
     "rotate": "Rotate",
@@ -507,7 +509,8 @@
     "applying": "Applying…",
     "failed": "Could not process that image. Try another one.",
     "errType": "That file type isn’t supported. Choose a JPEG, PNG or WebP image.",
-    "errSize": "That image is over {mb} MB. Choose a smaller one."
+    "errSize": "That image is over {mb} MB. Choose a smaller one.",
+    "errTooSmall": "This image is {size} px — too small for this spot. Please upload an image of at least {min} px."
   },
   "imagePreview": {
     "title": "Image preview",

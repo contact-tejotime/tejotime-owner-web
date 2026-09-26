@@ -60,12 +60,19 @@ export const TAGS = {
 } as const;
 
 /**
- * Immediately invalidate one or more cache tags — call from mutation route
- * handlers after a successful write so the next read is fresh. ("max" is Next 16's
- * required second arg; `updateTag` is Server-Action-only and can't be used here.)
+ * Immediately invalidate one or more cache tags — call from mutation route handlers after a
+ * successful write so the next read is fresh. `updateTag` is Server-Action-only, so this has to
+ * be `revalidateTag`, and the second arg MUST be `{ expire: 0 }`, not the string `"max"`. `"max"`
+ * looks like "revalidate fully" but is Next's built-in LONGEST cache-life profile (`stale: 5min,
+ * revalidate: 30d, expire: 365d` — see `next/dist/server/config-shared.js`). Next's own
+ * `revalidate()` only flags the current request for "read your own write" when the resolved
+ * profile's `expire` is exactly `0` (`next/dist/server/web/spec-extension/revalidate.js`); with
+ * `"max"` the tag was still queued for eventual revalidation, but the very next
+ * `router.refresh()` after a save had no guarantee of seeing it — a save needed a manual reload
+ * to show up. An object profile is used as-is, no `next.config` / cacheComponents changes needed.
  */
 export function revalidateTags(...tags: string[]) {
-  for (const t of tags) revalidateTag(t, "max");
+  for (const t of tags) revalidateTag(t, { expire: 0 });
 }
 
 /**

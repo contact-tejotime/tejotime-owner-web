@@ -17,7 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { t, format } from "@/i18n";
 
-import { CHECKERBOARD, cropConfigFor } from "./assets";
+import { CHECKERBOARD, cropConfigFor, meetsMinimum } from "./assets";
 import {
   clampOffset,
   cropToFile,
@@ -25,7 +25,12 @@ import {
   type CropTransform,
 } from "./cropImage";
 
-const MIN_ZOOM = 1;
+// Below 1 the photo no longer fills the frame — it leaves a margin instead (white for photo
+// slots, since JPEG has no alpha to leave it transparent; genuinely transparent for a logo/avatar
+// PNG). That used to be blocked outright, forcing every upload to fill the frame edge to edge.
+// 0.2 is a floor only to stop the photo shrinking to an unusable speck — the pan/export math
+// below already tolerates any zoom > 0 with no other changes.
+const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 4;
 const IDENTITY: CropTransform = { offset: { x: 0, y: 0 }, zoom: 1, rotation: 0 };
 
@@ -73,6 +78,9 @@ function CropModal({ request, busy = false, onApply, onCancel }: CropModalProps)
   const [error, setError] = useState("");
 
   const locked = busy || working;
+  // Checked once the photo decodes; a file's pixel size is unknowable before that. The photo still
+  // shows so the owner can see which one was refused, but Apply stays off.
+  const tooSmall = natural !== null && !meetsMinimum(natural, config);
 
   useEffect(() => {
     let alive = true;
@@ -173,7 +181,7 @@ function CropModal({ request, busy = false, onApply, onCancel }: CropModalProps)
 
   async function apply() {
     const image = imgRef.current;
-    if (!image || !natural || !frame.width || locked) return;
+    if (!image || !natural || !frame.width || locked || tooSmall) return;
     setWorking(true);
     setError("");
     try {
@@ -247,6 +255,12 @@ function CropModal({ request, busy = false, onApply, onCancel }: CropModalProps)
           <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-muted)" }}>
             {t.imageCrop.hint}
           </p>
+          <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-muted)" }}>
+            {format(t.imageCrop.sizeHint, {
+              rec: `${config.maxWidth}×${config.maxHeight}`,
+              min: `${config.minWidth}×${config.minHeight}`,
+            })}
+          </p>
 
           <div
             ref={frameRef}
@@ -257,9 +271,16 @@ function CropModal({ request, busy = false, onApply, onCancel }: CropModalProps)
             onWheel={onWheel}
             style={{
               position: "relative",
-              width: "100%",
+              // `width: 100%` + `aspect-ratio` + a separate `max-height` is a trap: CSS clamps
+              // the height to max-height but does NOT shrink width back to match, so on a short
+              // viewport the frame silently renders WIDER than `config.aspect`. cropToFile trusts
+              // the frame to be exactly config.aspect (`f = out.width / frame.width` reused for
+              // both axes) — a mismatched frame made it draw the cover-fit for the wrong box,
+              // undersizing the image and leaving a flat white band top and bottom of the export.
+              // Deriving width from the height cap instead keeps aspect-ratio the only source of
+              // truth for height, so the frame can never diverge from config.aspect.
+              width: `min(100%, calc(46vh * ${config.aspect}))`,
               aspectRatio: String(config.aspect),
-              maxHeight: "46vh",
               margin: "0 auto",
               overflow: "hidden",
               borderRadius: 12,
@@ -326,6 +347,20 @@ function CropModal({ request, busy = false, onApply, onCancel }: CropModalProps)
             </div>
           </div>
 
+          {config.photo && natural && view.zoom < 1 ? (
+            <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+              {t.imageCrop.marginWhiteHint}
+            </p>
+          ) : null}
+
+          {tooSmall && natural ? (
+            <p role="alert" style={{ margin: "12px 0 0", fontSize: 13, color: "var(--red-600, #dc2626)" }}>
+              {format(t.imageCrop.errTooSmall, {
+                size: `${natural.width}×${natural.height}`,
+                min: `${config.minWidth}×${config.minHeight}`,
+              })}
+            </p>
+          ) : null}
           {error ? (
             <p role="alert" style={{ margin: "12px 0 0", fontSize: 13, color: "var(--red-600, #dc2626)" }}>
               {error}
@@ -345,7 +380,7 @@ function CropModal({ request, busy = false, onApply, onCancel }: CropModalProps)
           <button type="button" onClick={onCancel} disabled={locked} style={ghostBtn}>
             {t.imageCrop.cancel}
           </button>
-          <button type="button" onClick={apply} disabled={locked || !natural} style={primaryBtn}>
+          <button type="button" onClick={apply} disabled={locked || !natural || tooSmall} style={{ ...primaryBtn, opacity: tooSmall ? 0.5 : 1, cursor: tooSmall ? "not-allowed" : "pointer" }}>
             {locked ? t.imageCrop.applying : t.imageCrop.apply}
           </button>
         </div>

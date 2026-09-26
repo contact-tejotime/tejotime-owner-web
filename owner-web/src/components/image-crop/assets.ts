@@ -25,6 +25,18 @@ export type CropConfig = {
   maxWidth: number;
   maxHeight: number;
   /**
+   * Smallest source photo the slot accepts, in px (same aspect as the slot). Below this the
+   * cropper refuses to apply: the image would be stretched on the live site and look soft.
+   */
+  minWidth: number;
+  minHeight: number;
+  /**
+   * Photo slot: always export JPEG, whatever the source format. Transparency means nothing in a
+   * full-bleed photo (on the microsite it just paints as white bands) and truecolour PNG is far
+   * too heavy for one. Logo/avatar leave this off so a transparent PNG stays transparent.
+   */
+  photo?: boolean;
+  /**
    * Lossy encode quality for JPEG/WebP (`canvas.toBlob`). Omit to use cropImage's default
    * (0.98). Set explicitly on each slot so sharpness intent stays visible next to the caps.
    */
@@ -43,15 +55,35 @@ export type CropConfig = {
  *   logo     40 CSS px, x3 = 120 — 1024 leaves headroom for retina without a huge file
  *   avatar   staff circle, same 1024 headroom
  */
-const SQUARE = { aspect: 1, maxWidth: 2400, maxHeight: 2400 };
+/*
+ * Minimums are the floor below which the slot visibly blurs on a common laptop/phone (~2x DPR),
+ * NOT the recommended size — the max edges above are what to aim for. Mirrored by hand in the
+ * mobile app's `lib/upload.ts` (MIN_SIZE); change the two together.
+ *
+ *   hero     ~800 CSS px x2 = 1600 → 1600×1200
+ *   about    ~800 CSS px x2 = 1600 → 1600×900
+ *   gallery  1080 (a standard phone/Instagram export)
+ *   logo, avatar  400 — small on screen, but the owner-web/admin previews show them larger
+ */
+const SQUARE = { aspect: 1, maxWidth: 2400, maxHeight: 2400, minWidth: 1080, minHeight: 1080 };
 
 export const CROP_CONFIG: Record<CropAssetType, CropConfig> = {
-  logo: { aspect: 1, maxWidth: 1024, maxHeight: 1024, quality: 0.98 },
-  hero: { aspect: 4 / 3, maxWidth: 2800, maxHeight: 2100, quality: 0.98 },
-  about: { aspect: 16 / 9, maxWidth: 2560, maxHeight: 1440, quality: 0.98 },
-  gallery: { aspect: 1, maxWidth: 2400, maxHeight: 2400, quality: 0.98 },
-  avatar: { aspect: 1, maxWidth: 1024, maxHeight: 1024, quality: 0.98 },
+  logo: { aspect: 1, maxWidth: 1024, maxHeight: 1024, minWidth: 400, minHeight: 400, quality: 0.98 },
+  hero: { aspect: 4 / 3, maxWidth: 2800, maxHeight: 2100, minWidth: 1600, minHeight: 1200, photo: true, quality: 0.98 },
+  about: { aspect: 16 / 9, maxWidth: 2560, maxHeight: 1440, minWidth: 1600, minHeight: 900, photo: true, quality: 0.98 },
+  gallery: { aspect: 1, maxWidth: 2400, maxHeight: 2400, minWidth: 1080, minHeight: 1080, photo: true, quality: 0.98 },
+  avatar: { aspect: 1, maxWidth: 1024, maxHeight: 1024, minWidth: 400, minHeight: 400, quality: 0.98 },
 };
+
+/**
+ * True when the photo is big enough for the slot. Since minWidth/minHeight share the slot's aspect,
+ * "both edges ≥ minimum" is exactly "a full frame at the minimum size fits inside the photo".
+ * Upright only, on purpose: allowing the rotated size too would pass a small portrait photo that
+ * then crops soft whenever the owner doesn't press Rotate.
+ */
+export function meetsMinimum(natural: { width: number; height: number }, config: CropConfig): boolean {
+  return natural.width >= config.minWidth && natural.height >= config.minHeight;
+}
 
 /** Falls back to a square for any slot not listed, rather than throwing mid-upload. */
 export function cropConfigFor(assetType: string): CropConfig {

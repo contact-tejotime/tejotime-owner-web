@@ -250,7 +250,7 @@
     "yearInvalid": "Enter a valid year between 1800 and 2100.",
     "logoLabel": "Logo",
     "heroImageLabel": "Hero image",
-    "heroImageHint": "The large picture at the top of your page.",
+    "heroImageHint": "The large picture at the top of your page. Use a landscape photo, at least 1600×1200 px (2800×2100 is ideal).",
     "aboutImageLabel": "About image",
     "changeImage": "Change",
     "addImage": "Add photo",
@@ -565,7 +565,9 @@
     "permissionTitle": "Permission needed",
     "permissionBody": "Allow photo library access to upload an image.",
     "tooLargeTitle": "Photo too large",
-    "tooLargeBody": "Please choose an image under 5 MB."
+    "tooLargeBody": "Please choose an image under 5 MB.",
+    "tooSmallTitle": "Photo too small",
+    "tooSmallBody": "This photo is {size} px. Please upload an image of at least {min} px so it looks sharp on your page."
   },
   "errors": {
     "requestFailed": "Request failed",
