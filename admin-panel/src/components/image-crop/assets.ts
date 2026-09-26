@@ -24,6 +24,11 @@ export type CropConfig = {
   /** Longest edge of the exported image, in px. Bounds the upload size. */
   maxWidth: number;
   maxHeight: number;
+  /**
+   * Lossy encode quality for JPEG/WebP (`canvas.toBlob`). Omit to use cropImage's default
+   * (0.98). Set explicitly on each slot so sharpness intent stays visible next to the caps.
+   */
+  quality?: number;
 };
 
 /*
@@ -32,19 +37,20 @@ export type CropConfig = {
  * interpolated up to these numbers. That makes it safe to size them for the worst case — a 3x
  * display — instead of the average one.
  *
- *   hero     ~660 CSS px wide on the desktop layout, x3 DPR ≈ 1980
- *   about    ~560 CSS px, x3 ≈ 1680  (16:9 puts the constraint on width)
- *   gallery  ~474 CSS px for the 2x2 feature cell, x3 ≈ 1422
- *   logo     40 CSS px, x3 = 120 — 512 is already far past what it can show
+ *   hero     ~900 CSS px on wide layouts, x3 DPR ≈ 2700 → 2800×2100 (4:3)
+ *   about    ~800 CSS px, x3 ≈ 2400 → 2560×1440 (16:9)
+ *   gallery  ~800 CSS px feature cell, x3 ≈ 2400
+ *   logo     40 CSS px, x3 = 120 — 1024 leaves headroom for retina without a huge file
+ *   avatar   staff circle, same 1024 headroom
  */
-const SQUARE = { aspect: 1, maxWidth: 1440, maxHeight: 1440 };
+const SQUARE = { aspect: 1, maxWidth: 2400, maxHeight: 2400 };
 
 export const CROP_CONFIG: Record<CropAssetType, CropConfig> = {
-  logo: { aspect: 1, maxWidth: 512, maxHeight: 512 },
-  hero: { aspect: 4 / 3, maxWidth: 2000, maxHeight: 1500 },
-  about: { aspect: 16 / 9, maxWidth: 1920, maxHeight: 1080 },
-  gallery: SQUARE,
-  avatar: { aspect: 1, maxWidth: 512, maxHeight: 512 },
+  logo: { aspect: 1, maxWidth: 1024, maxHeight: 1024, quality: 0.98 },
+  hero: { aspect: 4 / 3, maxWidth: 2800, maxHeight: 2100, quality: 0.98 },
+  about: { aspect: 16 / 9, maxWidth: 2560, maxHeight: 1440, quality: 0.98 },
+  gallery: { aspect: 1, maxWidth: 2400, maxHeight: 2400, quality: 0.98 },
+  avatar: { aspect: 1, maxWidth: 1024, maxHeight: 1024, quality: 0.98 },
 };
 
 /** Falls back to a square for any slot not listed, rather than throwing mid-upload. */
