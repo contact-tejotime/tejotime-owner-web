@@ -14,11 +14,11 @@
 import type { CropConfig } from "./assets";
 
 /**
- * Lossy encode quality. 0.92 is the usual "visually indistinguishable" mark for a re-encode —
- * 0.9 starts to show ringing on flat colour and skin, and above ~0.95 the file grows fast for no
- * visible gain. PNG ignores this and stays lossless.
+ * Default lossy encode quality when CropConfig.quality is omitted. 0.98 keeps re-encodes
+ * sharp on large microsite slots; PNG ignores this and stays lossless. Slots set quality
+ * explicitly in assets.ts so the ceiling and encode intent travel together.
  */
-const QUALITY = 0.92;
+const DEFAULT_QUALITY = 0.98;
 
 export type CropTransform = {
   /** Pan in viewport px, from the centre of the crop frame. */
@@ -186,8 +186,9 @@ export async function cropToFile(
   ctx.scale(residual, residual);
   ctx.drawImage(drawSrc, -sw / 2, -sh / 2);
 
+  const quality = config.quality ?? DEFAULT_QUALITY;
   const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, type, type === "image/png" ? undefined : QUALITY),
+    canvas.toBlob(resolve, type, type === "image/png" ? undefined : quality),
   );
   if (!blob) throw new Error("encode-failed");
 

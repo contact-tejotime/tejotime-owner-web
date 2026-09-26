@@ -22,6 +22,12 @@ const s3 = new S3Client({
     accessKeyId: env.S3_ACCESS_KEY_ID,
     secretAccessKey: env.S3_SECRET_ACCESS_KEY,
   },
+  // AWS SDK ≥3.729 signs PutObject with flexible checksums by default. That bakes a
+  // Content-MD5 / crc32 into the *presigned* URL computed over an empty body; MinIO (and
+  // other S3-compat stores) then return BadDigest when the real file bytes arrive. We only
+  // need content-type on the signature — turn checksums off unless the API requires them.
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 });
 
 export const IMAGE_MIME_EXT: Record<string, string> = {

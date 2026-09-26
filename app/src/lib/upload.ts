@@ -33,7 +33,7 @@ export async function pickAndUploadImage(
     mediaTypes: ['images'],
     allowsEditing: opts.allowsEditing ?? false,
     aspect: opts.aspect,
-    quality: 0.85,
+    quality: 0.98,
   });
   if (result.canceled || !result.assets?.length) return null;
 
