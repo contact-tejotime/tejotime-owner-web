@@ -10,6 +10,19 @@ const MAX_BYTES = 5_000_000;
 
 export type UploadAssetType = 'logo' | 'hero' | 'about' | 'gallery' | 'avatar';
 
+/**
+ * Smallest photo each slot accepts, in px. Hand-mirror of `minWidth`/`minHeight` in the web
+ * cropper's CROP_CONFIG (admin-panel/src/components/image-crop/assets.ts) — change the two
+ * together. Below this the microsite stretches the photo and it looks soft.
+ */
+const MIN_SIZE: Record<UploadAssetType, { width: number; height: number }> = {
+  logo: { width: 400, height: 400 },
+  hero: { width: 1600, height: 1200 },
+  about: { width: 1600, height: 900 },
+  gallery: { width: 1080, height: 1080 },
+  avatar: { width: 400, height: 400 },
+};
+
 type PickOptions = {
   aspect?: [number, number];
   allowsEditing?: boolean;
@@ -38,6 +51,21 @@ export async function pickAndUploadImage(
   if (result.canceled || !result.assets?.length) return null;
 
   const asset = result.assets[0];
+
+  // With allowsEditing the picker reports the cropped size, which is the one that matters. A
+  // zero/missing size (some Android providers) is let through rather than blocking every upload.
+  const min = MIN_SIZE[assetType];
+  if (asset.width && asset.height && (asset.width < min.width || asset.height < min.height)) {
+    Alert.alert(
+      t.upload.tooSmallTitle,
+      format(t.upload.tooSmallBody, {
+        size: `${asset.width}×${asset.height}`,
+        min: `${min.width}×${min.height}`,
+      }),
+    );
+    return null;
+  }
+
   const contentType = ALLOWED_TYPES.has(asset.mimeType ?? '') ? (asset.mimeType as string) : 'image/jpeg';
 
   const file = new File(asset.uri);

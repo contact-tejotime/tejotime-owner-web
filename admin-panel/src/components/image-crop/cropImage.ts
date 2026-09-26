@@ -11,7 +11,7 @@
  * Export maps viewport px to output px with a single factor, so the maths below is the same as
  * the preview's CSS transform — no second implementation to drift.
  */
-import type { CropConfig } from "./assets";
+import { MAX_BYTES, type CropConfig } from "./assets";
 
 /**
  * Default lossy encode quality when CropConfig.quality is omitted. 0.98 keeps re-encodes
@@ -138,8 +138,8 @@ function prescale(
 /**
  * Render the framed region to a File.
  *
- * Keeps the source mime so a transparent PNG logo stays transparent; anything else would put a
- * black box behind the mark. JPEG gets a white matte for the same reason in reverse — it has no
+ * Keeps the source mime (except photo slots, which are always JPEG) so a transparent PNG logo
+ * stays transparent; anything else would put a black box behind the mark. JPEG gets a white matte for the same reason in reverse — it has no
  * alpha, and unpainted canvas exports as black.
  */
 export async function cropToFile(
@@ -160,7 +160,11 @@ export async function cropToFile(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("canvas-unavailable");
 
-  const type = source.type === "image/png" ? "image/png" : source.type === "image/webp" ? "image/webp" : "image/jpeg";
+  // Photo slots always export JPEG. A canvas can only write 32-bit truecolour PNG, so a compact
+  // 8-bit palette PNG (a 3 MB 3753×2100 hero) came back as a >5 MB PNG and the API refused it.
+  const type = config.photo
+    ? "image/jpeg"
+    : source.type === "image/png" ? "image/png" : source.type === "image/webp" ? "image/webp" : "image/jpeg";
   if (type === "image/jpeg") {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, out.width, out.height);
@@ -186,10 +190,22 @@ export async function cropToFile(
   ctx.scale(residual, residual);
   ctx.drawImage(drawSrc, -sw / 2, -sh / 2);
 
-  const quality = config.quality ?? DEFAULT_QUALITY;
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, type, type === "image/png" ? undefined : quality),
-  );
+  const encode = (q: number | undefined) =>
+    new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, q));
+
+  let blob: Blob | null;
+  if (type === "image/png") {
+    blob = await encode(undefined);
+  } else {
+    // Start at the slot's quality and step down only while the file is over the upload limit; a
+    // very detailed 2800px photo can exceed 5 MB even as a JPEG at 0.98.
+    let quality = config.quality ?? DEFAULT_QUALITY;
+    blob = await encode(quality);
+    while (blob && blob.size > MAX_BYTES && quality > 0.6) {
+      quality = Math.round((quality - 0.08) * 100) / 100;
+      blob = await encode(quality);
+    }
+  }
   if (!blob) throw new Error("encode-failed");
 
   return new File([blob], renameForType(source.name, type), { type, lastModified: Date.now() });
