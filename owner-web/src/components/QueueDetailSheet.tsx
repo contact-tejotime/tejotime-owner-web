@@ -254,7 +254,7 @@ export function QueueDetailSheet({
   const facts: { key: string; label: string; value: ReactNode }[] = [
     { key: "pos", label: t.detail.position, value: `#${card.position}` },
     { key: "seat", label: t.detail.seat, value: card.seatName ?? t.common.dash },
-    { key: "service", label: t.detail.service, value: card.service ?? t.common.dash },
+    { key: "service", label: t.detail.service, value: card.service || t.common.dash },
     {
       key: "price",
       label: t.detail.price,
@@ -422,7 +422,7 @@ export function QueueDetailSheet({
                 {billing ? (
                   <ul className="dp-breakdown">
                     <li>
-                      <span>{card.service ?? t.detail.service}</span>
+                      <span>{card.service || t.detail.service}</span>
                       <span>
                         {formatServicePrice({
                           price: billing.serviceAmount,

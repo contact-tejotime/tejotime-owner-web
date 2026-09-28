@@ -514,6 +514,9 @@ textarea {
   align-items: center;
   margin-bottom: 8px;
 }
+.hours-copy-all {
+  margin: -8px 0 12px;
+}
 .hours-row .day {
   font-weight: 600;
   color: var(--text-strong);

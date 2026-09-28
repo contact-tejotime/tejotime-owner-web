@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   DAY_LABELS,
   EMPTY_FORM,
-  OPTIONAL_SERVICES_STAFF_CATEGORIES,
   toPayload,
   type Category,
   type FaqRow,
@@ -46,6 +45,10 @@ interface Props {
  * clickable icons on a customer-facing page — a value that cannot be opened is worse than an
  * absent one. The placeholders show the expected shape.
  */
+/** Weekly hours display order: Monday first, Sunday last (data stays keyed by the standard
+ *  0=Sunday…6=Saturday `dayOfWeek`, only the row order on screen changes). */
+const HOURS_DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
 const SOCIAL_FIELDS = [
   { key: "instagramUrl", placeholder: "https://instagram.com/yourshop" },
   { key: "facebookUrl", placeholder: "https://facebook.com/yourshop" },
@@ -113,6 +116,11 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
     setForm((f) => ({ ...f, amenities: f.amenities.map((a, idx) => (idx === i ? value : a)) }));
   const setHour = (i: number, patch: Partial<StoreFormState["hours"][number]>) =>
     setForm((f) => ({ ...f, hours: f.hours.map((h, idx) => (idx === i ? { ...h, ...patch } : h)) }));
+  const copyFirstDayToAll = () =>
+    setForm((f) => {
+      const { opensAt, closesAt, isClosed } = f.hours.find((h) => h.dayOfWeek === HOURS_DISPLAY_ORDER[0])!;
+      return { ...f, hours: f.hours.map((h) => ({ ...h, opensAt, closesAt, isClosed })) };
+    });
 
   const removeAt = <T,>(arr: T[], i: number) => arr.filter((_, idx) => idx !== i);
 
@@ -199,6 +207,12 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
         setDetails(json?.error?.details ?? []);
         return;
       }
+      if (mode === "create") {
+        // Land the admin straight on the new store's settings rather than leaving them on the
+        // blank create form — they almost always have more to configure (hours, photos, etc.).
+        router.push(`/stores/${(json as StoreMutationResult).id}/settings`);
+        return;
+      }
       setResult(json as StoreMutationResult);
       setSavedTheme(form.theme); // the appearance is now what's live — clear the unsaved flag
       router.refresh(); // update the sidebar list (new/renamed store)
@@ -214,7 +228,6 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
     () => (result && FRONTEND_URL ? `${FRONTEND_URL}${result.micrositePath}` : ""),
     [result],
   );
-  const servicesStaffOptional = OPTIONAL_SERVICES_STAFF_CATEGORIES.has(form.category);
 
   // Categories may not include the store's current value (e.g. a deactivated category on edit);
   // keep it selectable so a save doesn't silently drop it.
@@ -432,7 +445,13 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
         {/* Hours -------------------------------------------------------- */}
         <section className="section">
           <h2>{t.storeForm.weeklyHours}</h2>
-          {form.hours.map((h, i) => (
+          <button type="button" className="btn-add hours-copy-all" onClick={copyFirstDayToAll}>
+            {t.storeForm.copyToAllDays}
+          </button>
+          {HOURS_DISPLAY_ORDER.map((dayOfWeek) => {
+            const i = form.hours.findIndex((h) => h.dayOfWeek === dayOfWeek);
+            const h = form.hours[i];
+            return (
             <div className="hours-row" key={h.dayOfWeek}>
               <span className="day">{DAY_LABELS[h.dayOfWeek]}</span>
               <input
@@ -454,7 +473,8 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
                 {t.storeForm.closed}
               </label>
             </div>
-          ))}
+            );
+          })}
         </section>
 
         {/* Amenities ---------------------------------------------------- */}
@@ -507,8 +527,8 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
 
         {/* Services ----------------------------------------------------- */}
         <section className="section">
-          <h2>{servicesStaffOptional ? t.storeForm.servicesOptional : t.storeForm.services}</h2>
-          {servicesStaffOptional && <p className="hint">{t.storeForm.servicesStaffOptionalHint}</p>}
+          <h2>{t.storeForm.servicesOptional}</h2>
+          <p className="hint">{t.storeForm.servicesStaffOptionalHint}</p>
           {form.services.map((s, i) => (
             <div className="row service" key={i}>
               <div className="field">
@@ -529,38 +549,50 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
                 />
               </div>
               {/* Fixed = one amount. Range = a band the customer sees, with the real figure
-                  settled at checkout. Choosing "Fixed" clears any ceiling the row was carrying,
-                  because the API refuses a fixed service that still has one. */}
+                  settled at checkout. No price = nothing is shown and the amount is typed at
+                  checkout. Leaving Fixed clears any ceiling the row was carrying, because the API
+                  refuses a fixed service that still has one; choosing No price also zeroes the
+                  amount, since that is what the API stores for it. */}
               <div className="field">
                 <label>{t.storeForm.priceMode}</label>
                 <select
-                  value={s.priceType === "range" ? "range" : "fixed"}
+                  value={s.priceType}
                   onChange={(e) => {
-                    const priceType = e.target.value === "range" ? "range" : "fixed";
-                    setService(i, { priceType, priceMaxRupees: priceType === "range" ? s.priceMaxRupees : null });
+                    const v = e.target.value;
+                    const priceType = v === "range" || v === "unset" ? v : "fixed";
+                    setService(i, {
+                      priceType,
+                      priceMaxRupees: priceType === "range" ? s.priceMaxRupees : null,
+                      ...(priceType === "unset" ? { priceRupees: 0 } : {}),
+                    });
                   }}
                 >
                   <option value="fixed">{t.storeForm.priceModeFixed}</option>
                   <option value="range">{t.storeForm.priceModeRange}</option>
+                  <option value="unset">{t.storeForm.priceModeNone}</option>
                 </select>
               </div>
-              <div className="field">
-                <label>
-                  {format(s.priceType === "range" ? t.storeForm.priceMin : t.storeForm.price, {
-                    symbol: currencySymbol(form.currency),
-                  })}
-                </label>
-                <input
-                  value={s.priceRupees || ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === "") return setService(i, { priceRupees: 0 });
-                    const n = Number(v);
-                    if (!Number.isNaN(n)) setService(i, { priceRupees: n });
-                  }}
-                  inputMode="numeric"
-                />
-              </div>
+              {s.priceType === "unset" ? (
+                <div className="field" aria-hidden />
+              ) : (
+                <div className="field">
+                  <label>
+                    {format(s.priceType === "range" ? t.storeForm.priceMin : t.storeForm.price, {
+                      symbol: currencySymbol(form.currency),
+                    })}
+                  </label>
+                  <input
+                    value={s.priceRupees || ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "") return setService(i, { priceRupees: 0 });
+                      const n = Number(v);
+                      if (!Number.isNaN(n)) setService(i, { priceRupees: n });
+                    }}
+                    inputMode="numeric"
+                  />
+                </div>
+              )}
               {/* The placeholder keeps the grid columns aligned across rows in different modes —
                   without it a fixed row and a range row below it stagger. */}
               {s.priceType === "range" ? (
@@ -609,8 +641,8 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
 
         {/* Staff -------------------------------------------------------- */}
         <section className="section">
-          <h2>{servicesStaffOptional ? t.storeForm.staffOptional : t.storeForm.staff}</h2>
-          {servicesStaffOptional && <p className="hint">{t.storeForm.servicesStaffOptionalHint}</p>}
+          <h2>{t.storeForm.staffOptional}</h2>
+          <p className="hint">{t.storeForm.servicesStaffOptionalHint}</p>
           {form.staff.map((s, i) => (
             <div className="row staff" key={i}>
               <div className="field">

@@ -355,6 +355,73 @@ async function main() {
   const fixedOut = await call('POST', `/queue/${fixedEntry}/checkout`, { token });
   ok(fixedOut.status === 200, 'fixed-price checkout still derives its total from an empty body');
 
+  console.log('OPTIONAL DATA: NO PRICE, NO SERVICE');
+  // Price and service are optional: a store collects as little as it can. What must NOT change is
+  // that money is never banked by guesswork — an unpriced or service-less visit is checked out
+  // with a typed amount, exactly like a range. (Stylists/seatless lanes are smoke-seatless.mjs.)
+  const noPriceName = `Smoke NoPrice ${Date.now()}`;
+  const noPrice = await call('POST', '/services', {
+    token,
+    body: { name: noPriceName, durationMinutes: 15, priceType: 'unset', colorToken: 'primary' },
+  });
+  ok(noPrice.status === 201 && noPrice.json.priceType === 'unset', `create a service with NO price (got ${noPrice.status})`);
+  ok(noPrice.json.price?.amount === 0 && noPrice.json.priceMax === null, 'an unpriced service is stored as 0 with no ceiling');
+  const siteNoPrice = await call('GET', '/public/businesses/sharp-cuts');
+  ok(
+    siteNoPrice.json.services.find((s) => s.name === noPriceName)?.priceType === 'unset',
+    'the microsite exposes it as unset (so the page renders no price)',
+  );
+  const fixedNoAmount = await call('POST', '/services', {
+    token,
+    body: { name: 'Smoke FixedNoAmount', durationMinutes: 15, priceType: 'fixed', colorToken: 'primary' },
+  });
+  ok(fixedNoAmount.status === 400, `a FIXED service still needs an amount (got ${fixedNoAmount.status})`);
+
+  // An unpriced service: the checkout sheet is told to ask, and the API refuses to guess.
+  const unpricedAdd = await call('POST', '/queue', {
+    token,
+    body: { name: 'Unpriced Uma', phone: '+919555000444', serviceId: noPrice.json.id, staffId: smokeSeatId, position: 'end' },
+  });
+  ok(unpricedAdd.status === 201, 'walk-in on an unpriced service added');
+  const unpricedEntry = unpricedAdd.json.entry.id;
+  await call('POST', `/queue/${unpricedEntry}/start`, { token });
+  const unpricedBilling = await call('GET', `/queue/${unpricedEntry}`, { token });
+  ok(unpricedBilling.json.amountRequired === true && unpricedBilling.json.servicePriceType === 'unset', 'billing says an amount is required');
+  const unpricedNo = await call('POST', `/queue/${unpricedEntry}/checkout`, { token });
+  ok(unpricedNo.status === 422 && unpricedNo.json.error?.code === 'AMOUNT_REQUIRED', `no amount → 422 AMOUNT_REQUIRED (got ${unpricedNo.status} ${unpricedNo.json.error?.code})`);
+  const unpricedYes = await call('POST', `/queue/${unpricedEntry}/checkout`, { token, body: { amountPaise: 15000 } });
+  ok(unpricedYes.status === 200, 'checkout with a typed amount succeeds');
+
+  // A walk-in with NO service at all. This was a 400 ("Add a service") for a Salon; it is allowed
+  // now, and it must not fall through to banking ₹0 as a free visit.
+  const revBeforeBare = (await call('GET', '/dashboard/summary', { token })).json.kpis.revenue.amount;
+  const bareAdd = await call('POST', '/queue', {
+    token,
+    body: { name: 'Bare Ben', phone: '+919555000555', staffId: smokeSeatId, position: 'end' },
+  });
+  ok(bareAdd.status === 201, `walk-in with no service is accepted (got ${bareAdd.status} ${bareAdd.json.error?.message ?? ''})`);
+  const bareEntry = bareAdd.json.entry.id;
+  await call('POST', `/queue/${bareEntry}/start`, { token });
+  const bareBilling = await call('GET', `/queue/${bareEntry}`, { token });
+  ok(bareBilling.json.amountRequired === true, 'a service-less entry requires an amount');
+  ok(bareBilling.json.suggestedAmount === null, 'and offers no ₹0 to pre-fill');
+  const bareNo = await call('POST', `/queue/${bareEntry}/checkout`, { token });
+  ok(bareNo.status === 422 && bareNo.json.error?.code === 'AMOUNT_REQUIRED', `service-less checkout with no amount → 422 AMOUNT_REQUIRED (got ${bareNo.status} ${bareNo.json.error?.code})`);
+  const bareNeg = await call('POST', `/queue/${bareEntry}/checkout`, { token, body: { amountPaise: -100 } });
+  ok(bareNeg.status >= 400 && bareNeg.status < 500, `a negative amount is refused (got ${bareNeg.status})`);
+  const bareYes = await call('POST', `/queue/${bareEntry}/checkout`, { token, body: { amountPaise: 20000 } });
+  ok(bareYes.status === 200, 'service-less checkout with a typed amount succeeds');
+  const revAfterBare = (await call('GET', '/dashboard/summary', { token })).json.kpis.revenue.amount;
+  ok(revAfterBare - revBeforeBare === 20000, `the typed amount is what got banked (delta ${revAfterBare - revBeforeBare})`);
+
+  // The customer side: joining with no service picked (the microsite skips the picker for a store
+  // with none) must issue a ticket, not 400.
+  const bareJoin = await call('POST', '/public/businesses/sharp-cuts/queue', {
+    body: { name: 'Public Pia', phone: '+919555000666', preferredStaffId: 'any' },
+  });
+  ok(bareJoin.status === 201 && /^A-\d+$/.test(bareJoin.json.token), `public join with no service issues a token (got ${bareJoin.status})`);
+  if (bareJoin.json.ticketId) await call('DELETE', `/public/tickets/${bareJoin.json.ticketId}`);
+
   console.log('MULTI-SERVICE VISITS');
   // A visit is routinely more than one thing ("haircut AND a hair spa"). Picking one used to drop
   // the rest: the wait engine sized the visit by the first service and checkout rang up its price

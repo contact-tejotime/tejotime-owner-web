@@ -838,8 +838,7 @@
       "takeAToken": "Take a Token",
       "checkIn": "Check in",
       "bookSlot": "Book an Appointment",
-      "noAppNote": "No app or account needed. We’ll use your phone number to confirm.",
-      "heroPhoto": "Hero photo"
+      "noAppNote": "No app or account needed. We’ll use your phone number to confirm."
     },
     "about": {
       "eyebrow": "About Us",
@@ -1033,6 +1032,7 @@
       "bookWith": "Book with {name}",
       "book": "Book Appointment",
       "bookService": "Book {name}, {price}",
+      "bookServiceNoPrice": "Book {name}",
       "showAllServices": "Show all ({count})",
       "gallery": "Gallery",
       "openPhoto": "Open photo {index} of {total}",
@@ -1046,7 +1046,6 @@
       "svcEyebrowMenu": "Services",
       "svcEyebrowTreatments": "Consultations",
       "priceRange": "{min}–{max}",
-      "priceOnRequest": "Price on request",
       "waitCell": "wait",
       "waitingCell": "waiting",
       "noWaitCell": "0 min",

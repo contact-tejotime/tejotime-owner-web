@@ -213,7 +213,8 @@ function liveLine(facts: StoreFacts): string {
 
 function serviceLines(list: StoreFacts['services']): string {
   const shown = list.slice(0, 8);
-  const lines = shown.map((s) => `• ${s.name} — ${s.priceLabel} · ${s.minutes} min`);
+  // An unpriced service has an empty `priceLabel` — say nothing rather than invent a figure.
+  const lines = shown.map((s) => `• ${s.name} — ${s.priceLabel ? `${s.priceLabel} · ` : ''}${s.minutes} min`);
   const more = list.length - shown.length;
   return lines.join('\n') + (more > 0 ? `\n…and ${more} more on this page.` : '');
 }
@@ -416,7 +417,7 @@ export function buildSystemPrompt(facts: StoreFacts): string {
   if (facts.phone) lines.push(`Phone: ${facts.phone}`);
   if (facts.payments.length) lines.push(`Payments accepted: ${facts.payments.join(', ')}`);
   if (facts.services.length) {
-    lines.push('Services:', ...facts.services.map((s) => `  - ${s.name}: ${s.priceLabel}, ${s.minutes} min`));
+    lines.push('Services:', ...facts.services.map((s) => `  - ${s.name}: ${s.priceLabel ? `${s.priceLabel}, ` : ''}${s.minutes} min`));
   }
   if (facts.staff.length) {
     lines.push(`Team: ${facts.staff.map((s) => (s.roleLabel ? `${s.name} (${s.roleLabel})` : s.name)).join(', ')}`);

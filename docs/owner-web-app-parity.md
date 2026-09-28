@@ -114,8 +114,10 @@ Kept because a browser is not an App Store build, or because removing them would
   `.seat-pick*`, `.store-qr-*`, `.page-head*`, `.card-open/-main/-actions`, `.appt-card`,
   `.cal-grid/-cell`, `.settings-row*`, `.account-fold*`). Left while eight agents edited the file
   in parallel; safe to delete in a cleanup pass after a grep.
-- **App-side bug seen, not fixed:** the app's `AppointmentListItem` renders `null · John` for a
-  booking with no service. The web falls back to "No service selected".
+- ~~**App-side bug seen, not fixed:** the app's `AppointmentListItem` renders `null · John` for a
+  booking with no service.~~ Fixed 2026-09-28 (services became optional, so it would have been
+  common): the mapper yields `''` and the row joins whatever is present. The app's `QueueCard` and
+  `DetailPanel` got the same treatment. The web still says "No service selected".
 
 ## Verified (2026-09-24)
 

@@ -172,16 +172,20 @@ Free plan truncates the list server-side to `FREE_PLAN_CUSTOMER_LIMIT` and retur
 `GET /` (`ownerRead`, no module permission) — `POST /` · `PATCH /:id` · `DELETE /:id`
 (`perm=services:manage` / `perm=staff:manage`).
 
-**Service pricing** crosses as a triple, all paise: `priceType` (`'fixed' | 'range'`),
-`priceAmount` (the fixed price, or the range floor, `>= 1`) and `priceMaxAmount` (the ceiling —
-required for a range, refused on a fixed price). The three move **together**: a `PATCH` that
-sends one without `priceType` + `priceAmount` is a 400, so a service switched back from a range
-cannot keep a ceiling the check constraint would reject.
+**Service pricing** crosses as a triple, all paise: `priceType` (`'fixed' | 'range' | 'unset'`),
+`priceAmount` (the fixed price, or the range floor, `>= 1`; **optional and ignored for `unset`**,
+which is stored as `0`) and `priceMaxAmount` (the ceiling — required for a range, refused on a
+fixed price). The three move **together**: a `PATCH` that sends one without `priceType` (and, for
+a priced mode, `priceAmount`) is a 400, so a service switched back from a range cannot keep a
+ceiling the check constraint would reject. `unset` means "no price" — the microsite shows none.
 
 The DTO mirrors that with `price` (fixed amount, or range minimum), `priceType` and `priceMax`
-(null unless a range). `priceType` may also read `'unset'` for services that predate pricing
-modes — writes refuse it, so an owner has to choose a real mode. See `database.md` and
-`business-logic.md`.
+(null unless a range). See `database.md` and `business-logic.md`.
+
+Pictures, stylists and services are optional everywhere: `POST /admin/businesses` and
+`PUT /admin/businesses/:id` default `services` and `staff` to `[]`, a service's `priceRupees` may be
+omitted for `unset`, and `POST /queue` (walk-in) needs no service for any category. See
+[docs/optional-store-data.md](../../docs/optional-store-data.md).
 
 ### `/users` (8) — team logins
 

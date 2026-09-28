@@ -1,7 +1,7 @@
 import { exec, many, one } from '../../db/pool';
 import { money, servicePricing } from '../../domain/money';
 import { callRpc } from '../../db/rpc';
-import { SERVICE_EXTRAS, OPTIONAL_SERVICES_STAFF_CATEGORIES, VISITOR_TYPE_CATEGORIES } from '../../config/constants';
+import { SERVICE_EXTRAS, VISITOR_TYPE_CATEGORIES } from '../../config/constants';
 import { Errors } from '../../domain/errors';
 import { normalizePhone } from '../../lib/phone';
 import { initials } from '../../lib/format';
@@ -116,9 +116,12 @@ async function billingFor(businessId: string, entryId: string) {
   const service = Number(row?.service_paise ?? 0);
   const extras = Number(row?.extras_paise ?? 0);
   const currency = row?.currency;
-  // An entry with no service at all (a bare walk-in) is priced entirely by whoever checks it
-  // out; it is a fixed nothing rather than an unpriced service, so it keeps deriving to the
-  // add-ons total as it always has.
+  // An entry with no service at all (a bare walk-in) has nothing to derive a charge from. It used
+  // to fall through to the add-ons total — usually 0 — and bank a free visit into `visit` and the
+  // customer's spend. Now that a store may list no services, that would be the common case, so
+  // it is treated like an unpriced service: whoever checks it out types the amount. Add-ons
+  // recorded against it still count as a basis, so that flow is unchanged.
+  const noPriceBasis = !row?.service_price_type && extras === 0;
   const pricing = row?.service_price_type
     ? servicePricing(
         {
@@ -129,12 +132,14 @@ async function billingFor(businessId: string, entryId: string) {
         currency,
       )
     : null;
-  const amountRequired = pricing?.amountRequired ?? false;
+  const amountRequired = noPriceBasis || (pricing?.amountRequired ?? false);
   return {
     serviceAmount: money(service, currency),
     // The band the shop published, so the checkout sheet can show what it promised the
     // customer next to the box it is asking someone to fill in.
-    servicePriceType: pricing?.priceType ?? 'fixed',
+    // A no-service entry reports `unset` so both owner surfaces word it like an unpriced service
+    // ("Price on request" + the type-an-amount hint) rather than a misleading "₹0".
+    servicePriceType: noPriceBasis ? 'unset' : (pricing?.priceType ?? 'fixed'),
     serviceMaxAmount: pricing?.priceMax ?? null,
     extrasAmount: money(extras, currency),
     /**
@@ -417,9 +422,8 @@ export async function addWalkIn(businessId: string, input: AddWalkInInput) {
   for (const id of [...(input.serviceIds ?? []), ...(input.serviceId ? [input.serviceId] : [])]) {
     if (id && !pickedIds.includes(id)) pickedIds.push(id);
   }
-  if (!OPTIONAL_SERVICES_STAFF_CATEGORIES.has(category) && pickedIds.length === 0) {
-    throw Errors.validation('Add a service', [{ field: 'serviceIds', message: 'Pick a service' }]);
-  }
+  // No service is required: a store collects as little as it can, so a walk-in may be added
+  // bare. `billingFor` then makes whoever checks it out type the amount.
   if (VISITOR_TYPE_CATEGORIES.has(category) && !input.visitorType) {
     throw Errors.validation('Visitor type is required', [{ field: 'visitorType', message: 'Pick MR or Patient' }]);
   }

@@ -5,7 +5,7 @@
 | Asset | Source in UI | Notes |
 |---|---|---|
 | Business **logo** | app splash/login `logo-full.png`; owner avatar in headers | one per business |
-| Business **hero photo** | microsite hero ("Hero photo — salon interior" placeholder) | one per business |
+| Business **hero photo** | microsite hero — **optional**; without one the wait card takes its column (no placeholder) | one per business |
 | **Gallery images** | microsite `GALLERY` grid (4 cells) | many per business, ordered |
 | **Staff/barber avatars** | initials today; real photos likely | one per staff |
 | **QR code PNG** | `QRSheet.tsx` "Download"/"Share" for `tejotime.com/{slug}` | generated, cacheable |
@@ -17,7 +17,7 @@ The current apps use **local bundled assets and CSS gradient placeholders** — 
 ## 2. Storage backend
 
 - **Railway Buckets** — S3-compatible object storage, driven with `@aws-sdk/client-s3` (see `backend/src/integrations/storage.ts`). Any other S3-compatible provider (R2, AWS S3, MinIO) is a drop-in via the `S3_*` env vars.
-- One bucket, tenant-scoped key prefixes: `logo/`, `hero/`, `gallery/`, `avatar/`, plus `admin/` for provisioning-time uploads made before an owner exists.
+- One bucket, tenant-scoped key prefixes: `logo/`, `hero/`, `about/`, `gallery/`, `avatar/`, plus `admin/` for provisioning-time uploads made before an owner exists.
 - Path convention: `{assetType}/{businessId}/{uuid}.{ext}`.
 - **Railway Buckets are private — there are no public object URLs.** Reads go through `GET /media/*` (§5).
 

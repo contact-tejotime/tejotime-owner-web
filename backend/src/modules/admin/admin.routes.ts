@@ -4,7 +4,6 @@ import { asyncHandler } from '../../http/async-handler';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import { Errors } from '../../domain/errors';
-import { OPTIONAL_SERVICES_STAFF_CATEGORIES } from '../../config/constants';
 import { WRITABLE_SERVICE_PRICE_TYPES } from '../../domain/enums';
 import { MAX_IMAGE_BYTES, signUpload } from '../../integrations/storage';
 import { verifyAdminToken } from '../auth/token.service';
@@ -68,19 +67,6 @@ const timeStr = z
   .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Expected HH:MM')
   .nullable()
   .optional();
-
-function requireServicesStaff(
-  data: { category: string; services: unknown[]; staff: unknown[] },
-  ctx: z.RefinementCtx,
-) {
-  if (OPTIONAL_SERVICES_STAFF_CATEGORIES.has(data.category)) return;
-  if (data.services.length === 0) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Add at least one service', path: ['services'] });
-  }
-  if (data.staff.length === 0) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Add at least one staff member', path: ['staff'] });
-  }
-}
 
 /** The store fields shared by create + update (everything except the owner login). */
 const storeFieldsSchema = z.object({
@@ -166,20 +152,23 @@ const storeFieldsSchema = z.object({
         .object({
           name: z.string().trim().min(1).max(80),
           durationMinutes: z.coerce.number().int().min(1).max(600),
-          // Was `min(0)`. A zero used to mean "we'll fill the price in later" and shipped to
-          // customers as "$0"; a service that is named is now a service that is priced, either
-          // to a figure or to a band. Stores that genuinely have no menu (Hospital, Restaurant)
-          // send no services at all, so nothing that used to work is closed off here.
-          priceRupees: z.coerce.number().positive().max(1_000_000),
+          // A zero used to mean "we'll fill the price in later" and shipped to customers as
+          // "$0", so a positive figure is required for the two priced modes. Leaving a service
+          // unpriced is now a deliberate mode of its own (`unset`) rather than a zero: the
+          // microsite shows no price for it, and the owner types the amount at checkout.
+          priceRupees: z.coerce.number().min(0).max(1_000_000).optional(),
           priceType: z.enum(WRITABLE_SERVICE_PRICE_TYPES).default('fixed'),
           /** Range ceiling, in rupees like `priceRupees`. Required for, and only for, a range. */
           priceMaxRupees: z.coerce.number().positive().max(1_000_000).nullable().optional(),
         })
         .superRefine((v, ctx) => {
+          if (v.priceType !== 'unset' && !(v.priceRupees != null && v.priceRupees > 0)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['priceRupees'], message: 'Enter a price' });
+          }
           if (v.priceType === 'range') {
             if (v.priceMaxRupees == null) {
               ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['priceMaxRupees'], message: 'Enter a maximum price' });
-            } else if (v.priceMaxRupees < v.priceRupees) {
+            } else if (v.priceRupees != null && v.priceMaxRupees < v.priceRupees) {
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ['priceMaxRupees'],
@@ -187,11 +176,12 @@ const storeFieldsSchema = z.object({
               });
             }
           } else if (v.priceMaxRupees != null) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['priceMaxRupees'], message: 'A fixed price has no maximum' });
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['priceMaxRupees'], message: 'Only a price range has a maximum' });
           }
         }),
     )
-    .max(50),
+    .max(50)
+    .default([]),
   staff: z
     .array(
       z.object({
@@ -200,7 +190,8 @@ const storeFieldsSchema = z.object({
         avatarUrl: z.string().url().max(500).nullable().optional(),
       }),
     )
-    .max(50),
+    .max(50)
+    .default([]),
   faqs: z
     .array(z.object({ q: z.string().trim().min(1).max(200), a: z.string().trim().min(1).max(1000) }))
     .max(30)
@@ -224,10 +215,9 @@ const createSchema = storeFieldsSchema
       phone: z.string().regex(/^\d{7,15}$/).optional(),
     }),
   })
-  .strict()
-  .superRefine(requireServicesStaff);
+  .strict();
 
-const updateSchema = storeFieldsSchema.strict().superRefine(requireServicesStaff);
+const updateSchema = storeFieldsSchema.strict();
 const resetOwnerPasswordSchema = z.object({ password: z.string().min(6).max(72) }).strict();
 const idParam = z.object({ id: z.string().uuid() });
 const customerVisitsParams = z.object({ id: z.string().uuid(), customerId: z.string().uuid() });
