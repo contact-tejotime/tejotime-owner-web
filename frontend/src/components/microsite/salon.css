@@ -376,6 +376,10 @@
   gap: 14px;
 }
 .ttMosaic > * { grid-column: span 1; grid-row: span 1; }
+/* Pictures are optional, so a store may show a single one. Left to the 2-up grid it sat in half
+   the row beside an empty cell; a lone photo takes the full width at a banner-like height.
+   Two-class selector so it also wins over the min-width rules below without being repeated. */
+.ttMosaic.ttMosaicSolo { grid-template-columns: 1fr; grid-auto-rows: clamp(220px, 42vw, 420px); }
 
 /* ---- Phone: strip the card back to a menu row ----
    Four stacked lines per service is a lot of chrome on a 360px screen. The index and the "Book"

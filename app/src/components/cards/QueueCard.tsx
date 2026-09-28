@@ -55,7 +55,8 @@ function QueueCardComponent({
         <View style={s.subRow}>
           {showSeat && <View style={s.seatDotBg(seatColor)} />}
           <TText variant="bodySm" color="textMuted" numberOfLines={1} style={s.subText}>
-            {showSeat ? `${card.seatName} · ${card.service}` : `${card.srcLabel} · ${card.service}`}
+            {/* A service is optional now, so it may be ''. Join what is there rather than leave a dangling "·". */}
+            {[showSeat ? card.seatName : card.srcLabel, card.service].filter(Boolean).join(' · ')}
           </TText>
         </View>
       </View>

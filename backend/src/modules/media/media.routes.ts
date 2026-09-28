@@ -11,8 +11,9 @@ import { signDownload } from '../../integrations/storage';
 export const mediaRouter = Router();
 
 // Mirrors the key prefixes minted in uploads.routes.ts and admin.routes.ts, so a
-// caller can't probe arbitrary bucket keys through this endpoint.
-const KEY_PATTERN = /^(?:logo|hero|gallery|avatar|admin)\/[A-Za-z0-9_\-/]+\.(?:jpg|png|webp)$/;
+// caller can't probe arbitrary bucket keys through this endpoint. `about` is minted by
+// uploads.routes.ts (ASSET_TYPES) — leaving it out made every uploaded About image a 404.
+const KEY_PATTERN = /^(?:logo|hero|about|gallery|avatar|admin)\/[A-Za-z0-9_\-/]+\.(?:jpg|png|webp)$/;
 
 mediaRouter.get(
   '/*',

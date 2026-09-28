@@ -20,9 +20,11 @@ import { showToast } from "@/lib/toast";
  * add and delete — an owner who mistyped a price had to delete the service and add it again,
  * which also dropped its colour and its place in the menu. PATCH /services/:id was always there.
  *
- * Two pricing modes. A **fixed** service has one amount. A **range** service has a floor and a
+ * Three pricing modes. A **fixed** service has one amount. A **range** service has a floor and a
  * ceiling — the customer sees the band on the microsite, and whoever checks them out types the
- * real figure, because the shop deliberately said it could not name one in advance.
+ * real figure, because the shop deliberately said it could not name one in advance. **No price**
+ * is the third: price is optional, so the microsite shows none and the amount is typed at
+ * checkout, exactly as for a range.
  *
  * Prices go over the wire in MINOR UNITS (paise): the form takes rupees and multiplies by 100,
  * `formatServicePrice` divides on the way back. Mode, amount and (for a range only) the ceiling
@@ -40,8 +42,8 @@ const TONES = new Set<string>(COLOR_PALETTE);
 interface ServiceFormValues {
   name: string;
   durationMinutes: number;
-  priceType: "fixed" | "range";
-  /** The fixed price, or the range floor. */
+  priceType: "fixed" | "range" | "unset";
+  /** The fixed price, or the range floor. Ignored (0) for "unset". */
   priceRupees: number;
   /** The range ceiling; null for a fixed price. */
   priceMaxRupees: number | null;
@@ -97,7 +99,8 @@ export function ServicesEditor({ services }: { services: ServiceRow[] }) {
   function onSave(f: ServiceFormValues) {
     const pricing = {
       priceType: f.priceType,
-      priceAmount: Math.round(f.priceRupees * 100),
+      // An unpriced service carries no amount — the API stores it as 0 itself.
+      ...(f.priceType === "unset" ? {} : { priceAmount: Math.round(f.priceRupees * 100) }),
       // Only a range carries a ceiling — sending one on a fixed service is a 400, by design.
       ...(f.priceType === "range" && f.priceMaxRupees != null
         ? { priceMaxAmount: Math.round(f.priceMaxRupees * 100) }
@@ -202,14 +205,16 @@ function ServiceForm({
   onSave: (f: ServiceFormValues) => void;
   onRemove: () => void;
 }) {
-  // A service saved before pricing modes existed arrives as `unset` — no price at all. It opens on
-  // Fixed with an EMPTY box: the zero it carries in the database is a legacy marker, not an
-  // amount to seed the field with, and the API will not take it back until a real one is chosen.
-  const legacyUnpriced = service?.priceType === "unset";
+  // An `unset` service opens on "No price" with an EMPTY box: the zero it carries in the database
+  // is a marker for "no price", not an amount to seed the field with if the owner switches to
+  // Fixed — they would be saving a free service by accident.
+  const unpriced = service?.priceType === "unset";
   const [name, setName] = useState(service?.name ?? "");
   const [duration, setDuration] = useState(service ? String(service.durationMinutes) : "");
-  const [priceType, setPriceType] = useState<"fixed" | "range">(service?.priceType === "range" ? "range" : "fixed");
-  const [price, setPrice] = useState(service && !legacyUnpriced ? rupees(service.price?.amount) : "");
+  const [priceType, setPriceType] = useState<"fixed" | "range" | "unset">(
+    service?.priceType === "range" || service?.priceType === "unset" ? service.priceType : "fixed",
+  );
+  const [price, setPrice] = useState(service && !unpriced ? rupees(service.price?.amount) : "");
   const [maxPrice, setMaxPrice] = useState(rupees(service?.priceMax?.amount));
   const [error, setError] = useState("");
 
@@ -221,6 +226,15 @@ function ServiceForm({
   function submit(e: FormEvent) {
     e.preventDefault();
     const durationMinutes = parseInt(duration, 10);
+    // Price is optional, so "No price" needs only a name and a duration.
+    if (priceType === "unset") {
+      if (!name.trim() || !durationMinutes || durationMinutes < 1) {
+        setError(t.services.errFieldsNoPrice);
+        return;
+      }
+      onSave({ name: name.trim(), durationMinutes, priceType, priceRupees: 0, priceMaxRupees: null });
+      return;
+    }
     const priceRupees = parseFloat(price);
     // One message for the three required fields, as in the app — validated before the round
     // trip so a typo never comes back as a generic 400.
@@ -257,16 +271,15 @@ function ServiceForm({
           maxLength={80}
         />
       </SbField>
-      {legacyUnpriced ? <p className="sb-field-hint">{t.services.unpricedHint}</p> : null}
 
-      {/* Segmented, not a <select>: there are exactly two modes and the choice changes which
+      {/* Segmented, not a <select>: there are exactly three modes and the choice changes which
           fields are below it, so it has to be visible rather than one click away. */}
       <div className="sb-form-group">
         <p className="sb-caption" id="sv-mode-label">
           {t.services.priceMode}
         </p>
         <div className="sb-seg" role="radiogroup" aria-labelledby="sv-mode-label">
-          {(["fixed", "range"] as const).map((mode) => (
+          {(["fixed", "range", "unset"] as const).map((mode) => (
             <button
               key={mode}
               type="button"
@@ -278,7 +291,11 @@ function ServiceForm({
                 setError("");
               }}
             >
-              {mode === "fixed" ? t.services.priceModeFixed : t.services.priceModeRange}
+              {mode === "fixed"
+                ? t.services.priceModeFixed
+                : mode === "range"
+                  ? t.services.priceModeRange
+                  : t.services.priceModeNone}
             </button>
           ))}
         </div>
@@ -294,20 +311,24 @@ function ServiceForm({
             placeholder={t.services.durationPlaceholder}
           />
         </SbField>
-        <SbField
-          id="sv-price"
-          label={priceType === "range" ? t.services.priceMin : t.services.price}
-          prefix={t.services.pricePrefix}
-        >
-          <input
+        {priceType === "unset" ? null : (
+          <SbField
             id="sv-price"
-            inputMode="decimal"
-            value={price}
-            onChange={(e) => edit(setPrice)(e.target.value)}
-            placeholder={t.services.pricePlaceholder}
-          />
-        </SbField>
+            label={priceType === "range" ? t.services.priceMin : t.services.price}
+            prefix={t.services.pricePrefix}
+          >
+            <input
+              id="sv-price"
+              inputMode="decimal"
+              value={price}
+              onChange={(e) => edit(setPrice)(e.target.value)}
+              placeholder={t.services.pricePlaceholder}
+            />
+          </SbField>
+        )}
       </div>
+
+      {priceType === "unset" ? <p className="sb-field-hint">{t.services.priceUnsetHint}</p> : null}
 
       {priceType === "range" ? (
         <>

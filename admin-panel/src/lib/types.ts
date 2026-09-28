@@ -6,9 +6,6 @@ import { LEGACY_THEME_CONFIG, normalizeThemeConfig, type ThemeConfig } from "@/t
 
 export const DAY_LABELS = t.days.long;
 
-/** Categories where services/staff aren't required (mirrors admin.routes.ts backend zod schema). */
-export const OPTIONAL_SERVICES_STAFF_CATEGORIES = new Set(["Hospital", "Restaurant"]);
-
 export interface HourRow {
   dayOfWeek: number;
   opensAt: string; // "HH:MM" ("" when closed)
@@ -16,9 +13,9 @@ export interface HourRow {
   isClosed: boolean;
 }
 /**
- * How a service is priced. `unset` is legacy — a service that predates pricing modes and was
- * carrying a zero to mean "not priced yet" (migration 0024). It only ever arrives from the API;
- * the form makes the admin choose a real mode, and the backend refuses to save it as it stands.
+ * How a service is priced. `unset` is "no price": the microsite shows none for it and staff type
+ * the amount at checkout. It began as the reading of legacy zero-priced rows (migration 0024) and
+ * is now a mode an admin can choose on purpose — price is optional.
  */
 export type ServicePriceType = "fixed" | "range" | "unset";
 
@@ -368,11 +365,9 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
       .map((s) => ({
         name: s.name.trim(),
         durationMinutes: Number(s.durationMinutes),
-        priceRupees: Number(s.priceRupees),
-        // 'unset' is not a mode the API accepts — a legacy service must be given one before it
-        // can be saved. Sending 'fixed' with its zero price fails validation with a message
-        // about the price, which is exactly the field the admin has to fill in.
-        priceType: s.priceType === "range" ? "range" : "fixed",
+        // No amount at all for an unpriced service — the API stores it as 0 itself.
+        priceRupees: s.priceType === "unset" ? undefined : Number(s.priceRupees),
+        priceType: s.priceType === "range" || s.priceType === "unset" ? s.priceType : "fixed",
         priceMaxRupees: s.priceType === "range" && s.priceMaxRupees != null ? Number(s.priceMaxRupees) : null,
       })),
     staff: f.staff

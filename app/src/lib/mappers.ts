@@ -186,7 +186,9 @@ export function mapAppointment(a: any): AppointmentEntry {
   return {
     id: a.id,
     name: a.customerName,
-    service: a.serviceName,
+    // Optional now that a store may list no services: '' rather than null, so the list row can
+    // omit it instead of printing "null · John".
+    service: a.serviceName ?? '',
     time: fmtTime(a.scheduledStartAt),
     status: toStatusKind(a.status),
     staffId: a.staffId ?? null,

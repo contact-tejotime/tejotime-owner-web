@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-09-24 · branch `feat-jay`.
+**Last updated:** 2026-09-28 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,32 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Optional store data: pictures, stylists, prices, services (2026-09-28)
+
+Client request: customers hesitate when asked for a lot, so ask for as little as possible. Full write-up
+in [docs/optional-store-data.md](../../docs/optional-store-data.md). Uncommitted on `feat-jay`.
+
+- **Changed:** all four are optional for every store/category (the Hospital/Restaurant-only
+  `OPTIONAL_SERVICES_STAFF_CATEGORIES` is deleted). A service may be `unset` ("No price" — the
+  microsite shows none). The hero without a photo puts the wait card in the photo's column instead of
+  an empty "Hero photo" box. Owner-web, iOS/Android and the admin panel got a "No price" mode.
+- **Migration `0030_optional_seats.sql` — NOT yet applied anywhere.** Run it before promoting the
+  backend (`DEPLOY.md`). It makes the queue functions safe for a NULL seat and refuses a derived
+  ₹0 checkout for a service-less entry.
+- **Also fixed:** `about` images 404'd at `/media/*` (key prefix missing from the route's allow-list).
+- **Verified (executed):** backend `tsc` + `eslint` clean, `vitest` **165/165** (17 files; the new
+  `optional-store-data.test.ts` was run against the OLD backend first — 7 of its 11 fail there);
+  `tsc` clean on `frontend`, `admin-panel`, `owner-web`; `eslint` clean on the files touched.
+- **NOT verified — needs a database / running app:** migration 0030 and both smoke scripts
+  (`smoke-rest.mjs` new section, `smoke-seatless.mjs`) were syntax-checked only, **never run**
+  (no Postgres available; Docker Desktop's engine was not running). The microsite layout, and the
+  owner queue with no stylists on owner-web / iOS / Android, were **not looked at in a browser or
+  simulator**. `app` `tsc` has 2 pre-existing errors in files this work did not touch
+  (`src/app/index.tsx` typed route, `expo-screen-orientation` not installed).
+- **Known gaps left:** the server-rendered `/{phone}/card` logo has no broken-URL fallback; dragging
+  a card into the "Any" group on owner-web sends a reassign the API rejects (pre-existing); wait times
+  for a shared lane overstate when several are served in parallel.
 
 ### Mobile: customer detail sheet + live-card figures (2026-09-24)
 

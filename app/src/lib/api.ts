@@ -201,8 +201,9 @@ export const api = {
   createService: (b: {
     name: string;
     durationMinutes: number;
-    priceType: 'fixed' | 'range';
-    priceAmount: number;
+    priceType: 'fixed' | 'range' | 'unset';
+    /** Omitted for 'unset' — the API stores that as 0. */
+    priceAmount?: number;
     priceMaxAmount?: number;
     colorToken: string;
     position?: number;
@@ -212,7 +213,7 @@ export const api = {
     b: {
       name?: string;
       durationMinutes?: number;
-      priceType?: 'fixed' | 'range';
+      priceType?: 'fixed' | 'range' | 'unset';
       priceAmount?: number;
       priceMaxAmount?: number;
     },

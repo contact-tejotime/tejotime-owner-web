@@ -339,13 +339,14 @@ replays those rows through `queue_attach_services()` (which, unlike `queue_exten
 length is the **sum** of the chosen services. An unknown id is a 404, never a silent drop.
 
 **Service pricing modes** (0024) — `service.price_type` is `fixed` (one amount), `range`
-(`price_paise` is the floor, `price_max_paise` the ceiling) or `unset` (legacy: the rows that
-encoded "not priced yet" as a zero; writes refuse it, so an owner must choose a mode). For
-`range`/`unset`, `queue_checkout` **raises `TEJO:AMOUNT_REQUIRED` (422) rather than deriving** —
-the derived figure would be the band's minimum, which is the same under-reporting of
-`visit.amount_paise` that 0020 exists to prevent. `domain/money.ts::servicePricing` is the one
-resolver; `GET /queue/:id` returns `amountRequired` with a **null** `suggestedAmount` so the
-checkout sheet has nothing dishonest to pre-fill.
+(`price_paise` is the floor, `price_max_paise` the ceiling) or `unset` ("no price" — began as the
+legacy zero rows and is now a mode an owner or admin can choose on purpose, since price is
+optional; stored as `price_paise = 0`). For `range`/`unset`, and for an entry with **no service and
+no add-ons** (0030), `queue_checkout` **raises `TEJO:AMOUNT_REQUIRED` (422) rather than deriving** —
+the derived figure would be the band's minimum (or a free ₹0 visit), which is the same
+under-reporting of `visit.amount_paise` that 0020 exists to prevent. `domain/money.ts::servicePricing`
+is the one resolver; `GET /queue/:id` returns `amountRequired` with a **null** `suggestedAmount` so
+the checkout sheet has nothing dishonest to pre-fill.
 
 **ETA-15 alert** (`lib/eta-notify.ts` + `queue.service.ts` `processTicketBroadcasts`) — one-shot
 per ticket, for **online live-queue joins only** (not walk-ins, not checked-in appointments),
@@ -369,15 +370,20 @@ and `staffId`, so this is a client-side concern; the date is built with local da
 "Join the walk-in waitlist instead" is a **fallback only** — shown when the selected day has no
 times AND it is today AND the store is open; Book an Appointment never doubles as Check in. And a **service is never rendered as a bare number** — the
 store says whether a price is `fixed`, a `range` or `unset` (migration 0024), and a single
-`priceLabel` in `MicrositeClient` turns that into "₹350", "₹2,000–₹6,000" or "Price on request",
-which is why `ServiceItem` carries a rendered string rather than a number. Walk-in controls are gated on
+`priceLabel` in `MicrositeClient` turns that into "₹350", "₹2,000–₹6,000" or **nothing** (an empty
+string — the card, picker and summary then omit the price), which is why `ServiceItem` carries a
+rendered string rather than a number. Walk-in controls are gated on
 `site.hours.length > 0 && !openStatus.isOpen` — **not** on `isOpen` alone, because a store with no
 configured hours reports `isOpen: false` forever and would lose check-in entirely. The gate is
 **UI-only**: the API still accepts an out-of-hours join.
 
-**Category behaviour** (`config/constants.ts`) — `OPTIONAL_SERVICES_STAFF_CATEGORIES`
-(Hospital, Restaurant) allow zero services/staff; `VISITOR_TYPE_CATEGORIES` (Hospital) require
-identifying the visitor as `mr` | `patient` (display-only, never part of wait-time math).
+**Category behaviour** (`config/constants.ts`) — `VISITOR_TYPE_CATEGORIES` (Hospital) require
+identifying the visitor as `mr` | `patient` (display-only, never part of wait-time math). There is
+no category rule for services or staff any more: **pictures, stylists, services and prices are
+optional for every store** (the old `OPTIONAL_SERVICES_STAFF_CATEGORIES` is gone). A store with no
+stylists runs one shared lane (`staff_id IS NULL`, migration 0030) where several can be in service
+at once; a hero-less microsite moves the wait card into the photo's column. Full rules:
+[docs/optional-store-data.md](docs/optional-store-data.md).
 
 **Mobile responsive layout** (see [docs/mobile-responsive-tablets.md](docs/mobile-responsive-tablets.md))
 — `app/src/lib/responsive.ts` is pure size arithmetic (no React, no react-native, so it is
@@ -585,7 +591,7 @@ Checklist for any owner-facing change:
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **12 vitest files, 131 tests**, run with `npm test` in `backend/`
+- `backend/tests/unit/` — **17 vitest files, 165 tests**, run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
   Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
   `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
@@ -594,7 +600,8 @@ Checklist for any owner-facing change:
   help chat, with `fetch` stubbed) is different and is **the pattern to copy**: it mounts a
   real router into a throwaway `express()` app and drives it with **`supertest`**, using
   `vi.resetModules()` + a stubbed `process.env` so the zod env validator boots. It needs **no
-  database and no running server**.
+  database and no running server**. `optional-store-data.test.ts` uses it for the owner service
+  API and admin provisioning, with the DB and admin service stubbed.
 - `frontend/src/theme/engine/__tests__/run.ts` — framework-free theme self-check
   (`npm run test:theme` from the root).
 - `app/src/lib/__tests__/responsive-check.ts` — the same pattern for the mobile app's breakpoint
@@ -603,7 +610,9 @@ Checklist for any owner-facing change:
   `lib/responsive.ts` free of React/react-native imports is what makes it checkable as plain TS.
 - `backend/scripts/smoke-rest.mjs` and `smoke-socket.mjs` — plain-Node scripts that hit a
   **running server + seeded database** over real HTTP and real Socket.IO. These are the only
-  true end-to-end coverage in the repo.
+  true end-to-end coverage in the repo. `backend/scripts/smoke-seatless.mjs` is the odd one out: it
+  needs a **migrated** (not seeded) database and runs inside a transaction it always rolls back,
+  because a store with no stylists cannot be reached over HTTP from the seed.
 - `docs/qa-report-2026-07-10.md` — a manual QA record.
 
 **There is no E2E framework.** No Playwright, Cypress, Detox, Maestro, Puppeteer, WebdriverIO,

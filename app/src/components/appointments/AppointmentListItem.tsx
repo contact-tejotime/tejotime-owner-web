@@ -29,7 +29,8 @@ export function AppointmentListItem({
   const theme = useTheme();
   const s = useMemo(() => createAppointmentListItemStyles(theme), [theme]);
   const checkInEligible = CHECK_IN_ELIGIBLE.has(appointment.status);
-  const serviceLine = staffName ? `${appointment.service} · ${staffName}` : appointment.service;
+  // Service and stylist are both optional, so either (or both) may be missing.
+  const serviceLine = [appointment.service, staffName].filter(Boolean).join(' · ');
 
   return (
     <View style={s.row}>

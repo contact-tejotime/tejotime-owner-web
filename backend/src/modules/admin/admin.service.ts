@@ -60,8 +60,9 @@ export interface StoreFields {
   services: {
     name: string;
     durationMinutes: number;
-    priceRupees: number;
-    priceType?: 'fixed' | 'range';
+    /** Absent for an `unset` service — it has no price to carry. */
+    priceRupees?: number;
+    priceType?: 'fixed' | 'range' | 'unset';
     priceMaxRupees?: number | null;
   }[];
   staff: { name: string; roleLabel?: string | null; avatarUrl?: string | null }[];
@@ -217,8 +218,9 @@ async function syncServices(
   for (const [position, s] of rows.entries()) {
     const key = s.name.trim().toLowerCase();
     const id = byName.get(key);
-    const pricePaise = Math.round(s.priceRupees * 100);
     const priceType = s.priceType ?? 'fixed';
+    // `ck_service_price_shape` only accepts an unpriced service at exactly 0.
+    const pricePaise = priceType === 'unset' ? 0 : Math.round((s.priceRupees ?? 0) * 100);
     // Written unconditionally rather than only for a range: a service switched from range back
     // to fixed has to lose its old ceiling, or the check constraint rejects the whole save.
     const priceMaxPaise = priceType === 'range' && s.priceMaxRupees != null
