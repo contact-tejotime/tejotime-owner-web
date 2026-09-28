@@ -133,6 +133,9 @@ drops the `Address:` tail. Dates and times are in the store's own timezone.
       single box with "up to 3 messages per visit", and carry the stock
       line "Text messaging originator opt-in data and consent will not be shared with any third
       parties" (both updated with this change — have them reviewed before submitting).
+- [ ] Privacy §5 also carries Twilio's exact sentence, verbatim and as its own paragraph — reviewers
+      search for it and reject "similar but worded differently": "We do not sell or share your SMS
+      opt-in data or personal information with third parties for marketing purposes."
 - [ ] Support line +1 (239) 506-1324 is answered, and matches the HELP reply.
 - [ ] **Advanced Opt-Out** enabled on the Messaging Service.
 - [ ] Campaign description says TejoTime is a SaaS queue/booking platform sending messages on

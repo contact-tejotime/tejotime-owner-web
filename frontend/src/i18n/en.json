@@ -1173,7 +1173,7 @@
     "metaTitle": "Privacy Policy — TejoTime",
     "metaDescription": "How TejoTime collects, uses, shares, and protects information across our website, booking pages, and owner app.",
     "title": "Privacy Policy",
-    "lastUpdated": "Last updated: September 16, 2026",
+    "lastUpdated": "Last updated: September 28, 2026",
     "intro": "This Privacy Policy explains how {entity} (“TejoTime,” “we,” “us”) collects, uses, shares, and protects information when you use our website, our owner and staff apps, and the public booking pages we host for businesses. Please read it alongside our Terms of Service.",
     "sections": [
       {
@@ -1232,6 +1232,7 @@
           "You opt in by checking the one optional, unchecked-by-default SMS box on a business’s TejoTime page when you book an appointment or check in. That box covers all three messages, and we only text your number if it is checked. You can finish a booking or check-in without agreeing to any texts.",
           "Message frequency: up to 3 messages per visit. Message and data rates may apply.",
           "Reply STOP to any message to stop receiving texts from TejoTime, or ask the business to remove you. Reply HELP, or contact us at {email} or {phone}, for help. Carriers are not liable for delayed or undelivered messages.",
+          "We do not sell or share your SMS opt-in data or personal information with third parties for marketing purposes.",
           "We do not sell, rent, or share your mobile phone number or your text-message opt-in status with third parties or affiliates for their own marketing or promotional purposes. Text messaging originator opt-in data and consent will not be shared with any third parties. Businesses are responsible for having an appropriate basis to contact their own clients."
         ],
         "bullets": []

@@ -318,6 +318,9 @@ texts from TejoTime; the doc lists all 4 samples with a pre-submit checklist. Al
 `smsBodyYourTurn`) no longer repeat "Reply STOP…HELP" — only the join message carries it — and
 the em dash is gone so every body is GSM-7 / one segment. The join message states frequency as
 "We'll text you up to 3 more updates for this visit" (was "Up to 4 msgs/visit").
+2026-09-28: Privacy §5 gained Twilio's exact required sentence ("We do not sell or share your SMS
+opt-in data or personal information with third parties for marketing purposes.") as its own
+paragraph, and the policy's "Last updated" date moved to September 28, 2026.
 
 Owner-web and Expo were **not** given an opt-in control — `message_flow` is website-only, so an
 owner walk-in with a phone must not text. `SMS_ENABLED` stays false until the campaign is Approved.
