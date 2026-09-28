@@ -85,20 +85,24 @@ function tidyHistory(history: ChatTurn[]): ChatTurn[] {
   return out;
 }
 
-async function postJson(
+/**
+ * Shared by the store-autofill extractor (integrations/store-extract.ts), which has a much longer
+ * budget than the help chat — hence `timeoutMs`. Never throws; failures resolve to null.
+ */
+export async function postJson(
   provider: ChatProviderName,
   url: string,
   headers: Record<string, string>,
   body: unknown,
+  timeoutMs: number = env.CHATBOT_TIMEOUT_MS,
 ): Promise<any | null> {
   let res: Response;
   try {
     res = await fetch(url, {
       method: 'POST',
-      
       headers: { 'content-type': 'application/json', ...headers },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(env.CHATBOT_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
     logger.warn({ err, provider }, 'chatbot provider request threw (timeout or network)');

@@ -94,6 +94,20 @@ const schema = z.object({
   /** A slow model must degrade to the FAQ answer, not hang the page. */
   CHATBOT_TIMEOUT_MS: z.coerce.number().int().positive().default(8_000),
 
+  /**
+   * Admin-panel "autofill store from a link" (docs/store-autofill-from-link.md). Its own flag and
+   * key rather than CHATBOT_*: the help chat is a public, tiny-output feature with a FAQ fallback,
+   * while this is an admin-only extraction that needs a bigger model and larger outputs, and
+   * turning one on must not silently turn the other on. OFF by default; with it on but no key the
+   * endpoint answers 503 — there is no key-free fallback for reading an arbitrary web page.
+   * Groq only (OpenAI-compatible wire format). Server-side only, never a NEXT_PUBLIC_* variable.
+   */
+  AUTOFILL_ENABLED: boolish(false),
+  AUTOFILL_API_KEY: z.string().default(''),
+  AUTOFILL_MODEL: z.string().default('openai/gpt-oss-120b'),
+  /** Page fetch is capped separately (10s in safe-fetch); this bounds the model call. */
+  AUTOFILL_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
+
   OTP_LENGTH: z.coerce.number().int().min(4).max(8).default(4),
   OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),

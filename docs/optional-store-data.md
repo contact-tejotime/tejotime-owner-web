@@ -95,6 +95,13 @@ unpriced service as "No price". Files: `owner-web/.../ServicesEditor.tsx`, `Walk
 `lib/types.ts`. The app's `AppointmentListItem`, `QueueCard` and `DetailPanel` no longer print
 `null` / a dangling `·` for a missing service.
 
+## Admin "Autofill from a link"
+
+The first fetch into an empty create form applies everything without the review dialog, and a
+scraped service with no stated duration stays **blank** (Save is blocked until typed) instead of
+being guessed as 20 minutes; no price becomes "No price". See
+[store-autofill-from-link.md](store-autofill-from-link.md).
+
 ## Tests
 
 - `backend/tests/unit/optional-store-data.test.ts` — the API boundary (owner service price rules,

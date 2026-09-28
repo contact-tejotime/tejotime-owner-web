@@ -36,6 +36,8 @@ const joinSchema = z
     visitorType: z.enum(['mr', 'patient']).optional(),
     // Optional, default false: missing/old clients must never become "yes, text them".
     smsOptIn: z.boolean().optional().default(false),
+    // The separate post-visit review box (marketing). Same default-false rule.
+    reviewSmsOptIn: z.boolean().optional().default(false),
   })
   .strict();
 
@@ -132,6 +134,19 @@ publicRouter.get(
   validate({ params: phoneParam }),
   asyncHandler(async (req, res) => {
     res.json(await pub.getMicrositeByPhone(req.params.phone));
+  }),
+);
+
+// Backs the review SMS short link www.tejotime.com/<phone>/r: the frontend route reads this and
+// 302s to it. 404 when the store is unknown or has no link (the route then falls back to the
+// store page). no-store so an owner's edit applies on the very next click.
+publicRouter.get(
+  '/businesses/by-phone/:phone/review-link',
+  limiters.publicRead,
+  validate({ params: phoneParam }),
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.json(await pub.getReviewLinkByPhone(req.params.phone));
   }),
 );
 

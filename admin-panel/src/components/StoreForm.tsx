@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DAY_LABELS,
   EMPTY_FORM,
+  draftData,
   toPayload,
   type Category,
   type FaqRow,
@@ -21,9 +22,25 @@ import { t, format } from "@/i18n";
 import { Icon } from "@/components/icons";
 import AppearancePanel from "@/components/appearance/AppearancePanel";
 import { GalleryUpload, ImageUpload } from "@/components/ImageUpload";
+import { diffImportedFields } from "@/lib/import-diff";
 import PhoneField from "@/components/ui/PhoneField";
 import Spinner from "@/components/ui/Spinner";
 import { frontendUrl } from "@/lib/frontend-url";
+import {
+  applyImport,
+  buildImportItems,
+  isPristineCreate,
+  normalizeImportUrl,
+  type ImportedFields,
+  type ImportItem,
+  type ImportKey,
+  type StoreImportResponse,
+} from "@/lib/store-import";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import StoreImportReview from "@/components/StoreImportReview";
+
+/** The page as one fetch saw it: the link and the fields it yielded (whole page, not a diff). */
+type ImportSnapshot = { url: string; fields: ImportedFields };
 
 const FRONTEND_URL = frontendUrl();
 
@@ -36,7 +53,18 @@ interface Props {
   storeId?: string;
   /** Rendered inside the store hub (which owns the page wrapper and heading). */
   embedded?: boolean;
+  /** Create only: the parked draft this form was opened from. Its presence turns autosave on. */
+  draftId?: string;
+  /** True on the render straight after "Save as draft", so the new draft can say it was saved. */
+  justSaved?: boolean;
 }
+
+/** Autosave waits for the admin to pause typing, so a burst of keystrokes is one write. */
+const AUTOSAVE_DELAY_MS = 1500;
+/** Browsers cap a keepalive request body at 64 KB; past that, leave it to the normal debounce. */
+const KEEPALIVE_MAX_BYTES = 60_000;
+
+type DraftStatus = "idle" | "saving" | "saved" | "error";
 
 /**
  * The five social links, as one list rather than five near-identical blocks of JSX.
@@ -57,7 +85,15 @@ const SOCIAL_FIELDS = [
   { key: "yelpUrl", placeholder: "https://yelp.com/biz/yourshop" },
 ] as const;
 
-export default function StoreForm({ mode, categories, initial, storeId, embedded = false }: Props) {
+export default function StoreForm({
+  mode,
+  categories,
+  initial,
+  storeId,
+  embedded = false,
+  draftId,
+  justSaved = false,
+}: Props) {
   const router = useRouter();
   const [form, setForm] = useState<StoreFormState>(initial ?? EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -69,13 +105,51 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
   const [phoneIso2, setPhoneIso2] = useState(() => countryByDial(form.countryCode)?.iso2 ?? DEFAULT_ISO2);
   // Appearance as last persisted — the baseline for the panel's unsaved-changes indicator.
   const [savedTheme, setSavedTheme] = useState<ThemeConfig>(form.theme);
-  // Once the admin picks a preset by hand, changing the category must not overwrite it.
-  const presetTouched = useRef(false);
+  // Once the admin picks a preset by hand, changing the category must not overwrite it. A draft
+  // counts as touched: its saved look may well be a deliberate choice, and we cannot tell.
+  const presetTouched = useRef(Boolean(draftId));
+
+  // ---- Drafts -------------------------------------------------------------------------------
+  // A draft exists only because the admin clicked "Save as draft"; a form that never was one
+  // stores nothing anywhere. Once it is one (`draftId`), edits autosave into it.
+  const [draftStatus, setDraftStatus] = useState<DraftStatus>(justSaved ? "saved" : "idle");
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
+  const [draftError, setDraftError] = useState("");
+  const [draftBusy, setDraftBusy] = useState(false);
+  const formRef = useRef(form);
+  // What the server holds. Seeded from the form as opened, so opening a draft never writes.
+  const lastSaved = useRef(JSON.stringify(draftData(form)));
+  // Saves run one at a time; a queued one reads the latest form when its turn comes, so a burst of
+  // edits during a slow request collapses into a single follow-up write.
+  const saveChain = useRef<Promise<void>>(Promise.resolve());
+  // Set once the draft is gone (discarded, deleted elsewhere, or the store was created from it):
+  // from then on nothing may write to it, or an old timer would resurrect / error against it.
+  const draftGone = useRef(false);
   const [newOwnerPassword, setNewOwnerPassword] = useState("");
   const [showOwnerPassword, setShowOwnerPassword] = useState(false);
   const [resettingOwnerPassword, setResettingOwnerPassword] = useState(false);
   const [ownerResetError, setOwnerResetError] = useState("");
   const [ownerResetNotice, setOwnerResetNotice] = useState("");
+  // Autofill from a link. `importReview` holds the response AND the items built against the form
+  // as it was when the response arrived; the dialog is modal, so the form cannot move underneath it.
+  const [importUrl, setImportUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState("");
+  const [importNotice, setImportNotice] = useState("");
+  // Set once a fetch has been applied to this form. After that the form holds imported data, so a
+  // later fetch goes through the review dialog (which protects against duplicates and overwrites).
+  const hasImported = useRef(false);
+  // What the page said the last time a fetch of it was applied (or found nothing to apply). A
+  // re-fetch of the SAME link is diffed against this, so it offers only what the page changed —
+  // not everything that differs from a form the admin has since edited by hand.
+  const lastImport = useRef<ImportSnapshot | null>(null);
+  const [importReview, setImportReview] = useState<{
+    response: StoreImportResponse;
+    items: ImportItem[];
+    /** True when `response.fields` is a diff against the previous fetch, not the whole page. */
+    changesOnly: boolean;
+    snapshot: ImportSnapshot;
+  } | null>(null);
 
   const set = <K extends keyof StoreFormState>(key: K, value: StoreFormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -102,6 +176,151 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
     );
   };
 
+  useEffect(() => {
+    formRef.current = form;
+  }, [form]);
+
+  /** PUT the current form into the open draft, if it changed since the last write. */
+  const runDraftSave = useCallback(
+    async (keepalive: boolean) => {
+      if (!draftId || draftGone.current) return;
+      const snapshot = JSON.stringify(draftData(formRef.current));
+      if (snapshot === lastSaved.current) return;
+      const body = `{"data":${snapshot}}`;
+      // A page that is closing cannot wait for a normal request; keepalive lets it finish. It has a
+      // size cap, so an oversized form simply relies on the debounced save instead.
+      if (keepalive && body.length > KEEPALIVE_MAX_BYTES) return;
+      setDraftStatus("saving");
+      try {
+        const res = await fetch(`/api/store-drafts/${draftId}`, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body,
+          keepalive,
+        });
+        if (res.status === 404) {
+          // Gone elsewhere. Do NOT quietly recreate it: the admin may have discarded it on purpose.
+          draftGone.current = true;
+          setDraftError(t.storeDraft.gone);
+          setDraftStatus("error");
+          return;
+        }
+        if (!res.ok) throw new Error(String(res.status));
+        lastSaved.current = snapshot;
+        setDraftError("");
+        setDraftSavedAt(new Date());
+        setDraftStatus("saved");
+      } catch {
+        setDraftError(t.storeDraft.saveFailed);
+        setDraftStatus("error");
+      }
+    },
+    [draftId],
+  );
+
+  const queueDraftSave = useCallback(
+    (keepalive = false) => {
+      saveChain.current = saveChain.current.then(() => runDraftSave(keepalive));
+      return saveChain.current;
+    },
+    [runDraftSave],
+  );
+
+  // Autosave: a moment after the admin stops editing an open draft.
+  useEffect(() => {
+    if (!draftId) return;
+    const timer = setTimeout(() => void queueDraftSave(), AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [form, draftId, queueDraftSave]);
+
+  // Flush when the admin switches tab or leaves — this is the "went off to other work" case, and
+  // the debounce above would otherwise still be waiting when the page goes away. Also runs on
+  // unmount, which covers client-side navigation to another screen.
+  useEffect(() => {
+    if (!draftId) return;
+    const flush = () => void queueDraftSave(true);
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [draftId, queueDraftSave]);
+
+  /** Remove the draft on the server. Best-effort: a failure must never block the caller. */
+  async function deleteDraft() {
+    if (!draftId) return;
+    draftGone.current = true; // stops any pending or late autosave before it can recreate an error
+    try {
+      await fetch(`/api/store-drafts/${draftId}`, { method: "DELETE" });
+    } catch {
+      // The draft lingers in the sidebar and can be discarded from there; nothing else depends on it.
+    }
+  }
+
+  /**
+   * The only thing that creates a draft. Needs no validation — a draft is allowed to be
+   * incomplete, that is the point. On an existing draft it just saves now instead of waiting.
+   */
+  async function saveAsDraft() {
+    if (draftBusy || saving) return;
+    setDraftBusy(true);
+    setError(null);
+    setDetails([]);
+    try {
+      if (draftId && !draftGone.current) {
+        await queueDraftSave();
+        // runDraftSave leaves the status alone when nothing changed; the click still deserves an answer.
+        setDraftStatus((s) => (s === "error" ? s : "saved"));
+        return;
+      }
+      const res = await fetch("/api/store-drafts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ data: draftData(form) }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json?.error?.message ?? format(t.storeForm.requestFailed, { status: res.status }));
+        setDetails(json?.error?.details ?? []);
+        return;
+      }
+      // Reopen it as a draft. The page key changes with `?draft=`, so the form remounts from what
+      // was just saved with autosave on; refresh re-renders the layout so the sidebar lists it.
+      router.replace(`/?draft=${(json as { id: string }).id}&saved=1`, { scroll: false });
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.storeForm.somethingWrong);
+    } finally {
+      setDraftBusy(false);
+    }
+  }
+
+  /**
+   * Discarding is destructive and permanent, so it asks first — with the app's own ConfirmDialog
+   * (focus-trapped, Escape/overlay to cancel, a red confirm button, busy state) rather than the
+   * browser's native `window.confirm`, which looks like a foreign system alert.
+   */
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+
+  async function confirmDiscardDraft() {
+    if (discarding) return;
+    setDiscarding(true);
+    try {
+      await deleteDraft();
+      router.replace("/", { scroll: false });
+      router.refresh();
+    } finally {
+      setDiscarding(false);
+      setConfirmingDiscard(false);
+    }
+  }
+
   const phoneFull = `${form.countryCode.replace(/\D/g, "")}${form.phoneNumber.replace(/\D/g, "")}`;
 
   const setService = (i: number, patch: Partial<ServiceRow>) =>
@@ -123,6 +342,92 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
     });
 
   const removeAt = <T,>(arr: T[], i: number) => arr.filter((_, idx) => idx !== i);
+
+  async function runImport() {
+    if (importing) return;
+    const url = normalizeImportUrl(importUrl);
+    if (!url) {
+      setImportError(t.storeImport.invalidUrl);
+      return;
+    }
+    setImporting(true);
+    setImportError("");
+    setImportNotice("");
+    try {
+      const res = await fetch("/api/store-import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setImportError(json?.error?.message ?? t.storeImport.failed);
+        return;
+      }
+      const response = json as StoreImportResponse;
+      const snapshot: ImportSnapshot = { url, fields: response.fields };
+      // A re-fetch of the same link is reduced to what the PAGE changed since last time. Warnings
+      // are dropped with it: "3 services had no stated duration" would be about services already
+      // imported, not about anything new.
+      const previous = lastImport.current?.url === url ? lastImport.current.fields : null;
+      const offered = previous ? diffImportedFields(previous, response.fields) : response.fields;
+      const warnings = previous ? [] : response.warnings;
+      // A saved store's phone is locked (the backend answers 409 PHONE_LOCKED), so don't offer it.
+      const items = buildImportItems(form, offered, { phoneLocked: mode === "edit" && !!initial?.phoneNumber });
+      // The first fetch into a still-empty create form has nothing to protect: every row only fills
+      // a gap, so asking the admin to tick them is pure friction. Apply the lot — silently. There is
+      // no "Filled in N items" banner and no warnings box: whether the page gave 2 fields or 15, the
+      // admin just sees the form filled, and Save is still theirs to press. (A blank duration is not
+      // announced here; Save names each service that still needs one.) Only "nothing found" is said,
+      // because a fetch that visibly does nothing reads as a broken button.
+      // Anything else (an edit, a form with typed data, a second fetch) keeps the review dialog.
+      if (mode === "create" && !hasImported.current && isPristineCreate(form)) {
+        if (items.length === 0) {
+          setImportNotice(t.storeImport.nothingNew);
+        } else {
+          applyImportFields(offered, new Set(items.map((i) => i.key)), snapshot);
+        }
+        return;
+      }
+      if (items.length === 0 && previous) {
+        // Nothing to review — say why, rather than opening an empty dialog. The page is now known
+        // to be in this state, so the next fetch diffs against it.
+        setImportNotice(t.storeImport.nothingChanged);
+        lastImport.current = snapshot;
+        return;
+      }
+      setImportReview({ response: { ...response, fields: offered, warnings }, items, changesOnly: !!previous, snapshot });
+    } catch {
+      setImportError(t.storeImport.unreachable);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function applyImportFields(fields: ImportedFields, selected: Set<ImportKey>, snapshot: ImportSnapshot) {
+    setForm((f) => {
+      const next = applyImport(f, fields, selected);
+      // Same rule as the category <select>: suggest a theme preset for a NEW store, until the admin
+      // has picked one by hand.
+      if (selected.has("category") && fields.category && mode === "create" && !presetTouched.current) {
+        next.theme = { ...next.theme, preset: presetForCategory(fields.category) };
+      }
+      return next;
+    });
+    if (selected.has("phone") && fields.countryCode) {
+      setPhoneIso2(countryByDial(fields.countryCode)?.iso2 ?? DEFAULT_ISO2);
+    }
+    hasImported.current = true;
+    // Recorded on APPLY, not on fetch: a dialog the admin cancelled applied nothing, so the next
+    // fetch should still offer those values rather than treat them as already seen.
+    lastImport.current = snapshot;
+  }
+
+  function applyImportSelection(selected: Set<ImportKey>) {
+    if (!importReview) return;
+    applyImportFields(importReview.response.fields, selected, importReview.snapshot);
+    setImportReview(null);
+  }
 
   async function resetOwnerPassword() {
     if (!storeId || resettingOwnerPassword) return;
@@ -172,9 +477,19 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
       { key: "description", label: t.storeForm.reqDescription },
     ];
     const missing = requiredFields.filter((f) => !String(form[f.key] ?? "").trim());
-    if (missing.length > 0) {
+    // A service's duration is still required (it sizes every slot and wait estimate), but it is
+    // never guessed: an imported service with no stated time arrives blank, so name it here rather
+    // than let the API answer with a bare "Number must be greater than or equal to 1".
+    const noDuration = form.services.filter((s) => s.name.trim() && !(Number(s.durationMinutes) >= 1));
+    if (missing.length > 0 || noDuration.length > 0) {
       setError(t.storeForm.fillRequired);
-      setDetails(missing.map((f) => ({ field: f.label, message: t.storeForm.fieldRequired })));
+      setDetails([
+        ...missing.map((f) => ({ field: f.label, message: t.storeForm.fieldRequired })),
+        ...noDuration.map((s) => ({
+          field: format(t.storeForm.serviceDurationField, { name: s.name.trim() }),
+          message: t.storeForm.durationRequired,
+        })),
+      ]);
       setSaving(false);
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -208,6 +523,9 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
         return;
       }
       if (mode === "create") {
+        // The draft has become a real store. Only now (never on a failed create, where the admin
+        // still needs it) is it removed; deleteDraft also silences any autosave still in flight.
+        await deleteDraft();
         // Land the admin straight on the new store's settings rather than leaving them on the
         // blank create form — they almost always have more to configure (hours, photos, etc.).
         router.push(`/stores/${(json as StoreMutationResult).id}/settings`);
@@ -251,6 +569,28 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
         </div>
       )}
 
+      {mode === "create" && draftId && (
+        <div className="draft-banner" role="status">
+          <span>{t.storeDraft.banner}</span>
+          <span className={`draft-status ${draftStatus}`} aria-live="polite">
+            {draftStatus === "saving"
+              ? t.storeDraft.autosaving
+              : draftStatus === "saved"
+                ? draftSavedAt
+                  ? format(t.storeDraft.savedAt, {
+                      time: draftSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                    })
+                  : t.storeDraft.saved
+                : draftStatus === "error"
+                  ? draftError
+                  : ""}
+          </span>
+          <button type="button" className="btn-ghost" onClick={() => setConfirmingDiscard(true)}>
+            {t.storeDraft.discard}
+          </button>
+        </div>
+      )}
+
       {error && (
         <div className="alert err" role="alert">
           {error}
@@ -279,6 +619,73 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
             </span>
           </div>
         </div>
+      )}
+
+      {/* Autofill from a link — deliberately OUTSIDE the <form>, so Enter in the URL box can never
+          submit (and so create/save) the store. */}
+      <section className="section import-card-form">
+        <h2>{t.storeImport.title}</h2>
+        <p className="hint" style={{ marginTop: 0 }}>
+          {t.storeImport.hint}
+        </p>
+        <div className="import-row-inputs">
+          <input
+            aria-label={t.storeImport.urlLabel}
+            type="url"
+            inputMode="url"
+            placeholder={t.storeImport.urlPlaceholder}
+            value={importUrl}
+            maxLength={2048}
+            disabled={importing}
+            onChange={(e) => {
+              setImportUrl(e.target.value);
+              if (importError) setImportError("");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void runImport();
+              }
+            }}
+          />
+          <button type="button" className="btn-primary" onClick={() => void runImport()} disabled={importing || !importUrl.trim()} aria-busy={importing || undefined}>
+            {importing && <Spinner className="btn-spinner" />}
+            {importing ? t.storeImport.working : t.storeImport.button}
+          </button>
+        </div>
+        {importError && (
+          <p className="import-err" role="alert">
+            {importError}
+          </p>
+        )}
+        {importNotice && (
+          <div className="alert info" role="status" style={{ marginTop: 12, marginBottom: 0 }}>
+            {importNotice}
+          </div>
+        )}
+      </section>
+
+      {confirmingDiscard && (
+        <ConfirmDialog
+          title={t.storeDraft.discardTitle}
+          body={t.storeDraft.discardBody}
+          confirmLabel={t.storeDraft.discard}
+          danger
+          busy={discarding}
+          onConfirm={() => void confirmDiscardDraft()}
+          onCancel={() => setConfirmingDiscard(false)}
+        />
+      )}
+
+      {importReview && (
+        <StoreImportReview
+          source={importReview.response.source.title || importReview.response.source.url}
+          items={importReview.items}
+          changesOnly={importReview.changesOnly}
+          warnings={importReview.response.warnings}
+          onApply={applyImportSelection}
+          onCancel={() => setImportReview(null)}
+        />
       )}
 
       <form onSubmit={onSubmit}>
@@ -401,6 +808,20 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
                 />
               </div>
             ))}
+            {/* Not a social icon — never shown on the microsite. It is where the post-visit
+                review text points; the text is not sent while this is empty. */}
+            <div className="field">
+              <label htmlFor="sf-googleReviewUrl">{t.storeForm.googleReviewUrl}</label>
+              <input
+                id="sf-googleReviewUrl"
+                type="url"
+                inputMode="url"
+                placeholder="https://g.page/r/your-place-id/review"
+                value={form.googleReviewUrl}
+                onChange={(e) => set("googleReviewUrl", e.target.value)}
+              />
+              <p className="hint">{t.storeForm.googleReviewUrlHint}</p>
+            </div>
           </div>
         </section>
 
@@ -751,6 +1172,7 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
               <div className="field">
                 <label htmlFor="sf-ownerPassword">{t.storeForm.password}</label>
                 <input id="sf-ownerPassword" type="text" value={form.ownerPassword} onChange={(e) => set("ownerPassword", e.target.value)} minLength={6} required />
+                {draftId && <p className="hint">{t.storeDraft.passwordNotSaved}</p>}
               </div>
             </div>
           </section>
@@ -820,6 +1242,18 @@ export default function StoreForm({ mode, categories, initial, storeId, embedded
             {saving && <Spinner className="btn-spinner" />}
             {saving ? t.storeForm.saving : mode === "create" ? t.storeForm.createStore : t.storeForm.saveChanges}
           </button>
+          {mode === "create" && (
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={saving || draftBusy}
+              aria-busy={draftBusy || undefined}
+              onClick={() => void saveAsDraft()}
+            >
+              {draftBusy && <Spinner className="btn-spinner" />}
+              {draftBusy ? t.storeDraft.savingDraft : t.storeDraft.saveAsDraft}
+            </button>
+          )}
           {saving && <span className="hint">{t.storeForm.workingHint}</span>}
         </div>
       </form>

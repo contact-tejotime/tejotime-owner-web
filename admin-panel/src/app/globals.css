@@ -594,6 +594,39 @@ button {
   margin: 6px 0 0;
   padding-left: 18px;
 }
+
+/* Create store opened from a draft: says so, shows autosave state, offers Discard. */
+.draft-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  border-radius: var(--radius-lg);
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  background: var(--blue-50);
+  border: 1px solid var(--border-subtle);
+  color: var(--primary-soft-fg);
+  font-weight: 500;
+}
+.draft-banner > span:first-child {
+  flex: 1 1 260px;
+}
+.draft-status {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.draft-status.error {
+  color: var(--red-700);
+}
+/* The Drafts group in the sidebar reuses .store-item; a dashed edge tells it apart from a store. */
+.store-item.draft {
+  border: 1px dashed var(--border-default);
+}
+.store-item.draft.active {
+  border-style: solid;
+  border-color: var(--primary);
+}
 .preview a {
   color: var(--primary);
   font-weight: 700;
@@ -2715,4 +2748,151 @@ a:focus-visible,
   .ap-card {
     transition: none;
   }
+}
+
+/* ---------- Autofill from a link (StoreForm + StoreImportReview) ---------- */
+.alert.warn {
+  background: var(--warning-soft);
+  border: 1px solid var(--amber-200);
+  color: var(--warning);
+}
+.alert.info {
+  background: var(--primary-soft);
+  border: 1px solid var(--blue-100, #dbeafe);
+  color: var(--primary-soft-fg);
+}
+/* The link box and its button are one control: same height, same baseline. The button used to keep
+   its own 12px+15px padding and stand taller than the input (and top-aligned, so it sat lower).
+   `stretch` makes both the height of the row, the input's natural height sets that row, and the
+   button drops its vertical padding and centres its label instead. */
+.import-card-form .import-row-inputs {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+.import-card-form .import-row-inputs input {
+  flex: 1;
+  min-width: 0;
+}
+.import-card-form .import-row-inputs button {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding-top: 0;
+  padding-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.import-card-form .import-err {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--red-700);
+}
+.confirm-card.import-card {
+  max-width: 680px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+.import-card .import-intro {
+  margin-bottom: 12px;
+}
+.import-card .import-warn {
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.import-card .import-empty {
+  margin: 8px 0 16px;
+}
+.import-bulk {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.import-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.import-link:hover {
+  text-decoration: underline;
+}
+.import-list {
+  overflow-y: auto;
+  min-height: 0;
+  margin: 0 -4px 16px;
+  padding: 0 4px;
+}
+.import-group h4 {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.import-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.import-row.on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+/* The global `input { width: 100% }` would stretch a checkbox across the row. */
+.import-row input[type="checkbox"] {
+  width: auto;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.import-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+.import-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.import-found {
+  font-size: 14px;
+  color: var(--text-strong);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.import-current {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.import-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+}
+.import-tag.replace {
+  background: var(--warning-soft);
+  color: var(--warning);
 }

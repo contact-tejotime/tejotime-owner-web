@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
-import { getMe, listBusinesses } from "@/lib/server-api";
+import { getMe, listBusinesses, listStoreDrafts } from "@/lib/server-api";
 import { getAdminToken, readSession } from "@/lib/session";
 
 /**
@@ -16,12 +16,12 @@ export default async function ProtectedLayout({ children }: Readonly<{ children:
   // The store list is already scoped by the backend — an employee's is just shorter. `me` is a
   // separate call because the JWT carries no role: it has a 12h life, and a role baked into it
   // would keep a demoted employee on the owner's navigation until it expired.
-  const [stores, me] = await Promise.all([listBusinesses(), getMe()]);
+  const [stores, drafts, me] = await Promise.all([listBusinesses(), listStoreDrafts(), getMe()]);
 
   return (
     <div className="app">
       {/* An unreadable /admin/me (backend down) falls back to the least privilege, not the most. */}
-      <Sidebar stores={stores} role={me?.role ?? "employee"} />
+      <Sidebar stores={stores} drafts={drafts} role={me?.role ?? "employee"} />
       <div className="main">{children}</div>
     </div>
   );

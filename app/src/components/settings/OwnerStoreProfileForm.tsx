@@ -55,6 +55,7 @@ export function OwnerStoreProfileForm() {
   const [twitterUrl, setTwitterUrl] = useState(biz?.twitterUrl ?? '');
   const [linkedinUrl, setLinkedinUrl] = useState(biz?.linkedinUrl ?? '');
   const [yelpUrl, setYelpUrl] = useState(biz?.yelpUrl ?? '');
+  const [googleReviewUrl, setGoogleReviewUrl] = useState(biz?.googleReviewUrl ?? '');
   const [payments, setPayments] = useState((biz?.payments ?? []).join(', '));
   const [amenities, setAmenities] = useState<string[]>(biz?.amenities ?? []);
   const [gallery, setGallery] = useState<GalleryItem[]>(
@@ -95,6 +96,12 @@ export function OwnerStoreProfileForm() {
       showToast(t.profile.galleryFull, 'error');
       return;
     }
+    // Same rule as the API and owner-web: the link is texted to customers; carriers filter http.
+    const reviewLink = googleReviewUrl.trim();
+    if (reviewLink && !/^https:\/\/\S+\.\S+/i.test(reviewLink)) {
+      showToast(t.profile.reviewLinkInvalid, 'error');
+      return;
+    }
 
     setSaving(true);
     const ok = await store.saveProfile(
@@ -119,6 +126,7 @@ export function OwnerStoreProfileForm() {
         twitterUrl: twitterUrl.trim(),
         linkedinUrl: linkedinUrl.trim(),
         yelpUrl: yelpUrl.trim(),
+        googleReviewUrl: reviewLink,
         payments: splitPayments(payments),
         faqs: faqs.filter((f) => f.q.trim() && f.a.trim()),
         reviews: reviews.filter((r) => r.text.trim() && r.authorName.trim()),
@@ -266,6 +274,16 @@ export function OwnerStoreProfileForm() {
           label={t.profile.yelpLabel}
           value={yelpUrl}
           onChangeText={setYelpUrl}
+          autoCapitalize="none"
+          keyboardType="url"
+        />
+        {/* Not shown on the microsite — where the post-visit review text points (empty = none sent). */}
+        <TInput
+          label={t.profile.reviewLinkLabel}
+          value={googleReviewUrl}
+          onChangeText={setGoogleReviewUrl}
+          placeholder="https://g.page/r/your-place-id/review"
+          hint={t.profile.reviewLinkHint}
           autoCapitalize="none"
           keyboardType="url"
         />

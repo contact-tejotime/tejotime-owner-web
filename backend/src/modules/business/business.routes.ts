@@ -5,6 +5,7 @@ import { authenticate } from '../../middleware/authenticate';
 import { requirePermission } from '../../middleware/require-permission';
 import { isOwnerRole } from '../../domain/permissions';
 import { Errors } from '../../domain/errors';
+import { reviewUrl } from './review-url.schema';
 
 /** Owner / co-owner only. The service re-checks; this gives a clear 403 before validation. */
 function requireOwnerRole(req: any, _res: any, next: any) {
@@ -20,7 +21,6 @@ import * as business from './business.service';
 
 /** A social profile URL, or '' to clear it. Mirrors the admin panel's rule exactly. */
 const socialUrl = z.union([z.string().url().max(300), z.literal('')]).optional();
-
 /**
  * Partial update of the owner's own store.
  *
@@ -54,6 +54,7 @@ const patchSchema = z
     twitterUrl: socialUrl,
     linkedinUrl: socialUrl,
     yelpUrl: socialUrl,
+    googleReviewUrl: reviewUrl,
     payments: z.array(z.string().min(1).max(60)).max(15).optional(),
     faqs: z.array(z.object({ q: z.string().min(1).max(200), a: z.string().min(1).max(1000) })).max(20).optional(),
     reviews: z

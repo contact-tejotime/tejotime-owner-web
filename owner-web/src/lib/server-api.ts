@@ -352,6 +352,8 @@ export interface BusinessDetail {
   twitterUrl: string;
   linkedinUrl: string;
   yelpUrl: string;
+  /** Where the post-visit review SMS points; '' = no review text is sent. Owner-side only. */
+  googleReviewUrl: string;
   payments: string[];
   theme: ThemeConfig | null;
   themeColor: string | null;

@@ -9,6 +9,102 @@ the system as designed, this one describes where it actually is.
 
 ## 1. What is in flight
 
+### Customer SMS: the client's three templates + separate review consent (2026-09-28)
+
+Replaces the four waitlist texts with exactly three: booking confirmation, 15-minute reminder,
+post-checkout Google review request. Full write-up and the Twilio campaign paste:
+[docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md). Uncommitted on `feat-jay`.
+
+- **New:** migration `0032_review_sms_opt_in.sql` (review flags + reminder partial index);
+  `modules/notifications/sms-dispatch.ts` (send gate + 3 senders + reminder sweep, wired into the
+  scheduler); `googleReviewUrl` (https only) on owner-web, app and admin-panel.
+- **Consent UI:** **one** unticked box on Book and Check in, client-approved wording ("…including booking
+  confirmations, reminders, and a review request after my visit. Up to 3 messages per visit…"). It sets
+  both backend flags (`smsOptIn`, `reviewSmsOptIn`), kept separate so the review consent can be split
+  back into its own box (UI-only) if the Twilio reviewer objects to bundling a marketing text.
+- **Review short link:** the review SMS texts `www.tejotime.com/<phone>/r` (new frontend route
+  `app/[phone]/r/route.ts`, 302 to the live Google link, falls back to the store page) instead of the
+  raw Google URL, because carriers filter bit.ly-style shorteners. Backed by the new
+  `GET /public/businesses/by-phone/:phone/review-link`. Unit-tested (`public-review-link.test.ts`); the
+  route itself and the smoke block additions were **not run** end to end.
+- **Applied to preprod (`preprod-tejotime`) on 2026-09-28; not to production.** Run `0032` on production before promoting the backend — `bookSlot` writes
+  `review_sms_opt_in`, so a backend ahead of this schema fails every website booking.
+- **Verified (executed):** backend `tsc` clean on `src`; `vitest` **303/303** (22 files; rewritten
+  `sms-copy.test.ts`, new `public-sms-consent.test.ts`); `tsc --noEmit` clean in frontend, owner-web,
+  admin-panel; `app` has two pre-existing errors in untouched files (`index.tsx` typed route,
+  `orientation.ts` missing module); eslint clean on the touched files.
+- **NOT verified:** the new `smoke-rest.mjs` block was **never run** (`node --check` only — needs a running
+  API and a seeded throwaway DB); no real Twilio send; not looked at on iOS / Android simulators.
+- **Open:** "Manage your booking" links to the store page — no manage/cancel page exists. Twilio campaign
+  must be **edited** to Mixed with the new samples, then resubmitted. Privacy §5 / Terms §18 were rewritten
+  to match — have them reviewed.
+
+### Save as draft — admin panel Create store (2026-09-28)
+
+A **Save as draft** button, a **Drafts (N)** sidebar group above Stores, and autosave for open drafts.
+A draft is created **only** by clicking the button (a fresh form stores nothing). Full write-up:
+[docs/admin-store-drafts.md](../../docs/admin-store-drafts.md). Uncommitted on `feat-jay`.
+
+- **New:** migration `0031_store_draft.sql`; 5 endpoints under `/admin/store-drafts` (endpoints 96–100);
+  BFF routes; `StoreForm` autosave + banner; `Sidebar` Drafts group. Admin-panel only, so the
+  owner-web / iOS / Android parity rule does not apply.
+- **Migration `0031_store_draft.sql` — applied to preprod (`preprod-tejotime`) on 2026-09-28**, that file
+  only (table + index confirmed). **Not applied to production.** Run it there before promoting the backend.
+  Preprod is now fully migrated through `0032` (`0030` and `0032` were applied in a second run the same day).
+  (The review-SMS migration was briefly named `0031_review_sms_opt_in`; it was renumbered to `0032`
+  before it was applied, so there is no duplicate `0031` in the migrations table.)
+- **Owner password is never stored** in a draft (stripped in the panel and again in the service).
+- **Verified (executed):** backend `tsc` clean; `vitest` **290/290** (21 files; new `store-drafts.test.ts`,
+  10 tests); admin-panel `tsc` + `eslint` clean on the touched files; `npm run test:draft` 10/10.
+- **NOT verified:** `smoke-store-drafts.mjs` was **never run** (`node --check` only), so the real
+  draft SQL and the cross-admin privacy check are unproven; the migration itself did apply cleanly on
+  preprod. The UI (debounce,
+  tab-hide flush, sidebar refresh, remount after the first save) was **never opened in a browser**.
+- **Known gaps:** discarded/abandoned drafts leave their uploaded images in the bucket; the sidebar
+  draft's name/time only refresh on navigation, not on each autosave.
+
+### Autofill a store from a link — admin panel (2026-09-28)
+
+Paste a business website into Create/Edit Store and review-then-apply the extracted values. Full
+write-up: [docs/store-autofill-from-link.md](../../docs/store-autofill-from-link.md). Uncommitted on `feat-jay`.
+
+- **New:** `POST /admin/store-import` (95th endpoint) → SSRF-guarded fetch (`lib/safe-fetch.ts`) →
+  JSON-LD/meta extraction (`lib/html-extract.ts`) → Groq (`integrations/store-extract.ts`) →
+  sanitiser (`store-import.service.ts`). Admin panel: card in `StoreForm` + `StoreImportReview` dialog.
+- **Scope:** admin panel only. **owner-web and the mobile app were deliberately skipped** (edit-only
+  profile editors); images, theme, ratings/reviews and the owner login are not extracted.
+- **Config:** `AUTOFILL_ENABLED` (default false) + `AUTOFILL_API_KEY` (Groq) — the key is in the local
+  `backend/.env` only; **it still has to be added to the Coolify env** and the flag turned on there. The
+  key was pasted in chat, so rotate it.
+- **Groq model drift:** the first default (`llama-3.3-70b-versatile`) 404'd on this key; default is now
+  `openai/gpt-oss-120b`. Change `AUTOFILL_MODEL` if it is retired too.
+- **Verified (executed):** backend `tsc` + `eslint` clean; `vitest` 278/278 (3 new files, 113 tests);
+  admin-panel `tsc` + `eslint` clean; a real fetch + real Groq call against three public sites
+  (script since deleted).
+- **NOT verified:** the review dialog was never opened in a browser (no browser runner); the full
+  route over real HTTP with a real admin login; `smoke-store-import.mjs` was written but not run.
+
+### Admin autofill: first fetch applies without the dialog; unknown durations stay blank (2026-09-28)
+
+- **First fetch into an empty create form** applies every found item with no "Review what we found"
+  dialog (`StoreForm.runImport` + `isPristineCreate`); the notice and the warnings show inline. An edit,
+  a form with typed data or a second fetch still opens the dialog (its "Replaces" rows protect typed
+  data). Details: [docs/store-autofill-from-link.md](../../docs/store-autofill-from-link.md).
+- **No more invented 20 minutes:** a scraped service with no stated duration is `null` from
+  `store-import.service.ts`, shows a blank duration box, and **Save is blocked** with a per-service
+  message until it is filled. Duration stays required by the DB/API — no migration. No price is
+  `priceType: 'unset'` ("No price"), as before.
+- **The first-fetch fill is silent** (no "Filled in N items" banner, no warnings box) — only "nothing found" is said.
+- **Re-fetch of the same link offers only what the PAGE changed** since the previous fetch
+  (`admin-panel/src/lib/import-diff.ts` → `diffImportedFields`), so editing the address on the page and
+  re-fetching lists just the address. Recorded on apply; a cancelled dialog does not count. Checked by
+  `npm run test:import-diff` — **12/12 passed** (run once before the module existed: it failed).
+- **Verified (executed):** backend `store-import.test.ts` updated and run against the OLD code first (it
+  failed there), now 34/34; backend `tsc` + `eslint` clean; admin-panel `tsc` + `eslint` clean.
+- **NOT verified:** the form behaviour itself (no dialog on the first fetch, blank duration, Save
+  blocked, a re-fetch listing only the changed field) was **not exercised in a browser** — it needs
+  `AUTOFILL_ENABLED` + a Groq key, and admin-panel has no test runner.
+
 ### Optional store data: pictures, stylists, prices, services (2026-09-28)
 
 Client request: customers hesitate when asked for a lot, so ask for as little as possible. Full write-up
@@ -18,7 +114,7 @@ in [docs/optional-store-data.md](../../docs/optional-store-data.md). Uncommitted
   `OPTIONAL_SERVICES_STAFF_CATEGORIES` is deleted). A service may be `unset` ("No price" — the
   microsite shows none). The hero without a photo puts the wait card in the photo's column instead of
   an empty "Hero photo" box. Owner-web, iOS/Android and the admin panel got a "No price" mode.
-- **Migration `0030_optional_seats.sql` — NOT yet applied anywhere.** Run it before promoting the
+- **Migration `0030_optional_seats.sql` — applied to preprod on 2026-09-28; NOT yet on production.** Run it there before promoting the
   backend (`DEPLOY.md`). It makes the queue functions safe for a NULL seat and refuses a derived
   ₹0 checkout for a service-less entry.
 - **Also fixed:** `about` images 404'd at `/media/*` (key prefix missing from the route's allow-list).

@@ -540,6 +540,51 @@ async function main() {
     'the refused chair is still active — the failed delete changed nothing',
   );
 
+  console.log('SMS CONSENT + GOOGLE REVIEW LINK (docs/sms-opt-in-a2p.md)');
+  // Proves the booking page's two consent boxes and the owner's review link over real HTTP.
+  // The SMS dispatch itself is NOT observable here — there is no notification endpoint and this
+  // script has no DB handle — so the message bodies and send gates are pinned by the vitest
+  // units (sms-copy, public-sms-consent) instead.
+  const consentSlots = await call('GET', `/public/businesses/sharp-cuts/slots?date=${ymd(nextOpen)}&serviceId=${haircut.id}`);
+  const consentSlot = consentSlots.json.slots[consentSlots.json.slots.length - 1];
+  const bothBoxes = await call('POST', '/public/businesses/sharp-cuts/appointments', {
+    body: { name: 'Consent Carla', phone: '+919555000905', serviceId: haircut.id, slotStart: consentSlot.startAt, smsOptIn: true, reviewSmsOptIn: true },
+  });
+  ok(bothBoxes.status === 201, `booking with both SMS boxes ticked → 201 (got ${bothBoxes.status})`);
+  const reviewOnly = await call('POST', '/public/businesses/sharp-cuts/queue', {
+    body: { name: 'Review Rhea', phone: '+919555000906', reviewSmsOptIn: true },
+  });
+  ok(reviewOnly.status === 201, `walk-in with only the review box → 201 (got ${reviewOnly.status})`);
+  const badConsent = await call('POST', '/public/businesses/sharp-cuts/queue', {
+    body: { name: 'Bad Ben', phone: '+919555000907', reviewSmsOptIn: 'yes' },
+  });
+  ok(badConsent.status === 400, `a non-boolean consent is refused (got ${badConsent.status})`);
+
+  const REVIEW = 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4';
+  const setReview = await call('PATCH', '/business', { token, body: { googleReviewUrl: REVIEW } });
+  ok(setReview.status === 200, `owner sets the Google review link (got ${setReview.status})`);
+  const readReview = await call('GET', '/business', { token });
+  ok(readReview.json.googleReviewUrl === REVIEW, 'the review link round-trips through GET /business');
+  const httpReview = await call('PATCH', '/business', { token, body: { googleReviewUrl: 'http://g.page/r/abc/review' } });
+  ok(httpReview.status === 400, `a plain-http review link is refused (got ${httpReview.status})`);
+  const junkReview = await call('PATCH', '/business', { token, body: { googleReviewUrl: 'leave us a review' } });
+  ok(junkReview.status === 400, `a non-URL review link is refused (got ${junkReview.status})`);
+  const stillSet = await call('GET', '/business', { token });
+  ok(stillSet.json.googleReviewUrl === REVIEW, 'a refused save leaves the stored link unchanged');
+  const micro = await call('GET', '/public/businesses/sharp-cuts');
+  ok(!JSON.stringify(micro.json).includes('writereview'), 'the review link is not on the public microsite payload');
+  // The review SMS carries www.tejotime.com/<phone>/r, which reads this and 302s to it.
+  const phoneFull = `${micro.json.countryCode ?? ''}${micro.json.phoneNumber ?? ''}`.replace(/\D/g, '');
+  const shortRead = await call('GET', `/public/businesses/by-phone/${phoneFull}/review-link`);
+  ok(shortRead.status === 200 && shortRead.json.url === REVIEW, `short-link lookup returns the live link (got ${shortRead.status})`);
+  const cleared = await call('PATCH', '/business', { token, body: { googleReviewUrl: '' } });
+  const afterClear = await call('GET', '/business', { token });
+  ok(cleared.status === 200 && afterClear.json.googleReviewUrl === '', "'' clears the link (review text is then not sent)");
+  const shortGone = await call('GET', `/public/businesses/by-phone/${phoneFull}/review-link`);
+  ok(shortGone.status === 404, `a cleared link → short-link lookup 404, so /r falls back to the store page (got ${shortGone.status})`);
+  const shortUnknown = await call('GET', '/public/businesses/by-phone/1999000000000/review-link');
+  ok(shortUnknown.status === 404, `an unknown store phone → 404 (got ${shortUnknown.status})`);
+
   console.log('PUBLIC CHAT (docs/customer-chatbot-v1.md)');
   // The seed writes no FAQs, so give the store two through the owner API — the same path the
   // owner profile screen uses — and then ask the bot for them back. Read-only feature: the
