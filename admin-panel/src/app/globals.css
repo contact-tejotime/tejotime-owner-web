@@ -2761,10 +2761,14 @@ a:focus-visible,
   border: 1px solid var(--blue-100, #dbeafe);
   color: var(--primary-soft-fg);
 }
+/* The link box and its button are one control: same height, same baseline. The button used to keep
+   its own 12px+15px padding and stand taller than the input (and top-aligned, so it sat lower).
+   `stretch` makes both the height of the row, the input's natural height sets that row, and the
+   button drops its vertical padding and centres its label instead. */
 .import-card-form .import-row-inputs {
   display: flex;
   gap: 10px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 .import-card-form .import-row-inputs input {
   flex: 1;
@@ -2773,6 +2777,12 @@ a:focus-visible,
 .import-card-form .import-row-inputs button {
   flex-shrink: 0;
   white-space: nowrap;
+  padding-top: 0;
+  padding-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 .import-card-form .import-err {
   margin: 8px 0 0;

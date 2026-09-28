@@ -36,6 +36,7 @@ import {
   type ImportKey,
   type StoreImportResponse,
 } from "@/lib/store-import";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import StoreImportReview from "@/components/StoreImportReview";
 
 /** The page as one fetch saw it: the link and the fields it yielded (whole page, not a diff). */
@@ -299,11 +300,25 @@ export default function StoreForm({
     }
   }
 
-  async function discardDraft() {
-    if (!window.confirm(t.storeDraft.discardConfirm)) return;
-    await deleteDraft();
-    router.replace("/", { scroll: false });
-    router.refresh();
+  /**
+   * Discarding is destructive and permanent, so it asks first — with the app's own ConfirmDialog
+   * (focus-trapped, Escape/overlay to cancel, a red confirm button, busy state) rather than the
+   * browser's native `window.confirm`, which looks like a foreign system alert.
+   */
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+
+  async function confirmDiscardDraft() {
+    if (discarding) return;
+    setDiscarding(true);
+    try {
+      await deleteDraft();
+      router.replace("/", { scroll: false });
+      router.refresh();
+    } finally {
+      setDiscarding(false);
+      setConfirmingDiscard(false);
+    }
   }
 
   const phoneFull = `${form.countryCode.replace(/\D/g, "")}${form.phoneNumber.replace(/\D/g, "")}`;
@@ -570,7 +585,7 @@ export default function StoreForm({
                   ? draftError
                   : ""}
           </span>
-          <button type="button" className="btn-ghost" onClick={() => void discardDraft()}>
+          <button type="button" className="btn-ghost" onClick={() => setConfirmingDiscard(true)}>
             {t.storeDraft.discard}
           </button>
         </div>
@@ -649,6 +664,18 @@ export default function StoreForm({
           </div>
         )}
       </section>
+
+      {confirmingDiscard && (
+        <ConfirmDialog
+          title={t.storeDraft.discardTitle}
+          body={t.storeDraft.discardBody}
+          confirmLabel={t.storeDraft.discard}
+          danger
+          busy={discarding}
+          onConfirm={() => void confirmDiscardDraft()}
+          onCancel={() => setConfirmingDiscard(false)}
+        />
+      )}
 
       {importReview && (
         <StoreImportReview
