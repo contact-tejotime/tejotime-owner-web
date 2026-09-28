@@ -1,13 +1,11 @@
 import { exec, many, one } from '../../db/pool';
 import { money, servicePricing } from '../../domain/money';
 import { callRpc } from '../../db/rpc';
-import { SERVICE_EXTRAS, OPTIONAL_SERVICES_STAFF_CATEGORIES, VISITOR_TYPE_CATEGORIES } from '../../config/constants';
+import { SERVICE_EXTRAS, VISITOR_TYPE_CATEGORIES } from '../../config/constants';
 import { Errors } from '../../domain/errors';
 import { normalizePhone } from '../../lib/phone';
 import { initials } from '../../lib/format';
 import { shouldNotifyEta } from '../../lib/eta-notify';
-import { ETA_NOTIFY_2_MINUTES, ETA_NOTIFY_15_MINUTES, SMS_TEMPLATES, smsBodyEta, smsBodyYourTurn } from '../../lib/sms-copy';
-import { shouldDispatchSms } from '../../lib/sms-opt-in';
 import {
   buildSeatGroups,
   flatCards,
@@ -17,9 +15,9 @@ import {
   SeatGroupVM,
 } from '../../lib/queue-engine';
 import { emitToOwners, emitToPublic, emitToTicket } from '../../realtime/emitters';
-import { smsSender } from '../../integrations/sms';
 import { findOrCreateCustomer } from '../customers/customer.repo';
-import { loadQueueContext, QueueContext, RawEntry } from './queue.context';
+import { sendReviewRequest } from '../notifications/sms-dispatch';
+import { loadQueueContext, QueueContext } from './queue.context';
 
 // ---------- DTO mappers ----------
 function cardToDTO(c: CardVM) {
@@ -116,9 +114,12 @@ async function billingFor(businessId: string, entryId: string) {
   const service = Number(row?.service_paise ?? 0);
   const extras = Number(row?.extras_paise ?? 0);
   const currency = row?.currency;
-  // An entry with no service at all (a bare walk-in) is priced entirely by whoever checks it
-  // out; it is a fixed nothing rather than an unpriced service, so it keeps deriving to the
-  // add-ons total as it always has.
+  // An entry with no service at all (a bare walk-in) has nothing to derive a charge from. It used
+  // to fall through to the add-ons total — usually 0 — and bank a free visit into `visit` and the
+  // customer's spend. Now that a store may list no services, that would be the common case, so
+  // it is treated like an unpriced service: whoever checks it out types the amount. Add-ons
+  // recorded against it still count as a basis, so that flow is unchanged.
+  const noPriceBasis = !row?.service_price_type && extras === 0;
   const pricing = row?.service_price_type
     ? servicePricing(
         {
@@ -129,12 +130,14 @@ async function billingFor(businessId: string, entryId: string) {
         currency,
       )
     : null;
-  const amountRequired = pricing?.amountRequired ?? false;
+  const amountRequired = noPriceBasis || (pricing?.amountRequired ?? false);
   return {
     serviceAmount: money(service, currency),
     // The band the shop published, so the checkout sheet can show what it promised the
     // customer next to the box it is asking someone to fill in.
-    servicePriceType: pricing?.priceType ?? 'fixed',
+    // A no-service entry reports `unset` so both owner surfaces word it like an unpriced service
+    // ("Price on request" + the type-an-amount hint) rather than a misleading "₹0".
+    servicePriceType: noPriceBasis ? 'unset' : (pricing?.priceType ?? 'fixed'),
     serviceMaxAmount: pricing?.priceMax ?? null,
     extrasAmount: money(extras, currency),
     /**
@@ -235,10 +238,17 @@ export async function broadcastQueue(businessId: string): Promise<void> {
   await processTicketBroadcasts(businessId, ctx);
 }
 
-async function processTicketBroadcasts(businessId: string, ctx: QueueContext): Promise<void> {
-  const biz = await one<{ name: string }>('select name from business where id = $1', [businessId]);
-  const businessName = biz?.name ?? 'TejoTime';
+/** Wait-minute thresholds for the ticket ETA socket events. */
+const ETA_NOTIFY_15_MINUTES = 15;
+const ETA_NOTIFY_2_MINUTES = 2;
 
+/**
+ * Per-ticket socket pushes. These used to double as the waitlist SMS (joined / ~15 / ~2 / your
+ * turn); that set was replaced by the three appointment texts in modules/notifications/sms-dispatch.ts
+ * (docs/sms-opt-in-a2p.md), so nothing here calls Twilio any more — the one-shot claims remain so
+ * each socket event still fires once per ticket.
+ */
+async function processTicketBroadcasts(businessId: string, ctx: QueueContext): Promise<void> {
   for (const entry of ctx.entries) {
     const pos = ticketPosition(entry.id, ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
     const isYourTurn = pos.status === 'in_service';
@@ -256,7 +266,6 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
       const claimed = await claimNotifyStamp(entry.id, 'notified_turn_at');
       if (claimed) {
         emitToTicket(entry.id, 'ticket:ready', { token: entry.token });
-        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.yourTurn, smsBodyYourTurn(businessName));
       }
       continue;
     }
@@ -283,7 +292,6 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
           waitMinutes: pos.waitMinutes,
           thresholdMinutes: ETA_NOTIFY_15_MINUTES,
         });
-        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.eta15, smsBodyEta(pos.waitMinutes, businessName));
       }
     }
 
@@ -301,7 +309,6 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
           waitMinutes: pos.waitMinutes,
           thresholdMinutes: ETA_NOTIFY_2_MINUTES,
         });
-        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.eta2, smsBodyEta(pos.waitMinutes, businessName));
       }
     }
   }
@@ -321,78 +328,6 @@ async function claimNotifyStamp(
     [new Date().toISOString(), entryId],
   );
   return stamped > 0;
-}
-
-/** Persists an outbound alert and dispatches via smsSender (Twilio when SMS_ENABLED). */
-export async function recordAlertNotification(
-  businessId: string,
-  entry: Pick<RawEntry, 'id' | 'customer_phone' | 'sms_opt_in'>,
-  template: string,
-  body: string,
-): Promise<void> {
-  let optedOutAt: string | null = null;
-  let optOutUnknown = false;
-  if (entry.customer_phone) {
-    try {
-      const customer = await one<{ sms_opt_out_at: string | null }>(
-        'select sms_opt_out_at from customer where business_id = $1 and phone = $2',
-        [businessId, entry.customer_phone],
-      );
-      optedOutAt = customer?.sms_opt_out_at ?? null;
-    } catch {
-      // Cannot prove they are still opted in — do not Twilio, and do not break the mutation.
-      optOutUnknown = true;
-    }
-  }
-  const canSms =
-    !optOutUnknown &&
-    shouldDispatchSms({
-      customerPhone: entry.customer_phone,
-      smsOptIn: entry.sms_opt_in,
-      smsOptOutAt: optedOutAt,
-    });
-  const channel = canSms ? 'sms' : 'in_app';
-
-  // Notification bookkeeping must never break the mutation that triggered it,
-  // so a failed insert is swallowed exactly as the previous client's error
-  // return value was.
-  let row: { id: string } | null = null;
-  try {
-    row = await one<{ id: string }>(
-      `insert into notification
-         (business_id, queue_entry_id, channel, template, to_address, body, status, sent_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)
-       returning id`,
-      [
-        businessId,
-        entry.id,
-        channel,
-        template,
-        entry.customer_phone,
-        body,
-        canSms ? 'queued' : 'sent',
-        canSms ? null : new Date().toISOString(),
-      ],
-    );
-  } catch {
-    return;
-  }
-
-  if (!row?.id || !canSms || !entry.customer_phone) return;
-
-  const result = await smsSender.send(entry.customer_phone, body, template);
-  await exec(
-    `update notification
-        set status = $1, provider_message_id = $2, sent_at = $3, error = $4
-      where id = $5`,
-    [
-      result.id ? 'sent' : 'failed',
-      result.id,
-      result.id ? new Date().toISOString() : null,
-      result.id ? null : 'SMS send failed or deferred',
-      row.id,
-    ],
-  );
 }
 
 // ---------- Mutations ----------
@@ -417,9 +352,8 @@ export async function addWalkIn(businessId: string, input: AddWalkInInput) {
   for (const id of [...(input.serviceIds ?? []), ...(input.serviceId ? [input.serviceId] : [])]) {
     if (id && !pickedIds.includes(id)) pickedIds.push(id);
   }
-  if (!OPTIONAL_SERVICES_STAFF_CATEGORIES.has(category) && pickedIds.length === 0) {
-    throw Errors.validation('Add a service', [{ field: 'serviceIds', message: 'Pick a service' }]);
-  }
+  // No service is required: a store collects as little as it can, so a walk-in may be added
+  // bare. `billingFor` then makes whoever checks it out type the amount.
   if (VISITOR_TYPE_CATEGORIES.has(category) && !input.visitorType) {
     throw Errors.validation('Visitor type is required', [{ field: 'visitorType', message: 'Pick MR or Patient' }]);
   }
@@ -515,6 +449,9 @@ export async function checkout(businessId: string, entryId: string, amountPaise?
   // The finished entry drops out of the active set, so broadcastQueue can no
   // longer reach its ticket room — push the terminal event directly here.
   emitToTicket(entryId, 'ticket:completed', { visitId: r.visit_id });
+  // After the commit, and only for a visit whose customer ticked the separate review box.
+  // Never lets a Twilio/DB hiccup fail a checkout that has already been written.
+  await sendReviewRequest(businessId, entryId).catch(() => undefined);
   await broadcastQueue(businessId);
   const view = await getQueueView(businessId, { view: 'grouped' });
   return { promoted: r.promoted, ...view };

@@ -34,6 +34,8 @@ function businessDTO(b: any, hours: any[], amenities: any[], gallery: any[], pla
     twitterUrl: b.twitter_url ?? '',
     linkedinUrl: b.linkedin_url ?? '',
     yelpUrl: b.yelp_url ?? '',
+    // Where the post-visit review SMS points (0028). Owner-side only — never on the public DTO.
+    googleReviewUrl: b.google_review_url ?? '',
     faqs: Array.isArray(b.faqs) ? b.faqs : [],
     reviews: Array.isArray(b.reviews) ? b.reviews : [],
     timezone: b.timezone,
@@ -110,6 +112,7 @@ const OWNER_ONLY_COLUMNS: Record<string, string> = {
   twitterUrl: 'twitter_url',
   linkedinUrl: 'linkedin_url',
   yelpUrl: 'yelp_url',
+  googleReviewUrl: 'google_review_url',
 };
 
 /** Keys handled specially rather than by a straight column map. */

@@ -498,10 +498,11 @@ export interface ServiceItem {
   /**
    * Already-rendered price ("$45", "$20–$60", "Price on request") rather than a number.
    *
-   * A service is priced to a figure, to a band, or not yet at all, and the store says which —
+   * A service is priced to a figure, to a band, or not at all, and the store says which —
    * this used to be inferred from a zero and rendered as "$0", telling every customer the
    * service was free. Formatting happens once, next to the currency, so no caller can
-   * reintroduce a bare `{symbol}{number}`.
+   * reintroduce a bare `{symbol}{number}`. **Empty string = no price to show**: callers must
+   * omit the price, not print a placeholder.
    */
   priceLabel: string;
 }
@@ -553,10 +554,11 @@ export function ServiceList({
               onClick={() => onPick(sv.id)}
               // The card is the control, so its name has to say what booking it starts — the
               // visible label alone would read as a bare "Book" to a screen reader.
-              aria-label={format(t.microsite.sections.bookService, {
-                name: sv.name,
-                price: sv.priceLabel,
-              })}
+              aria-label={
+                sv.priceLabel
+                  ? format(t.microsite.sections.bookService, { name: sv.name, price: sv.priceLabel })
+                  : format(t.microsite.sections.bookServiceNoPrice, { name: sv.name })
+              }
             >
               <span
                 className="ttServiceNum"
@@ -606,17 +608,20 @@ export function ServiceList({
                 >
                   {sv.dur}
                 </span>
-                <span
-                  style={{
-                    whiteSpace: "nowrap",
-                    fontVariantNumeric: "tabular-nums",
-                    font: "var(--fw-extrabold) 19px/1 var(--font-sans)",
-                    letterSpacing: "-.02em",
-                    color: "var(--text-strong)",
-                  }}
-                >
-                  {sv.priceLabel}
-                </span>
+                {/* No price, no element — the duration then sits alone on the left. */}
+                {sv.priceLabel ? (
+                  <span
+                    style={{
+                      whiteSpace: "nowrap",
+                      fontVariantNumeric: "tabular-nums",
+                      font: "var(--fw-extrabold) 19px/1 var(--font-sans)",
+                      letterSpacing: "-.02em",
+                      color: "var(--text-strong)",
+                    }}
+                  >
+                    {sv.priceLabel}
+                  </span>
+                ) : null}
               </span>
 
               {/* Always visible, not hover-revealed: on touch there is no hover, and the
@@ -681,7 +686,7 @@ export function GalleryMosaic({
         <h2 style={H2}>{heading}</h2>
       </Reveal>
       <Reveal>
-        <div className={photos.length >= 3 ? "ttMosaic ttMosaicFeature" : "ttMosaic"} style={{ marginTop: "clamp(24px, 3.5vw, 44px)" }}>
+        <div className={photos.length >= 3 ? "ttMosaic ttMosaicFeature" : photos.length === 1 ? "ttMosaic ttMosaicSolo" : "ttMosaic"} style={{ marginTop: "clamp(24px, 3.5vw, 44px)" }}>
           {photos.map((src, i) => (
             <button
               key={`${src}-${i}`}

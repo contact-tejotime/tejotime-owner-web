@@ -44,6 +44,8 @@ written to be **idempotent / re-runnable**.
 | 0025 | `multi_service_selection.sql` | `appointment_service` table; `queue_attach_services()`; `appointment_check_in` carries every booked service into the queue entry |
 | 0026 | `consent_log.sql` | cookie-consent audit log |
 | 0027 | `sms_opt_in.sql` | `customer.sms_opt_in_at` / `sms_opt_out_at`; `sms_opt_in` on `queue_entry` and `appointment` (default false) |
+| 0030 | `optional_seats.sql` | `_queue_renumber`, `queue_start`, `queue_move` made NULL-seat safe (a store with no stylists = one shared lane); `queue_checkout` refuses to derive an amount for an entry with no service and no add-ons. No signature changes. |
+| 0031 | `store_draft.sql` | `store_draft(id, admin_id → admins on delete cascade, name, data jsonb, created_at, updated_at)` + index `(admin_id, updated_at desc)`: the admin panel's parked Create store forms. Private per admin; owner password never stored. |
 
 > **`0016` is duplicated** across two independent files. Ordering relies on the filename sort, which
 > is deterministic. **Use a strictly increasing prefix from 0025 onward.**
@@ -132,16 +134,24 @@ the entry — see `buildSeatGroups` in `business-logic.md`.
 |---|---|---|---|
 | `fixed` | `> 0` | null | One amount. |
 | `range` | `> 0` (the floor) | `>= price_paise` | A band. The customer sees it; whoever checks the customer out types the real figure. |
-| `unset` | `0` | null | Nobody has priced this yet. **Legacy only** — see below. |
+| `unset` | `0` | null | No price. The microsite shows none; the amount is typed at checkout. |
 
 `unset` exists because "not priced yet" used to be encoded as `price_paise = 0`, and each
 surface guessed what that zero meant (the microsite said "Price varies", the checkout sheet
-banked ₹0). The 0024 backfill records those rows as what they are; the write schemas refuse
-`unset`, so an owner editing one must choose a real mode and it can never be created again.
+banked ₹0). The 0024 backfill records those rows as what they are. It started as legacy-only (the
+write schemas refused it), but **price is now optional**, so `unset` is a mode an owner or admin
+can choose on purpose: the write APIs accept it, store `price_paise = 0`, and need no amount.
 
 `queue_checkout` raises **`TEJO:AMOUNT_REQUIRED`** (→ 422) when `p_amount_paise` is null and the
 booked service is `range` or `unset` — deriving would bank the band's minimum, which is the
-same under-reporting 0020 was written to stop.
+same under-reporting 0020 was written to stop. Since 0030 the same applies to an entry with no
+service and no add-ons, which would otherwise bank ₹0.
+
+**NULL seats (0030).** `queue_entry.staff_id` is NULL for a business with no stylists, or after a
+seat was deleted. `_queue_renumber` / `queue_move` match it with `is not distinct from`, and
+`queue_start` skips `SEAT_BUSY` for it: the seatless lane is one shared queue where several can be
+in service at once (`uq_one_in_service_per_seat` never blocked it — NULLs are distinct). Checkout
+does not auto-promote from it.
 
 ### `appointment_service`
 
@@ -207,6 +217,7 @@ survive the service row being edited or deleted.
 | `auth_session` | refresh tokens as `sha256(jti)` | live (see below) |
 | `user_permission` | **sparse** overrides: `(user_id, module)` → `none`/`view`/`manage` | live |
 | `admins` | platform admin allow-list, keyed by mobile; + `password_hash`, `role`, `name`, `is_active` | live |
+| `store_draft` | admin-panel Create store form, parked; `admin_id`-scoped jsonb snapshot (no password) | live |
 | `master_data` | admin lookup values, `team_noun` | live |
 | `inquiry` | marketing lead capture | live |
 | `notification` | outbound message log | partial |

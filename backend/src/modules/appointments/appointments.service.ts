@@ -2,12 +2,11 @@ import { exec, many, one } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { Errors } from '../../domain/errors';
 import { normalizePhone } from '../../lib/phone';
-import { SMS_TEMPLATES, smsBodyQueueJoined } from '../../lib/sms-copy';
 import { businessDayRange, businessRangeWindow } from '../../lib/time';
 import { soonestSeat } from '../../lib/queue-engine';
 import { emitToOwners } from '../../realtime/emitters';
 import { loadQueueContext } from '../queue/queue.context';
-import { broadcastQueue, getEntryDetail, recordAlertNotification } from '../queue/queue.service';
+import { broadcastQueue, getEntryDetail } from '../queue/queue.service';
 import { findOrCreateCustomer } from '../customers/customer.repo';
 
 function apptDTO(a: any) {
@@ -127,34 +126,19 @@ export async function checkIn(businessId: string, appointmentId: string) {
     source: 'online',
   });
 
-  // Copy the booking's A2P flag onto the new ticket. queue_add cannot take it
-  // (overload trap); without this copy, check-in would text anyone with a phone.
+  // Copy the booking's consent flags onto the new ticket. queue_add cannot take them
+  // (overload trap). The review flag matters here: checkout reads it off the queue entry,
+  // so without this copy a booked customer who ticked the review box would never get it.
+  // No SMS at check-in — the waitlist "joined" text was retired (docs/sms-opt-in-a2p.md).
   await exec(
     `update queue_entry q
-        set sms_opt_in = a.sms_opt_in
+        set sms_opt_in = a.sms_opt_in,
+            review_sms_opt_in = a.review_sms_opt_in
        from appointment a
       where q.id = $1 and q.business_id = $2
         and a.id = $3 and a.business_id = $2`,
     [result.entry.id, businessId, appointmentId],
   );
-
-  const phoneRow = await one<{ customer_phone: string | null; sms_opt_in: boolean }>(
-    'select customer_phone, sms_opt_in from queue_entry where id = $1 and business_id = $2',
-    [result.entry.id, businessId],
-  );
-  if (phoneRow?.customer_phone) {
-    const biz = await one<{ name: string }>('select name from business where id = $1', [businessId]);
-    await recordAlertNotification(
-      businessId,
-      {
-        id: result.entry.id,
-        customer_phone: phoneRow.customer_phone,
-        sms_opt_in: phoneRow.sms_opt_in === true,
-      },
-      SMS_TEMPLATES.queueJoined,
-      smsBodyQueueJoined(result.entry.token, biz?.name ?? 'TejoTime'),
-    );
-  }
 
   await broadcastQueue(businessId);
   const entry = await getEntryDetail(businessId, result.entry.id);

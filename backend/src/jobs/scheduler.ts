@@ -3,11 +3,12 @@ import { exec, many } from '../db/pool';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { broadcastQueue } from '../modules/queue/queue.service';
+import { appointmentReminderSweep } from '../modules/notifications/sms-dispatch';
 
 /**
  * In-process scheduled jobs (single instance). Swap for BullMQ + Redis workers
- * when scaling — see docs/09-background-jobs.md. Reminder/SMS/email
- * provider sync are DEFERRED until credentials are provided.
+ * when scaling — see docs/09-background-jobs.md. The 15-minute appointment
+ * reminder SMS runs here (docs/sms-opt-in-a2p.md); email is still DEFERRED.
  */
 
 /**
@@ -36,7 +37,7 @@ async function staleCleanup() {
 }
 
 /**
- * Recompute ETA / fire wait-window SMS for businesses that have waiting
+ * Recompute ETA / fire the wait-window ticket socket events for businesses that have waiting
  * online live-queue entries. Needed because wall-clock decay of the
  * in-service chair can cross a threshold with no owner mutation.
  * Idempotent via notified_eta_15_at / notified_eta_2_at claims inside broadcastQueue.
@@ -75,6 +76,10 @@ export function startScheduler(): void {
   cron.schedule('* * * * *', () => {
     etaNotifySweep().catch((err) => logger.error({ err }, 'etaNotifySweep failed'));
   });
+  // Every 60 seconds: 15-minute appointment reminder SMS (one-shot per booking).
+  cron.schedule('* * * * *', () => {
+    appointmentReminderSweep().catch((err) => logger.error({ err }, 'appointmentReminderSweep failed'));
+  });
   // Every 15 minutes: stale ticket cleanup.
   cron.schedule('*/15 * * * *', () => {
     staleCleanup().catch((err) => logger.error({ err }, 'staleCleanup failed'));
@@ -87,5 +92,5 @@ export function startScheduler(): void {
   cron.schedule('10 0 * * *', () => {
     purgeSessions().catch((err) => logger.error({ err }, 'purgeSessions failed'));
   });
-  logger.info('Scheduler started (eta-notify-sweep, stale-cleanup, otp-purge, session-purge)');
+  logger.info('Scheduler started (eta-notify-sweep, appointment-reminder, stale-cleanup, otp-purge, session-purge)');
 }

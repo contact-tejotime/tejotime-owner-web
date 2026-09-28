@@ -151,6 +151,7 @@ export function mapBusinessDetail(r: any) {
     twitterUrl: r.twitterUrl ?? '',
     linkedinUrl: r.linkedinUrl ?? '',
     yelpUrl: r.yelpUrl ?? '',
+    googleReviewUrl: r.googleReviewUrl ?? '',
     payments: Array.isArray(r.payments) ? r.payments.map(String) : [],
     amenities: Array.isArray(r.amenities) ? r.amenities.map(String) : [],
     faqs: Array.isArray(r.faqs)
@@ -186,7 +187,9 @@ export function mapAppointment(a: any): AppointmentEntry {
   return {
     id: a.id,
     name: a.customerName,
-    service: a.serviceName,
+    // Optional now that a store may list no services: '' rather than null, so the list row can
+    // omit it instead of printing "null · John".
+    service: a.serviceName ?? '',
     time: fmtTime(a.scheduledStartAt),
     status: toStatusKind(a.status),
     staffId: a.staffId ?? null,

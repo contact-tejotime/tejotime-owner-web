@@ -46,3 +46,19 @@ export async function recordSmsOptIn(businessId: string, customerId: string): Pr
     [customerId, businessId],
   );
 }
+
+/**
+ * Stamp the post-visit review consent (migration 0032). Kept apart from recordSmsOptIn because the
+ * review text is marketing — today one page box sets both, but the record stays separable. It
+ * also clears a prior STOP, since ticking the box is a fresh consent to be texted.
+ */
+export async function recordReviewSmsOptIn(businessId: string, customerId: string): Promise<void> {
+  await exec(
+    `update customer
+        set review_sms_opt_in_at = coalesce(review_sms_opt_in_at, now()),
+            sms_opt_out_at = null,
+            updated_at = now()
+      where id = $1 and business_id = $2`,
+    [customerId, businessId],
+  );
+}

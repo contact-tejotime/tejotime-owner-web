@@ -162,8 +162,10 @@ export interface JoinBody {
   phone: string;
   preferredStaffId?: string;
   visitorType?: "mr" | "patient";
-  /** Unchecked-by-default A2P opt-in. Omit or false → no SMS for this visit. */
+  /** A2P opt-in to appointment texts (confirmation + 15-min reminder). Omit or false → none. */
   smsOptIn?: boolean;
+  /** A2P opt-in to the one post-visit review text. The page's single consent box sets both flags. */
+  reviewSmsOptIn?: boolean;
 }
 export interface BookBody extends JoinBody {
   slotStart: string;

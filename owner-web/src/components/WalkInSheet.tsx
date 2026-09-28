@@ -38,7 +38,7 @@ type WalkInSheetProps = {
    * naming the seat "Any seat" would pick. Without them a seat falls back to its role label.
    */
   seats?: SeatGroup[];
-  /** Business category — Hospital asks MR or Patient; Hospital/Restaurant make a service optional. */
+  /** Business category — Hospital asks MR or Patient. A service is optional for every category. */
   category?: string | null;
 };
 
@@ -46,11 +46,10 @@ type Position = "end" | "next";
 type VisitorType = "mr" | "patient";
 
 /**
- * Mirrors backend/src/config/constants.ts (and the app's store.tsx): categories where a walk-in
- * needs no service, and the one where the visitor must be identified as MR or Patient. Hospital
- * joins used to fail outright from the web, because this sheet never sent the visitor type.
+ * Mirrors backend/src/config/constants.ts (and the app's store.tsx): the category where the
+ * visitor must be identified as MR or Patient. Hospital joins used to fail outright from the web,
+ * because this sheet never sent the visitor type. A service is never required, for any category.
  */
-const OPTIONAL_SERVICE_CATEGORIES = new Set(["Hospital", "Restaurant"]);
 const VISITOR_TYPE_CATEGORIES = new Set(["Hospital"]);
 
 /**
@@ -101,7 +100,6 @@ export function WalkInSheet({
 
   const cat = category ?? "";
   const needsVisitorType = VISITOR_TYPE_CATEGORIES.has(cat);
-  const serviceOptional = OPTIONAL_SERVICE_CATEGORIES.has(cat);
 
   /** Each seat's load line, and which seat "Any seat" would land on — the app's rule. */
   const seatOptions = useMemo(() => {
@@ -142,7 +140,6 @@ export function WalkInSheet({
   async function submit() {
     setError("");
     if (!name.trim()) return setError(t.walkin.errName);
-    if (!serviceOptional && services.length > 0 && serviceIds.length === 0) return setError(t.walkin.errService);
     if (needsVisitorType && !visitorType) return setError(t.walkin.errVisitorType);
     setBusy(true);
     try {

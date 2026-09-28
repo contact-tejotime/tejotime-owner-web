@@ -13,6 +13,8 @@ import type {
   PlatformOverview,
   StoreAnalytics,
   StoreDetail,
+  StoreDraft,
+  StoreDraftListItem,
   StoreListItem,
   StoreListItemWithMetrics,
   VisitsResponse,
@@ -56,6 +58,7 @@ export const TAGS = {
   visits: "visits",
   appointments: "appointments",
   admins: "admins",
+  drafts: "drafts",
   business: (id: string) => `business:${id}`,
 } as const;
 
@@ -171,6 +174,21 @@ export async function listBusinesses(): Promise<StoreListItem[]> {
   // The demo/example store is viewable only via the sidebar "View demo store" link — hide it
   // from the manageable Stores list so it isn't treated like a real store.
   return (json?.data ?? []).filter((s) => s.slug !== "demo-store");
+}
+
+/**
+ * The signed-in admin's parked Create store forms, newest first. Private to them — the backend
+ * scopes by admin id, and `get` keys the cache by admin too, so nobody sees another's drafts.
+ * Cached like the store list; every draft write revalidates `TAGS.drafts`.
+ */
+export async function listStoreDrafts(): Promise<StoreDraftListItem[]> {
+  const json = await get<{ data: StoreDraftListItem[] }>("/admin/store-drafts", [TAGS.drafts], TTL.businesses);
+  return json?.data ?? [];
+}
+
+/** Always fresh: an open draft must show what was last saved, not a 5-minute-old copy. */
+export async function getStoreDraft(id: string): Promise<StoreDraft | null> {
+  return getFresh<StoreDraft>(`/admin/store-drafts/${encodeURIComponent(id)}`);
 }
 
 export async function listLookups(type: string): Promise<Category[]> {

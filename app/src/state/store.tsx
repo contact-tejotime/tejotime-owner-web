@@ -53,9 +53,8 @@ type Sheet = 'walkin' | null;
 export type WalkInPosition = 'end' | 'next';
 export type VisitorType = 'mr' | 'patient';
 
-// Mirrors backend/src/config/constants.ts — categories where a service isn't forced / where
-// the visitor must be identified as MR or Patient before adding a walk-in.
-const OPTIONAL_SERVICE_CATEGORIES = new Set(['Hospital', 'Restaurant']);
+// Mirrors backend/src/config/constants.ts — the category where the visitor must be identified as
+// MR or Patient before adding a walk-in. A service is never required, for any category.
 const VISITOR_TYPE_CATEGORIES = new Set(['Hospital']);
 
 type WalkIn = {
@@ -115,6 +114,7 @@ interface BusinessInfo {
   twitterUrl?: string;
   linkedinUrl?: string;
   yelpUrl?: string;
+  googleReviewUrl?: string;
   payments?: string[];
   amenities?: string[];
   faqs?: { q: string; a: string }[];
@@ -791,10 +791,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       addWalkin: async ({ name, phone }) => {
         const w = s.walkin;
         const category = s.business?.category ?? '';
-        const serviceOptional = OPTIONAL_SERVICE_CATEGORIES.has(category);
         const needsVisitorType = VISITOR_TYPE_CATEGORIES.has(category);
         if (!name.trim()) return patch(() => ({ walkin: { ...w, error: t.toast.enterName } }));
-        if (!serviceOptional && w.services.length === 0) return patch(() => ({ walkin: { ...w, error: t.toast.pickService } }));
         if (needsVisitorType && !w.visitorType) return patch(() => ({ walkin: { ...w, error: t.toast.pickVisitorType } }));
         // Names → ids in pick order; an unknown name is dropped rather than sent as null.
         const serviceIds = w.services
@@ -1001,7 +999,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             name,
             durationMinutes,
             priceType,
-            priceAmount: Math.round(priceRupees * 100),
+            // An unpriced service carries no amount — the API stores it as 0 itself.
+            ...(priceType === 'unset' ? {} : { priceAmount: Math.round(priceRupees * 100) }),
             // Only a range carries a ceiling — the API rejects one on a fixed price by design,
             // so that a service switched back from range cannot keep a stale band.
             ...(priceType === 'range' && priceMaxRupees != null
@@ -1025,7 +1024,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             durationMinutes,
             // Mode and amount always travel together — the API refuses a half-changed price.
             priceType,
-            priceAmount: Math.round(priceRupees * 100),
+            ...(priceType === 'unset' ? {} : { priceAmount: Math.round(priceRupees * 100) }),
             ...(priceType === 'range' && priceMaxRupees != null
               ? { priceMaxAmount: Math.round(priceMaxRupees * 100) }
               : {}),

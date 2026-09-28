@@ -51,7 +51,7 @@ Two layers, always in this order. The service is `backend/src/modules/public/cha
    intent — `hours`, `walkin`, `waitlist`, `track`, `book`, `price`/`services`, `pay`,
    `location`, `contact`, `staff` — and the reply is assembled from the same microsite DTO the
    page renders (so a price the bot quotes is the price on the page, including "₹2,000–₹6,000"
-   ranges and "Price on request"). A bare service or team-member name ("haircut?", "is Lisa in?")
+   ranges; a service with no price is listed with no price, as on the page). A bare service or team-member name ("haircut?", "is Lisa in?")
    counts as a question about it. Intents the page cannot answer (`cancel`, `kids`, `parking`)
    fall through to the fallback unless an FAQ covered them.
 3. **Fallback.** "Sorry, I couldn't find that in *Store*'s info. Please check the FAQ on this

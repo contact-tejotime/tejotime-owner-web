@@ -185,7 +185,7 @@ export function DetailPanel() {
     const rows: { key: string; label: string; value: string }[] = [];
     if (card.isWaiting) rows.push({ key: 'pos', label: t.detail.position, value: `#${card.pos}` });
     rows.push({ key: 'seat', label: t.detail.seat, value: seat?.name ?? t.common.dash });
-    rows.push({ key: 'service', label: t.detail.service, value: card.service });
+    rows.push({ key: 'service', label: t.detail.service, value: card.service || t.common.dash });
     rows.push({ key: 'price', label: t.detail.price, value: priceLabel(billing) });
     if (card.isWaiting) rows.push({ key: 'wait', label: t.detail.estWait, value: card.rightText });
     rows.push({ key: 'source', label: t.detail.source, value: card.srcLabel });

@@ -15,10 +15,9 @@ export interface SmsSender {
 
 /** Twilio trial Body values — see https://www.twilio.com/docs/usage/trials/try-out-sms */
 const TRIAL_BODY_BY_TEMPLATE: Record<string, string> = {
-  queue_joined: 'sms_event_notifications',
-  eta_15: 'sms_appointment_reminders',
-  eta_2: 'sms_appointment_reminders',
-  your_turn: 'sms_account_alerts',
+  booking_confirmed: 'sms_event_notifications',
+  appointment_reminder: 'sms_appointment_reminders',
+  review_request: 'sms_account_alerts',
 };
 
 function twilioBasicAuth(sid: string, token: string): string {

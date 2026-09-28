@@ -74,9 +74,11 @@ total is used instead.
 
 ### Pricing modes, and when the amount stops being optional
 
-A service is priced `fixed` (one amount), `range` (a floor and a ceiling) or `unset` (legacy —
-nobody has priced it; see `database.md`). Money is integer paise throughout: `price_paise` is the
-fixed amount *or* the range floor, `price_max_paise` the ceiling.
+A service is priced `fixed` (one amount), `range` (a floor and a ceiling) or `unset` ("no price":
+it began as the legacy zero rows — see `database.md` — and is now a mode an owner or admin can
+choose on purpose, because price is optional; the microsite shows no price for it). Money is
+integer paise throughout: `price_paise` is the fixed amount *or* the range floor, `price_max_paise`
+the ceiling, and an `unset` service is stored as `0` with no ceiling.
 
 - **Fixed** — unchanged. Checkout pre-fills service + add-ons and the override is optional.
 - **Range / unset** — `queue_checkout` **raises `TEJO:AMOUNT_REQUIRED` (422)** when
@@ -84,6 +86,9 @@ fixed amount *or* the range floor, `price_max_paise` the ceiling.
   under-reporting of `visit.amount_paise` that 0020 exists to prevent, arrived at by a different
   route. The refusal lives in the function rather than only in the UI, so a client that ignores
   the flag still cannot bank a figure nobody chose.
+- **No service at all** (migration 0030) — an entry with no service **and no add-ons** is refused
+  the same way. It used to derive to ₹0 and bank a free visit; with services optional it is the
+  common case. `billingFor` reports it as `servicePriceType: 'unset'`.
 
 `GET /queue/:id` carries the resolution for the checkout sheet: `servicePriceType`,
 `serviceMaxAmount`, `amountRequired`, and a **null** `suggestedAmount` whenever `amountRequired`
@@ -104,6 +109,11 @@ Fires **once per ticket**, for **online live-queue joins only** — not walk-ins
 `0 < waitMinutes <= ETA_NOTIFY_MINUTES` (default 15) **and** the visit opted in
 (`sms_opt_in = true`). Missing opt-in never texts.
 
+> **Since 2026-09-28 this is a socket event only** (`ticket:eta_15` / `ticket:eta_2` /
+> `ticket:ready`) — the waitlist SMS were replaced by the three appointment texts (booking
+> confirmation, 15-minute reminder, post-checkout review request) in
+> `modules/notifications/sms-dispatch.ts`. See [docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md).
+
 Idempotency is a **conditional claim** on `notified_eta_15_at`: the update only matches rows where
 the column is still null, so exactly one concurrent caller wins. `notified_turn_at` does the same
 for "it's your turn".
@@ -115,14 +125,20 @@ per ticket, not per threshold crossing.
 
 ## 4. Category-driven behaviour
 
-`config/constants.ts` carries two sets that change validation and UI:
+`config/constants.ts` carries one set that changes validation and UI:
 
 | Set | Members | Effect |
 |---|---|---|
-| `OPTIONAL_SERVICES_STAFF_CATEGORIES` | `Hospital`, `Restaurant` | May have **zero** services and **zero** staff. Drives the flat `Waiting` group in `buildSeatGroups`. |
 | `VISITOR_TYPE_CATEGORIES` | `Hospital` | Requires identifying the visitor as `mr` \| `patient` (`queue_entry.visitor_type`, `appointment.visitor_type`). |
 
 `visitor_type` is **display-only** and never enters wait-time math.
+
+There is no category rule for services or staff. `OPTIONAL_SERVICES_STAFF_CATEGORIES` (Hospital,
+Restaurant) was removed: **every** store may have zero services and zero staff, so pictures,
+stylists, services and prices are all optional. A store with no staff gets the flat `Waiting` group
+in `buildSeatGroups` — one shared lane (`staff_id IS NULL`) where several people can be in service
+at once, `SEAT_BUSY` does not apply, and checkout does not auto-promote (migration 0030). See
+[docs/optional-store-data.md](../../docs/optional-store-data.md).
 
 ---
 

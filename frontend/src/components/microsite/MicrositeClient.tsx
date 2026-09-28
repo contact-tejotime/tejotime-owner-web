@@ -424,6 +424,26 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const shopPhone = site.phoneNumber ? formatPhone(combineToE164(site.countryCode ?? "", site.phoneNumber)) : null;
   const [menuOpen, setMenuOpen] = useState(false); // mobile hamburger dropdown
   const [saveOpen, setSaveOpen] = useState(false); // "Save contact" (vCard) sheet
+  // Pictures are optional, and a stored URL is not proof of a picture (a deleted or unreachable
+  // object 404s). Record the URL that failed — not a boolean — so the page falls back to the
+  // no-image layout instead of a blank frame, and a later re-upload (a new URL) is tried afresh
+  // without any reset logic.
+  const [failedHeroUrl, setFailedHeroUrl] = useState<string | null>(null);
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
+  const heroUrl = site.heroImageUrl && site.heroImageUrl !== failedHeroUrl ? site.heroImageUrl : null;
+  const logoUrl = site.logoUrl && site.logoUrl !== failedLogoUrl ? site.logoUrl : null;
+  // The hero is a CSS background, which has no onError — so probe it. Only the failure is
+  // acted on; while it loads (or if the probe never resolves) the normal hero renders.
+  useEffect(() => {
+    const url = site.heroImageUrl;
+    if (!url) return;
+    const probe = new window.Image();
+    probe.onerror = () => setFailedHeroUrl(url);
+    probe.src = url;
+    return () => {
+      probe.onerror = null;
+    };
+  }, [site.heroImageUrl]);
   // Live vCard endpoint for this store. The backend rebuilds the .vcf from the current
   // business row on every request, so a saved contact always reflects the latest details.
   // `?open=1` serves it inline so a phone (tap, or scanning the desktop QR) opens the
@@ -479,6 +499,8 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const [faqOpen, setFaqOpen] = useState<number | null>(0);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  // One unchecked box covers all three texts (confirmation, reminder, review request). The API
+  // stores appointment and review consent as separate flags; this box sets both.
   const [smsOptIn, setSmsOptIn] = useState(false);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
@@ -745,9 +767,11 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
    * The store now says which of three things a price is, instead of every surface guessing
    * from a zero. A **fixed** service shows its amount. A **range** shows the band the shop
    * committed to — the final figure is settled at the counter, not on this page. A service
-   * nobody has priced says so; it used to render as "$0", which told every customer it was
-   * free. A response cached from before pricing modes carries no `priceType`, and the old rule
-   * (a real amount is a fixed price) still reads it correctly.
+   * nobody has priced renders NOTHING (an empty label): price is optional, so the page asks for
+   * and shows as little as the store gave it. It used to render as "$0", which told every
+   * customer it was free — the empty label is what keeps that from coming back. A response
+   * cached from before pricing modes carries no `priceType`, and the old rule (a real amount is
+   * a fixed price) still reads it correctly.
    */
   const priceLabelFor = (sv: { price: { amount: number }; priceType?: string; priceMax?: { amount: number } | null }) => {
     const type = sv.priceType ?? (sv.price.amount > 0 ? "fixed" : "unset");
@@ -757,7 +781,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         max: rupeeLabel(sv.priceMax.amount),
       });
     }
-    if (type === "unset" || sv.price.amount <= 0) return t.microsite.sections.priceOnRequest;
+    if (type === "unset" || sv.price.amount <= 0) return "";
     return rupeeLabel(sv.price.amount);
   };
   const services = (site.services ?? []).map((s) => ({
@@ -1128,7 +1152,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           phone: p,
           preferredStaffId: member,
           visitorType: visitorType ?? undefined,
+          // A walk-in only ever gets the review text, but both flags record what was agreed to.
           smsOptIn,
+          reviewSmsOptIn: smsOptIn,
         });
         setTicket(t);
         setInitialAhead(t.ahead);
@@ -1163,6 +1189,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           slotStart: selectedSlot!,
           visitorType: visitorType ?? undefined,
           smsOptIn,
+          reviewSmsOptIn: smsOptIn,
         });
         setBooking({ serviceName: b.serviceName, scheduledStartAt: b.scheduledStartAt });
         const store = storeRef.current;
@@ -1239,13 +1266,16 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   /**
    * The visit's total. A range-priced service makes the whole total a range, so the two ends are
    * summed separately — "from ₹2,350" is honest where a single figure would not be.
+   *
+   * Empty when ANY chosen service has no price: a total that silently leaves one out would quote
+   * less than the visit costs, and "nothing" is the honest reading of a partly unpriced cart.
    */
   const cartTotalLabel = (() => {
     if (selected.length === 0) return "";
+    const anyUnpriced = selected.some((sv) => (sv.priceType ?? (sv.price.amount > 0 ? "fixed" : "unset")) === "unset");
+    if (anyUnpriced) return "";
     const min = selected.reduce((n, sv) => n + sv.price.amount, 0);
     const max = selected.reduce((n, sv) => n + (sv.priceMax?.amount ?? sv.price.amount), 0);
-    const anyUnpriced = selected.some((sv) => (sv.priceType ?? (sv.price.amount > 0 ? "fixed" : "unset")) === "unset");
-    if (anyUnpriced && min === 0) return t.microsite.sections.priceOnRequest;
     return max > min ? `${curSym}${Math.round(min / 100)}–${curSym}${Math.round(max / 100)}` : `${curSym}${Math.round(min / 100)}`;
   })();
   // Shop-wide "soonest free chair" wait. A 0 means a chair is open right now, so read
@@ -1309,7 +1339,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     [
       [services.length > 0, t.microsite.nav.services, "#services"],
       [members.length > 0, t.microsite.nav.team, "#team"],
-      [gallery.length > 0 || isDemo, t.microsite.nav.gallery, "#gallery"],
+      // Only when the section renders (it needs photos) — the demo store has none, and its link
+      // used to scroll nowhere.
+      [gallery.length > 0, t.microsite.nav.gallery, "#gallery"],
       [reviews.length > 0, t.microsite.nav.reviews, "#reviews"],
       [showAbout, t.microsite.nav.about, "#about"],
       [Boolean(site.address || site.area || site.hours.length > 0), t.microsite.nav.visitUs, "#visit"],
@@ -1354,7 +1386,8 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           return selectedSlot ? t.microsite.join.timeSelected : t.microsite.join.chooseTimeAbove;
         })()
       : joinWaitText;
-  const summaryProvider = member === "any" ? t.microsite.join.memberAny : selMember?.name ?? null;
+  // No stylists means no provider to name — "Any" would read as a choice the customer never had.
+  const summaryProvider = members.length === 0 ? null : member === "any" ? t.microsite.join.memberAny : selMember?.name ?? null;
 
   // Theming root. The colour tokens themselves are server-rendered by <ThemeStyle/> into a
   // <style> block keyed on [data-tt-theme]; this element only carries the two attributes that
@@ -1465,7 +1498,11 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         <div id="about" style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(28px, 7vw, 72px) clamp(16px, 4vw, 32px) 40px" }}>
           <div style={{ ...revealStyle, display: "flex", gap: "clamp(20px, 4vw, 48px)", alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
             {hasAboutText && (
-              <div style={{ flex: 1, minWidth: 300 }}>
+              // Pictures are optional. Beside a photo the text is a left-aligned column; with no
+              // photo it would stretch the full width and hug the left edge of an otherwise empty
+              // row, so it is capped to a readable measure and centred instead. (The wrapper
+              // already centres its children, so the cap is what makes it land in the middle.)
+              <div style={{ flex: 1, minWidth: 300, ...(hasAboutImage || isDemo ? {} : { maxWidth: 720, textAlign: "center" as const }) }}>
                 <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 12 }}>{site.name ? format(t.microsite.about.eyebrowNamed, { name: site.name }) : t.microsite.about.eyebrow}</div>
                 {hasHeading && (
                   <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 4vw, 34px)/1.1 var(--font-sans)", letterSpacing: "-.02em", color: "var(--text-strong)", margin: "0 0 14px" }}>{site.aboutHeading}</h2>
@@ -1478,7 +1515,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                 {hasAmenities && (
                   <>
                     <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 11 }}>{t.microsite.about.amenities}</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 9, ...(hasAboutImage || isDemo ? {} : { justifyContent: "center" }) }}>
                       {amenities.map((a) => (
                         <span key={a} className="salonAmenity" style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--border-subtle)", borderRadius: 999, padding: "7px 14px", font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-body)", background: "var(--surface-card)" }}>
                           <span style={{ color: "var(--success)", display: "flex" }}>
@@ -1495,7 +1532,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             {(hasAboutImage || isDemo) && (
               <div style={{ flex: hasAboutText ? "1 1 0" : "0 1 560px", minWidth: 280, height: 260, borderRadius: "calc(18px * var(--radius-scale, 1))", background: "linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--surface-card)), color-mix(in srgb, var(--secondary) 12%, var(--surface-card)))", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", ...(hasAboutImage ? { backgroundImage: `url(${site.aboutImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
                 {!hasAboutImage && (
-                  <span style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "rgba(15,23,42,.4)", display: "flex", alignItems: "center", gap: 7 }}>
+                  <span style={{ font: "var(--fw-medium) 12px/1 var(--font-sans)", color: "var(--text-subtle)", display: "flex", alignItems: "center", gap: 7 }}>
                     <Icon name="building" size={15} />
                     {t.microsite.about.aboutPhoto}
                   </span>
@@ -1524,6 +1561,40 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setThemeRootEl(node);
   }, []);
   useThemePreview(themeRootRef);
+
+  // The "Right now" card — v3's centrepiece and the page's primary action. Built once because it
+  // lives in one of two places depending on whether the store has a hero photo (see the hero
+  // body). It carries no outer margin; the slot it is dropped into decides that.
+  const rightNowCard = (
+    <div className="ttWaitCard" style={{ width: "100%", maxWidth: 430, borderRadius: "calc(26px * var(--radius-scale, 1))", padding: "clamp(18px, 2.4vw, 26px)", background: "var(--surface-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 26px 60px rgba(15,23,42,.16)" }}>
+      <div style={{ font: "var(--fw-bold) 10.5px/1 var(--font-sans)", letterSpacing: ".16em", textTransform: "uppercase", color: "var(--primary)" }}>{t.microsite.hero.rightNow}</div>
+      <div style={{ marginTop: 14 }}>
+        <QueueWaitSummary liveCount={liveCount} members={members} waitHeadline={waitDetail} walkInsClosed={walkInsClosed} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
+        {/* Closed: booking is promoted to the primary action and the walk-in button is
+            dropped rather than shown disabled — an inert button reads as a broken page. */}
+        {walkInsClosed ? (
+          <>
+            <Button size="lg" fullWidth onClick={openBook}>{t.microsite.hero.bookSlot}</Button>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 9, font: "var(--fw-medium) 12.5px/1.4 var(--font-sans)", color: "var(--text-muted)" }}>
+              <span style={{ display: "flex", flexShrink: 0, marginTop: 1 }}><Icon name="clock" size={14} /></span>
+              <span>{t.microsite.wait.walkInsClosed}</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <Button size="lg" fullWidth onClick={openQueue}>{domain.id === "clinic" ? t.microsite.hero.takeAToken : t.microsite.hero.checkIn}</Button>
+            <Button size="lg" variant="outline" fullWidth onClick={openBook}>{t.microsite.hero.bookSlot}</Button>
+          </>
+        )}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 16, font: "var(--fw-medium) 12.5px/1.4 var(--font-sans)", color: "var(--text-subtle)" }}>
+        <Icon name="check" size={14} />
+        <span>{t.microsite.hero.noAppNote}</span>
+      </div>
+    </div>
+  );
 
   return (
     <ThemePortalProvider container={themeRootEl}>
@@ -1558,10 +1629,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               mark gets the brand tile. */}
           {/* Logo and name both take the visitor back to the top, like a site's home link. The
               name link is hidden from the tab order so a keyboard user meets one link, not two. */}
-          <a href="#top" onClick={scrollToTop} aria-label={format(t.microsite.header.backToTop, { name: site.name })} className="ttLogo" style={{ width: 40, height: 40, borderRadius: "calc(12px * var(--radius-scale, 1))", overflow: "hidden", flexShrink: 0, background: site.logoUrl ? "transparent" : "var(--primary)", color: "var(--text-on-brand)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {site.logoUrl ? (
+          <a href="#top" onClick={scrollToTop} aria-label={format(t.microsite.header.backToTop, { name: site.name })} className="ttLogo" style={{ width: 40, height: 40, borderRadius: "calc(12px * var(--radius-scale, 1))", overflow: "hidden", flexShrink: 0, background: logoUrl ? "transparent" : "var(--primary)", color: "var(--text-on-brand)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={site.logoUrl} alt={site.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              <img src={logoUrl} alt={site.name} onError={() => setFailedLogoUrl(logoUrl)} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             ) : (
               <Icon name="sparkle" size={20} />
             )}
@@ -1645,47 +1716,23 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               {site.establishedYear != null && <span style={{ font: "var(--fw-medium) 15px/1 var(--font-sans)", color: "var(--text-muted)" }}>{format(t.microsite.hero.since, { year: site.establishedYear })}</span>}
             </div>
 
-            {/* The "Right now" card — v3's centrepiece and the page's primary action. */}
-            <div className="ttWaitCard" style={{ maxWidth: 430, marginTop: "clamp(20px, 3vw, 32px)", borderRadius: "calc(26px * var(--radius-scale, 1))", padding: "clamp(18px, 2.4vw, 26px)", background: "var(--surface-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 26px 60px rgba(15,23,42,.16)" }}>
-              <div style={{ font: "var(--fw-bold) 10.5px/1 var(--font-sans)", letterSpacing: ".16em", textTransform: "uppercase", color: "var(--primary)" }}>{t.microsite.hero.rightNow}</div>
-              <div style={{ marginTop: 14 }}>
-                <QueueWaitSummary liveCount={liveCount} members={members} waitHeadline={waitDetail} walkInsClosed={walkInsClosed} />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
-                {/* Closed: booking is promoted to the primary action and the walk-in button is
-                    dropped rather than shown disabled — an inert button reads as a broken page. */}
-                {walkInsClosed ? (
-                  <>
-                    <Button size="lg" fullWidth onClick={openBook}>{t.microsite.hero.bookSlot}</Button>
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 9, font: "var(--fw-medium) 12.5px/1.4 var(--font-sans)", color: "var(--text-muted)" }}>
-                      <span style={{ display: "flex", flexShrink: 0, marginTop: 1 }}><Icon name="clock" size={14} /></span>
-                      <span>{t.microsite.wait.walkInsClosed}</span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <Button size="lg" fullWidth onClick={openQueue}>{domain.id === "clinic" ? t.microsite.hero.takeAToken : t.microsite.hero.checkIn}</Button>
-                    <Button size="lg" variant="outline" fullWidth onClick={openBook}>{t.microsite.hero.bookSlot}</Button>
-                  </>
-                )}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 16, font: "var(--fw-medium) 12.5px/1.4 var(--font-sans)", color: "var(--text-subtle)" }}>
-                <Icon name="check" size={14} />
-                <span>{t.microsite.hero.noAppNote}</span>
-              </div>
-            </div>
+            {/* With a photo the card sits under the headline, as ever. Without one it moves to the
+                right-hand column the photo would have filled (below) — see `rightNowCard`. */}
+            {heroUrl && <div style={{ marginTop: "clamp(20px, 3vw, 32px)" }}>{rightNowCard}</div>}
           </div>
 
-          <div style={{ flex: "1 1 300px", minWidth: 300, alignSelf: "stretch", minHeight: "clamp(280px, 46vw, 460px)", position: "relative", borderRadius: "calc(26px * var(--radius-scale, 1))", overflow: "hidden", background: "var(--surface-page)", border: "1px solid var(--border-subtle)", boxShadow: "0 26px 60px rgba(15,23,42,.13)" }}>
-            {site.heroImageUrl ? (
-              <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${site.heroImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }} />
-            ) : (
-              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--text-subtle)" }}>
-                <Icon name="building" size={16} />
-                {t.microsite.hero.heroPhoto}
-              </div>
-            )}
-          </div>
+          {heroUrl ? (
+            <div style={{ flex: "1 1 300px", minWidth: 300, alignSelf: "stretch", minHeight: "clamp(280px, 46vw, 460px)", position: "relative", borderRadius: "calc(26px * var(--radius-scale, 1))", overflow: "hidden", background: "var(--surface-page)", border: "1px solid var(--border-subtle)", boxShadow: "0 26px 60px rgba(15,23,42,.13)" }}>
+              <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${heroUrl})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+            </div>
+          ) : (
+            // No hero photo: an empty frame (or a "Hero photo" placeholder) read as a broken page
+            // to real customers. The live card takes the photo's column instead, so the hero is
+            // two balanced halves on a computer and simply stacks on a phone — nothing is faked.
+            <div style={{ flex: "1 1 300px", minWidth: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {rightNowCard}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1707,6 +1754,18 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                 onJoin={openWith}
                 walkInsClosed={walkInsClosed}
               />
+              <StatCards cards={statCards} />
+            </Section>
+          );
+        }
+        // Stylists are optional. Without any there is no team board to show, but the stat cards
+        // (year, rating, the live wait) do not depend on a roster — dropping them along with the
+        // board is what left a stylist-less page with nothing between the hero and the services.
+        // The wait card is always present and already sits in the hero, so it only earns a section
+        // when there is something alongside it.
+        if (key === "live" && statCards.length > 1) {
+          return (
+            <Section key={key} tone="tint">
               <StatCards cards={statCards} />
             </Section>
           );
@@ -2062,7 +2121,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                                 <div style={{ font: "var(--fw-semibold) 15px/1.2 var(--font-sans)", color: "var(--text-strong)" }}>{sv.name}</div>
                                 <div style={{ font: "var(--fw-regular) 12px/1 var(--font-sans)", color: "var(--text-muted)", marginTop: 5 }}>{sv.dur}</div>
                               </div>
-                              <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{sv.priceLabel}</span>
+                              {sv.priceLabel ? (
+                                <span style={{ font: "var(--fw-bold) 16px/1 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>{sv.priceLabel}</span>
+                              ) : null}
                             </div>
                           );
                         })}
@@ -2075,9 +2136,11 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                           <span style={{ font: "var(--fw-medium) 13px/1.35 var(--font-sans)", color: "var(--text-body)" }}>
                             {format(t.microsite.join.serviceTotal, { count: selected.length, minutes: totalMinutes })}
                           </span>
-                          <span style={{ flexShrink: 0, font: "var(--fw-bold) 15px/1.35 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>
-                            {cartTotalLabel}
-                          </span>
+                          {cartTotalLabel ? (
+                            <span style={{ flexShrink: 0, font: "var(--fw-bold) 15px/1.35 var(--font-sans)", color: "var(--text-strong)", fontVariantNumeric: "tabular-nums" }}>
+                              {cartTotalLabel}
+                            </span>
+                          ) : null}
                         </div>
                       )}
 
@@ -2110,6 +2173,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       <div style={{ font: "var(--fw-regular) 12.5px/1.45 var(--font-sans)", color: "var(--text-muted)", marginBottom: 12 }}>
                         {mode === "book" ? t.microsite.join.phoneHelperBook : t.microsite.join.phoneHelperQueue}
                       </div>
+                      {/* One unticked box, on both Book and Check in, that names all three texts —
+                          confirmation, reminder and the post-visit review request — so it matches the
+                          three registered A2P samples and "Up to 3 messages per visit". Unchecked by
+                          default and not tied to Confirm (Twilio 30923 / 30925). Body-size,
+                          full-contrast text: A2P reviewers reject disclosures that are not "clearly and
+                          conspicuously" visible — small grey type reads as fine print. */}
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
                         <input
                           id="tt-sms-opt-in"
@@ -2118,8 +2187,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                           onChange={(e) => setSmsOptIn(e.target.checked)}
                           style={{ marginTop: 3, flexShrink: 0, width: 16, height: 16, accentColor: "var(--primary)" }}
                         />
-                        {/* Body-size, full-contrast text: A2P reviewers reject disclosures that
-                            are not "clearly and conspicuously" visible — small grey type reads as fine print. */}
                         <div style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-strong)" }}>
                           <label htmlFor="tt-sms-opt-in" style={{ cursor: "pointer" }}>
                             {format(t.microsite.join.consentOptIn, { name: site.name })}
@@ -2130,17 +2197,24 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                           <Link href="/terms" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{t.microsite.join.consentSmsTerms}</Link>
                         </div>
                       </div>
-                      <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 9 }}>{t.microsite.join.memberLabel}</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
-                        {[{ id: "any", name: t.microsite.join.memberAny }, ...members.map((b) => ({ id: b.id, name: b.name }))].map((c) => {
-                          const on = member === c.id;
-                          return (
-                            <span key={c.id} onClick={() => { setMember(c.id); if (mode === "book") fetchSlots(cart, bookDate, c.id); }} style={{ cursor: "pointer", font: "var(--fw-semibold) 13px/1 var(--font-sans)", padding: "8px 15px", borderRadius: 999, transition: "all .15s ease", ...(on ? { background: "var(--primary)", color: "#fff", border: "1.5px solid var(--primary)" } : { background: "var(--surface-card)", color: "var(--text-body)", border: "1.5px solid var(--border-subtle)" }) }}>
-                              {c.name}
-                            </span>
-                          );
-                        })}
-                      </div>
+                      {/* Stylists are optional: a store with none has no one to choose between, so
+                          the whole row goes rather than offering a lone "Any" chip. `member` stays
+                          "any", which the join/book API already resolves to no preference. */}
+                      {members.length > 0 && (
+                        <>
+                          <div style={{ font: "var(--fw-bold) 12px/1 var(--font-sans)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 9 }}>{t.microsite.join.memberLabel}</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+                            {[{ id: "any", name: t.microsite.join.memberAny }, ...members.map((b) => ({ id: b.id, name: b.name }))].map((c) => {
+                              const on = member === c.id;
+                              return (
+                                <span key={c.id} onClick={() => { setMember(c.id); if (mode === "book") fetchSlots(cart, bookDate, c.id); }} style={{ cursor: "pointer", font: "var(--fw-semibold) 13px/1 var(--font-sans)", padding: "8px 15px", borderRadius: 999, transition: "all .15s ease", ...(on ? { background: "var(--primary)", color: "#fff", border: "1.5px solid var(--primary)" } : { background: "var(--surface-card)", color: "var(--text-body)", border: "1.5px solid var(--border-subtle)" }) }}>
+                                  {c.name}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
 
                       {mode === "book" && (
                         <>
@@ -2227,7 +2301,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                             {[summaryWhen, summaryProvider].filter(Boolean).join(" · ")}
                           </span>
                         </span>
-                        <span style={{ flexShrink: 0, font: "var(--fw-bold) 16px/1.35 var(--font-sans)", color: "var(--text-strong)" }}>{cartTotalLabel}</span>
+                        {cartTotalLabel ? (
+                          <span style={{ flexShrink: 0, font: "var(--fw-bold) 16px/1.35 var(--font-sans)", color: "var(--text-strong)" }}>{cartTotalLabel}</span>
+                        ) : null}
                       </div>
                       {/* Nothing is charged here — payments are not wired — so the page has to say
                           where the money is actually taken, before the customer commits. */}

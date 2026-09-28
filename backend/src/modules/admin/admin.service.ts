@@ -43,6 +43,8 @@ export interface StoreFields {
   twitterUrl?: string;
   linkedinUrl?: string;
   yelpUrl?: string;
+  /** Post-visit review SMS link; '' clears it, undefined leaves it untouched. */
+  googleReviewUrl?: string;
   timezone?: string;
   /** ISO 4217 code (e.g. 'INR', 'USD'). Omitted → keeps existing / env default. */
   currency?: string;
@@ -60,8 +62,9 @@ export interface StoreFields {
   services: {
     name: string;
     durationMinutes: number;
-    priceRupees: number;
-    priceType?: 'fixed' | 'range';
+    /** Absent for an `unset` service — it has no price to carry. */
+    priceRupees?: number;
+    priceType?: 'fixed' | 'range' | 'unset';
     priceMaxRupees?: number | null;
   }[];
   staff: { name: string; roleLabel?: string | null; avatarUrl?: string | null }[];
@@ -135,6 +138,9 @@ function businessColumns(input: StoreFields) {
     twitter_url: input.twitterUrl || null,
     linkedin_url: input.linkedinUrl || null,
     yelp_url: input.yelpUrl || null,
+    // Only written when the caller sent it. Owners edit this link too, so an older admin build
+    // that does not know the field must not wipe it on every store save.
+    ...(input.googleReviewUrl !== undefined ? { google_review_url: input.googleReviewUrl || null } : {}),
     // faqs/reviews are jsonb — serialize explicitly, otherwise pg would send a
     // JS array as a Postgres array literal and the insert would fail.
     faqs: JSON.stringify(input.faqs ?? []),
@@ -217,8 +223,9 @@ async function syncServices(
   for (const [position, s] of rows.entries()) {
     const key = s.name.trim().toLowerCase();
     const id = byName.get(key);
-    const pricePaise = Math.round(s.priceRupees * 100);
     const priceType = s.priceType ?? 'fixed';
+    // `ck_service_price_shape` only accepts an unpriced service at exactly 0.
+    const pricePaise = priceType === 'unset' ? 0 : Math.round((s.priceRupees ?? 0) * 100);
     // Written unconditionally rather than only for a range: a service switched from range back
     // to fixed has to lose its old ceiling, or the check constraint rejects the whole save.
     const priceMaxPaise = priceType === 'range' && s.priceMaxRupees != null
@@ -774,6 +781,7 @@ export async function getBusinessDetail(id: string) {
     twitterUrl: b.twitter_url ?? '',
     linkedinUrl: b.linkedin_url ?? '',
     yelpUrl: b.yelp_url ?? '',
+    googleReviewUrl: b.google_review_url ?? '',
     currency: b.currency ?? 'INR',
     themeColor: b.theme_color ?? '',
     theme: (b.theme ?? null) as ThemeConfigInput | null,

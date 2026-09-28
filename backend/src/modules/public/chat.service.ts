@@ -60,10 +60,13 @@ function formatMoney(amount: number, currency: string): string {
   }
 }
 
-/** Same three renderings as the microsite's `priceLabel`, so the bot never quotes a bare 0. */
+/**
+ * Same renderings as the microsite's `priceLabel`, so the bot never quotes a bare 0. An unpriced
+ * service is an empty string — the page shows no price for it, so the bot says none either.
+ */
 function priceLabel(s: MicrositeDTO['services'][number]): string {
   const type = s.priceType ?? (s.price.amount > 0 ? 'fixed' : 'unset');
-  if (type === 'unset') return 'Price on request';
+  if (type === 'unset') return '';
   const min = formatMoney(s.price.amount, s.price.currency);
   if (type === 'range' && s.priceMax) return `${min}–${formatMoney(s.priceMax.amount, s.priceMax.currency)}`;
   return min;

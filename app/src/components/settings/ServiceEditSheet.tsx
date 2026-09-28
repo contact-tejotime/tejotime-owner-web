@@ -11,20 +11,21 @@ import { useTheme } from '@/theme/ThemeProvider';
 /**
  * Add/edit bottom sheet for a service (name, duration, pricing).
  *
- * Two pricing modes. **Fixed** is one amount. **Range** is a floor and a ceiling: the customer
+ * Three pricing modes. **Fixed** is one amount. **Range** is a floor and a ceiling: the customer
  * sees the band on the microsite, and whoever checks them out types the real figure, because
- * the shop deliberately said it could not name one in advance.
+ * the shop deliberately said it could not name one in advance. **No price** is the third — price
+ * is optional, so the microsite shows none and the amount is typed at checkout, as for a range.
  *
- * A service saved before pricing modes existed arrives as `unset` — no price at all, rather
- * than a price of zero. The form opens it on Fixed with an empty box and says so, because the
- * API will not accept it back until a real mode and amount are chosen.
+ * A service with no price arrives as `unset` — no price at all, rather than a price of zero. It
+ * opens on "No price" with an empty amount box, so switching it to Fixed does not seed a free
+ * service by accident.
  */
 /** What the sheet hands back. Rupees — the API speaks paise, converted at the call site. */
 export interface ServiceFormValues {
   name: string;
   durationMinutes: number;
-  priceType: 'fixed' | 'range';
-  /** The fixed price, or the range floor. */
+  priceType: 'fixed' | 'range' | 'unset';
+  /** The fixed price, or the range floor. Ignored (0) for 'unset'. */
   priceRupees: number;
   /** The range ceiling. Null for a fixed price — and written as null, so a service switched
    *  back from range does not keep a ceiling the API would reject. */
@@ -70,11 +71,13 @@ function ServiceForm({
   const { colors } = useTheme();
   const [name, setName] = useState(service?.name ?? '');
   const [duration, setDuration] = useState(service ? String(service.durationMinutes) : '');
-  // An `unset` service opens on Fixed with an empty box: it has no price to show, and the zero
-  // it carries in the database is a legacy marker, not an amount to seed the field with.
-  const legacyUnpriced = service?.priceType === 'unset';
-  const [priceType, setPriceType] = useState<'fixed' | 'range'>(service?.priceType === 'range' ? 'range' : 'fixed');
-  const [price, setPrice] = useState(service && !legacyUnpriced ? String(service.priceRupees) : '');
+  // An `unset` service opens on "No price" with an empty box: the zero it carries in the database
+  // marks "no price", it is not an amount to seed the field with.
+  const unpriced = service?.priceType === 'unset';
+  const [priceType, setPriceType] = useState<'fixed' | 'range' | 'unset'>(
+    service?.priceType === 'range' || service?.priceType === 'unset' ? service.priceType : 'fixed',
+  );
+  const [price, setPrice] = useState(service && !unpriced ? String(service.priceRupees) : '');
   const [maxPrice, setMaxPrice] = useState(service?.priceMaxRupees != null ? String(service.priceMaxRupees) : '');
   const [error, setError] = useState('');
 
@@ -85,6 +88,15 @@ function ServiceForm({
 
   const save = () => {
     const durationMinutes = parseInt(duration, 10);
+    // Price is optional, so "No price" needs only a name and a duration.
+    if (priceType === 'unset') {
+      if (!name.trim() || !durationMinutes || durationMinutes < 1) {
+        setError(t.serviceSheet.errorNoPrice);
+        return;
+      }
+      onSave({ name: name.trim(), durationMinutes, priceType, priceRupees: 0, priceMaxRupees: null });
+      return;
+    }
     const priceRupees = parseFloat(price);
     if (!name.trim() || !durationMinutes || durationMinutes < 1 || !priceRupees || priceRupees <= 0) {
       setError(t.serviceSheet.error);
@@ -109,20 +121,15 @@ function ServiceForm({
   return (
     <View style={styles.g4}>
       <TInput label={t.serviceSheet.nameLabel} placeholder={t.serviceSheet.namePlaceholder} value={name} onChangeText={set(setName)} />
-      {legacyUnpriced && (
-        <TText variant="bodySm" color="textMuted">
-          {t.serviceSheet.unpricedHint}
-        </TText>
-      )}
 
-      {/* Segmented, not a picker: there are exactly two modes and the choice changes which
+      {/* Segmented, not a picker: there are exactly three modes and the choice changes which
           fields are below it, so it has to be visible rather than one tap away. */}
       <View style={styles.g2}>
         <TText variant="caption" color="textMuted">
           {t.serviceSheet.modeLabel}
         </TText>
         <View style={sheetStyles.row}>
-          {(['fixed', 'range'] as const).map((mode) => (
+          {(['fixed', 'range', 'unset'] as const).map((mode) => (
             <View key={mode} style={styles.flex}>
               <TButton
                 variant={priceType === mode ? 'primary' : 'outline'}
@@ -131,7 +138,11 @@ function ServiceForm({
                   setPriceType(mode);
                   setError('');
                 }}>
-                {mode === 'fixed' ? t.serviceSheet.modeFixed : t.serviceSheet.modeRange}
+                {mode === 'fixed'
+                  ? t.serviceSheet.modeFixed
+                  : mode === 'range'
+                    ? t.serviceSheet.modeRange
+                    : t.serviceSheet.modeNone}
               </TButton>
             </View>
           ))}
@@ -148,17 +159,24 @@ function ServiceForm({
             onChangeText={set(setDuration)}
           />
         </View>
-        <View style={styles.flex}>
-          <TInput
-            label={priceType === 'range' ? t.serviceSheet.priceMinLabel : t.serviceSheet.priceLabel}
-            prefix={t.serviceSheet.pricePrefix}
-            placeholder={t.serviceSheet.pricePlaceholder}
-            keyboardType="number-pad"
-            value={price}
-            onChangeText={set(setPrice)}
-          />
-        </View>
+        {priceType !== 'unset' && (
+          <View style={styles.flex}>
+            <TInput
+              label={priceType === 'range' ? t.serviceSheet.priceMinLabel : t.serviceSheet.priceLabel}
+              prefix={t.serviceSheet.pricePrefix}
+              placeholder={t.serviceSheet.pricePlaceholder}
+              keyboardType="number-pad"
+              value={price}
+              onChangeText={set(setPrice)}
+            />
+          </View>
+        )}
       </View>
+      {priceType === 'unset' && (
+        <TText variant="bodySm" color="textMuted">
+          {t.serviceSheet.priceUnsetHint}
+        </TText>
+      )}
       {priceType === 'range' && (
         <>
           <TInput

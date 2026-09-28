@@ -1,7 +1,7 @@
 # API reference
 
 Express 4, TypeScript. Versioned prefix **`/api/v1`** (`config/constants.ts` `API_PREFIX`).
-94 endpoints across 16 routers.
+100 endpoints across 16 routers.
 
 Unversioned and outside auth: `GET /healthz`, `GET /readyz`, `GET /media/*`.
 
@@ -172,16 +172,20 @@ Free plan truncates the list server-side to `FREE_PLAN_CUSTOMER_LIMIT` and retur
 `GET /` (`ownerRead`, no module permission) — `POST /` · `PATCH /:id` · `DELETE /:id`
 (`perm=services:manage` / `perm=staff:manage`).
 
-**Service pricing** crosses as a triple, all paise: `priceType` (`'fixed' | 'range'`),
-`priceAmount` (the fixed price, or the range floor, `>= 1`) and `priceMaxAmount` (the ceiling —
-required for a range, refused on a fixed price). The three move **together**: a `PATCH` that
-sends one without `priceType` + `priceAmount` is a 400, so a service switched back from a range
-cannot keep a ceiling the check constraint would reject.
+**Service pricing** crosses as a triple, all paise: `priceType` (`'fixed' | 'range' | 'unset'`),
+`priceAmount` (the fixed price, or the range floor, `>= 1`; **optional and ignored for `unset`**,
+which is stored as `0`) and `priceMaxAmount` (the ceiling — required for a range, refused on a
+fixed price). The three move **together**: a `PATCH` that sends one without `priceType` (and, for
+a priced mode, `priceAmount`) is a 400, so a service switched back from a range cannot keep a
+ceiling the check constraint would reject. `unset` means "no price" — the microsite shows none.
 
 The DTO mirrors that with `price` (fixed amount, or range minimum), `priceType` and `priceMax`
-(null unless a range). `priceType` may also read `'unset'` for services that predate pricing
-modes — writes refuse it, so an owner has to choose a real mode. See `database.md` and
-`business-logic.md`.
+(null unless a range). See `database.md` and `business-logic.md`.
+
+Pictures, stylists and services are optional everywhere: `POST /admin/businesses` and
+`PUT /admin/businesses/:id` default `services` and `staff` to `[]`, a service's `priceRupees` may be
+omitted for `unset`, and `POST /queue` (walk-in) needs no service for any category. See
+[docs/optional-store-data.md](../../docs/optional-store-data.md).
 
 ### `/users` (8) — team logins
 
@@ -205,6 +209,7 @@ Gated by the `team` module, which is **not grantable** — see `business-logic.m
 | GET | `/businesses/:slug` | `publicRead` |
 | GET | `/businesses/:slug/vcard` | `publicRead` |
 | GET | `/businesses/by-phone/:phone` | `publicRead` |
+| GET | `/businesses/by-phone/:phone/review-link` | `publicRead` — `{url}` or 404; `no-store`. Read by the review-SMS short link `www.tejotime.com/<phone>/r` |
 | GET | `/businesses/:slug/availability` | `publicRead` |
 | GET | `/businesses/:slug/staff` | `publicRead` |
 | GET | `/businesses/:slug/slots` | `publicRead` |
@@ -235,11 +240,19 @@ Gemini/Groq model behind `CHATBOT_PROVIDER`) and only *suggests* the page's butt
 > Public writes are **not idempotent** — the `idempotency_key` table exists but no middleware
 > uses it. A double-tapped "join queue" creates two entries.
 
-### `/admin` (21) — separate admin JWT
+### `/admin` (26) — separate admin JWT
 
 Auth: `POST /auth/request-otp` · `POST /auth/verify-otp` · `POST /auth/login`.
 Platform: `GET /me` · `GET /lookups` · `GET /analytics/overview` · `GET /inquiries` ·
-`POST /uploads/sign`.
+`POST /uploads/sign` · `POST /store-import` (read a web page and propose store-form values;
+read-only, SSRF-guarded, 10/hour/admin, 503 unless `AUTOFILL_ENABLED` — see
+[docs/store-autofill-from-link.md](../../docs/store-autofill-from-link.md)).
+Create-store drafts (private to the calling admin, owner or employee; another admin's draft is a
+**404**): `GET /store-drafts` (`{ data: [...] }`, no form blobs) · `GET /store-drafts/:id` ·
+`POST /store-drafts` (201; 409 `DRAFT_LIMIT` past 50) · `PUT /store-drafts/:id` (autosave) ·
+`DELETE /store-drafts/:id` (204, idempotent). The body is `{ data }`, deliberately **not** validated
+against the store schema (a draft is incomplete by definition), capped at 256 KB, and the owner
+password is stripped server-side — see [docs/admin-store-drafts.md](../../docs/admin-store-drafts.md).
 Admin management: `GET /admins` · `POST /admins` · `PATCH /admins/:id`.
 Stores: `GET /businesses` · `GET /businesses/:id` · `POST /businesses` · `PUT /businesses/:id` ·
 `POST /businesses/:id/owner/password` · `GET /businesses/:id/analytics` ·

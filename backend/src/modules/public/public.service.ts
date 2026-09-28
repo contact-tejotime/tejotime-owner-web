@@ -10,10 +10,10 @@ import { createTtlCache } from '../../lib/ttl-cache';
 import { buildSeatGroups, soonestSeat, ticketPosition } from '../../lib/queue-engine';
 import { emitToOwners, emitToTicket } from '../../realtime/emitters';
 import { ticketKey } from '../auth/token.service';
-import { findOrCreateCustomer, recordSmsOptIn } from '../customers/customer.repo';
+import { findOrCreateCustomer, recordReviewSmsOptIn, recordSmsOptIn } from '../customers/customer.repo';
 import { loadQueueContext } from '../queue/queue.context';
-import { SMS_TEMPLATES, smsBodyQueueJoined } from '../../lib/sms-copy';
-import { broadcastQueue, recordAlertNotification } from '../queue/queue.service';
+import { sendBookingConfirmation } from '../notifications/sms-dispatch';
+import { broadcastQueue } from '../queue/queue.service';
 
 /** Short TTL so poll fallbacks coalesce under load without serving stale wait labels for long. */
 const LIVE_CACHE_TTL_MS = 5_000;
@@ -168,6 +168,20 @@ async function resolveBusinessByPhone(phoneDigits: string) {
 export async function getMicrositeByPhone(phoneDigits: string) {
   const b = await resolveBusinessByPhone(phoneDigits);
   return buildMicrosite(b);
+}
+
+/**
+ * The store's Google review link, for the `www.tejotime.com/<phone>/r` short link the review SMS
+ * carries (carriers filter bit.ly-style shorteners, so we shorten on our own domain). Read live on
+ * every click so an owner's edit applies to texts already sent. Not part of the microsite DTO —
+ * this is its only public read. Safe to redirect to: the value is owner-saved and https-only
+ * (review-url.schema.ts), never taken from the request.
+ */
+export async function getReviewLinkByPhone(phoneDigits: string): Promise<{ url: string }> {
+  const b = await resolveBusinessByPhone(phoneDigits);
+  const url = typeof b.google_review_url === 'string' ? b.google_review_url.trim() : '';
+  if (!url) throw Errors.notFound('No review link');
+  return { url };
 }
 
 /**
@@ -442,6 +456,7 @@ export async function joinQueue(
     preferredStaffId?: string;
     visitorType?: 'mr' | 'patient';
     smsOptIn?: boolean;
+    reviewSmsOptIn?: boolean;
   },
 ) {
   const b = await resolveBusiness(slug);
@@ -497,22 +512,19 @@ export async function joinQueue(
   }
 
   emitToOwners(b.id, 'queue:entry.created', { entryId: result.id, seatId: staffId, source: 'online' });
+  // Consent flags after the RPC on purpose — do not add a parameter to queue_add (overload trap).
+  // A walk-in is no longer sent any waitlist text; only the post-visit review SMS applies to it,
+  // but `sms_opt_in` is still stored as given so an older client's tick is not lost.
   const smsOptIn = input.smsOptIn === true;
-  if (smsOptIn) {
-    // After the RPC on purpose — do not add a parameter to queue_add (overload trap).
-    await exec('update queue_entry set sms_opt_in = true where id = $1 and business_id = $2', [
-      result.id,
-      b.id,
-    ]);
-    if (customerId) await recordSmsOptIn(b.id, customerId);
-  }
-  if (phone) {
-    await recordAlertNotification(
-      b.id,
-      { id: result.id, customer_phone: phone, sms_opt_in: smsOptIn },
-      SMS_TEMPLATES.queueJoined,
-      smsBodyQueueJoined(result.token, b.name),
+  const reviewSmsOptIn = input.reviewSmsOptIn === true;
+  if (smsOptIn || reviewSmsOptIn) {
+    await exec(
+      `update queue_entry set sms_opt_in = $3, review_sms_opt_in = $4
+        where id = $1 and business_id = $2`,
+      [result.id, b.id, smsOptIn, reviewSmsOptIn],
     );
+    if (customerId && smsOptIn) await recordSmsOptIn(b.id, customerId);
+    if (customerId && reviewSmsOptIn) await recordReviewSmsOptIn(b.id, customerId);
   }
   await broadcastQueue(b.id);
 
@@ -545,6 +557,7 @@ export async function bookSlot(
     slotStart: string;
     visitorType?: 'mr' | 'patient';
     smsOptIn?: boolean;
+    reviewSmsOptIn?: boolean;
   },
 ) {
   const b = await resolveBusiness(slug);
@@ -565,11 +578,13 @@ export async function bookSlot(
   const end = new Date(start.getTime() + durationMinutes * 60_000);
 
   const smsOptIn = input.smsOptIn === true;
+  const reviewSmsOptIn = input.reviewSmsOptIn === true;
   const data = await one(
     `insert into appointment
        (business_id, customer_id, customer_name, customer_phone, service_id, service_name,
-        staff_id, scheduled_start_at, scheduled_end_at, status, source, visitor_type, sms_opt_in)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', 'online', $10, $11)
+        staff_id, scheduled_start_at, scheduled_end_at, status, source, visitor_type, sms_opt_in,
+        review_sms_opt_in)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', 'online', $10, $11, $12)
      returning *`,
     [
       b.id,
@@ -583,10 +598,12 @@ export async function bookSlot(
       end.toISOString(),
       input.visitorType ?? null,
       smsOptIn,
+      reviewSmsOptIn,
     ],
   );
   if (!data) throw new Error('Failed to create appointment');
   if (smsOptIn && customerId) await recordSmsOptIn(b.id, customerId);
+  if (reviewSmsOptIn && customerId) await recordReviewSmsOptIn(b.id, customerId);
 
   // Itemise the booking. A booking is made now and checked in later, so without this list
   // `appointment_check_in` could not rebuild the queue entry's extras and the visit would be
@@ -610,6 +627,9 @@ export async function bookSlot(
   emitToOwners(b.id, 'appointment:created', {
     appointment: { id: data.id, customerName: data.customer_name, serviceName: data.service_name, scheduledStartAt: data.scheduled_start_at, status: data.status },
   });
+  // Message 1. After the rows are written (the body reads them back), and never able to fail a
+  // booking the customer has already been told succeeded.
+  if (smsOptIn) await sendBookingConfirmation(b.id, data.id).catch(() => undefined);
 
   return {
     appointmentId: data.id,

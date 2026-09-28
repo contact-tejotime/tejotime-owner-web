@@ -9,6 +9,7 @@ import { showToast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 
 import { Icon } from "@/components/Icon";
+import { UNASSIGNED_GROUP_ID } from "@/components/LiveQueueCard";
 import { WalkInSheet } from "@/components/WalkInSheet";
 import type { QueueCard, SeatGroup, ServiceRow, StaffRow } from "@/lib/server-api";
 
@@ -383,7 +384,13 @@ export function QueueBoard({
                         onOpen={() => setOpenId(card.id)}
                         // No quick Start while the chair is busy: queue_start refuses it with
                         // SEAT_BUSY every time. The Customer screen explains why and offers the move.
-                        onStart={serving.length > 0 ? undefined : () => act(card.id, "start", card.name)}
+                        // The shared "Waiting"/"Any" lane is not a chair — several people can be in
+                        // service in it at once (migration 0030) — so Start stays available there.
+                        onStart={
+                          serving.length > 0 && seat.id !== UNASSIGNED_GROUP_ID
+                            ? undefined
+                            : () => act(card.id, "start", card.name)
+                        }
                         onNoShow={() => act(card.id, "no-show", card.name)}
                         onDragStart={(e) => onDragStart(e, card, seat.id)}
                         onDragEnd={onDragEnd}

@@ -52,5 +52,13 @@ export const limiters = {
   // throttled while withdrawing consent would be the worst possible failure — the UI would
   // silently fail to record a withdrawal. Still bounded, since the endpoint is unauthenticated.
   consent: rateLimit({ ...base, windowMs: 60 * 60_000, limit: 60 }),
+  // Admin "autofill from a link". Each call makes an outbound page fetch AND a metered LLM call,
+  // so it gets its own tight bucket. Keyed by admin id (admin routes have no `principal`).
+  storeImport: rateLimit({
+    ...base,
+    windowMs: 60 * 60_000,
+    limit: 10,
+    keyGenerator: (req: Request) => req.admin?.id ?? req.ip ?? 'anon',
+  }),
   global: rateLimit({ ...base, windowMs: 60_000, limit: 600 }),
 };

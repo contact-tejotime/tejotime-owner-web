@@ -36,7 +36,7 @@ non-trivial work in that area:
 |---|---|
 | [architecture.md](.claude/docs/architecture.md) | topology, request lifecycle, module layout, realtime, routing traps |
 | [database.md](.claude/docs/database.md) | every table and column, enums, indexes, the `queue_*` plpgsql functions, migration history |
-| [api.md](.claude/docs/api.md) | all 94 endpoints with their guards, error envelope, auth, upload flow |
+| [api.md](.claude/docs/api.md) | all 100 endpoints with their guards, error envelope, auth, upload flow |
 | [business-logic.md](.claude/docs/business-logic.md) | queue engine algorithms, ETA alerts, checkout cascade, permissions, plan gating |
 | [deployment.md](.claude/docs/deployment.md) | Railway runbook, migration procedure, env vars, CI gaps |
 | [current-work.md](.claude/docs/current-work.md) | **living** — what shipped recently, known gaps, next steps |
@@ -154,7 +154,9 @@ observability/     health.ts (/healthz liveness, /readyz db-readiness)
 - Uniform error envelope:
   `{ error: { code, message, requestId, details? } }` — see `domain/errors.ts` and
   `middleware/error-handler.ts`.
-- Public surface (`/public/*`, no auth): microsite by slug **and by phone**, vCard `.vcf`,
+- Public surface (`/public/*`, no auth): microsite by slug **and by phone**, the store's Google
+  review link by phone (behind the review SMS's own-domain short link `www.tejotime.com/<phone>/r`,
+  a frontend route that 302s to it — see [docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)), vCard `.vcf`,
   availability, staff availability, bookable slots, join queue, book slot, track by phone,
   ticket read/leave, inquiry submission, cookie-consent logging (`POST /consent` — see
   [docs/cookie-consent-v1.md](docs/cookie-consent-v1.md)), and the read-only **help chat** — per-store
@@ -193,7 +195,8 @@ Core tables (`0001_init.sql`): `business` (tenant root), `business_hour`, `ameni
 `customer`, `appointment`, `queue_entry`, `queue_entry_extra`, `visit` (completed-service
 ledger), `subscription`, `payment`, `notification`, `otp_verification`, `auth_session`,
 `audit_log`, `token_counter`, `idempotency_key`. Later: `master_data` (0005 lookup),
-`admins` (0007), `inquiry` (0014), `user_permission` (0019).
+`admins` (0007), `inquiry` (0014), `user_permission` (0019), `store_draft` (0031 — admin panel's
+parked Create store forms, private per admin, see [docs/admin-store-drafts.md](docs/admin-store-drafts.md)).
 
 Notable constraints and conventions:
 - UUID PKs (`gen_random_uuid()`); `pgcrypto` + `pg_trgm` extensions.
@@ -339,19 +342,32 @@ replays those rows through `queue_attach_services()` (which, unlike `queue_exten
 length is the **sum** of the chosen services. An unknown id is a 404, never a silent drop.
 
 **Service pricing modes** (0024) — `service.price_type` is `fixed` (one amount), `range`
-(`price_paise` is the floor, `price_max_paise` the ceiling) or `unset` (legacy: the rows that
-encoded "not priced yet" as a zero; writes refuse it, so an owner must choose a mode). For
-`range`/`unset`, `queue_checkout` **raises `TEJO:AMOUNT_REQUIRED` (422) rather than deriving** —
-the derived figure would be the band's minimum, which is the same under-reporting of
-`visit.amount_paise` that 0020 exists to prevent. `domain/money.ts::servicePricing` is the one
-resolver; `GET /queue/:id` returns `amountRequired` with a **null** `suggestedAmount` so the
-checkout sheet has nothing dishonest to pre-fill.
+(`price_paise` is the floor, `price_max_paise` the ceiling) or `unset` ("no price" — began as the
+legacy zero rows and is now a mode an owner or admin can choose on purpose, since price is
+optional; stored as `price_paise = 0`). For `range`/`unset`, and for an entry with **no service and
+no add-ons** (0030), `queue_checkout` **raises `TEJO:AMOUNT_REQUIRED` (422) rather than deriving** —
+the derived figure would be the band's minimum (or a free ₹0 visit), which is the same
+under-reporting of `visit.amount_paise` that 0020 exists to prevent. `domain/money.ts::servicePricing`
+is the one resolver; `GET /queue/:id` returns `amountRequired` with a **null** `suggestedAmount` so
+the checkout sheet has nothing dishonest to pre-fill.
 
 **ETA-15 alert** (`lib/eta-notify.ts` + `queue.service.ts` `processTicketBroadcasts`) — one-shot
 per ticket, for **online live-queue joins only** (not walk-ins, not checked-in appointments),
 when `0 < waitMinutes <= ETA_NOTIFY_MINUTES`. Idempotency via a **conditional claim** on
 `notified_eta_15_at` (only one concurrent caller wins). `notified_turn_at` does the same for
-"it's your turn". A walk-in bumping the ETA back up never re-sends.
+"it's your turn". A walk-in bumping the ETA back up never re-sends. These are now **socket
+events only** — they no longer send SMS.
+
+**Customer SMS** ([docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)) — exactly three texts, which
+**are** the registered Twilio A2P campaign samples (`lib/sms-copy.ts`, pinned word for word by
+`sms-copy.test.ts` — change the campaign with them): booking confirmation (on website booking),
+15-minute reminder (scheduler sweep, one-shot claim on `appointment.reminder_sent_at`), and a
+post-checkout Google review request (one-shot on `queue_entry.thank_you_sent_at`, only if
+`business.google_review_url` is set). **One** unticked website box on Book and Check in ("…including
+booking confirmations, reminders, and a review request after my visit. Up to 3 messages per
+visit…") sets both backend flags, `sms_opt_in` and `review_sms_opt_in`, which stay separate so the
+review consent can be split back out if a carrier objects to the bundling. All sends go through
+`modules/notifications/sms-dispatch.ts`. Owner surfaces are never an opt-in path.
 
 **Plan gating** — free plan truncates the customer list to `FREE_PLAN_CUSTOMER_LIMIT` (2) and
 returns `meta.lockedCount`. The **server** truncates; client blur is cosmetic only. Reads use
@@ -369,15 +385,20 @@ and `staffId`, so this is a client-side concern; the date is built with local da
 "Join the walk-in waitlist instead" is a **fallback only** — shown when the selected day has no
 times AND it is today AND the store is open; Book an Appointment never doubles as Check in. And a **service is never rendered as a bare number** — the
 store says whether a price is `fixed`, a `range` or `unset` (migration 0024), and a single
-`priceLabel` in `MicrositeClient` turns that into "₹350", "₹2,000–₹6,000" or "Price on request",
-which is why `ServiceItem` carries a rendered string rather than a number. Walk-in controls are gated on
+`priceLabel` in `MicrositeClient` turns that into "₹350", "₹2,000–₹6,000" or **nothing** (an empty
+string — the card, picker and summary then omit the price), which is why `ServiceItem` carries a
+rendered string rather than a number. Walk-in controls are gated on
 `site.hours.length > 0 && !openStatus.isOpen` — **not** on `isOpen` alone, because a store with no
 configured hours reports `isOpen: false` forever and would lose check-in entirely. The gate is
 **UI-only**: the API still accepts an out-of-hours join.
 
-**Category behaviour** (`config/constants.ts`) — `OPTIONAL_SERVICES_STAFF_CATEGORIES`
-(Hospital, Restaurant) allow zero services/staff; `VISITOR_TYPE_CATEGORIES` (Hospital) require
-identifying the visitor as `mr` | `patient` (display-only, never part of wait-time math).
+**Category behaviour** (`config/constants.ts`) — `VISITOR_TYPE_CATEGORIES` (Hospital) require
+identifying the visitor as `mr` | `patient` (display-only, never part of wait-time math). There is
+no category rule for services or staff any more: **pictures, stylists, services and prices are
+optional for every store** (the old `OPTIONAL_SERVICES_STAFF_CATEGORIES` is gone). A store with no
+stylists runs one shared lane (`staff_id IS NULL`, migration 0030) where several can be in service
+at once; a hero-less microsite moves the wait card into the photo's column. Full rules:
+[docs/optional-store-data.md](docs/optional-store-data.md).
 
 **Mobile responsive layout** (see [docs/mobile-responsive-tablets.md](docs/mobile-responsive-tablets.md))
 — `app/src/lib/responsive.ts` is pure size arithmetic (no React, no react-native, so it is
@@ -496,7 +517,9 @@ Tunables: `JWT_ACCESS_TTL` 900, `JWT_REFRESH_TTL` 2592000, `JWT_ADMIN_TTL` 43200
 
 Feature flags (all default **false**): `OTP_ENABLED`, `PAYMENTS_ENABLED`, `SMS_ENABLED`,
 `EMAIL_ENABLED`, `CHATBOT_ENABLED` (+ `CHATBOT_PROVIDER` `none|gemini|groq|openai`,
-`CHATBOT_API_KEY`, `CHATBOT_MODEL` — server-side only; no key needed for the FAQ-only mode).
+`CHATBOT_API_KEY`, `CHATBOT_MODEL` — server-side only; no key needed for the FAQ-only mode),
+`AUTOFILL_ENABLED` (+ `AUTOFILL_API_KEY` — a Groq key, `AUTOFILL_MODEL`, `AUTOFILL_TIMEOUT_MS`; admin
+"autofill store from a link", see [docs/store-autofill-from-link.md](docs/store-autofill-from-link.md)).
 
 Client vars: `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_SOCKET_URL`, `NEXT_PUBLIC_ASSET_PREFIX`,
 `NEXT_PUBLIC_ADMIN_ORIGIN`, `NEXT_PUBLIC_OWNER_ORIGIN`, `NEXT_PUBLIC_FRONTEND_URL` (frontend/
@@ -525,7 +548,8 @@ hand-lists them (including each Appearance panel's `key()` dirty-check; an axis 
 silently **unsaveable**, with no error).
 And `npm run test:theme` — the framework-free theme engine self-check (parity, contrast, ramps,
 CSS tokens, input repair), run via the `tsx` the backend already depends on. `npm run
-test:responsive` is the same idea for the mobile app's breakpoint/grid arithmetic (§7).
+test:responsive` is the same idea for the mobile app's breakpoint/grid arithmetic (§7). `npm run test:import-diff` does the same for the admin autofill's re-fetch diff
+(`admin-panel/src/lib/import-diff.ts`).
 
 > These checks are **not wired into CI**. Run them manually after touching the theme engine, the
 > cropper, a theme axis, or the mobile breakpoints.
@@ -585,7 +609,7 @@ Checklist for any owner-facing change:
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **12 vitest files, 131 tests**, run with `npm test` in `backend/`
+- `backend/tests/unit/` — **17 vitest files, 165 tests**, run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
   Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
   `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
@@ -594,7 +618,8 @@ Checklist for any owner-facing change:
   help chat, with `fetch` stubbed) is different and is **the pattern to copy**: it mounts a
   real router into a throwaway `express()` app and drives it with **`supertest`**, using
   `vi.resetModules()` + a stubbed `process.env` so the zod env validator boots. It needs **no
-  database and no running server**.
+  database and no running server**. `optional-store-data.test.ts` uses it for the owner service
+  API and admin provisioning, with the DB and admin service stubbed.
 - `frontend/src/theme/engine/__tests__/run.ts` — framework-free theme self-check
   (`npm run test:theme` from the root).
 - `app/src/lib/__tests__/responsive-check.ts` — the same pattern for the mobile app's breakpoint
@@ -603,7 +628,9 @@ Checklist for any owner-facing change:
   `lib/responsive.ts` free of React/react-native imports is what makes it checkable as plain TS.
 - `backend/scripts/smoke-rest.mjs` and `smoke-socket.mjs` — plain-Node scripts that hit a
   **running server + seeded database** over real HTTP and real Socket.IO. These are the only
-  true end-to-end coverage in the repo.
+  true end-to-end coverage in the repo. `backend/scripts/smoke-seatless.mjs` is the odd one out: it
+  needs a **migrated** (not seeded) database and runs inside a transaction it always rolls back,
+  because a store with no stylists cannot be reached over HTTP from the seed.
 - `docs/qa-report-2026-07-10.md` — a manual QA record.
 
 **There is no E2E framework.** No Playwright, Cypress, Detox, Maestro, Puppeteer, WebdriverIO,

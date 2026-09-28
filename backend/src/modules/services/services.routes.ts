@@ -33,15 +33,21 @@ function serviceDTO(s: any) {
  * Pricing arrives as a triple: the mode, the amount (fixed price, or the range floor) and —
  * for a range only — the ceiling. All in paise, like every other amount crossing this API.
  *
- * `unset` is absent on purpose. It exists in the database only to describe the rows that
- * predate pricing modes (migration 0024); an owner who opens one of those has to choose a real
- * mode before it will save, which is the whole point of recording it rather than guessing.
+ * `unset` is writable: a store may list a service without a price (the microsite then shows no
+ * price at all, and the owner types the amount at checkout). It carries no amount — the column
+ * is stored as 0, which is the only shape `ck_service_price_shape` accepts for it. So the amount
+ * is optional here and `checkPriceShape` demands it back for the two priced modes.
  */
 const priceFields = {
   priceType: z.enum(WRITABLE_SERVICE_PRICE_TYPES).default('fixed'),
-  priceAmount: z.coerce.number().int().min(1).max(100_000_000),
+  priceAmount: z.coerce.number().int().min(0).max(100_000_000).optional(),
   priceMaxAmount: z.coerce.number().int().min(1).max(100_000_000).nullable().optional(),
 };
+
+/** What lands in `price_paise`: an unpriced service is always 0, whatever the caller sent. */
+function storedAmount(v: { priceType?: string; priceAmount?: number }): number {
+  return v.priceType === 'unset' ? 0 : (v.priceAmount ?? 0);
+}
 
 /**
  * The database check constraint refuses a malformed band anyway; catching it here turns a 500
@@ -51,6 +57,9 @@ function checkPriceShape(
   v: { priceType?: string; priceAmount?: number; priceMaxAmount?: number | null },
   ctx: z.RefinementCtx,
 ) {
+  if (v.priceType !== 'unset' && (v.priceAmount == null || v.priceAmount < 1)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['priceAmount'], message: 'Enter a price' });
+  }
   if (v.priceType === 'range') {
     if (v.priceMaxAmount == null) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['priceMaxAmount'], message: 'Enter a maximum price' });
@@ -91,7 +100,7 @@ const patchSchema = upsertBody
   .superRefine((v, ctx) => {
     const touched = v.priceType !== undefined || v.priceAmount !== undefined || v.priceMaxAmount !== undefined;
     if (!touched) return;
-    if (v.priceType === undefined || v.priceAmount === undefined) {
+    if (v.priceType === undefined || (v.priceType !== 'unset' && v.priceAmount === undefined)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['priceType'],
@@ -148,7 +157,7 @@ servicesRouter.post(
       req.principal!.businessId,
       b.name,
       b.durationMinutes,
-      b.priceAmount,
+      storedAmount(b),
       b.priceType,
       b.priceType === 'range' ? b.priceMaxAmount : null,
       b.colorToken,
@@ -181,7 +190,7 @@ servicesRouter.patch(
     // The three pricing columns move as one — patchSchema guarantees mode + amount arrive
     // together, so a fixed service can never keep a stale ceiling from a previous range.
     if (b.priceType !== undefined) {
-      row.price_paise = b.priceAmount;
+      row.price_paise = storedAmount(b);
       row.price_type = b.priceType;
       row.price_max_paise = b.priceType === 'range' ? b.priceMaxAmount : null;
     }
