@@ -45,6 +45,7 @@ written to be **idempotent / re-runnable**.
 | 0026 | `consent_log.sql` | cookie-consent audit log |
 | 0027 | `sms_opt_in.sql` | `customer.sms_opt_in_at` / `sms_opt_out_at`; `sms_opt_in` on `queue_entry` and `appointment` (default false) |
 | 0030 | `optional_seats.sql` | `_queue_renumber`, `queue_start`, `queue_move` made NULL-seat safe (a store with no stylists = one shared lane); `queue_checkout` refuses to derive an amount for an entry with no service and no add-ons. No signature changes. |
+| 0031 | `store_draft.sql` | `store_draft(id, admin_id → admins on delete cascade, name, data jsonb, created_at, updated_at)` + index `(admin_id, updated_at desc)`: the admin panel's parked Create store forms. Private per admin; owner password never stored. |
 
 > **`0016` is duplicated** across two independent files. Ordering relies on the filename sort, which
 > is deterministic. **Use a strictly increasing prefix from 0025 onward.**
@@ -216,6 +217,7 @@ survive the service row being edited or deleted.
 | `auth_session` | refresh tokens as `sha256(jti)` | live (see below) |
 | `user_permission` | **sparse** overrides: `(user_id, module)` → `none`/`view`/`manage` | live |
 | `admins` | platform admin allow-list, keyed by mobile; + `password_hash`, `role`, `name`, `is_active` | live |
+| `store_draft` | admin-panel Create store form, parked; `admin_id`-scoped jsonb snapshot (no password) | live |
 | `master_data` | admin lookup values, `team_noun` | live |
 | `inquiry` | marketing lead capture | live |
 | `notification` | outbound message log | partial |

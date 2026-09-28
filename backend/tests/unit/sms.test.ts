@@ -76,7 +76,7 @@ describe('smsSender', () => {
     vi.stubGlobal('fetch', fetchMock as typeof fetch);
 
     const mod = await import('../../src/integrations/sms');
-    await mod.smsSender.send('+911111111111', "It's your turn — please head in.", 'your_turn');
+    await mod.smsSender.send('+911111111111', 'Thanks for visiting — please review us.', 'review_request');
 
     const [, init] = fetchMock.mock.calls[0];
     const body = String(init?.body ?? '');

@@ -109,6 +109,11 @@ Fires **once per ticket**, for **online live-queue joins only** — not walk-ins
 `0 < waitMinutes <= ETA_NOTIFY_MINUTES` (default 15) **and** the visit opted in
 (`sms_opt_in = true`). Missing opt-in never texts.
 
+> **Since 2026-09-28 this is a socket event only** (`ticket:eta_15` / `ticket:eta_2` /
+> `ticket:ready`) — the waitlist SMS were replaced by the three appointment texts (booking
+> confirmation, 15-minute reminder, post-checkout review request) in
+> `modules/notifications/sms-dispatch.ts`. See [docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md).
+
 Idempotency is a **conditional claim** on `notified_eta_15_at`: the update only matches rows where
 the column is still null, so exactly one concurrent caller wins. `notified_turn_at` does the same
 for "it's your turn".

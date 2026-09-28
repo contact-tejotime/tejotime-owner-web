@@ -6,8 +6,6 @@ import { Errors } from '../../domain/errors';
 import { normalizePhone } from '../../lib/phone';
 import { initials } from '../../lib/format';
 import { shouldNotifyEta } from '../../lib/eta-notify';
-import { ETA_NOTIFY_2_MINUTES, ETA_NOTIFY_15_MINUTES, SMS_TEMPLATES, smsBodyEta, smsBodyYourTurn } from '../../lib/sms-copy';
-import { shouldDispatchSms } from '../../lib/sms-opt-in';
 import {
   buildSeatGroups,
   flatCards,
@@ -17,9 +15,9 @@ import {
   SeatGroupVM,
 } from '../../lib/queue-engine';
 import { emitToOwners, emitToPublic, emitToTicket } from '../../realtime/emitters';
-import { smsSender } from '../../integrations/sms';
 import { findOrCreateCustomer } from '../customers/customer.repo';
-import { loadQueueContext, QueueContext, RawEntry } from './queue.context';
+import { sendReviewRequest } from '../notifications/sms-dispatch';
+import { loadQueueContext, QueueContext } from './queue.context';
 
 // ---------- DTO mappers ----------
 function cardToDTO(c: CardVM) {
@@ -240,10 +238,17 @@ export async function broadcastQueue(businessId: string): Promise<void> {
   await processTicketBroadcasts(businessId, ctx);
 }
 
-async function processTicketBroadcasts(businessId: string, ctx: QueueContext): Promise<void> {
-  const biz = await one<{ name: string }>('select name from business where id = $1', [businessId]);
-  const businessName = biz?.name ?? 'TejoTime';
+/** Wait-minute thresholds for the ticket ETA socket events. */
+const ETA_NOTIFY_15_MINUTES = 15;
+const ETA_NOTIFY_2_MINUTES = 2;
 
+/**
+ * Per-ticket socket pushes. These used to double as the waitlist SMS (joined / ~15 / ~2 / your
+ * turn); that set was replaced by the three appointment texts in modules/notifications/sms-dispatch.ts
+ * (docs/sms-opt-in-a2p.md), so nothing here calls Twilio any more — the one-shot claims remain so
+ * each socket event still fires once per ticket.
+ */
+async function processTicketBroadcasts(businessId: string, ctx: QueueContext): Promise<void> {
   for (const entry of ctx.entries) {
     const pos = ticketPosition(entry.id, ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
     const isYourTurn = pos.status === 'in_service';
@@ -261,7 +266,6 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
       const claimed = await claimNotifyStamp(entry.id, 'notified_turn_at');
       if (claimed) {
         emitToTicket(entry.id, 'ticket:ready', { token: entry.token });
-        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.yourTurn, smsBodyYourTurn(businessName));
       }
       continue;
     }
@@ -288,7 +292,6 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
           waitMinutes: pos.waitMinutes,
           thresholdMinutes: ETA_NOTIFY_15_MINUTES,
         });
-        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.eta15, smsBodyEta(pos.waitMinutes, businessName));
       }
     }
 
@@ -306,7 +309,6 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
           waitMinutes: pos.waitMinutes,
           thresholdMinutes: ETA_NOTIFY_2_MINUTES,
         });
-        await recordAlertNotification(businessId, entry, SMS_TEMPLATES.eta2, smsBodyEta(pos.waitMinutes, businessName));
       }
     }
   }
@@ -326,78 +328,6 @@ async function claimNotifyStamp(
     [new Date().toISOString(), entryId],
   );
   return stamped > 0;
-}
-
-/** Persists an outbound alert and dispatches via smsSender (Twilio when SMS_ENABLED). */
-export async function recordAlertNotification(
-  businessId: string,
-  entry: Pick<RawEntry, 'id' | 'customer_phone' | 'sms_opt_in'>,
-  template: string,
-  body: string,
-): Promise<void> {
-  let optedOutAt: string | null = null;
-  let optOutUnknown = false;
-  if (entry.customer_phone) {
-    try {
-      const customer = await one<{ sms_opt_out_at: string | null }>(
-        'select sms_opt_out_at from customer where business_id = $1 and phone = $2',
-        [businessId, entry.customer_phone],
-      );
-      optedOutAt = customer?.sms_opt_out_at ?? null;
-    } catch {
-      // Cannot prove they are still opted in — do not Twilio, and do not break the mutation.
-      optOutUnknown = true;
-    }
-  }
-  const canSms =
-    !optOutUnknown &&
-    shouldDispatchSms({
-      customerPhone: entry.customer_phone,
-      smsOptIn: entry.sms_opt_in,
-      smsOptOutAt: optedOutAt,
-    });
-  const channel = canSms ? 'sms' : 'in_app';
-
-  // Notification bookkeeping must never break the mutation that triggered it,
-  // so a failed insert is swallowed exactly as the previous client's error
-  // return value was.
-  let row: { id: string } | null = null;
-  try {
-    row = await one<{ id: string }>(
-      `insert into notification
-         (business_id, queue_entry_id, channel, template, to_address, body, status, sent_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)
-       returning id`,
-      [
-        businessId,
-        entry.id,
-        channel,
-        template,
-        entry.customer_phone,
-        body,
-        canSms ? 'queued' : 'sent',
-        canSms ? null : new Date().toISOString(),
-      ],
-    );
-  } catch {
-    return;
-  }
-
-  if (!row?.id || !canSms || !entry.customer_phone) return;
-
-  const result = await smsSender.send(entry.customer_phone, body, template);
-  await exec(
-    `update notification
-        set status = $1, provider_message_id = $2, sent_at = $3, error = $4
-      where id = $5`,
-    [
-      result.id ? 'sent' : 'failed',
-      result.id,
-      result.id ? new Date().toISOString() : null,
-      result.id ? null : 'SMS send failed or deferred',
-      row.id,
-    ],
-  );
 }
 
 // ---------- Mutations ----------
@@ -519,6 +449,9 @@ export async function checkout(businessId: string, entryId: string, amountPaise?
   // The finished entry drops out of the active set, so broadcastQueue can no
   // longer reach its ticket room — push the terminal event directly here.
   emitToTicket(entryId, 'ticket:completed', { visitId: r.visit_id });
+  // After the commit, and only for a visit whose customer ticked the separate review box.
+  // Never lets a Twilio/DB hiccup fail a checkout that has already been written.
+  await sendReviewRequest(businessId, entryId).catch(() => undefined);
   await broadcastQueue(businessId);
   const view = await getQueueView(businessId, { view: 'grouped' });
   return { promoted: r.promoted, ...view };

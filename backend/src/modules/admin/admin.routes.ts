@@ -7,9 +7,12 @@ import { Errors } from '../../domain/errors';
 import { WRITABLE_SERVICE_PRICE_TYPES } from '../../domain/enums';
 import { MAX_IMAGE_BYTES, signUpload } from '../../integrations/storage';
 import { verifyAdminToken } from '../auth/token.service';
+import { reviewUrl } from '../business/review-url.schema';
 import * as admin from './admin.service';
 import * as analytics from './admin-analytics.service';
 import * as inquiries from './admin-inquiries.service';
+import { importStoreFromLink } from './store-import.service';
+import * as drafts from './store-draft.service';
 
 /**
  * Provisioning + management API for the admin panel. Every route except the OTP login pair is
@@ -98,6 +101,7 @@ const storeFieldsSchema = z.object({
   twitterUrl: z.union([z.string().url().max(300), z.literal('')]).optional(),
   linkedinUrl: z.union([z.string().url().max(300), z.literal('')]).optional(),
   yelpUrl: z.union([z.string().url().max(300), z.literal('')]).optional(),
+  googleReviewUrl: reviewUrl,
   timezone: z.string().max(64).optional(),
   currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Expected ISO 4217 code').optional(),
   /** Per-store brand/accent hex for the customer microsite (#RRGGBB). */
@@ -220,6 +224,22 @@ const createSchema = storeFieldsSchema
 const updateSchema = storeFieldsSchema.strict();
 const resetOwnerPasswordSchema = z.object({ password: z.string().min(6).max(72) }).strict();
 const idParam = z.object({ id: z.string().uuid() });
+
+/**
+ * A parked Create store form. `data` is deliberately loose — a draft is by definition incomplete
+ * (no name, no phone, half a services list), so the storeFieldsSchema rules must NOT apply; they
+ * run when the draft is finally submitted as a store. The size cap is what keeps it honest: a
+ * real form is a few KB (images are URLs), so 256 KB is generous, and well under the 1 MB body
+ * limit in app.ts.
+ */
+const MAX_DRAFT_BYTES = 256 * 1024;
+const draftBodySchema = z
+  .object({
+    data: z
+      .record(z.unknown())
+      .refine((d) => Buffer.byteLength(JSON.stringify(d), 'utf8') <= MAX_DRAFT_BYTES, 'Draft is too large'),
+  })
+  .strict();
 const customerVisitsParams = z.object({ id: z.string().uuid(), customerId: z.string().uuid() });
 
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
@@ -304,6 +324,65 @@ adminRouter.post(
     if (req.body.byteSize > MAX_IMAGE_BYTES) throw Errors.validation('File too large (max 5MB)');
     const { uploadUrl, publicUrl } = await signUpload(req.body.contentType, `admin/${req.body.assetType}`);
     res.json({ uploadUrl, publicUrl });
+  }),
+);
+
+// Read a business's web page and propose form values for the admin to review. Read-only: it
+// writes nothing. Open to employees as well as owners — both can create stores.
+adminRouter.post(
+  '/store-import',
+  limiters.storeImport,
+  validate({ body: z.object({ url: z.string().trim().min(1).max(2048) }).strict() }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await importStoreFromLink(req.body.url));
+  }),
+);
+
+// ---- Create store drafts. Private to the admin who saved them (owner or employee alike); a
+// draft that is not yours is a 404. See store-draft.service.ts. ----
+
+adminRouter.get(
+  '/store-drafts',
+  limiters.ownerRead,
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await drafts.listDrafts(currentAdmin(req).id) });
+  }),
+);
+
+adminRouter.get(
+  '/store-drafts/:id',
+  limiters.ownerRead,
+  validate({ params: idParam }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await drafts.getDraft(currentAdmin(req).id, req.params.id));
+  }),
+);
+
+adminRouter.post(
+  '/store-drafts',
+  limiters.ownerWrite,
+  validate({ body: draftBodySchema }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.status(201).json(await drafts.createDraft(currentAdmin(req).id, req.body.data));
+  }),
+);
+
+adminRouter.put(
+  '/store-drafts/:id',
+  limiters.ownerWrite,
+  validate({ params: idParam, body: draftBodySchema }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await drafts.updateDraft(currentAdmin(req).id, req.params.id, req.body.data));
+  }),
+);
+
+adminRouter.delete(
+  '/store-drafts/:id',
+  limiters.ownerWrite,
+  validate({ params: idParam }),
+  asyncHandler(async (req: Request, res: Response) => {
+    await drafts.deleteDraft(currentAdmin(req).id, req.params.id);
+    res.status(204).end();
   }),
 );
 

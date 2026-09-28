@@ -499,6 +499,8 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const [faqOpen, setFaqOpen] = useState<number | null>(0);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  // One unchecked box covers all three texts (confirmation, reminder, review request). The API
+  // stores appointment and review consent as separate flags; this box sets both.
   const [smsOptIn, setSmsOptIn] = useState(false);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
@@ -1150,7 +1152,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           phone: p,
           preferredStaffId: member,
           visitorType: visitorType ?? undefined,
+          // A walk-in only ever gets the review text, but both flags record what was agreed to.
           smsOptIn,
+          reviewSmsOptIn: smsOptIn,
         });
         setTicket(t);
         setInitialAhead(t.ahead);
@@ -1185,6 +1189,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           slotStart: selectedSlot!,
           visitorType: visitorType ?? undefined,
           smsOptIn,
+          reviewSmsOptIn: smsOptIn,
         });
         setBooking({ serviceName: b.serviceName, scheduledStartAt: b.scheduledStartAt });
         const store = storeRef.current;
@@ -2168,6 +2173,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       <div style={{ font: "var(--fw-regular) 12.5px/1.45 var(--font-sans)", color: "var(--text-muted)", marginBottom: 12 }}>
                         {mode === "book" ? t.microsite.join.phoneHelperBook : t.microsite.join.phoneHelperQueue}
                       </div>
+                      {/* One unticked box, on both Book and Check in, that names all three texts —
+                          confirmation, reminder and the post-visit review request — so it matches the
+                          three registered A2P samples and "Up to 3 messages per visit". Unchecked by
+                          default and not tied to Confirm (Twilio 30923 / 30925). Body-size,
+                          full-contrast text: A2P reviewers reject disclosures that are not "clearly and
+                          conspicuously" visible — small grey type reads as fine print. */}
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
                         <input
                           id="tt-sms-opt-in"
@@ -2176,8 +2187,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                           onChange={(e) => setSmsOptIn(e.target.checked)}
                           style={{ marginTop: 3, flexShrink: 0, width: 16, height: 16, accentColor: "var(--primary)" }}
                         />
-                        {/* Body-size, full-contrast text: A2P reviewers reject disclosures that
-                            are not "clearly and conspicuously" visible — small grey type reads as fine print. */}
                         <div style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-strong)" }}>
                           <label htmlFor="tt-sms-opt-in" style={{ cursor: "pointer" }}>
                             {format(t.microsite.join.consentOptIn, { name: site.name })}

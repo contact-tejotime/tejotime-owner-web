@@ -1,5 +1,13 @@
 # 09 — Background Jobs
 
+> **As built (2026-09-28):** there is no BullMQ/Redis — jobs are in-process `node-cron` in
+> `backend/src/jobs/scheduler.ts`. The `notify.*` waitlist SMS below were **not** built as
+> described and are now retired. Customer SMS is exactly three texts — booking confirmation,
+> a 15-minute appointment reminder (a cron sweep every minute, one-shot via
+> `appointment.reminder_sent_at`, replacing the `appointments.remind` T-2h/T-30m design), and a
+> post-checkout review request. See [sms-opt-in-a2p.md](./sms-opt-in-a2p.md). The rest of this
+> document is the original design intent.
+
 Runtime: **BullMQ on Redis**, executed by dedicated worker processes (separate from the API — NFR-S4). Every job is idempotent, retried with backoff, and dead-lettered on exhaustion (NFR-A4). Scheduled jobs use BullMQ repeatable jobs (cron).
 
 ## 1. Queue-driven / event jobs

@@ -547,6 +547,9 @@
     "clean": "Everything is saved",
     "saving": "Saving…",
     "save": "Save changes",
+    "reviewLink": "Google review link",
+    "reviewLinkHint": "After a visit, customers who agreed to it get one text asking them to review you here. Leave empty to send no review text.",
+    "reviewLinkInvalid": "The Google review link must be a full web address starting with https://",
     "socials": {
       "instagram": "Instagram",
       "facebook": "Facebook",

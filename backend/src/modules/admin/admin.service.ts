@@ -43,6 +43,8 @@ export interface StoreFields {
   twitterUrl?: string;
   linkedinUrl?: string;
   yelpUrl?: string;
+  /** Post-visit review SMS link; '' clears it, undefined leaves it untouched. */
+  googleReviewUrl?: string;
   timezone?: string;
   /** ISO 4217 code (e.g. 'INR', 'USD'). Omitted → keeps existing / env default. */
   currency?: string;
@@ -136,6 +138,9 @@ function businessColumns(input: StoreFields) {
     twitter_url: input.twitterUrl || null,
     linkedin_url: input.linkedinUrl || null,
     yelp_url: input.yelpUrl || null,
+    // Only written when the caller sent it. Owners edit this link too, so an older admin build
+    // that does not know the field must not wipe it on every store save.
+    ...(input.googleReviewUrl !== undefined ? { google_review_url: input.googleReviewUrl || null } : {}),
     // faqs/reviews are jsonb — serialize explicitly, otherwise pg would send a
     // JS array as a Postgres array literal and the insert would fail.
     faqs: JSON.stringify(input.faqs ?? []),
@@ -776,6 +781,7 @@ export async function getBusinessDetail(id: string) {
     twitterUrl: b.twitter_url ?? '',
     linkedinUrl: b.linkedin_url ?? '',
     yelpUrl: b.yelp_url ?? '',
+    googleReviewUrl: b.google_review_url ?? '',
     currency: b.currency ?? 'INR',
     themeColor: b.theme_color ?? '',
     theme: (b.theme ?? null) as ThemeConfigInput | null,

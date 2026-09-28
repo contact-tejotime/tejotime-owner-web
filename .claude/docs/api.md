@@ -1,7 +1,7 @@
 # API reference
 
 Express 4, TypeScript. Versioned prefix **`/api/v1`** (`config/constants.ts` `API_PREFIX`).
-94 endpoints across 16 routers.
+100 endpoints across 16 routers.
 
 Unversioned and outside auth: `GET /healthz`, `GET /readyz`, `GET /media/*`.
 
@@ -209,6 +209,7 @@ Gated by the `team` module, which is **not grantable** — see `business-logic.m
 | GET | `/businesses/:slug` | `publicRead` |
 | GET | `/businesses/:slug/vcard` | `publicRead` |
 | GET | `/businesses/by-phone/:phone` | `publicRead` |
+| GET | `/businesses/by-phone/:phone/review-link` | `publicRead` — `{url}` or 404; `no-store`. Read by the review-SMS short link `www.tejotime.com/<phone>/r` |
 | GET | `/businesses/:slug/availability` | `publicRead` |
 | GET | `/businesses/:slug/staff` | `publicRead` |
 | GET | `/businesses/:slug/slots` | `publicRead` |
@@ -239,11 +240,19 @@ Gemini/Groq model behind `CHATBOT_PROVIDER`) and only *suggests* the page's butt
 > Public writes are **not idempotent** — the `idempotency_key` table exists but no middleware
 > uses it. A double-tapped "join queue" creates two entries.
 
-### `/admin` (21) — separate admin JWT
+### `/admin` (26) — separate admin JWT
 
 Auth: `POST /auth/request-otp` · `POST /auth/verify-otp` · `POST /auth/login`.
 Platform: `GET /me` · `GET /lookups` · `GET /analytics/overview` · `GET /inquiries` ·
-`POST /uploads/sign`.
+`POST /uploads/sign` · `POST /store-import` (read a web page and propose store-form values;
+read-only, SSRF-guarded, 10/hour/admin, 503 unless `AUTOFILL_ENABLED` — see
+[docs/store-autofill-from-link.md](../../docs/store-autofill-from-link.md)).
+Create-store drafts (private to the calling admin, owner or employee; another admin's draft is a
+**404**): `GET /store-drafts` (`{ data: [...] }`, no form blobs) · `GET /store-drafts/:id` ·
+`POST /store-drafts` (201; 409 `DRAFT_LIMIT` past 50) · `PUT /store-drafts/:id` (autosave) ·
+`DELETE /store-drafts/:id` (204, idempotent). The body is `{ data }`, deliberately **not** validated
+against the store schema (a draft is incomplete by definition), capped at 256 KB, and the owner
+password is stripped server-side — see [docs/admin-store-drafts.md](../../docs/admin-store-drafts.md).
 Admin management: `GET /admins` · `POST /admins` · `PATCH /admins/:id`.
 Stores: `GET /businesses` · `GET /businesses/:id` · `POST /businesses` · `PUT /businesses/:id` ·
 `POST /businesses/:id/owner/password` · `GET /businesses/:id/analytics` ·

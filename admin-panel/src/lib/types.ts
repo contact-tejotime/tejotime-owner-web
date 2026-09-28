@@ -72,6 +72,8 @@ export interface StoreForm {
   twitterUrl: string;
   linkedinUrl: string;
   yelpUrl: string;
+  /** Post-visit review SMS link — owner-side only, never on the microsite. */
+  googleReviewUrl: string;
   payments: string; // comma-separated in the form; split before send
   currency: string; // ISO 4217 code; symbol/name come from lib/currencies.ts
   /** Brand/accent hex for the customer microsite (#RRGGBB). Always mirrors `theme.brand`. */
@@ -156,6 +158,7 @@ export const EMPTY_FORM: StoreForm = {
   twitterUrl: "",
   linkedinUrl: "",
   yelpUrl: "",
+  googleReviewUrl: "",
   payments: t.storeForm.paymentsDefault,
   currency: "INR",
   themeColor: "#2563EB",
@@ -207,6 +210,8 @@ export interface StoreDetail {
   twitterUrl: string;
   linkedinUrl: string;
   yelpUrl: string;
+  /** Post-visit review SMS link — owner-side only, never on the microsite. */
+  googleReviewUrl: string;
   payments: string;
   currency: string;
   themeColor: string;
@@ -267,6 +272,7 @@ export function fromDetail(d: StoreDetail): StoreForm {
     twitterUrl: d.twitterUrl ?? "",
     linkedinUrl: d.linkedinUrl ?? "",
     yelpUrl: d.yelpUrl ?? "",
+    googleReviewUrl: d.googleReviewUrl ?? "",
     payments: d.payments,
     currency: d.currency || "INR",
     // Kept in lockstep with theme.brand — the panel edits one colour, not two.
@@ -292,6 +298,73 @@ export function fromDetail(d: StoreDetail): StoreForm {
     faqs: d.faqs,
     reviews: d.reviews ?? [],
     ownerPhone: d.ownerPhone ?? "",
+    ownerPassword: "",
+  };
+}
+
+/** A row in the sidebar's Drafts list (from GET /admin/store-drafts). */
+export interface StoreDraftListItem {
+  id: string;
+  name: string | null;
+  category: string | null;
+  phoneFull: string | null;
+  updatedAt: string;
+}
+
+/** A parked Create store form (GET /admin/store-drafts/:id). `data` is raw, possibly stale, form state. */
+export interface StoreDraft {
+  id: string;
+  data: Partial<StoreForm>;
+  updatedAt: string;
+}
+
+/**
+ * What a draft stores: the raw form state minus the owner's password. The backend strips it as
+ * well, but a plaintext secret should not even leave the browser for a table that is not for it.
+ */
+export function draftData(form: StoreForm): Partial<StoreForm> {
+  const copy: Partial<StoreForm> = { ...form };
+  delete copy.ownerPassword;
+  return copy;
+}
+
+/**
+ * Rebuild editable form state from a stored draft. Never trusts the blob: a draft saved by an older
+ * build lacks fields added since, and one field of the wrong type would crash a controlled input
+ * ("uncontrolled to controlled") or `.map` over a non-array. So every key is taken from the draft
+ * only when its type matches the blank form's, and anything else falls back to the blank value.
+ * The password is never restored, so it always comes back empty.
+ */
+export function draftToForm(data: Partial<StoreForm> | null | undefined): StoreForm {
+  const d = (data ?? {}) as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...EMPTY_FORM };
+  for (const key of Object.keys(EMPTY_FORM) as (keyof StoreForm)[]) {
+    const v = d[key];
+    const blank = EMPTY_FORM[key];
+    if (v === undefined || v === null) continue;
+    if (Array.isArray(blank) ? Array.isArray(v) : typeof v === typeof blank) out[key] = v;
+  }
+  const form = out as unknown as StoreForm;
+
+  const legacyBrand = /^#[0-9A-Fa-f]{6}$/.test(form.themeColor) ? form.themeColor.toUpperCase() : "#2563EB";
+  const theme = normalizeThemeConfig(d.theme as ThemeConfig | null | undefined, { ...LEGACY_THEME_CONFIG, brand: legacyBrand });
+
+  const byDay = new Map(form.hours.map((h) => [h.dayOfWeek, h]));
+  return {
+    ...form,
+    theme,
+    themeColor: theme.brand,
+    hours: DAY_LABELS.map(
+      (_, dayOfWeek) => byDay.get(dayOfWeek) ?? { dayOfWeek, opensAt: "09:00", closesAt: "18:00", isClosed: false },
+    ),
+    services: form.services.length
+      ? form.services.map((s) => ({
+          ...s,
+          priceType: s.priceType ?? (s.priceRupees > 0 ? "fixed" : "unset"),
+          priceMaxRupees: s.priceMaxRupees ?? null,
+        }))
+      : EMPTY_FORM.services,
+    staff: form.staff.length ? form.staff : EMPTY_FORM.staff,
     ownerPassword: "",
   };
 }
@@ -329,6 +402,7 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
     twitterUrl: f.twitterUrl.trim(),
     linkedinUrl: f.linkedinUrl.trim(),
     yelpUrl: f.yelpUrl.trim(),
+    googleReviewUrl: f.googleReviewUrl.trim(),
     payments: f.payments
       .split(",")
       .map((p) => p.trim())

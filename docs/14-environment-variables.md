@@ -117,6 +117,14 @@ The bucket is private, so there is no CDN/public base URL: stored image URLs poi
 | `CHATBOT_MODEL` | — | Blank ⇒ `gemini-2.5-flash-lite` / `llama-3.1-8b-instant` / `gpt-4o-mini` |
 | `CHATBOT_MAX_HISTORY` / `CHATBOT_MAX_MESSAGE_CHARS` / `CHATBOT_TIMEOUT_MS` | `8` / `500` / `8000` | Bounds on the stateless request; a slow model degrades to the FAQ answer |
 
+### Store autofill from a link ([store-autofill-from-link](./store-autofill-from-link.md))
+| Var | Default | Notes |
+|---|---|---|
+| `AUTOFILL_ENABLED` | `false` | Master switch: `POST /admin/store-import` answers 503 while off |
+| `AUTOFILL_API_KEY` | — | A **Groq** key; server-side only, never `NEXT_PUBLIC_*`. Separate from `CHATBOT_API_KEY` on purpose |
+| `AUTOFILL_MODEL` | `openai/gpt-oss-120b` | Any Groq chat model that supports JSON mode |
+| `AUTOFILL_TIMEOUT_MS` | `20000` | Bounds the model call; the page fetch has its own 10s cap |
+
 ### Observability
 | Var | Example |
 |---|---|

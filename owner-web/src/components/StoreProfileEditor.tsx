@@ -56,6 +56,7 @@ type Draft = {
   twitterUrl: string;
   linkedinUrl: string;
   yelpUrl: string;
+  googleReviewUrl: string;
 };
 
 function toDraft(b: BusinessDetail): Draft {
@@ -80,6 +81,7 @@ function toDraft(b: BusinessDetail): Draft {
     twitterUrl: b.twitterUrl ?? "",
     linkedinUrl: b.linkedinUrl ?? "",
     yelpUrl: b.yelpUrl ?? "",
+    googleReviewUrl: b.googleReviewUrl ?? "",
   };
 }
 
@@ -143,6 +145,12 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
       setError(t.profile.yearInvalid);
       return;
     }
+    // Same rule as the API: the link is texted to customers, and carriers filter plain http.
+    const reviewLink = draft.googleReviewUrl.trim();
+    if (reviewLink && !/^https:\/\/\S+\.\S+/i.test(reviewLink)) {
+      setError(t.profile.reviewLinkInvalid);
+      return;
+    }
     setInFlight(true);
     setError("");
     try {
@@ -172,6 +180,7 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
           twitterUrl: draft.twitterUrl.trim(),
           linkedinUrl: draft.linkedinUrl.trim(),
           yelpUrl: draft.yelpUrl.trim(),
+          googleReviewUrl: reviewLink,
           payments: payments
             .split(",")
             .map((p) => p.trim())
@@ -362,6 +371,20 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
             />
           </SbField>
         ))}
+        {/* Not shown on the microsite — it is where the post-visit review text points, and that
+            text is simply not sent while this is empty. */}
+        <SbField id="sp-googleReviewUrl" label={t.profile.reviewLink} hint={t.profile.reviewLinkHint}>
+          <input
+            id="sp-googleReviewUrl"
+            type="url"
+            inputMode="url"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder="https://g.page/r/your-place-id/review"
+            value={draft.googleReviewUrl}
+            onChange={(e) => set("googleReviewUrl", e.target.value)}
+          />
+        </SbField>
       </SbSection>
 
       <SbSection title={t.profile.secPhotos} hint={t.profile.photosHint}>

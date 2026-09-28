@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import type { AdminRole, StoreListItem } from "@/lib/types";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import type { AdminRole, StoreDraftListItem, StoreListItem } from "@/lib/types";
 import { frontendUrl } from "@/lib/frontend-url";
 import { t, format } from "@/i18n";
 import { Icon } from "@/components/icons";
@@ -13,14 +13,34 @@ const FRONTEND_URL = frontendUrl();
 
 const NAV_ICON = 18;
 
+/** "just now" / "5m ago" / "3h ago" / "2d ago" for the Drafts list. */
+function ago(iso: string): string {
+  const mins = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60_000));
+  if (mins < 1) return t.storeDraft.justNow;
+  if (mins < 60) return format(t.storeDraft.minutesAgo, { n: mins });
+  if (mins < 60 * 24) return format(t.storeDraft.hoursAgo, { n: Math.floor(mins / 60) });
+  return format(t.storeDraft.daysAgo, { n: Math.floor(mins / (60 * 24)) });
+}
+
 /**
  * @param role hides the platform-wide sections an employee has no access to. This is UX only —
  *   the backend 403s those endpoints regardless, so a hand-typed /billing URL still gets an
  *   empty page rather than someone else's data.
  */
-export function Sidebar({ stores, role }: { stores: StoreListItem[]; role: AdminRole }) {
+export function Sidebar({
+  stores,
+  drafts,
+  role,
+}: {
+  stores: StoreListItem[];
+  drafts: StoreDraftListItem[];
+  role: AdminRole;
+}) {
   const isOwner = role === "owner";
   const pathname = usePathname();
+  // A draft opens on the Create store route itself (`/?draft=<id>`), so which item is "current"
+  // is a query-string question, and "Create store" must not light up alongside it.
+  const openDraftId = useSearchParams().get("draft");
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -55,8 +75,8 @@ export function Sidebar({ stores, role }: { stores: StoreListItem[]; role: Admin
 
         <Link
           href="/"
-          className={`nav-link create ${pathname === "/" ? "active" : ""}`}
-          aria-current={pathname === "/" ? "page" : undefined}
+          className={`nav-link create ${pathname === "/" && !openDraftId ? "active" : ""}`}
+          aria-current={pathname === "/" && !openDraftId ? "page" : undefined}
         >
           <Icon name="plus" size={NAV_ICON} className="nav-ic" /> {t.nav.createStore}
         </Link>
@@ -125,6 +145,30 @@ export function Sidebar({ stores, role }: { stores: StoreListItem[]; role: Admin
 
         {/* Broadcasts is still parked in (protected)/_broadcasts (a private folder, not
             routed) until its backend exists. */}
+
+        {drafts.length > 0 && (
+          <>
+            <div className="side-label">{format(t.nav.draftsGroup, { count: drafts.length })}</div>
+            {drafts.map((d) => {
+              const active = pathname === "/" && openDraftId === d.id;
+              return (
+                <Link
+                  key={d.id}
+                  href={`/?draft=${d.id}`}
+                  className={`store-item draft ${active ? "active" : ""}`}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <span className="nm">{d.name || t.storeDraft.untitled}</span>
+                  {/* Relative time differs between the server render and the browser's first
+                      paint by up to a minute; that is not a bug worth a hydration error. */}
+                  <span className="sub" suppressHydrationWarning>
+                    {format(t.storeDraft.sub, { when: ago(d.updatedAt) })}
+                  </span>
+                </Link>
+              );
+            })}
+          </>
+        )}
 
         <div className="side-label">{format(t.nav.storesGroup, { count: stores.length })}</div>
         {stores.length === 0 && <div className="side-empty">{t.nav.noStoresYet}</div>}

@@ -22,6 +22,8 @@ export type BusinessProfilePatch = {
   twitterUrl?: string;
   linkedinUrl?: string;
   yelpUrl?: string;
+  /** Post-visit review SMS link; '' clears it (no review text is sent). */
+  googleReviewUrl?: string;
   payments?: string[];
   faqs?: { q: string; a: string }[];
   reviews?: { stars: number; text: string; authorName: string }[];

@@ -36,7 +36,7 @@ non-trivial work in that area:
 |---|---|
 | [architecture.md](.claude/docs/architecture.md) | topology, request lifecycle, module layout, realtime, routing traps |
 | [database.md](.claude/docs/database.md) | every table and column, enums, indexes, the `queue_*` plpgsql functions, migration history |
-| [api.md](.claude/docs/api.md) | all 94 endpoints with their guards, error envelope, auth, upload flow |
+| [api.md](.claude/docs/api.md) | all 100 endpoints with their guards, error envelope, auth, upload flow |
 | [business-logic.md](.claude/docs/business-logic.md) | queue engine algorithms, ETA alerts, checkout cascade, permissions, plan gating |
 | [deployment.md](.claude/docs/deployment.md) | Railway runbook, migration procedure, env vars, CI gaps |
 | [current-work.md](.claude/docs/current-work.md) | **living** — what shipped recently, known gaps, next steps |
@@ -154,7 +154,9 @@ observability/     health.ts (/healthz liveness, /readyz db-readiness)
 - Uniform error envelope:
   `{ error: { code, message, requestId, details? } }` — see `domain/errors.ts` and
   `middleware/error-handler.ts`.
-- Public surface (`/public/*`, no auth): microsite by slug **and by phone**, vCard `.vcf`,
+- Public surface (`/public/*`, no auth): microsite by slug **and by phone**, the store's Google
+  review link by phone (behind the review SMS's own-domain short link `www.tejotime.com/<phone>/r`,
+  a frontend route that 302s to it — see [docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)), vCard `.vcf`,
   availability, staff availability, bookable slots, join queue, book slot, track by phone,
   ticket read/leave, inquiry submission, cookie-consent logging (`POST /consent` — see
   [docs/cookie-consent-v1.md](docs/cookie-consent-v1.md)), and the read-only **help chat** — per-store
@@ -193,7 +195,8 @@ Core tables (`0001_init.sql`): `business` (tenant root), `business_hour`, `ameni
 `customer`, `appointment`, `queue_entry`, `queue_entry_extra`, `visit` (completed-service
 ledger), `subscription`, `payment`, `notification`, `otp_verification`, `auth_session`,
 `audit_log`, `token_counter`, `idempotency_key`. Later: `master_data` (0005 lookup),
-`admins` (0007), `inquiry` (0014), `user_permission` (0019).
+`admins` (0007), `inquiry` (0014), `user_permission` (0019), `store_draft` (0031 — admin panel's
+parked Create store forms, private per admin, see [docs/admin-store-drafts.md](docs/admin-store-drafts.md)).
 
 Notable constraints and conventions:
 - UUID PKs (`gen_random_uuid()`); `pgcrypto` + `pg_trgm` extensions.
@@ -352,7 +355,19 @@ the checkout sheet has nothing dishonest to pre-fill.
 per ticket, for **online live-queue joins only** (not walk-ins, not checked-in appointments),
 when `0 < waitMinutes <= ETA_NOTIFY_MINUTES`. Idempotency via a **conditional claim** on
 `notified_eta_15_at` (only one concurrent caller wins). `notified_turn_at` does the same for
-"it's your turn". A walk-in bumping the ETA back up never re-sends.
+"it's your turn". A walk-in bumping the ETA back up never re-sends. These are now **socket
+events only** — they no longer send SMS.
+
+**Customer SMS** ([docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)) — exactly three texts, which
+**are** the registered Twilio A2P campaign samples (`lib/sms-copy.ts`, pinned word for word by
+`sms-copy.test.ts` — change the campaign with them): booking confirmation (on website booking),
+15-minute reminder (scheduler sweep, one-shot claim on `appointment.reminder_sent_at`), and a
+post-checkout Google review request (one-shot on `queue_entry.thank_you_sent_at`, only if
+`business.google_review_url` is set). **One** unticked website box on Book and Check in ("…including
+booking confirmations, reminders, and a review request after my visit. Up to 3 messages per
+visit…") sets both backend flags, `sms_opt_in` and `review_sms_opt_in`, which stay separate so the
+review consent can be split back out if a carrier objects to the bundling. All sends go through
+`modules/notifications/sms-dispatch.ts`. Owner surfaces are never an opt-in path.
 
 **Plan gating** — free plan truncates the customer list to `FREE_PLAN_CUSTOMER_LIMIT` (2) and
 returns `meta.lockedCount`. The **server** truncates; client blur is cosmetic only. Reads use
@@ -502,7 +517,9 @@ Tunables: `JWT_ACCESS_TTL` 900, `JWT_REFRESH_TTL` 2592000, `JWT_ADMIN_TTL` 43200
 
 Feature flags (all default **false**): `OTP_ENABLED`, `PAYMENTS_ENABLED`, `SMS_ENABLED`,
 `EMAIL_ENABLED`, `CHATBOT_ENABLED` (+ `CHATBOT_PROVIDER` `none|gemini|groq|openai`,
-`CHATBOT_API_KEY`, `CHATBOT_MODEL` — server-side only; no key needed for the FAQ-only mode).
+`CHATBOT_API_KEY`, `CHATBOT_MODEL` — server-side only; no key needed for the FAQ-only mode),
+`AUTOFILL_ENABLED` (+ `AUTOFILL_API_KEY` — a Groq key, `AUTOFILL_MODEL`, `AUTOFILL_TIMEOUT_MS`; admin
+"autofill store from a link", see [docs/store-autofill-from-link.md](docs/store-autofill-from-link.md)).
 
 Client vars: `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_SOCKET_URL`, `NEXT_PUBLIC_ASSET_PREFIX`,
 `NEXT_PUBLIC_ADMIN_ORIGIN`, `NEXT_PUBLIC_OWNER_ORIGIN`, `NEXT_PUBLIC_FRONTEND_URL` (frontend/
@@ -531,7 +548,8 @@ hand-lists them (including each Appearance panel's `key()` dirty-check; an axis 
 silently **unsaveable**, with no error).
 And `npm run test:theme` — the framework-free theme engine self-check (parity, contrast, ramps,
 CSS tokens, input repair), run via the `tsx` the backend already depends on. `npm run
-test:responsive` is the same idea for the mobile app's breakpoint/grid arithmetic (§7).
+test:responsive` is the same idea for the mobile app's breakpoint/grid arithmetic (§7). `npm run test:import-diff` does the same for the admin autofill's re-fetch diff
+(`admin-panel/src/lib/import-diff.ts`).
 
 > These checks are **not wired into CI**. Run them manually after touching the theme engine, the
 > cropper, a theme axis, or the mobile breakpoints.
