@@ -17,6 +17,8 @@ import {
 } from "@/lib/types";
 import { CURRENCIES, CURRENCY_BY_CODE, currencySymbol } from "@/lib/currencies";
 import { countryByDial, DEFAULT_ISO2 } from "@/lib/phone";
+import { timezoneForPhone } from "@/lib/phone-timezone";
+import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { presetForCategory, type ThemeConfig } from "@/theme/engine";
 import { t, format } from "@/i18n";
 import { Icon } from "@/components/icons";
@@ -554,6 +556,14 @@ export default function StoreForm({
     return form.category && !names.includes(form.category) ? [form.category, ...names] : names;
   }, [categories, form.category]);
 
+  // What the number alone would pick — shown on the "Automatic" option so the admin sees the guess
+  // before saving. An off-list stored zone stays selectable, same as currency below.
+  const autoTimezone = timezoneForPhone(form.countryCode, form.phoneNumber);
+  const timezoneOptions = useMemo(() => {
+    return form.timezone && !TIMEZONE_OPTIONS.some((z) => z.value === form.timezone)
+      ? [{ value: form.timezone, label: form.timezone }, ...TIMEZONE_OPTIONS]
+      : TIMEZONE_OPTIONS;
+  }, [form.timezone]);
   // Same trick for currency: an off-list legacy code stays selectable rather than being dropped.
   const currencyOptions = useMemo(() => {
     return form.currency && !CURRENCY_BY_CODE[form.currency]
@@ -720,6 +730,22 @@ export default function StoreForm({
               <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
                 {t.storeForm.currencyHint}
               </p>
+            </div>
+            <div className="field">
+              <label htmlFor="sf-timezone">{t.storeForm.timezone}</label>
+              <select id="sf-timezone" value={form.timezone} onChange={(e) => set("timezone", e.target.value)}>
+                <option value="">
+                  {autoTimezone
+                    ? format(t.storeForm.timezoneAuto, { zone: autoTimezone })
+                    : t.storeForm.timezoneAutoUnknown}
+                </option>
+                {timezoneOptions.map((z) => (
+                  <option key={z.value} value={z.value}>
+                    {z.label}
+                  </option>
+                ))}
+              </select>
+              <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{t.storeForm.timezoneHint}</p>
             </div>
             <div className="field">
               <label htmlFor="sf-area">{t.storeForm.area}</label>

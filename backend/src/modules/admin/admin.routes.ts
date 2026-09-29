@@ -8,6 +8,7 @@ import { WRITABLE_SERVICE_PRICE_TYPES } from '../../domain/enums';
 import { MAX_IMAGE_BYTES, signUpload } from '../../integrations/storage';
 import { verifyAdminToken } from '../auth/token.service';
 import { reviewUrl } from '../business/review-url.schema';
+import { isValidTimezone } from '../../lib/phone-timezone';
 import * as admin from './admin.service';
 import * as analytics from './admin-analytics.service';
 import * as inquiries from './admin-inquiries.service';
@@ -102,7 +103,11 @@ const storeFieldsSchema = z.object({
   linkedinUrl: z.union([z.string().url().max(300), z.literal('')]).optional(),
   yelpUrl: z.union([z.string().url().max(300), z.literal('')]).optional(),
   googleReviewUrl: reviewUrl,
-  timezone: z.string().max(64).optional(),
+  // '' = "decide from the phone number" (the admin form's Automatic option); anything else must
+  // be a real IANA zone, because dayjs.tz throws on a bad one and would take the microsite down.
+  timezone: z
+    .union([z.literal(''), z.string().max(64).refine(isValidTimezone, 'Unknown timezone')])
+    .optional(),
   currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Expected ISO 4217 code').optional(),
   /** Per-store brand/accent hex for the customer microsite (#RRGGBB). */
   themeColor: z

@@ -5,6 +5,7 @@ import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
 import { Errors } from '../../domain/errors';
 import { money } from '../../domain/money';
+import { timezoneForPhone } from '../../lib/phone-timezone';
 import { signAdminToken } from '../auth/token.service';
 // Shared with the owner portal so both writers produce the same appearance columns.
 import { themeColumns, type ThemeConfigInput } from '../../domain/business-theme';
@@ -340,7 +341,9 @@ export async function createBusiness(input: CreateBusinessInput, createdByAdminI
       slug,
       country_code: countryCode,
       phone_number: phoneNumber,
-      timezone: input.timezone || env.DEFAULT_TIMEZONE,
+      // The admin form's pick wins; otherwise the number decides (+1 415 → Los_Angeles), and only
+      // an unrecognised country falls back to the platform default.
+      timezone: input.timezone || timezoneForPhone(countryCode, phoneNumber) || env.DEFAULT_TIMEZONE,
       currency,
       token_prefix: 'A',
       is_active: true,
@@ -377,7 +380,7 @@ export async function createBusiness(input: CreateBusinessInput, createdByAdminI
 
 export async function updateBusiness(id: string, input: UpdateBusinessInput) {
   const existing = await one(
-    'select id, currency, theme_color, phone_full from business where id = $1',
+    'select id, currency, theme_color, phone_full, timezone from business where id = $1',
     [id],
   );
   if (!existing) throw Errors.notFound('Store not found');
@@ -401,7 +404,13 @@ export async function updateBusiness(id: string, input: UpdateBusinessInput) {
   const row = {
     country_code: countryCode,
     phone_number: phoneNumber,
-    timezone: input.timezone || env.DEFAULT_TIMEZONE,
+    // An edit that omits the timezone KEEPS the stored one. This used to reset it to the default on
+    // every save, which would have undone any zone an admin had set by hand.
+    timezone:
+      input.timezone ||
+      (existing.timezone as string | null) ||
+      timezoneForPhone(countryCode, phoneNumber) ||
+      env.DEFAULT_TIMEZONE,
     updated_at: new Date().toISOString(),
     // Deactivating hides the public microsite (public routes filter is_active = true).
     ...(input.isActive !== undefined ? { is_active: input.isActive } : {}),
@@ -783,6 +792,7 @@ export async function getBusinessDetail(id: string) {
     yelpUrl: b.yelp_url ?? '',
     googleReviewUrl: b.google_review_url ?? '',
     currency: b.currency ?? 'INR',
+    timezone: b.timezone ?? '',
     themeColor: b.theme_color ?? '',
     theme: (b.theme ?? null) as ThemeConfigInput | null,
     countryCode: b.country_code ?? '',
