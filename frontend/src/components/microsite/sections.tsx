@@ -273,7 +273,9 @@ export function LiveBoard({
 
       <Reveal>
         <div className="ttLiveGrid" style={{ marginTop: "clamp(24px, 3.5vw, 44px)" }}>
-          {/* Summary tile — the store's own brand, dark end of its ramp. */}
+          {/* Summary tile — the store's own brand, dark end of its ramp. Closed, it is dropped: all
+              it could say is "Closed", which the hero card already says. */}
+          {!walkInsClosed && (
           <div
             style={{
               borderRadius: "calc(26px * var(--radius-scale, 1))",
@@ -332,6 +334,7 @@ export function LiveBoard({
               {liveSub}
             </div>
           </div>
+          )}
 
           {members.map((m) => (
             <div
@@ -353,6 +356,8 @@ export function LiveBoard({
                   height identical whether or not a photo exists. */}
               <div style={{ display: "flex", alignItems: "center", gap: "clamp(10px, 1.2vw, 14px)" }}>
               <MemberAvatar photo={m.photo} name={m.name} bg={m.avBg} />
+              {/* No chip while closed — a "Closed" pill on every provider was the same word again. */}
+              {!walkInsClosed && (
               <span
                 style={{
                   display: "inline-flex",
@@ -361,7 +366,7 @@ export function LiveBoard({
                   borderRadius: 999,
                   padding: "6px 12px",
                   font: "var(--fw-semibold) 11.5px/1 var(--font-sans)",
-                  ...(m.busy || walkInsClosed
+                  ...(m.busy
                     ? { background: "var(--surface-sunken)", color: "var(--text-body)" }
                     : { background: "var(--success-soft)", color: "var(--success-soft-fg)" }),
                 }}
@@ -371,15 +376,12 @@ export function LiveBoard({
                     width: 6,
                     height: 6,
                     borderRadius: "50%",
-                    background: m.busy || walkInsClosed ? "var(--text-subtle)" : "var(--success)",
+                    background: m.busy ? "var(--text-subtle)" : "var(--success)",
                   }}
                 />
-                {walkInsClosed
-                  ? t.microsite.sections.closedNow
-                  : m.busy
-                    ? t.microsite.sections.inService
-                    : t.microsite.sections.freeNow}
+                {m.busy ? t.microsite.sections.inService : t.microsite.sections.freeNow}
               </span>
+              )}
               </div>
 
               <div
