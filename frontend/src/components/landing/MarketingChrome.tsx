@@ -8,6 +8,7 @@ import { Button } from "@/components/landing/ui";
 import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton";
 import { footerCols, nav } from "@/components/landing/landingData";
 import { shell } from "@/components/landing/shell";
+import { AppStoreBadges } from "@/components/AppStoreBadges";
 import { t } from "@/i18n";
 import { OWNER_ORIGIN } from "@/lib/config";
 
@@ -139,18 +140,27 @@ export function MarketingChrome({ children }: { children: ReactNode }) {
             className="tj-foot-bottom"
             style={{
               display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
+              flexDirection: "column",
               gap: 20,
-              flexWrap: "wrap",
               marginTop: 44,
               paddingTop: 24,
               borderTop: "1px solid var(--border-subtle)",
             }}
           >
-            <Link href="/" aria-label={t.brand.logoAlt} style={{ display: "flex" }}>
-              <Logo height={28} />
-            </Link>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 20,
+                flexWrap: "wrap",
+              }}
+            >
+              <Link href="/" aria-label={t.brand.logoAlt} style={{ display: "flex" }}>
+                <Logo height={28} />
+              </Link>
+              <AppStoreBadges />
+            </div>
             <span
               style={{
                 font: "var(--fw-medium) 13px/1.4 var(--font-sans)",

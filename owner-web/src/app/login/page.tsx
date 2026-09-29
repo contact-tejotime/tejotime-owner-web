@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import PhoneField from "@/components/PhoneField";
 import { Icon } from "@/components/Icon";
 import { format, t } from "@/i18n";
+import { AppStoreBadges } from "@/components/AppStoreBadges";
 import { SUPPORT } from "@/lib/support";
 import {
   combineToDigits,
@@ -286,6 +287,8 @@ export default function LoginPage() {
                 </a>
               </div>
             </div>
+
+            <AppStoreBadges className="login-apps login-in" />
           </form>
         </div>
       </main>

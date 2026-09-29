@@ -9,6 +9,16 @@ the system as designed, this one describes where it actually is.
 
 ## 1. What is in flight
 
+### App Store / Google Play badges (2026-09-29)
+
+`AppStoreBadges` — one component, **hand-mirrored** in `frontend/src/components/` and
+`owner-web/src/components/` (no sync script; change both). Shown in the marketing footer (homepage
+`page.tsx` + `MarketingChrome.tsx` for inner pages), owner-web's login page, and owner-web's signed-in
+desktop footer (`AppShell` `.main-support`, which is hidden on phone/tablet). Not on store
+microsites: the app is for owners, not their customers. The App Store URL is region-less
+(`apps.apple.com/app/...`) so each visitor lands in their own storefront; the Play URL drops the
+`pcampaignid=web_share` share-sheet tag. Strings under `appBadges` in both `en.json` files.
+
 ### Customer SMS: the client's three templates + separate review consent (2026-09-28)
 
 Replaces the four waitlist texts with exactly three: booking confirmation, 15-minute reminder,
