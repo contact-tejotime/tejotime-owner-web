@@ -4,6 +4,7 @@ import { RoleGate } from "@/components/RoleGate";
 import { StoreThemeStyle, storeThemeAttrs } from "@/components/StoreThemeStyle";
 import { SupportContact, SupportStrip } from "@/components/SupportContact";
 import { NO_ACCESS } from "@/lib/roles";
+import { AppStoreBadges } from "@/components/AppStoreBadges";
 import { Toaster } from "@/lib/toast";
 import type { Me } from "@/lib/server-api";
 
@@ -35,6 +36,7 @@ export function AppShell({ me, children }: { me: Me; children: React.ReactNode }
           </div>
           <footer className="main-support">
             <SupportContact variant="main" />
+            <AppStoreBadges heading={false} />
           </footer>
         </div>
         <SupportStrip />

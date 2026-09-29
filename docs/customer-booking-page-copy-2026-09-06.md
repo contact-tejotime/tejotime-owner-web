@@ -98,6 +98,28 @@ now"*. "Free" beside a page full of prices is the exact ambiguity the review ope
 was in two of the most prominent slots on the page. Now *"All 4 available"* / *"Lisa available"* /
 *"5 on the waitlist right now"*, every fragment from `t`, plus a closed variant.
 
+### 2.5b "Closed" said once, not six times (2026-09-29)
+
+Fixing 2.2 and 2.6 left a closed store announcing it everywhere: the hero pill (`CLOSED · OPENS
+TOMORROW…`), the Right now card, a "Walk-in check-in is closed" line under its button, the dark
+"Walk-in availability — Closed" tile in the Team section, a **Closed** chip on every provider, a
+"Closed / Walk-ins closed" stat card, and the sticky mobile bar. Owners read it as the page shouting.
+
+It is now said **once**, in the Right now card: **Closed**, then "Opens tomorrow at 9:00 AM" as plain
+centred text (it was in the bordered `ttWaitEstimate` pill, which is meant for an ETA and looked like
+an input). Everything else goes quiet rather than changing wording:
+
+- hero status pill — hidden while closed (still shown while open);
+- the "Walk-in check-in is closed" line under Book an Appointment — removed;
+- Team section — the dark summary tile and the per-provider chip are hidden; each card keeps its
+  photo, name, role and "Book with {name}";
+- stat cards — the wait tile is dropped, and the team card reads "3 Team members", not "…available".
+  An odd card count lets the last card take the full row on a phone (`salon.css`);
+- sticky mobile bar — **kept as is** ("Walk-ins closed / Opens tomorrow at …" + Book Appointment).
+  It is the one closed message still on screen once the hero card has scrolled away.
+
+`t.microsite.sections.closedNow` is now unused. The walk-in gating itself (2.2) is unchanged.
+
 ### 2.6 A closed store's Team section still said "Available now"
 
 The closed-state gate reached the hero and the CTAs but not the inside of the provider cards, so a

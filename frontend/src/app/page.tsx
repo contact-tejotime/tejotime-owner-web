@@ -12,6 +12,7 @@ import ChatWidget from "@/components/chat/ChatWidget";
 import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton";
 import { t } from "@/i18n";
 import { publicApi } from "@/lib/api";
+import { AppStoreBadges } from "@/components/AppStoreBadges";
 import { OWNER_ORIGIN } from "@/lib/config";
 import { combineToE164, DEFAULT_DIAL_CODE, DEFAULT_ISO2, isValidNational } from "@/lib/phone";
 import {
@@ -2051,27 +2052,36 @@ export default function Home() {
             className="tj-foot-bottom"
             style={{
               display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
+              flexDirection: "column",
               gap: 20,
-              flexWrap: "wrap",
               marginTop: 44,
               paddingTop: 24,
               borderTop: "1px solid var(--border-subtle)",
             }}
           >
-            <a
-              href="#top"
-              className="tj-logo-link"
-              aria-label={t.brand.logoAlt}
-              onClick={(e) => {
-                e.preventDefault();
-                window.scrollTo({ top: 0, behavior: "smooth" });
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 20,
+                flexWrap: "wrap",
               }}
-              style={{ display: "flex", cursor: "pointer" }}
             >
-              <Logo height={40} />
-            </a>
+              <a
+                href="#top"
+                className="tj-logo-link"
+                aria-label={t.brand.logoAlt}
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                style={{ display: "flex", cursor: "pointer" }}
+              >
+                <Logo height={40} />
+              </a>
+              <AppStoreBadges />
+            </div>
             <span
               style={{ font: "var(--fw-medium) 12.5px/1.5 var(--font-sans)", color: "var(--text-muted)" }}
             >
