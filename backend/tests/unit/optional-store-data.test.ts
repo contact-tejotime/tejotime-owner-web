@@ -216,6 +216,21 @@ describe('optional store data', { timeout: 30_000 }, () => {
       expect(stored.gallery).toEqual([]);
     });
 
+    it('takes a valid timezone, an empty one (= automatic), and refuses an unknown one', async () => {
+      createBusiness.mockResolvedValue({ id: 'b-new' });
+      const send = async (timezone: string) =>
+        request(await app())
+          .post(ADMIN_BUSINESSES)
+          .set('authorization', `Bearer ${await adminToken()}`)
+          .send({ ...minimalStore(), services: [], staff: [], timezone });
+
+      expect((await send('America/New_York')).status).toBe(201);
+      expect((await send('')).status).toBe(201);
+      expect((await send('Mars/Olympus')).status).toBe(400); // dayjs.tz would throw on it at render time
+      expect(createBusiness).toHaveBeenCalledTimes(2);
+      expect(createBusiness.mock.calls[0]![0].timezone).toBe('America/New_York');
+    });
+
     it('accepts services and staff omitted entirely (defaults to none)', async () => {
       createBusiness.mockResolvedValue({ id: 'b-new' });
       const res = await request(await app())
