@@ -145,4 +145,17 @@ describe('computeOpenStatus', () => {
     expect(kolkata.isOpen).toBe(false);
     expect(kolkata.nextOpenLabel).toBe('today at 10:00 AM'); // Wednesday morning there
   });
+
+  // The Empire Cutz report: a Florida store stored as Asia/Kolkata showed the wrong open/closed
+  // state to everyone. Same instant, same hours — only the store's zone differs.
+  it('a Florida store is judged on Florida time, whatever zone it is stored in or viewed from', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-08T18:00:00Z')); // Tuesday 2pm in Fort Myers
+    const fl = await compute(monToSat, 'America/New_York');
+    expect(fl.isOpen).toBe(true);
+    expect(fl.label).toBe('Open now · till 7:00 PM');
+
+    const misfiled = await compute(monToSat, 'Asia/Kolkata'); // 11:30pm Tuesday in India
+    expect(misfiled.isOpen).toBe(false);
+  });
 });

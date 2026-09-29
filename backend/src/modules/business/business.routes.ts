@@ -6,6 +6,7 @@ import { requirePermission } from '../../middleware/require-permission';
 import { isOwnerRole } from '../../domain/permissions';
 import { Errors } from '../../domain/errors';
 import { reviewUrl } from './review-url.schema';
+import { isValidTimezone } from '../../lib/phone-timezone';
 
 /** Owner / co-owner only. The service re-checks; this gives a clear 403 before validation. */
 function requireOwnerRole(req: any, _res: any, next: any) {
@@ -90,7 +91,7 @@ const patchSchema = z
       })
       .partial()
       .optional(),
-    timezone: z.string().max(64).optional(),
+    timezone: z.string().max(64).refine(isValidTimezone, 'Unknown timezone').optional(),
   })
   .strict();
 

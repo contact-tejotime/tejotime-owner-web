@@ -76,6 +76,8 @@ export interface StoreForm {
   googleReviewUrl: string;
   payments: string; // comma-separated in the form; split before send
   currency: string; // ISO 4217 code; symbol/name come from lib/currencies.ts
+  /** IANA zone the store's open/closed hours run in. "" = Automatic: the API derives it from the phone number. */
+  timezone: string;
   /** Brand/accent hex for the customer microsite (#RRGGBB). Always mirrors `theme.brand`. */
   themeColor: string;
   /**
@@ -161,6 +163,7 @@ export const EMPTY_FORM: StoreForm = {
   googleReviewUrl: "",
   payments: t.storeForm.paymentsDefault,
   currency: "INR",
+  timezone: "",
   themeColor: "#2563EB",
   /**
    * A brand-new store starts on the pixel-parity config, so "create a store and change
@@ -214,6 +217,8 @@ export interface StoreDetail {
   googleReviewUrl: string;
   payments: string;
   currency: string;
+  /** Optional so a response from an older backend (no field yet) still type-checks and reads as Automatic. */
+  timezone?: string;
   themeColor: string;
   /**
    * The stored `business.theme` jsonb, straight from Postgres — `null` for every store that
@@ -275,6 +280,7 @@ export function fromDetail(d: StoreDetail): StoreForm {
     googleReviewUrl: d.googleReviewUrl ?? "",
     payments: d.payments,
     currency: d.currency || "INR",
+    timezone: d.timezone ?? "",
     // Kept in lockstep with theme.brand — the panel edits one colour, not two.
     themeColor: theme.brand,
     theme,
@@ -408,6 +414,8 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
       .map((p) => p.trim())
       .filter(Boolean),
     currency: f.currency || undefined,
+    // "" is sent on purpose: create derives the zone from the number, edit keeps the stored one.
+    timezone: f.timezone,
     themeColor: /^#[0-9A-Fa-f]{6}$/.test(f.themeColor.trim())
       ? f.themeColor.trim().toUpperCase()
       : undefined,
