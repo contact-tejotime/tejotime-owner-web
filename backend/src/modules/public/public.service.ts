@@ -1,7 +1,8 @@
-import { exec, many, one } from '../../db/pool';
+import { exec, many, one, transaction } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
-import { VISITOR_TYPE_CATEGORIES } from '../../config/constants';
+import { BOOKING_WINDOW_DAYS, VISITOR_TYPE_CATEGORIES } from '../../config/constants';
+import { computeSlots, isBookable, type SlotInput } from '../../lib/booking-slots';
 import { Errors } from '../../domain/errors';
 import { servicePricing } from '../../domain/money';
 import { normalizePhone } from '../../lib/phone';
@@ -9,7 +10,8 @@ import { dayjs } from '../../lib/time';
 import { createTtlCache } from '../../lib/ttl-cache';
 import { buildSeatGroups, soonestSeat, ticketPosition } from '../../lib/queue-engine';
 import { emitToOwners, emitToTicket } from '../../realtime/emitters';
-import { ticketKey } from '../auth/token.service';
+import { ticketKey, verifyTicketKey } from '../auth/token.service';
+import { apptDTO } from '../appointments/appointments.service';
 import { findOrCreateCustomer, recordReviewSmsOptIn, recordSmsOptIn } from '../customers/customer.repo';
 import { loadQueueContext } from '../queue/queue.context';
 import { sendBookingConfirmation } from '../notifications/sms-dispatch';
@@ -257,6 +259,10 @@ async function buildMicrosite(b: any) {
     reviewCount: b.review_count,
     establishedYear: b.established_year,
     openStatus: computeOpenStatus(hours ?? [], b.timezone),
+    // IANA zone the slot labels and opening hours are in. The page needs it to show a booked time
+    // in the STORE's clock — formatting in the viewer's zone put a Phoenix store's 9:00 AM under
+    // "Evening" for a visitor in India.
+    timezone: b.timezone,
     hours: (hours ?? []).map((h) => ({
       dayOfWeek: h.day_of_week,
       label: h.is_closed ? 'Closed' : `${fmtTime(h.opens_at)} – ${fmtTime(h.closes_at)}`,
@@ -388,58 +394,58 @@ const combinedServiceName = (svcs: { name: string }[]) => (svcs.length ? svcs.ma
 const extraServicesPayload = (svcs: { name: string; duration_minutes: number; price_paise: number }[]) =>
   svcs.slice(1).map((s) => ({ name: s.name, minutes: s.duration_minutes, price: s.price_paise }));
 
-export async function getSlots(slug: string, date: string, serviceIds?: string[], staffId?: string) {
-  const b = await resolveBusiness(slug);
+type Query = (sql: string, params?: unknown[]) => Promise<any[]>;
+
+/**
+ * Everything computeSlots needs for one store-day, read through `q` so the same loader serves the
+ * slot list (pool) and the booking transaction (its locked client). Bookings are every
+ * pending/confirmed row that OVERLAPS the day — end times included, because capacity is decided
+ * by overlap, not by an exact start. A row with no end (older owner bookings) counts as one slot.
+ */
+async function slotInputFor(q: Query, b: any, date: string, durationMin: number, staffId: string | null): Promise<SlotInput> {
   const tz = b.timezone;
   const day = dayjs.tz(date, tz);
-  const hours = await one('select * from business_hour where business_id = $1 and day_of_week = $2', [
+  const [hours] = await q('select opens_at, closes_at, is_closed from business_hour where business_id = $1 and day_of_week = $2', [
     b.id,
     day.day(),
   ]);
-  if (!hours || hours.is_closed) return { date, slots: [] };
-
-  // A multi-service visit occupies the SUM of its parts. Sizing the hole by the first service
-  // alone would offer the next customer a time that overlaps the back half of this one.
-  let duration = env.BOOKING_SLOT_MINUTES;
-  if (serviceIds?.length) {
-    const svcs = await resolveServices(b.id, { serviceIds });
-    const total = svcs.reduce((n, sv) => n + (sv.duration_minutes || 0), 0);
-    if (total > 0) duration = total;
-  }
-
-  const open = dayjs.tz(`${date} ${hours.opens_at}`, tz);
-  const close = dayjs.tz(`${date} ${hours.closes_at}`, tz);
-  const step = env.BOOKING_SLOT_MINUTES;
-
-  // Existing bookings to exclude (per staff if specified).
-  let taken = new Set<string>();
-  const bookedParams: unknown[] = [b.id, open.utc().toISOString(), close.utc().toISOString()];
-  let staffFilter = '';
-  if (staffId) {
-    bookedParams.push(staffId);
-    staffFilter = ` and staff_id = $${bookedParams.length}`;
-  }
-  const booked = await many(
-    `select scheduled_start_at, staff_id from appointment
+  const staff = await q('select id from staff where business_id = $1 and is_active = true', [b.id]);
+  const bookings = await q(
+    `select scheduled_start_at,
+            coalesce(scheduled_end_at, scheduled_start_at + make_interval(mins => $4)) as scheduled_end_at,
+            staff_id
+       from appointment
       where business_id = $1
         and status in ('pending', 'confirmed')
-        and scheduled_start_at >= $2
-        and scheduled_start_at <= $3${staffFilter}`,
-    bookedParams,
+        and scheduled_start_at < $3
+        and coalesce(scheduled_end_at, scheduled_start_at + make_interval(mins => $4)) > $2`,
+    [b.id, day.startOf('day').utc().toISOString(), day.endOf('day').utc().toISOString(), env.BOOKING_SLOT_MINUTES],
   );
-  taken = new Set(booked.map((a) => dayjs(a.scheduled_start_at).toISOString()));
+  return {
+    date,
+    tz,
+    hours: hours ? { opensAt: hours.opens_at, closesAt: hours.closes_at, isClosed: hours.is_closed } : null,
+    durationMin,
+    stepMin: env.BOOKING_SLOT_MINUTES,
+    now: new Date(),
+    windowDays: BOOKING_WINDOW_DAYS,
+    bookings: bookings.map((r) => ({ start: r.scheduled_start_at, end: r.scheduled_end_at, staffId: r.staff_id })),
+    activeStaffIds: staff.map((s) => s.id),
+    staffId,
+  };
+}
 
-  const now = dayjs().tz(tz);
-  const slots: { startAt: string; label: string }[] = [];
-  let cursor = open;
-  while (cursor.add(duration, 'minute').isBefore(close.add(1, 'second'))) {
-    const iso = cursor.utc().toISOString();
-    if (cursor.isAfter(now) && !taken.has(iso)) {
-      slots.push({ startAt: iso, label: cursor.format('h:mm A') });
-    }
-    cursor = cursor.add(step, 'minute');
-  }
-  return { date, slots };
+/** A multi-service visit occupies the SUM of its parts; no service → the standard slot. */
+function visitMinutes(svcs: Array<{ duration_minutes: number | null }>): number {
+  const total = svcs.reduce((n, sv) => n + (sv.duration_minutes || 0), 0);
+  return total > 0 ? total : env.BOOKING_SLOT_MINUTES;
+}
+
+export async function getSlots(slug: string, date: string, serviceIds?: string[], staffId?: string) {
+  const b = await resolveBusiness(slug);
+  const svcs = serviceIds?.length ? await resolveServices(b.id, { serviceIds }) : [];
+  const input = await slotInputFor(many, b, date, visitMinutes(svcs), staffId ?? null);
+  return { date, slots: computeSlots(input) };
 }
 
 function ticketSocket(businessId: string, ticketId: string) {
@@ -478,9 +484,14 @@ export async function joinQueue(
   const svcs = await resolveServices(b.id, input);
   const svc = svcs[0] ?? null;
 
-  let staffId = input.preferredStaffId && input.preferredStaffId !== 'any' ? input.preferredStaffId : null;
-  if (staffId && !ctx.staffRows.find((s) => s.id === staffId)) staffId = null;
-  if (!staffId) staffId = soonestSeat(ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
+  // Only an active stylist of THIS store counts as a preference. Anything else (a deleted chair,
+  // another store's id) falls back to the soonest seat — and is never passed on to queue_add,
+  // where the foreign key would turn it into a 500.
+  const preferred =
+    input.preferredStaffId && input.preferredStaffId !== 'any' && ctx.staffRows.find((s) => s.id === input.preferredStaffId)
+      ? input.preferredStaffId
+      : null;
+  const staffId = preferred ?? soonestSeat(ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
 
   const phone = normalizePhone(input.phone);
   const customerId = await findOrCreateCustomer(b.id, input.name, phone);
@@ -493,7 +504,7 @@ export async function joinQueue(
     p_staff_id: staffId,
     p_position: 'end',
     p_source: 'online',
-    p_preferred_staff_id: input.preferredStaffId && input.preferredStaffId !== 'any' ? input.preferredStaffId : null,
+    p_preferred_staff_id: preferred,
     p_appointment_id: null,
     p_customer_id: customerId,
     p_visitor_type: input.visitorType ?? null,
@@ -568,61 +579,85 @@ export async function bookSlot(
   const svc = svcs[0] ?? null;
 
   const phone = normalizePhone(input.phone);
-  const customerId = await findOrCreateCustomer(b.id, input.name, phone);
   const staffId = input.preferredStaffId && input.preferredStaffId !== 'any' ? input.preferredStaffId : null;
   const start = new Date(input.slotStart);
-  // The booking blocks out ALL the chosen services, not just the first — same rule getSlots uses
-  // to size the hole it offered. No service picked → the standard slot length.
-  const totalMinutes = svcs.reduce((n, sv) => n + (sv.duration_minutes || 0), 0);
-  const durationMinutes = totalMinutes > 0 ? totalMinutes : env.BOOKING_SLOT_MINUTES;
+  // The booking blocks out ALL the chosen services, not just the first — the same length the slot
+  // list sized the hole with.
+  const durationMinutes = visitMinutes(svcs);
   const end = new Date(start.getTime() + durationMinutes * 60_000);
+  const date = dayjs(start).tz(b.timezone).format('YYYY-MM-DD');
 
   const smsOptIn = input.smsOptIn === true;
   const reviewSmsOptIn = input.reviewSmsOptIn === true;
-  const data = await one(
-    `insert into appointment
-       (business_id, customer_id, customer_name, customer_phone, service_id, service_name,
-        staff_id, scheduled_start_at, scheduled_end_at, status, source, visitor_type, sms_opt_in,
-        review_sms_opt_in)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', 'online', $10, $11, $12)
-     returning *`,
-    [
-      b.id,
-      customerId,
-      input.name,
-      phone,
-      svc?.id ?? null,
-      combinedServiceName(svcs),
-      staffId,
-      start.toISOString(),
-      end.toISOString(),
-      input.visitorType ?? null,
-      smsOptIn,
-      reviewSmsOptIn,
-    ],
-  );
-  if (!data) throw new Error('Failed to create appointment');
-  if (smsOptIn && customerId) await recordSmsOptIn(b.id, customerId);
-  if (reviewSmsOptIn && customerId) await recordReviewSmsOptIn(b.id, customerId);
 
-  // Itemise the booking. A booking is made now and checked in later, so without this list
-  // `appointment_check_in` could not rebuild the queue entry's extras and the visit would be
-  // sized and priced as if only the first service had been chosen (migration 0025).
-  if (svcs.length) {
-    // `position` is load-bearing, not decoration: check-in reads `position > 0` to find the
-    // services to re-attach, so leaving it at its default of 0 would hide every extra.
-    const values = svcs
-      .map((_, i) => `($1, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5}, $${i * 5 + 6})`)
-      .join(', ');
-    await exec(
-      `insert into appointment_service (appointment_id, service_id, name, minutes, price_paise, position)
-       values ${values}`,
+  // Check-then-insert under a per-store lock, so two customers confirming the same time cannot
+  // both pass the check (QA reproduced exactly that: two "You're booked!" for one slot). The
+  // `appt:` namespace keeps this lock from contending with the queue functions' own.
+  const { data, customerId, staffName } = await transaction(async (client) => {
+    const q: Query = (sql, params) => client.query(sql, params as unknown[]).then((r) => r.rows);
+    await client.query('select pg_advisory_xact_lock(hashtext($1))', [`appt:${b.id}`]);
+
+    const slot = await slotInputFor(q, b, date, durationMinutes, staffId);
+    if (staffId && !slot.activeStaffIds.includes(staffId)) {
+      throw Errors.validation('Pick a team member from this store', [{ field: 'preferredStaffId', message: 'Unknown team member' }]);
+    }
+    // The same rule the slot list uses, recomputed inside the lock: rejects a taken or overlapping
+    // time, the past, a closed day, outside opening hours, off the 30-minute grid, and beyond the
+    // booking window — none of which the endpoint used to check.
+    if (!isBookable(slot, start.toISOString())) {
+      throw Errors.conflict('SLOT_UNAVAILABLE', 'That time is no longer available. Please pick another time.');
+    }
+
+    // Only now, so a rejected booking does not leave an orphan customer row behind.
+    const customerId = await findOrCreateCustomer(b.id, input.name, phone);
+    const [row] = await q(
+      `insert into appointment
+         (business_id, customer_id, customer_name, customer_phone, service_id, service_name,
+          staff_id, scheduled_start_at, scheduled_end_at, status, source, visitor_type, sms_opt_in,
+          review_sms_opt_in)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', 'online', $10, $11, $12)
+       returning *`,
       [
-        data.id,
-        ...svcs.flatMap((sv, i) => [sv.id, sv.name, sv.duration_minutes, sv.price_paise, i]),
+        b.id,
+        customerId,
+        input.name,
+        phone,
+        svc?.id ?? null,
+        combinedServiceName(svcs),
+        staffId,
+        start.toISOString(),
+        end.toISOString(),
+        input.visitorType ?? null,
+        smsOptIn,
+        reviewSmsOptIn,
       ],
     );
-  }
+    if (!row) throw new Error('Failed to create appointment');
+
+    // Itemise the booking. A booking is made now and checked in later, so without this list
+    // `appointment_check_in` could not rebuild the queue entry's extras and the visit would be
+    // sized and priced as if only the first service had been chosen (migration 0025).
+    if (svcs.length) {
+      // `position` is load-bearing, not decoration: check-in reads `position > 0` to find the
+      // services to re-attach, so leaving it at its default of 0 would hide every extra.
+      const values = svcs
+        .map((_, i) => `($1, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5}, $${i * 5 + 6})`)
+        .join(', ');
+      await q(
+        `insert into appointment_service (appointment_id, service_id, name, minutes, price_paise, position)
+         values ${values}`,
+        [row.id, ...svcs.flatMap((sv, i) => [sv.id, sv.name, sv.duration_minutes, sv.price_paise, i])],
+      );
+    }
+    // Scoped to this store: an id from another business must never surface its stylist's name.
+    const staffName = staffId
+      ? ((await q('select name from staff where id = $1 and business_id = $2', [staffId, b.id]))[0]?.name ?? null)
+      : null;
+    return { data: row, customerId, staffName };
+  });
+
+  if (smsOptIn && customerId) await recordSmsOptIn(b.id, customerId);
+  if (reviewSmsOptIn && customerId) await recordReviewSmsOptIn(b.id, customerId);
 
   emitToOwners(b.id, 'appointment:created', {
     appointment: { id: data.id, customerName: data.customer_name, serviceName: data.service_name, scheduledStartAt: data.scheduled_start_at, status: data.status },
@@ -636,8 +671,99 @@ export async function bookSlot(
     serviceName: combinedServiceName(svcs),
     scheduledStartAt: data.scheduled_start_at,
     status: 'confirmed',
-    staffName: staffId ? (await one('select name from staff where id = $1', [staffId]))?.name : null,
+    staffName,
+    // Held by the browser that booked; it is what lets that device (and only that device) read or
+    // cancel this appointment later. See appointmentKey() below.
+    appointmentKey: appointmentKey(data.id),
   };
+}
+
+// ---- Appointment self-service (store chat + microsite) ----
+//
+// There is no OTP, so a phone number alone must never be enough to CANCEL someone's booking — a
+// stranger who knows the number could wipe out their appointment. The booking response hands the
+// booking browser an HMAC key instead; read and cancel require it. A phone lookup (another device)
+// can still SEE upcoming bookings, the same trust level Track-my-turn already has for tickets, but
+// it never returns keys, so it cannot cancel.
+
+/**
+ * The same HMAC as ticketKey, over a domain-separated input: without the `appt:` prefix an
+ * appointment id's key would also verify as a ticket key for the same UUID (and vice versa).
+ */
+export function appointmentKey(appointmentId: string): string {
+  return ticketKey(`appt:${appointmentId}`);
+}
+
+function publicAppointment(a: any) {
+  return {
+    appointmentId: a.id,
+    serviceName: a.service_name ?? null,
+    staffName: a.staff_name ?? null,
+    scheduledStartAt: a.scheduled_start_at,
+    status: a.status,
+  };
+}
+
+/**
+ * Loads an appointment only for a caller holding its key. A missing row and a wrong key are the
+ * same 404 on purpose: a distinct 403 would confirm that a guessed UUID exists.
+ */
+async function appointmentForKey(appointmentId: string, key: string | undefined) {
+  if (!key || !verifyTicketKey(`appt:${appointmentId}`, key)) throw Errors.notFound('Appointment not found');
+  const a = await one(
+    `select a.*, s.name as staff_name
+       from appointment a
+       left join staff s on s.id = a.staff_id
+      where a.id = $1`,
+    [appointmentId],
+  );
+  if (!a) throw Errors.notFound('Appointment not found');
+  return a;
+}
+
+/** Upcoming bookings for a phone at one store — today (store timezone) onward, soonest first. */
+export async function lookupAppointments(slug: string, input: { phone: string }) {
+  const b = await resolveBusiness(slug);
+  const phone = normalizePhone(input.phone);
+  const startOfToday = dayjs().tz(b.timezone).startOf('day').toISOString();
+  const rows = await many(
+    `select a.*, s.name as staff_name
+       from appointment a
+       left join staff s on s.id = a.staff_id
+      where a.business_id = $1
+        and a.customer_phone = $2
+        and a.status in ('pending', 'confirmed')
+        and a.scheduled_start_at >= $3
+      order by a.scheduled_start_at
+      limit 10`,
+    [b.id, phone, startOfToday],
+  );
+  return { appointments: rows.map(publicAppointment) };
+}
+
+export async function getPublicAppointment(appointmentId: string, key: string | undefined) {
+  return publicAppointment(await appointmentForKey(appointmentId, key));
+}
+
+export async function cancelPublicAppointment(appointmentId: string, key: string) {
+  const a = await appointmentForKey(appointmentId, key);
+  // One conditional statement, so a check-in (or owner cancel) racing this request cannot be
+  // overwritten: only a still-bookable, still-future appointment flips to cancelled.
+  const data = await one(
+    `update appointment set status = 'cancelled', updated_at = now()
+      where id = $1 and status in ('pending', 'confirmed') and scheduled_start_at > now()
+      returning *`,
+    [appointmentId],
+  );
+  if (!data) {
+    throw Errors.invalidState(
+      a.status === 'cancelled'
+        ? 'This appointment is already cancelled'
+        : "This appointment can't be cancelled any more",
+    );
+  }
+  emitToOwners(data.business_id, 'appointment:updated', { appointment: apptDTO(data) });
+  return publicAppointment({ ...data, staff_name: a.staff_name });
 }
 
 // Build the public Ticket DTO from a queue_entry row. `withSocket` adds the /customer
@@ -680,6 +806,11 @@ async function ticketDetailFromEntry(entry: any, withSocket = false) {
 // The single source of truth for "does this phone hold a live ticket TODAY". Used by both
 // the join dedup and the Track-my-turn lookup so the day boundary is defined in one place.
 // Phone is normalized the same way joinQueue stores it, and token_day is the business-tz date.
+//
+// Returned WITHOUT the ticket key. Both callers are answered to anyone who types a phone number,
+// and the key is what authorises leaving the queue and joining the live ticket room — handing it
+// out here is how QA removed a stranger from the waitlist knowing only their number. The browser
+// that actually joined already holds the key from its own join response.
 async function findActiveTicketByPhone(business: any, rawPhone: string) {
   const phone = normalizePhone(rawPhone);
   const today = dayjs().tz(business.timezone).format('YYYY-MM-DD');
@@ -694,7 +825,7 @@ async function findActiveTicketByPhone(business: any, rawPhone: string) {
     [business.id, phone, today],
   );
   if (!entry) return null;
-  return ticketDetailFromEntry(entry, true);
+  return ticketDetailFromEntry(entry, false);
 }
 
 export async function getTicket(ticketId: string) {
@@ -703,21 +834,14 @@ export async function getTicket(ticketId: string) {
   return ticketDetailFromEntry(entry);
 }
 
-// Track my turn: look up the caller's active ticket for today by phone. This lets a
-// customer on a different browser/device (with no local resume record) find their place.
-// NOTE: with demo OTP this is verified client-side only, so the endpoint is effectively
-// unauthenticated (phone -> ticket). When real OTP lands, gate this behind a verified code.
+// Track my turn: look up the active ticket for today by phone, so a customer on another
+// browser/device can SEE their place. Nothing verifies that the caller owns the number (there is
+// no OTP), so the answer carries position only — no customer name and no ticket key. Leaving the
+// queue needs the key, which only the browser that joined holds.
 export async function trackByPhone(slug: string, input: { phone: string }) {
   const b = await resolveBusiness(slug);
   const ticket = await findActiveTicketByPhone(b, input.phone);
-  // Return the caller's known name (if this phone is a past customer) so a follow-on Join can
-  // pre-fill it. Read-only; the endpoint is OTP-gated so returning the caller's own name is ok.
-  const cust = await one('select name from customer where business_id = $1 and phone = $2', [
-    b.id,
-    normalizePhone(input.phone),
-  ]);
-  const customerName = cust?.name ?? null;
-  return ticket ? { found: true, customerName, ...ticket } : { found: false, customerName };
+  return ticket ? { found: true, ...ticket } : { found: false };
 }
 
 export async function submitInquiry(input: { businessName: string; address: string; phone: string }) {
@@ -731,7 +855,13 @@ export async function submitInquiry(input: { businessName: string; address: stri
   return { id: data.id, submittedAt: data.created_at };
 }
 
-export async function leaveTicket(ticketId: string) {
+/**
+ * Leave the queue — only for the holder of the ticket key (the browser that joined). A missing or
+ * wrong key is the same 404 as an unknown ticket, so ids cannot be probed. Before this check,
+ * anyone who looked a number up could cancel that person's place (QA, 30 Sep 2026).
+ */
+export async function leaveTicket(ticketId: string, key: string | undefined) {
+  if (!key || !verifyTicketKey(ticketId, key)) throw Errors.notFound('Ticket not found');
   const entry = await one('select business_id, status from queue_entry where id = $1', [ticketId]);
   if (!entry) throw Errors.notFound('Ticket not found');
   if (entry.status !== 'waiting') {

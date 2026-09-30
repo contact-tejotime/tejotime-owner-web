@@ -27,7 +27,14 @@ different set of facts.
 |---|---|
 | A chat launcher on the microsite (`MicrositeClient`), marketing homepage, and owner portal (`owner-web`) | On the admin panel, the mobile app, or WhatsApp |
 | Answers from `business.faqs` + public store facts (hours, open/closed, address, phone, services and prices, team, live wait) | A source of anything not on the page — it must not invent prices, hours, services or policies |
-| Suggests the page's own buttons: **Join the Waitlist**, **Book an Appointment**, **Check Waitlist Status**, **Call**, **See FAQs** | An actor — it never joins a queue, books a slot, checks anyone out, or calls any mutating API |
+| Suggests the page's own buttons: **Join the Waitlist**, **Book an Appointment**, **Check Waitlist Status**, **Call**, **See FAQs** | An actor — the **answer bot** never joins a queue, books a slot, checks anyone out, or calls any mutating API |
+
+> **Since 2026-09-30 the store chat can check in, book, show waitlist status, leave, and cancel a
+> booking.** The answer bot described here is still read-only. The actions run through a
+> deterministic state machine on the page that calls the pop-up's own code; the answer bot's
+> output never triggers them. On the microsite, the Join / Book / Track suggestions now start
+> that in-chat flow instead of opening the pop-up. See
+> [customer-chatbot-booking.md](customer-chatbot-booking.md).
 | Stateless: the client sends its last few turns with each message | Persisted: no table, no session store, nothing keyed on `sessionId` |
 | Hidden until an operator turns the platform flag on | A per-store setting (v1 has one flag for the whole platform) |
 
