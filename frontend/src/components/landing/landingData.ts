@@ -62,7 +62,7 @@ export const industries = INDUSTRY_SLUGS.map((slug, n) => {
   const i = t.landingData.industries[n];
   return {
     slug,
-    href: `/industries/${slug}`,
+    href: `/${slug}`,
     name: i.name,
     detail: i.detail,
     n: String(n + 1).padStart(2, "0"),
@@ -74,7 +74,7 @@ export const industryPages = INDUSTRY_SLUGS.map((slug) => {
   const page = t.landingData.industryPages[slug];
   return {
     slug,
-    href: `/industries/${slug}`,
+    href: `/${slug}`,
     image: INDUSTRY_IMAGES[slug],
     ...page,
   };

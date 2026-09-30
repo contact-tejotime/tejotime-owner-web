@@ -588,6 +588,9 @@ guide. **Shipped** in `bc0b482`:
   photography and testimonials exist.
 - New routes: `/industries/[slug]` (9 industry pages), `/resources`, `/terms`, `/accessibility`;
   `/privacy` rewritten.
+- 2026-09-30: industry pages now live at the root (`/barbershops`, …) via a `next.config.ts`
+  rewrite onto `app/industries/[slug]/`; old `/industries/<slug>` URLs 308 to the new ones.
+  See `architecture.md` §7.
 
 ### The customer booking page (microsite) copy + correctness pass
 
