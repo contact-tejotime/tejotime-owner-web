@@ -912,7 +912,9 @@
       "shortestWaitNow": "Shortest wait now",
       "walkInsClosed": "Walk-ins closed",
       "teamAvailableOne": "Team member available",
-      "teamAvailableMany": "Team members available"
+      "teamAvailableMany": "Team members available",
+      "teamOne": "Team member",
+      "teamMany": "Team members"
     },
     "nav": {
       "bookATime": "Book an Appointment",
@@ -1697,5 +1699,14 @@
         "bullets": []
       }
     ]
+  },
+  "appBadges": {
+    "heading": "Get the TejoTime app",
+    "appStorePre": "Download on the",
+    "appStore": "App Store",
+    "appStoreLabel": "Download TejoTime on the App Store",
+    "playPre": "Get it on",
+    "play": "Google Play",
+    "playLabel": "Get TejoTime on Google Play"
   }
 }

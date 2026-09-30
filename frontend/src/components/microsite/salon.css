@@ -295,6 +295,9 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
 }
+/* An odd count (a closed store drops the wait tile, leaving three) would strand the last card
+   alone in the left column; let it take the full row instead. */
+.ttStatGrid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
 .ttStatCard {
   padding: 26px;
   background: var(--surface-card);
@@ -407,6 +410,7 @@
   .ttServiceGrid { grid-template-columns: repeat(2, 1fr); }
   .ttLiveGrid   { grid-template-columns: repeat(auto-fit, minmax(268px, 1fr)); }
   .ttStatGrid   { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .ttStatGrid > :last-child:nth-child(odd) { grid-column: auto; }
   .ttReviewGrid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
   .ttMosaic     { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); grid-auto-rows: 220px; }
   /* The 2x2 feature frame only earns its space once there is a row to balance it. */

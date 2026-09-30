@@ -363,7 +363,21 @@ function QueueWaitSummary({
       {/* When the floor is clear the big "0 est wait" already says it — the old pink
           "No wait right now" pill was the same sentence twice. Keep the pill only when it
           adds an ETA the headline does not already show. */}
-      {!isClear && waitHeadline ? (
+      {/* Closed with nobody queued: "Opens tomorrow at 9:00 AM" is a sentence, not an ETA, so it
+          sits as plain centred text under "Closed". The bordered ttWaitEstimate pill made it look
+          like an input field. */}
+      {walkInsClosed && liveCount === 0 && waitHeadline ? (
+        <div
+          style={{
+            marginTop: 6,
+            textAlign: "center",
+            font: "var(--fw-semibold) clamp(16px, 4vw, 18px)/1.35 var(--font-sans)",
+            color: "var(--text-body)",
+          }}
+        >
+          {waitHeadline}
+        </div>
+      ) : !isClear && waitHeadline ? (
         <div
           className="ttWaitEstimate"
           style={{
@@ -1444,7 +1458,8 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     reviewCount > 0
       ? { icon: "star" as const, value: rating.toFixed(1), label: format(t.microsite.ticker.reviewsLabel, { count: reviewCount }) }
       : null,
-    {
+    // Closed, the wait tile is left out rather than reading "Closed" a fourth time.
+    walkInsClosed ? null : {
       icon: "hourglass" as const,
       value: waitHeadline,
       label: walkInsClosed
@@ -1457,7 +1472,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       ? {
           icon: "users" as const,
           value: String(members.length),
-          label: plural(members.length, t.microsite.ticker.teamAvailableOne, t.microsite.ticker.teamAvailableMany),
+          label: walkInsClosed
+            ? plural(members.length, t.microsite.ticker.teamOne, t.microsite.ticker.teamMany)
+            : plural(members.length, t.microsite.ticker.teamAvailableOne, t.microsite.ticker.teamAvailableMany),
         }
       : null,
   ].filter(Boolean) as { icon: "calendar" | "star" | "hourglass" | "users"; value: string; label: string }[];
@@ -1577,10 +1594,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         {walkInsClosed ? (
           <>
             <Button size="lg" fullWidth onClick={openBook}>{t.microsite.hero.bookSlot}</Button>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 9, font: "var(--fw-medium) 12.5px/1.4 var(--font-sans)", color: "var(--text-muted)" }}>
-              <span style={{ display: "flex", flexShrink: 0, marginTop: 1 }}><Icon name="clock" size={14} /></span>
-              <span>{t.microsite.wait.walkInsClosed}</span>
-            </div>
           </>
         ) : (
           <>
@@ -1690,6 +1703,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         {/* --- hero body --- */}
         <div style={{ maxWidth: 1320, margin: "0 auto", padding: "12px clamp(18px, 4vw, 30px) clamp(28px, 6vw, 72px)", display: "flex", flexWrap: "wrap", gap: "clamp(22px, 4vw, 44px)", alignItems: "center" }}>
           <div style={{ flex: "1.05 1 300px", minWidth: 300 }}>
+            {/* Closed, the pill is dropped: the "Right now" card directly below already says Closed
+                and when the store reopens, and the page used to repeat that five times over. */}
+            {!walkInsClosed && (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 11, borderRadius: 999, padding: "9px 18px 9px 14px", background: "var(--surface-card)", border: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-sm)" }}>
               <span style={{ position: "relative", width: 8, height: 8, flexShrink: 0 }}>
                 <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: site.openStatus.isOpen ? "var(--success)" : "var(--text-subtle)" }} />
@@ -1697,8 +1713,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               </span>
               <span style={{ font: "var(--fw-bold) 12.5px/1 var(--font-sans)", letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-strong)" }}>{site.openStatus.label}</span>
             </div>
+            )}
 
-            <h1 style={{ font: "var(--fw-extrabold) clamp(32px, 5.9vw, 100px)/0.96 var(--font-display, var(--font-sans))", letterSpacing: "-.045em", color: "var(--text-strong)", margin: "22px 0 0", overflowWrap: "break-word", textWrap: "balance" }}>
+            <h1 style={{ font: "var(--fw-extrabold) clamp(32px, 5.9vw, 100px)/0.96 var(--font-display, var(--font-sans))", letterSpacing: "-.045em", color: "var(--text-strong)", margin: walkInsClosed ? 0 : "22px 0 0", overflowWrap: "break-word", textWrap: "balance" }}>
               {site.tagline ?? site.name}
             </h1>
 

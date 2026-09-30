@@ -1132,5 +1132,14 @@
     "errUnavailable": "Couldn’t reach the help assistant. Please try again, or email support@tejotime.com.",
     "errRateLimited": "Too many messages for now — please wait a few minutes and try again.",
     "disclaimer": "AI/help answers may be imperfect. Email or call support for account help."
+  },
+  "appBadges": {
+    "heading": "Get the TejoTime app",
+    "appStorePre": "Download on the",
+    "appStore": "App Store",
+    "appStoreLabel": "Download TejoTime on the App Store",
+    "playPre": "Get it on",
+    "play": "Google Play",
+    "playLabel": "Get TejoTime on Google Play"
   }
 }
