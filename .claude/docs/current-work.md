@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-09-28 · branch `feat-jay`.
+**Last updated:** 2026-09-30 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,51 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Store chat: check in, book, status, leave, cancel (2026-09-30)
+
+The microsite help chat can now **act**: check in, book an appointment, show waitlist status,
+leave the waitlist, use a different number, and list or cancel "my appointments". It asks one
+question at a time with option buttons. Full design, scenario matrix and server rules:
+[docs/customer-chatbot-booking.md](../../docs/customer-chatbot-booking.md).
+
+- **How it acts.** A page-side state machine (`frontend/src/components/chat/flow/engine.ts`)
+  runs through the **pop-up's own** `submitJoin` / `submitBook` / `trackPhone` / `leaveHeld`. The
+  answer bot (`/chat`) is still read-only.
+- **Backend.** Booking returns `appointmentKey`; three public endpoints for lookup by phone,
+  read with key and cancel with key.
+- **Manual QA (30 Sep 2026, browser + API on the preprod demo store):** 113 checks passed, 25 failed.
+  The 6 P1s are fixed (below); the P2/P3 list is still open — notably: a question typed at the
+  name step is saved as the name; a mistyped 9-digit number is accepted as a foreign (+98) number;
+  "check me in" is not recognised; two same-second check-ins of one phone make two tickets; typed
+  "yes" sent several times in one instant can double-submit; after "didn't catch that" no option is
+  tappable; the removed-stylist message says "Stylist" not the name; booking errors say "help
+  assistant"; the walk-in block never expires; owner check-in has no time window.
+- **P1 fixes (same day):**
+  - **Server is the judge of bookability.** `lib/booking-slots.ts` `computeSlots` serves `/slots`
+    and is re-run by `POST /appointments` inside a per-store advisory lock: taken / overlapping /
+    past / closed / out-of-hours / off-grid / beyond `BOOKING_WINDOW_DAYS` → 409
+    `SLOT_UNAVAILABLE`; foreign or malformed stylist → 400; no orphan customer on rejection.
+    Overlap-aware capacity also fixes "No preference hides a time when one stylist is booked".
+  - **Leaving needs the ticket key** (`X-Ticket-Key`); `/track` and duplicate joins no longer return
+    the key or the customer's name.
+  - **Chat:** "yes" to "Shall we carry on?" re-shows the step, never confirms; a blocked number can
+    book (block = walk-in line only; pop-up too); 409 `SLOT_UNAVAILABLE` → fresh times.
+- **Website changes.** A held walk-in ticket and the walk-in block no longer stop the pop-up's Book;
+  the pop-up hides Leave for a place found by phone lookup.
+- **A2P.** Chat is a second opt-in path with the identical disclosure. Update `message_flow` and
+  the screenshot before resubmitting the campaign.
+- **Verified (after the fixes):**
+  - backend `npm test`: 27 files, 356/356 (new: `booking-slots` 14, `public-booking-guards` 14).
+  - `npm run test:chat-flow`: 158/158. Frontend `tsc` + lint clean.
+  - E2E against the local API on the preprod demo store (test rows deleted afterwards):
+    `smoke-booking-guards.mjs` 14/14, `smoke-selfservice.mjs` 25/25.
+  - Browser re-run of the P1 cases (same-second double booking, "yes" after a topic change,
+    stranger leaving a place, blocked number booking) + spot checks: 10/10.
+- **Not run:** `next build` after the fixes (the frontend dev server was running in the same folder);
+  `smoke-rest.mjs` (needs the seeded `sharp-cuts` tenant — its two leave calls now send the key).
+- **Owner surfaces:** nothing needed (customer-only feature); owner apps already handle
+  `appointment:updated`.
 
 ### App Store / Google Play badges (2026-09-29)
 

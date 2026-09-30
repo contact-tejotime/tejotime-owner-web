@@ -23,6 +23,15 @@ below and resubmit; do not create a second one.
 Owner-web and Expo are **not** an opt-in path. `message_flow` is website-only. Owner walk-ins
 and owner-created appointments default both flags to `false` and are never texted.
 
+**Second website opt-in path: the store chat (2026-09-30).** Checking in or booking from the
+microsite's help chat ([customer-chatbot-booking.md](customer-chatbot-booking.md)) has an SMS
+step. It shows **the same disclosure word for word** (`microsite.join.consentOptIn`), with the
+Privacy and SMS Terms links, as body-size text. Nothing is pre-selected: the customer must tap
+[Yes, text me] or [No thanks]. The answer is not tied to Confirm, and it sets both flags exactly
+as the box does. Before resubmitting the campaign, mention in `message_flow` that consent may also
+be collected in the on-page chat with identical wording, and add a chat screenshot next to the
+checkbox one.
+
 ## Product rule
 
 Phone stays required so the shop can identify the visit. There is **one** consent box, on both

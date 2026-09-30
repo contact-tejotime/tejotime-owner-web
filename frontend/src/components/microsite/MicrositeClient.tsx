@@ -22,6 +22,18 @@ import { GalleryMosaic, LiveBoard, ReviewsBlock, Section, ServiceList, StatCards
 import "./salon.css";
 import { SocialLinks } from "./SocialLinks";
 import ChatWidget, { storeChatTitle } from "@/components/chat/ChatWidget";
+import { BlockedError, useChatFlow, type FlowAdapter } from "@/components/chat/flow/useChatFlow";
+import type { ApptView, Card, Draft, FlowCtx } from "@/components/chat/flow/engine";
+import { maskPhone, parseTypedPhone } from "@/components/chat/flow/phone";
+import {
+  AppointmentCard,
+  ConsentCard,
+  ServicesCard,
+  SlotsCard,
+  StaffCard,
+  SummaryCard,
+  TicketCard,
+} from "@/components/chat/flow/FlowCards";
 import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton";
 
 /**
@@ -44,6 +56,8 @@ const DAYS = t.microsite.days;
  * customers actually ask for — without turning the day strip into an endless scroll.
  */
 const BOOKING_DAYS_AHEAD = 14;
+/** Mirrors backend MAX_SERVICES_PER_VISIT (config/constants.ts) — the API rejects more. */
+const MAX_SERVICES_PER_VISIT = 10;
 /** Characters of the store name the header shows before cutting it with an ellipsis. */
 const HEADER_NAME_MAX = 30;
 
@@ -89,14 +103,32 @@ interface HeldRecord {
   businessId: string;
   token: string;
 }
+/**
+ * A booking this browser made. `key` is the appointmentKey the API handed back — the only thing
+ * that lets anyone read or cancel it without calling the store (docs/customer-chatbot-booking.md).
+ */
+interface SavedAppointment {
+  id: string;
+  key: string;
+  phone: string;
+  scheduledStartAt: string;
+  serviceName: string | null;
+  staffName: string | null;
+}
 interface Store {
   hold: HeldRecord | null;
   attempts: Record<string, number>;
   blocked: Record<string, boolean>;
   lastPhone: string;
   lastName: string;
+  appointments: SavedAppointment[];
 }
-const defaultStore = (): Store => ({ hold: null, attempts: {}, blocked: {}, lastPhone: "", lastName: "" });
+const defaultStore = (): Store => ({ hold: null, attempts: {}, blocked: {}, lastPhone: "", lastName: "", appointments: [] });
+/** A booking stays listed until a few hours after its start — long enough to show "Checked in". */
+const APPOINTMENT_KEEP_MS = 6 * 60 * 60 * 1000;
+// `now` defaults here, at module level: every caller runs from an event, never during render.
+const upcomingAppointments = (list: SavedAppointment[] | undefined, now: number = Date.now()) =>
+  (Array.isArray(list) ? list : []).filter((a) => a && a.key && Date.parse(a.scheduledStartAt) > now - APPOINTMENT_KEEP_MS);
 function readStore(key: string): Store {
   if (typeof window === "undefined") return defaultStore();
   try {
@@ -111,6 +143,20 @@ function writeStore(key: string, s: Store) {
     localStorage.setItem(key, JSON.stringify(s));
   } catch {
     /* ignore */
+  }
+}
+
+/**
+ * A booked time in the STORE's clock — the zone its slot labels and hours are in — not the
+ * viewer's. For a store in another zone (a Phoenix store viewed from India) the viewer's clock
+ * shows a different time from the one the customer just picked. Falls back to the viewer's zone
+ * when the payload has no timezone (older backend) or an invalid one.
+ */
+function formatInStoreZone(iso: string, tz: string | undefined, opts: Intl.DateTimeFormatOptions): string {
+  try {
+    return new Date(iso).toLocaleString(undefined, tz ? { ...opts, timeZone: tz } : opts);
+  } catch {
+    return new Date(iso).toLocaleString(undefined, opts);
   }
 }
 
@@ -538,6 +584,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // to the server value — no hydration mismatch); then updated every 15s while a ticket is active.
   const [nowTs, setNowTs] = useState<number | null>(null);
 
+  const [etaNotice, setEtaNotice] = useState<{ min: number; at: number } | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [leftMsg, setLeftMsg] = useState("");
   const [held, setHeld] = useState<HeldRecord | null>(null);
@@ -656,6 +703,11 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       setJustTurn(false);
       stopTicketPoll();
       clearHold();
+    });
+    // One-shot per ticket, server-side (notified_eta_15_at). The page had no listener; the chat
+    // now turns it into "about 15 min until your turn".
+    s.on("ticket:eta_15", (d: { waitMinutes?: number }) => {
+      setEtaNotice({ min: typeof d.waitMinutes === "number" ? d.waitMinutes : 15, at: Date.now() });
     });
   };
 
@@ -917,13 +969,17 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setFormError("");
     const store = storeRef.current;
     const lp = store.lastPhone;
-    if (lp && store.blocked[lp]) {
+    // The walk-in block (join → leave, repeatedly) guards the LINE only — booking stays open.
+    if (m === "queue" && lp && store.blocked[lp]) {
       seedPhone(lp);
       setView("blocked");
       setJoinOpen(true);
       return;
     }
-    if (held) {
+    // One live place per number applies to the WALK-IN line only. A ticket for today used to block
+    // Book as well, which left someone already waiting unable to book next week's visit — the two
+    // are unrelated, and the chat's Book allows it too (docs/customer-chatbot-booking.md).
+    if (held && m === "queue") {
       seedPhone(held.phone);
       setName(held.name);
       setView("already");
@@ -940,9 +996,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setName(store.lastName || "");
     seedPhone(lp || "");
     setMember(preselectMember);
-    setTicket(null);
+    // Booking while holding a walk-in ticket must not wipe that ticket's live state — the resume
+    // pill and the chat's ticket card both read it.
+    if (!held) {
+      setTicket(null);
+      setJustTurn(false);
+    }
     setBooking(null);
-    setJustTurn(false);
     setSlots([]);
     setSelectedSlot(null);
     setSmsOptIn(false);
@@ -994,6 +1054,42 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setView("track");
     setJoinOpen(true);
   };
+  /**
+   * Adopt a live ticket as this browser's hold: page state, the localStorage record (so a reload
+   * restores it), the ticket socket room and the poll. The one place a ticket becomes "held" —
+   * after a join, and after a phone lookup finds one — shared by the pop-up and the chat.
+   */
+  const holdTicket = (tk: Ticket, p: string, holderName: string) => {
+    setTicket(tk);
+    setInitialAhead(tk.ahead);
+    setJustTurn(!!tk.isYourTurn);
+    const store = storeRef.current;
+    store.hold = {
+      phone: p,
+      name: holderName,
+      ticketId: tk.ticketId,
+      ticketKey: tk.socket?.ticketKey ?? "",
+      businessId: tk.socket?.businessId ?? site.id,
+      token: tk.token,
+    };
+    writeStore(storeKey, store);
+    setHeld(store.hold);
+    if (tk.socket) openSocket({ businessId: tk.socket.businessId, ticketId: tk.ticketId, ticketKey: tk.socket.ticketKey });
+    startTicketPoll(tk.ticketId);
+  };
+  /** Waitlist status by phone (pop-up Track + chat "My waitlist status"). Throws ApiError. */
+  const trackPhone = async (p: string, fallbackName: string) => {
+    const r = await publicApi.trackByPhone(site.slug, { phone: p });
+    const store = storeRef.current;
+    store.lastPhone = p;
+    const knownName = r.customerName ?? "";
+    setTrackedName(knownName);
+    if (knownName) store.lastName = knownName;
+    // Persist the hold so THIS browser now also restores on reload.
+    if (r.found) holdTicket(r, p, store.lastName || fallbackName);
+    else writeStore(storeKey, store);
+    return r;
+  };
   // Track lookup: enter phone → show the live slot, or the "not found" screen (tstep 3).
   const runTrack = async () => {
     if (phone.replace(/\D/g, "").length < 4) {
@@ -1004,35 +1100,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setSubmitting(true);
     setFormError("");
     try {
-      const r = await publicApi.trackByPhone(site.slug, { phone: p });
-      const store = storeRef.current;
-      store.lastPhone = p;
-      const knownName = r.customerName ?? "";
-      setTrackedName(knownName);
-      if (knownName) store.lastName = knownName;
-      if (r.found) {
-        const t: Ticket = r;
-        setTicket(t);
-        setInitialAhead(t.ahead);
-        setJustTurn(!!t.isYourTurn);
-        // Persist the hold so THIS browser now also restores on reload.
-        store.hold = {
-          phone: p,
-          name: store.lastName || name.trim(),
-          ticketId: t.ticketId,
-          ticketKey: t.socket?.ticketKey ?? "",
-          businessId: t.socket?.businessId ?? site.id,
-          token: t.token,
-        };
-        writeStore(storeKey, store);
-        setHeld(store.hold);
-        if (t.socket) openSocket({ businessId: t.socket.businessId, ticketId: t.ticketId, ticketKey: t.socket.ticketKey });
-        startTicketPoll(t.ticketId);
-        setView("already");
-      } else {
-        writeStore(storeKey, store);
-        setTstep(3);
-      }
+      const r = await trackPhone(p, name.trim());
+      if (r.found) setView("already");
+      else setTstep(3);
     } catch (e) {
       setFormError((e as Error)?.message ?? t.microsite.join.errGeneric);
     } finally {
@@ -1148,78 +1218,116 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // Step 2 -> perform the join/book directly (no verification gate).
   const confirmJoin = () => {
     if (detailsInvalid()) return;
-    if (blockGuard(phone.trim())) return;
+    if (mode === "queue" && blockGuard(phone.trim())) return;
     performJoinOrBook();
   };
 
-  // Perform the REAL join/book — the single place that talks to the join/book API.
+  /** Record a number as locally blocked (the "too many attempts" view / chat message). */
+  const markBlocked = (p: string) => {
+    const store = storeRef.current;
+    store.blocked[p] = true;
+    store.lastPhone = p;
+    writeStore(storeKey, store);
+  };
+  /** Same rule blockGuard applies, without touching the pop-up's view — the chat asks this too. */
+  const isPhoneBlocked = (p: string) => {
+    const store = storeRef.current;
+    return !!store.blocked[p] || (store.attempts[p] || 0) >= BLOCK_AT;
+  };
+
+  interface VisitInput {
+    serviceIds: string[];
+    name: string;
+    phone: string;
+    member: string;
+    visitorType: "mr" | "patient" | null | undefined;
+    smsOptIn: boolean;
+  }
+  /**
+   * The single place that joins the walk-in queue — the pop-up and the chat both call it, so the
+   * hold, the abuse counter and the ticket socket cannot differ between them. Throws ApiError.
+   */
+  const submitJoin = async (v: VisitInput): Promise<Ticket> => {
+    const tk = await publicApi.joinQueue(site.slug, {
+      serviceIds: v.serviceIds.length ? v.serviceIds : undefined,
+      name: v.name,
+      phone: v.phone,
+      preferredStaffId: v.member,
+      visitorType: v.visitorType ?? undefined,
+      // A walk-in only ever gets the review text, but both flags record what was agreed to.
+      smsOptIn: v.smsOptIn,
+      reviewSmsOptIn: v.smsOptIn,
+    });
+    const store = storeRef.current;
+    store.lastPhone = v.phone;
+    store.lastName = v.name;
+    // Only count a genuinely new join toward the abuse counter — a day-scoped dedup hit
+    // (the phone was already in today's queue) is a no-op, not a fresh join.
+    if (!tk.alreadyInQueue) store.attempts[v.phone] = (store.attempts[v.phone] || 0) + 1;
+    holdTicket(tk, v.phone, v.name);
+    return tk;
+  };
+  /** The single place that books a slot (pop-up + chat). Keeps the key that allows self-cancel. */
+  const submitBook = async (v: VisitInput & { slotStart: string }) => {
+    const b = await publicApi.bookSlot(site.slug, {
+      serviceIds: v.serviceIds.length ? v.serviceIds : undefined,
+      name: v.name,
+      phone: v.phone,
+      preferredStaffId: v.member,
+      slotStart: v.slotStart,
+      visitorType: v.visitorType ?? undefined,
+      smsOptIn: v.smsOptIn,
+      reviewSmsOptIn: v.smsOptIn,
+    });
+    const store = storeRef.current;
+    store.lastPhone = v.phone;
+    store.lastName = v.name;
+    if (b.appointmentKey) {
+      store.appointments = [
+        ...upcomingAppointments(store.appointments).filter((a) => a.id !== b.appointmentId),
+        {
+          id: b.appointmentId,
+          key: b.appointmentKey,
+          phone: v.phone,
+          scheduledStartAt: b.scheduledStartAt,
+          serviceName: b.serviceName,
+          staffName: b.staffName,
+        },
+      ];
+    }
+    writeStore(storeKey, store);
+    return b;
+  };
+
+  // Perform the REAL join/book from the pop-up.
   const performJoinOrBook = async () => {
     if (services.length > 0 && cart.length === 0) return;
     const p = phone.trim();
+    const visit: VisitInput = { serviceIds: cart, name: name.trim(), phone: p, member, visitorType, smsOptIn };
     setSubmitting(true);
     setFormError("");
     try {
       if (mode === "queue") {
-        const t = await publicApi.joinQueue(site.slug, {
-          serviceIds: cart.length ? cart : undefined,
-          name: name.trim(),
-          phone: p,
-          preferredStaffId: member,
-          visitorType: visitorType ?? undefined,
-          // A walk-in only ever gets the review text, but both flags record what was agreed to.
-          smsOptIn,
-          reviewSmsOptIn: smsOptIn,
-        });
-        setTicket(t);
-        setInitialAhead(t.ahead);
-        setJustTurn(!!t.isYourTurn);
-        const store = storeRef.current;
-        store.hold = {
-          phone: p,
-          name: name.trim(),
-          ticketId: t.ticketId,
-          ticketKey: t.socket?.ticketKey ?? "",
-          businessId: t.socket?.businessId ?? site.id,
-          token: t.token,
-        };
-        store.lastPhone = p;
-        store.lastName = name.trim();
-        // Only count a genuinely new join toward the abuse counter — a day-scoped dedup hit
-        // (the phone was already in today's queue) is a no-op, not a fresh join.
-        if (!t.alreadyInQueue) store.attempts[p] = (store.attempts[p] || 0) + 1;
-        writeStore(storeKey, store);
-        setHeld(store.hold);
-        if (t.socket) openSocket({ businessId: t.socket.businessId, ticketId: t.ticketId, ticketKey: t.socket.ticketKey });
-        startTicketPoll(t.ticketId);
+        const tk = await submitJoin(visit);
         // Backend found this phone already holds a live ticket today → show it, don't dupe.
-        if (t.alreadyInQueue) setView("already");
+        if (tk.alreadyInQueue) setView("already");
         else setScreen("success");
       } else {
-        const b = await publicApi.bookSlot(site.slug, {
-          serviceIds: cart.length ? cart : undefined,
-          name: name.trim(),
-          phone: p,
-          preferredStaffId: member,
-          slotStart: selectedSlot!,
-          visitorType: visitorType ?? undefined,
-          smsOptIn,
-          reviewSmsOptIn: smsOptIn,
-        });
+        const b = await submitBook({ ...visit, slotStart: selectedSlot! });
         setBooking({ serviceName: b.serviceName, scheduledStartAt: b.scheduledStartAt });
-        const store = storeRef.current;
-        store.lastPhone = p;
-        store.lastName = name.trim();
-        writeStore(storeKey, store);
         setScreen("success");
       }
     } catch (e) {
-      if (e instanceof ApiError && e.code === "RATE_LIMITED") {
-        const store = storeRef.current;
-        store.blocked[p] = true;
-        store.lastPhone = p;
-        writeStore(storeKey, store);
+      if (e instanceof ApiError && e.code === "RATE_LIMITED" && mode === "queue") {
+        markBlocked(p);
         setView("blocked");
+      } else if (e instanceof ApiError && e.code === "SLOT_UNAVAILABLE") {
+        // Someone else took the time (the server re-checks it under a lock) — say so and show
+        // the day's fresh times instead of leaving a stale grid on screen.
+        setFormError(e.message);
+        fetchSlots(cart, bookDate, member);
       } else {
+        // A booking 429 is a busy network, not the walk-in abuse block — never block the number.
         const msg = (e as Error)?.message ?? t.microsite.join.errGeneric;
         setFormError(msg);
       }
@@ -1230,22 +1338,41 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // ---- leave / rejoin ----
   const askLeave = () => setConfirmLeave(true);
   const cancelLeave = () => setConfirmLeave(false);
+  /** Drop the hold after leaving: record, live state, the ticket socket room and its poll. */
+  const releaseHold = () => {
+    const store = storeRef.current;
+    store.hold = null;
+    writeStore(storeKey, store);
+    setHeld(null);
+    stopTicketPoll();
+    openSocket({ businessId: site.id });
+    setTicket(null);
+  };
+  /**
+   * Leave from the chat. Unlike the pop-up (which releases the hold whatever the API says), a
+   * refusal is surfaced and the hold KEPT: a 409 means the owner has just started the service,
+   * and the customer is still very much in the chair.
+   */
+  const leaveHeld = async () => {
+    const tid = held?.ticketId ?? ticket?.ticketId;
+    if (!tid) return;
+    // Only the browser that joined holds the key; a place found by phone lookup can't be left.
+    if (!held?.ticketKey) throw new ApiError(404, "NO_TICKET_KEY", t.chat.flow.leaveOtherDevice);
+    await publicApi.leaveTicket(tid, held.ticketKey);
+    releaseHold();
+  };
   const confirmLeaveQueue = async () => {
     const store = storeRef.current;
     const p = (phone || store.lastPhone).trim();
     const tid = held?.ticketId ?? ticket?.ticketId;
     if (tid) {
       try {
-        await publicApi.leaveTicket(tid);
+        await publicApi.leaveTicket(tid, held?.ticketKey ?? "");
       } catch {
         /* ignore */
       }
     }
-    store.hold = null;
-    writeStore(storeKey, store);
-    setHeld(null);
-    stopTicketPoll();
-    openSocket({ businessId: site.id });
+    releaseHold();
     const many = (store.attempts[p] || 0) >= BLOCK_AT;
     setLeftMsg(
       many
@@ -1346,6 +1473,221 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         : format(t.microsite.wait.aheadWithWait, { count: resumeAhead, min: displayWait });
   // Owner has started this customer's service (waiting → in_service) — surface it live.
   const inService = ticket?.status === "in_service" || justTurn;
+
+  // ---- store chat: guided check-in / booking / status (docs/customer-chatbot-booking.md) ----
+  // The chat ACTS only through the functions above (submitJoin, submitBook, trackPhone,
+  // leaveHeld) — the same code the pop-up runs — so a chat check-in is indistinguishable from a
+  // pop-up one: same hold, same abuse counter, same socket, same resume pill.
+  const storeDial = site.countryCode || DEFAULT_DIAL_CODE;
+  const chatFormatWhen = (iso: string) =>
+    formatInStoreZone(iso, site.timezone, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  const chatDays = bookDays.map((d, i) => ({ ymd: d.ymd, label: i < 2 ? d.weekday : d.full, closed: d.closed }));
+  const liveTicketHeld = !!held && !!ticket && isActive(ticket.status);
+  // Called at every chat step (never during render), so the flow always sees the page as it is
+  // at that moment: live staff, the held ticket, open/closed, the remembered name and number.
+  const getChatCtx = (): Omit<FlowCtx, "now"> => ({
+    storeName: site.name,
+    isHospital,
+    services: services.map((s) => ({ id: s.id, name: s.name })),
+    staff: liveStaff.map((s) => ({ id: s.id, name: s.name })),
+    walkInsClosed,
+    nextOpenLabel,
+    waitMinutes: displayLiveWait,
+    days: chatDays,
+    held: liveTicketHeld && ticket ? { token: ticket.token, status: ticket.status, inService, canLeave: !!held?.ticketKey } : null,
+    lastName: storeRef.current.lastName,
+    lastPhone: storeRef.current.lastPhone,
+    savedApptCount: upcomingAppointments(storeRef.current.appointments).length,
+    hasPhone: !!phoneFull,
+    maxServices: MAX_SERVICES_PER_VISIT,
+    isBlocked: isPhoneBlocked,
+    normalizePhone: (raw) => parseTypedPhone(raw, storeDial),
+    maskPhone,
+    formatWhen: chatFormatWhen,
+  });
+  const toVisit = (d: Draft): VisitInput => ({
+    serviceIds: d.serviceIds,
+    name: d.name ?? "",
+    phone: d.phone ?? "",
+    member: d.staffId ?? "any",
+    visitorType: d.visitorType ?? null,
+    smsOptIn: d.sms === true,
+  });
+  /** The pop-up's blockGuard, for the chat: a locally blocked number never reaches the API. */
+  const guardChat = (p: string) => {
+    if (isPhoneBlocked(p)) {
+      markBlocked(p);
+      throw new BlockedError();
+    }
+  };
+  const chatAdapter: FlowAdapter = {
+    fetchSlots: async (date, serviceIds, staffId) =>
+      (
+        await publicApi.getSlots(site.slug, {
+          date,
+          serviceIds: serviceIds.length ? serviceIds : undefined,
+          staffId: staffId && staffId !== "any" ? staffId : undefined,
+        })
+      ).slots,
+    refreshStaffIds: async () => {
+      // Staff changes (a chair deactivated) emit no socket event, so re-read before confirming.
+      const r = await publicApi.getStaffAvailability(site.slug);
+      setLiveStaff(r.staff);
+      setStaffAsOf(new Date().toISOString());
+      return r.staff.map((s) => s.id);
+    },
+    join: async (d) => {
+      const v = toVisit(d);
+      guardChat(v.phone);
+      try {
+        const tk = await submitJoin(v);
+        return { alreadyInQueue: !!tk.alreadyInQueue };
+      } catch (e) {
+        if (e instanceof ApiError && e.code === "RATE_LIMITED") markBlocked(v.phone);
+        throw e;
+      }
+    },
+    // No walk-in block here, and a 429 never marks the number blocked: the block guards the
+    // walk-in line only (a blocked number used to be refused booking — QA / user report).
+    book: async (d) => {
+      const b = await submitBook({ ...toVisit(d), slotStart: d.slot?.startAt ?? "" });
+      return {
+        appointmentId: b.appointmentId,
+        serviceName: b.serviceName,
+        staffName: b.staffName,
+        scheduledStartAt: b.scheduledStartAt,
+        status: b.status,
+        canCancel: !!b.appointmentKey,
+      };
+    },
+    track: async (p) => {
+      const r = await trackPhone(p, "");
+      // A phone lookup never returns the ticket key, so a place found this way can be seen but not left.
+      return r.found ? { found: true, status: r.status, token: r.token, isYourTurn: r.isYourTurn, canLeave: !!r.socket?.ticketKey } : { found: false };
+    },
+    leave: leaveHeld,
+    refreshAppts: async () => {
+      const store = storeRef.current;
+      const saved = upcomingAppointments(store.appointments);
+      const views = await Promise.all(
+        saved.map(async (a): Promise<ApptView | null> => {
+          try {
+            return { ...(await publicApi.getAppointment(a.id, a.key)), canCancel: true };
+          } catch (e) {
+            // 404 = the key no longer opens it (deleted); forget it. Anything else is the network —
+            // show what we saved rather than hide a booking the customer knows they made.
+            if (e instanceof ApiError && e.status === 404) return null;
+            return {
+              appointmentId: a.id,
+              serviceName: a.serviceName,
+              staffName: a.staffName,
+              scheduledStartAt: a.scheduledStartAt,
+              status: "confirmed",
+              canCancel: true,
+            };
+          }
+        }),
+      );
+      const live = views.filter((v): v is ApptView => !!v);
+      const keep = new Set(live.map((v) => v.appointmentId));
+      store.appointments = saved.filter((a) => keep.has(a.id));
+      writeStore(storeKey, store);
+      return live.sort((x, y) => Date.parse(x.scheduledStartAt) - Date.parse(y.scheduledStartAt));
+    },
+    lookupAppts: async (p) => {
+      const r = await publicApi.lookupAppointments(site.slug, { phone: p });
+      const store = storeRef.current;
+      store.lastPhone = p;
+      writeStore(storeKey, store);
+      const mine = new Set(upcomingAppointments(store.appointments).map((a) => a.id));
+      return r.appointments.map((a) => ({ ...a, canCancel: mine.has(a.appointmentId) }));
+    },
+    cancelAppt: async (id) => {
+      const store = storeRef.current;
+      const saved = store.appointments.find((a) => a.id === id);
+      if (!saved) throw new ApiError(404, "NOT_FOUND", t.chat.flow.apptOtherDevice);
+      await publicApi.cancelAppointment(id, saved.key);
+      store.appointments = store.appointments.filter((a) => a.id !== id);
+      writeStore(storeKey, store);
+    },
+  };
+  const ticketStatus = ticket?.status ?? null;
+  const chatSignals = useMemo(() => ({ status: ticketStatus, justTurn, eta: etaNotice }), [ticketStatus, justTurn, etaNotice]);
+  const chatFlow = useChatFlow({ getCtx: getChatCtx, adapter: chatAdapter, signals: chatSignals });
+
+  /** Price total for a set of service ids — the pop-up's cartTotalLabel rule, for the chat summary. */
+  const totalFor = (ids: string[]) => {
+    const picked = ids.map((id) => services.find((x) => x.id === id)).filter((x): x is (typeof services)[number] => !!x);
+    if (picked.length === 0) return "";
+    if (picked.some((sv) => (sv.priceType ?? (sv.price.amount > 0 ? "fixed" : "unset")) === "unset")) return "";
+    const min = picked.reduce((n, sv) => n + sv.price.amount, 0);
+    const max = picked.reduce((n, sv) => n + (sv.priceMax?.amount ?? sv.price.amount), 0);
+    return max > min ? `${curSym}${Math.round(min / 100)}–${curSym}${Math.round(max / 100)}` : `${curSym}${Math.round(min / 100)}`;
+  };
+  const renderChatCard = (card: Card, choose: (id: string, value: unknown, label: string) => void, active: boolean): ReactNode => {
+    switch (card.type) {
+      case "services":
+        return <ServicesCard services={services} initial={card.selected} max={MAX_SERVICES_PER_VISIT} active={active} choose={choose} />;
+      case "staff":
+        return (
+          <StaffCard
+            staff={members.map((m) => ({ id: m.id, name: m.name, busy: m.busy, count: m.count, waitMin: m.waitMin }))}
+            kind={card.kind}
+            anyWaitMin={displayLiveWait}
+            active={active}
+            choose={choose}
+          />
+        );
+      case "slots":
+        return (
+          <SlotsCard
+            slots={chatFlow.state.step === "time" ? chatFlow.state.slots : []}
+            error={chatFlow.state.slotsError}
+            active={active}
+            choose={choose}
+          />
+        );
+      case "summary": {
+        const d = card.draft;
+        const staffName = d.staffId === undefined ? "" : d.staffId === "any" ? t.chat.flow.staffAny : members.find((m) => m.id === d.staffId)?.name ?? "";
+        const day = chatDays.find((x) => x.ymd === d.date)?.label ?? "";
+        return (
+          <SummaryCard
+            kind={card.kind}
+            draft={d}
+            serviceNames={d.serviceIds.map((id) => services.find((s) => s.id === id)?.name).filter(Boolean).join(" + ")}
+            staffName={staffName}
+            when={d.slot ? `${day} · ${d.slot.label}` : ""}
+            phone={d.phone ? maskPhone(d.phone) : ""}
+            total={totalFor(d.serviceIds)}
+            visitorLabel={d.visitorType === "mr" ? t.chat.flow.visitorMr : d.visitorType === "patient" ? t.chat.flow.visitorPatient : ""}
+          />
+        );
+      }
+      case "ticket":
+        return (
+          <TicketCard
+            token={ticket?.token ?? held?.token ?? null}
+            status={ticket?.status ?? null}
+            inService={inService}
+            ahead={resumeAhead}
+            waitLabel={
+              services.length === 0
+                ? ""
+                : displayWait <= 1
+                  ? t.microsite.wait.almostYourTurn
+                  : format(t.chat.flow.card.waitMin, { min: displayWait })
+            }
+            staffName={ticket?.staffName ?? null}
+            serviceName={ticket?.serviceName ?? null}
+          />
+        );
+      case "appointment":
+        return <AppointmentCard appt={card.appt} when={chatFormatWhen(card.appt.scheduledStartAt)} />;
+      case "consent":
+        return <ConsentCard storeName={site.name} />;
+    }
+  };
 
   // In-page jump links, shared by the desktop bar and the mobile dropdown so the
   // two never drift. Each is shown only when its section actually renders.
@@ -2028,11 +2370,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           send={(body) => publicApi.chat(site.slug, body)}
           title={storeChatTitle(site.name)}
           subtitle={t.chat.subtitle}
-          welcome={format(t.chat.welcome, { name: site.name })}
+          welcome={format(t.chat.flow.welcome, { name: site.name })}
           chips={[t.chat.chips.hours, t.chat.chips.walkIns, t.chat.chips.waitlist]}
+          disclaimer={t.chat.flow.disclaimer}
           lifted={showResume}
           phoneHref={phoneFull ? `tel:+${phoneFull}` : null}
           onAction={onChatAction}
+          flow={{ ...chatFlow.binding, renderCard: renderChatCard }}
         />
       )}
 
@@ -2364,7 +2708,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       <p style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 18px" }}>
                         {mode === "book"
                           ? booking
-                            ? format(t.microsite.success.bookingLine, { service: booking.serviceName || t.microsite.success.yourVisit, when: new Date(booking.scheduledStartAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) })
+                            ? format(t.microsite.success.bookingLine, { service: booking.serviceName || t.microsite.success.yourVisit, when: formatInStoreZone(booking.scheduledStartAt, site.timezone, { weekday: "short", hour: "numeric", minute: "2-digit" }) })
                             : t.microsite.success.bookedSub
                           : ticket?.status === "completed"
                             ? t.microsite.success.completedSub
@@ -2402,7 +2746,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       {mode === "queue" && ticket && isActive(ticket.status) && !confirmLeave && (
                         <>
                           <Button variant="primary" fullWidth onClick={closeJoin}>{t.common.done}</Button>
-                          {canLeaveQueue(ticket.status) && (
+                          {canLeaveQueue(ticket.status) && !!held?.ticketKey && (
                             <div onClick={askLeave} style={{ font: "var(--fw-medium) 13px/1 var(--font-sans)", color: "var(--error)", marginTop: 14, cursor: "pointer" }}>{t.microsite.success.leaveQueue}</div>
                           )}
                         </>
@@ -2492,7 +2836,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                   {!confirmLeave ? (
                     <>
                       <Button variant="primary" fullWidth onClick={closeJoin}>{t.microsite.already.trackMyTurn}</Button>
-                      {canLeaveQueue(ticket?.status) ? (
+                      {canLeaveQueue(ticket?.status) && !!held?.ticketKey ? (
                         <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
                           <div style={{ flex: 1 }}>
                             <Button variant="outline" fullWidth onClick={joinDifferent}>{t.microsite.already.differentNumber}</Button>
@@ -2503,6 +2847,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                         </div>
                       ) : (
                         <div style={{ marginTop: 10 }}>
+                          {/* Found by phone lookup on this device: no ticket key, so no Leave here. */}
+                          {canLeaveQueue(ticket?.status) && !held?.ticketKey && (
+                            <p style={{ font: "var(--fw-regular) 12.5px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 10px" }}>{t.chat.flow.leaveOtherDevice}</p>
+                          )}
                           <Button variant="outline" fullWidth onClick={joinDifferent}>{t.microsite.already.differentNumber}</Button>
                         </div>
                       )}
@@ -2532,6 +2880,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                     </div>
                   )}
                   <Button variant="primary" fullWidth onClick={closeJoin}>{t.common.gotIt}</Button>
+                  {/* The block covers the walk-in line only; appointments stay open to this number. */}
+                  <div style={{ marginTop: 10 }}>
+                    <Button variant="outline" fullWidth onClick={() => openJoin("book")}>{t.microsite.track.book}</Button>
+                  </div>
                 </div>
               )}
 

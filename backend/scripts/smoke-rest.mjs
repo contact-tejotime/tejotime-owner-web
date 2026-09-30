@@ -25,10 +25,10 @@ const OWNER_PASSWORD = 'password123';
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗ FAIL:', m); } };
 
-async function call(method, path, { token, body } = {}) {
+async function call(method, path, { token, body, headers } = {}) {
   const res = await fetch(BASE + path, {
     method,
-    headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...(headers ?? {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = await res.json().catch(() => ({}));
@@ -138,7 +138,8 @@ async function main() {
   ok(join.status === 201 && /^A-\d+$/.test(join.json.token), `join issues token (${join.json.token})`);
   const ticket = await call('GET', `/public/tickets/${join.json.ticketId}`);
   ok(ticket.status === 200 && typeof ticket.json.ahead === 'number', 'ticket status readable');
-  const leave = await call('DELETE', `/public/tickets/${join.json.ticketId}`);
+  // Leaving needs the ticket key the join handed back (a phone lookup never returns it).
+  const leave = await call('DELETE', `/public/tickets/${join.json.ticketId}`, { headers: { 'x-ticket-key': join.json.socket?.ticketKey ?? '' } });
   ok(leave.status === 200 && leave.json.ok, 'leave queue works');
 
 
@@ -420,7 +421,7 @@ async function main() {
     body: { name: 'Public Pia', phone: '+919555000666', preferredStaffId: 'any' },
   });
   ok(bareJoin.status === 201 && /^A-\d+$/.test(bareJoin.json.token), `public join with no service issues a token (got ${bareJoin.status})`);
-  if (bareJoin.json.ticketId) await call('DELETE', `/public/tickets/${bareJoin.json.ticketId}`);
+  if (bareJoin.json.ticketId) await call('DELETE', `/public/tickets/${bareJoin.json.ticketId}`, { headers: { 'x-ticket-key': bareJoin.json.socket?.ticketKey ?? '' } });
 
   console.log('MULTI-SERVICE VISITS');
   // A visit is routinely more than one thing ("haircut AND a hair spa"). Picking one used to drop

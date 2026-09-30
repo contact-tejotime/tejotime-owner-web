@@ -9,7 +9,9 @@ import { loadQueueContext } from '../queue/queue.context';
 import { broadcastQueue, getEntryDetail } from '../queue/queue.service';
 import { findOrCreateCustomer } from '../customers/customer.repo';
 
-function apptDTO(a: any) {
+// Exported so the public self-service cancel (public.service.ts) sends owners the exact same
+// `appointment:updated` payload an owner-side cancel does.
+export function apptDTO(a: any) {
   return {
     id: a.id,
     customerName: a.customer_name,
