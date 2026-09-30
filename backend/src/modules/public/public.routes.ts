@@ -32,7 +32,9 @@ const joinSchema = z
     ...serviceSelection,
     name: z.string().trim().min(1).max(80),
     phone: z.string().trim().min(4).max(20),
-    preferredStaffId: z.string().optional(),
+    // 'any' or a UUID. A free string used to reach Postgres as-is, where a malformed id became a
+    // 500 (22P02). Whether the id is an active stylist of THIS store is checked in the service.
+    preferredStaffId: z.union([z.literal('any'), z.string().uuid()]).optional(),
     visitorType: z.enum(['mr', 'patient']).optional(),
     // Optional, default false: missing/old clients must never become "yes, text them".
     smsOptIn: z.boolean().optional().default(false),
@@ -44,6 +46,11 @@ const joinSchema = z
 const bookSchema = joinSchema.extend({ slotStart: z.string().datetime() }).strict();
 
 const trackSchema = z.object({ phone: z.string().trim().min(4).max(20) }).strict();
+
+const appointmentParam = z.object({ appointmentId: z.string().uuid() });
+// The key is 24 hex chars (a truncated HMAC); anything else cannot verify, so reject it at the edge.
+const appointmentKeyField = z.string().regex(/^[0-9a-f]{24}$/);
+const cancelAppointmentSchema = z.object({ key: appointmentKeyField }).strict();
 
 const inquirySchema = z
   .object({
@@ -231,6 +238,19 @@ publicRouter.post(
   }),
 );
 
+// My appointments: upcoming bookings for a phone at this store. Same trust level as /track (phone
+// → your own bookings), and it never returns appointment keys, so it can show a booking made on
+// another device but cannot be used to cancel it. publicWrite, like /track, because it is a
+// phone-number lookup and must not be cheap to enumerate.
+publicRouter.post(
+  '/businesses/:slug/appointments/lookup',
+  limiters.publicWrite,
+  validate({ params: slugParam, body: trackSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await pub.lookupAppointments(req.params.slug, req.body));
+  }),
+);
+
 // Microsite help chat. Read-only — it answers from FAQs and public facts and may point at the
 // page's Join / Book / Track / Call buttons, but never joins, books or checks anyone out.
 // Its own limiter: free text that may fan out to a metered LLM free tier is the most
@@ -308,6 +328,31 @@ publicRouter.delete(
   limiters.publicWrite,
   validate({ params: ticketParam }),
   asyncHandler(async (req, res) => {
-    res.json(await pub.leaveTicket(req.params.ticketId));
+    // The ticket key rides in a header (not the URL) so it never lands in request logs.
+    const raw = req.get('x-ticket-key');
+    res.json(await pub.leaveTicket(req.params.ticketId, raw && /^[0-9a-f]{24}$/.test(raw) ? raw : undefined));
+  }),
+);
+
+// Appointment self-service, keyed by the appointmentKey the booking response handed the booking
+// browser. The key travels in a header on the read, not the query string, so it never lands in
+// request logs; a missing or wrong key is a 404 (not 403) so ids cannot be probed.
+publicRouter.get(
+  '/appointments/:appointmentId',
+  limiters.publicRead,
+  validate({ params: appointmentParam }),
+  asyncHandler(async (req, res) => {
+    const raw = req.get('x-appointment-key');
+    const key = raw && appointmentKeyField.safeParse(raw).success ? raw : undefined;
+    res.json(await pub.getPublicAppointment(req.params.appointmentId, key));
+  }),
+);
+
+publicRouter.post(
+  '/appointments/:appointmentId/cancel',
+  limiters.publicWrite,
+  validate({ params: appointmentParam, body: cancelAppointmentSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await pub.cancelPublicAppointment(req.params.appointmentId, req.body.key));
   }),
 );

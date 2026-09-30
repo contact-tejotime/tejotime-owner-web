@@ -158,10 +158,14 @@ observability/     health.ts (/healthz liveness, /readyz db-readiness)
   review link by phone (behind the review SMS's own-domain short link `www.tejotime.com/<phone>/r`,
   a frontend route that 302s to it — see [docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)), vCard `.vcf`,
   availability, staff availability, bookable slots, join queue, book slot, track by phone,
-  ticket read/leave, inquiry submission, cookie-consent logging (`POST /consent` — see
+  ticket read/leave (leave needs the `X-Ticket-Key` the join returned; `/track` never returns it),
+  **appointment self-service** (lookup by phone; read/cancel only with the
+  `appointmentKey` the booking browser was handed — a phone alone never cancels), inquiry submission, cookie-consent logging (`POST /consent` — see
   [docs/cookie-consent-v1.md](docs/cookie-consent-v1.md)), and the read-only **help chat** — per-store
   (`POST /businesses/:key/chat`) and for the marketing site (`POST /chat`, `GET /chat/status`).
-  See [docs/customer-chatbot-v1.md](docs/customer-chatbot-v1.md).
+  See [docs/customer-chatbot-v1.md](docs/customer-chatbot-v1.md). The store chat can also **act** —
+  check in, book, status, leave, cancel — through a page-side state machine that calls the pop-up's
+  own code, never through the answer bot: [docs/customer-chatbot-booking.md](docs/customer-chatbot-booking.md).
 - Admin surface (`/admin/*`) is gated by a separate admin JWT and re-checks the `admins` row on
   **every** request, so a demotion/deactivation bites immediately.
 - Webhooks: `/webhooks/payments`, `/webhooks/sms`.
@@ -549,7 +553,9 @@ silently **unsaveable**, with no error).
 And `npm run test:theme` — the framework-free theme engine self-check (parity, contrast, ramps,
 CSS tokens, input repair), run via the `tsx` the backend already depends on. `npm run
 test:responsive` is the same idea for the mobile app's breakpoint/grid arithmetic (§7). `npm run test:import-diff` does the same for the admin autofill's re-fetch diff
-(`admin-panel/src/lib/import-diff.ts`).
+(`admin-panel/src/lib/import-diff.ts`). `npm run test:chat-flow` walks the store chat's guided
+check-in/booking state machine (`frontend/src/components/chat/flow/engine.ts`) through its
+scenario matrix — keep that file free of React and `@/` imports so it stays runnable this way.
 
 > These checks are **not wired into CI**. Run them manually after touching the theme engine, the
 > cropper, a theme axis, or the mobile breakpoints.
@@ -631,6 +637,12 @@ Checklist for any owner-facing change:
   true end-to-end coverage in the repo. `backend/scripts/smoke-seatless.mjs` is the odd one out: it
   needs a **migrated** (not seeded) database and runs inside a transaction it always rolls back,
   because a store with no stylists cannot be reached over HTTP from the seed.
+  `backend/scripts/smoke-selfservice.mjs` covers customer self-service (book → key → view → cancel,
+  check in → duplicate → track → leave). It is separate from smoke-rest because the two together
+  would exceed `publicWrite`'s 20/hour, so run it against a freshly started API.
+  `backend/scripts/smoke-booking-guards.mjs` pins the server-side booking rule (one booking when two
+  customers confirm together; overlap / past / closed / out-of-hours / beyond-window → 409
+  `SLOT_UNAVAILABLE`; foreign or malformed stylist → 400) — same fresh-API rule.
 - `docs/qa-report-2026-07-10.md` — a manual QA record.
 
 **There is no E2E framework.** No Playwright, Cypress, Detox, Maestro, Puppeteer, WebdriverIO,

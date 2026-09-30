@@ -92,6 +92,11 @@ export interface Microsite {
    */
   openStatus: { isOpen: boolean; closesAt: string | null; label: string; nextOpenLabel?: string | null };
   hours: { dayOfWeek: number; label: string; isClosed: boolean }[];
+  /**
+   * The store's IANA timezone — slot labels and hours are in it. Optional: an older backend (or a
+   * cached payload) omits it, and times then fall back to the viewer's own zone.
+   */
+  timezone?: string;
   amenities: string[];
   gallery: string[];
   services: MicrositeService[];
@@ -148,7 +153,9 @@ export interface Ticket {
   alreadyInQueue?: boolean;
 }
 /** Track-my-turn lookup result: the active ticket for today, or { found: false }.
- *  `customerName` is the caller's known name (past customer) for pre-filling a follow-on Join. */
+ *  Position only — no `socket` key (so it cannot be used to leave), and `customerName` is no longer
+ *  sent (a phone number alone must not reveal who it belongs to). The field stays optional so an
+ *  older backend's response still type-checks. */
 export type TrackResult =
   | ({ found: true; customerName?: string | null } & Ticket)
   | { found: false; customerName?: string | null };
@@ -169,6 +176,26 @@ export interface JoinBody {
 }
 export interface BookBody extends JoinBody {
   slotStart: string;
+}
+export interface BookResult {
+  appointmentId: string;
+  serviceName: string | null;
+  scheduledStartAt: string;
+  status: string;
+  staffName: string | null;
+  /**
+   * Secret for this one booking. Held only by the browser that booked; it is what lets that device
+   * read or cancel the appointment later. Optional: an older backend omits it.
+   */
+  appointmentKey?: string;
+}
+/** Mirrors the backend's public appointment DTO (lookup, status read, cancel). Never carries a key. */
+export interface PublicAppointment {
+  appointmentId: string;
+  serviceName: string | null;
+  staffName: string | null;
+  scheduledStartAt: string;
+  status: string;
 }
 export interface InquiryBody {
   businessName: string;
@@ -244,13 +271,26 @@ export const publicApi = {
   joinQueue: (slug: string, body: JoinBody) =>
     req<Ticket>(`/public/businesses/${slug}/queue`, { method: "POST", body: JSON.stringify(body) }),
   bookSlot: (slug: string, body: BookBody) =>
-    req<{ appointmentId: string; serviceName: string | null; scheduledStartAt: string; status: string; staffName: string | null }>(
-      `/public/businesses/${slug}/appointments`,
-      { method: "POST", body: JSON.stringify(body) },
-    ),
+    req<BookResult>(`/public/businesses/${slug}/appointments`, { method: "POST", body: JSON.stringify(body) }),
+  // Appointment self-service. The lookup shows bookings for a phone (any device) but never returns
+  // keys; reading one by id or cancelling it needs the key the booking browser was handed.
+  lookupAppointments: (slug: string, body: { phone: string }) =>
+    req<{ appointments: PublicAppointment[] }>(`/public/businesses/${slug}/appointments/lookup`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getAppointment: (appointmentId: string, key: string) =>
+    req<PublicAppointment>(`/public/appointments/${appointmentId}`, { headers: { "x-appointment-key": key } }),
+  cancelAppointment: (appointmentId: string, key: string) =>
+    req<PublicAppointment>(`/public/appointments/${appointmentId}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ key }),
+    }),
   getTicket: (ticketId: string) => req<Ticket>(`/public/tickets/${ticketId}`),
-  leaveTicket: (ticketId: string) =>
-    req<{ ok: boolean }>(`/public/tickets/${ticketId}`, { method: "DELETE" }),
+  /** Needs the ticket key the join returned — without it the API answers 404 (only the browser
+   *  that joined may leave; a phone lookup elsewhere can see the place but not cancel it). */
+  leaveTicket: (ticketId: string, ticketKey: string) =>
+    req<{ ok: boolean }>(`/public/tickets/${ticketId}`, { method: "DELETE", headers: { "x-ticket-key": ticketKey } }),
   trackByPhone: (slug: string, body: { phone: string }) =>
     req<TrackResult>(`/public/businesses/${slug}/track`, { method: "POST", body: JSON.stringify(body) }),
   submitInquiry: (body: InquiryBody) =>

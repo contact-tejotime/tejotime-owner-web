@@ -202,7 +202,7 @@ Gated by the `team` module, which is **not grantable** — see `business-logic.m
 (`perm=billing:manage`).
 `POST /uploads/sign` (`ownerWrite`).
 
-### `/public` (15) — no auth
+### `/public` (18) — no auth
 
 | Method | Path | Bucket |
 |---|---|---|
@@ -214,19 +214,33 @@ Gated by the `team` module, which is **not grantable** — see `business-logic.m
 | GET | `/businesses/:slug/staff` | `publicRead` |
 | GET | `/businesses/:slug/slots` | `publicRead` |
 | POST | `/businesses/:slug/queue` | `publicWrite` |
-| POST | `/businesses/:slug/appointments` | `publicWrite` |
+| POST | `/businesses/:slug/appointments` | `publicWrite` — re-checks the slot under a per-store lock; not offered by `/slots` → **409 `SLOT_UNAVAILABLE`**; stylist not active at this store → 400 |
 
 Join and book accept optional `smsOptIn` (boolean, default `false`). Missing/false never
 dispatches Twilio; see [docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md).
-| POST | `/businesses/:slug/track` | `publicWrite` |
+| POST | `/businesses/:slug/track` | `publicWrite` — position only: no `socket.ticketKey`, no `customerName` |
+| POST | `/businesses/:slug/appointments/lookup` | `publicWrite` — upcoming bookings for `{phone}`; never returns keys |
+| GET | `/appointments/:appointmentId` | `publicRead` — needs header `X-Appointment-Key`; wrong/missing key → 404 |
+| POST | `/appointments/:appointmentId/cancel` | `publicWrite` — body `{key}`; past/checked-in/cancelled → 422 |
 | POST | `/businesses/:key/chat` | `publicChat` |
 | POST | `/chat` | `publicChat` |
 | GET | `/chat/status` | `publicRead` |
 | POST | `/inquiries` | `inquiries` |
 | GET | `/tickets/:ticketId` | `publicRead` |
-| DELETE | `/tickets/:ticketId` | `publicWrite` |
+| DELETE | `/tickets/:ticketId` | `publicWrite` — needs header `X-Ticket-Key`; missing/wrong → 404 |
 
-Ticket reads/leaves authenticate with the HMAC `ticketKey`, not a session.
+Leaving a ticket and the `/customer` ticket room authenticate with the HMAC `ticketKey` (returned
+only by the join that created the ticket — never by `/track` or a duplicate join); reading a ticket
+by id (`GET /tickets/:id`) stays open (position only, no personal data).
+
+`/slots` and booking share one rule, `lib/booking-slots.ts` `computeSlots`: overlap-aware capacity
+(active stylists; a named stylist can't overlap itself; stylist-less bookings use a unit), store
+hours, future only, within `BOOKING_WINDOW_DAYS` (14). `preferredStaffId` is `'any'` or a UUID
+(malformed → 400). See [docs/customer-chatbot-booking.md](../../docs/customer-chatbot-booking.md).
+
+Booking now returns `appointmentKey`, which is `ticketKey("appt:" + id)`. It is the only thing that
+reads or cancels an appointment publicly, so a phone lookup can show a booking but never cancel
+it. See [docs/customer-chatbot-booking.md](../../docs/customer-chatbot-booking.md) §5.
 
 `/chat` is the **marketing landing page's** bot (no business context — it answers about the
 product from a fixed fact sheet), and `/chat/status` just reports the flag so that statically

@@ -20,6 +20,13 @@ export const DEFAULT_SERVICE_MINUTES = 20;
  */
 export const MAX_SERVICES_PER_VISIT = 10;
 
+/**
+ * How far ahead a customer may book, today included (14 → today … today+13). Mirrors the
+ * microsite's BOOKING_DAYS_AHEAD. Enforced by the server since QA found a booking six weeks out
+ * accepted: the day strip only ever offered two weeks, but nothing stopped a direct API call.
+ */
+export const BOOKING_WINDOW_DAYS = 14;
+
 export const SERVICE_EXTRAS = [
   // Default / Barber
   { label: 'Shave', minutes: 10, pricePaise: 5000 },
