@@ -468,39 +468,39 @@
         "links": [
           {
             "label": "Hair salons",
-            "href": "/industries/hair-salons"
+            "href": "/hair-salons"
           },
           {
             "label": "Barbershops",
-            "href": "/industries/barbershops"
+            "href": "/barbershops"
           },
           {
             "label": "Nail studios",
-            "href": "/industries/nail-studios"
+            "href": "/nail-studios"
           },
           {
             "label": "Spas",
-            "href": "/industries/spas"
+            "href": "/spas"
           },
           {
             "label": "Med spas",
-            "href": "/industries/med-spas"
+            "href": "/med-spas"
           },
           {
             "label": "Massage therapy",
-            "href": "/industries/massage-therapy"
+            "href": "/massage-therapy"
           },
           {
             "label": "Physical therapy",
-            "href": "/industries/physical-therapy"
+            "href": "/physical-therapy"
           },
           {
             "label": "Tattoo studios",
-            "href": "/industries/tattoo-studios"
+            "href": "/tattoo-studios"
           },
           {
             "label": "Pet grooming",
-            "href": "/industries/pet-grooming"
+            "href": "/pet-grooming"
           }
         ]
       },

@@ -203,6 +203,12 @@ follow-on queue/booking calls.
 Consequence: a new top-level marketing route must exist as a real folder — `privacy/`, `terms/`,
 `accessibility/`, `resources/`, `industries/` — or `[phone]` swallows it.
 
+The one exception: the 9 industry pages are **served at the root** (`/barbershops`) while living in
+`app/industries/[slug]/`. `frontend/next.config.ts` rewrites `/<slug>` → `/industries/<slug>`
+(afterFiles, so it wins over `[phone]`) and permanently redirects the old `/industries/<slug>` URLs
+to `/<slug>`. A new industry must be added to `INDUSTRY_SLUGS` in `landingData.ts` **and** to
+`INDUSTRY_SLUG_PATTERN` in `next.config.ts`, or its root URL 404s.
+
 **Server/client boundary:** a plain function exported from a `"use client"` module cannot be called
 by a Server Component; Next fails at prerender ("Attempted to call X() from the server but X is on
 the client"). This has already broken the industry and resources page builds once, via `shell()`
