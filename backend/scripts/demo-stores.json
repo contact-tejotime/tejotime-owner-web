@@ -20,7 +20,7 @@
       "path": "salon",
       "legacySlug": "hair-salons",
       "verify": { "timezone": "America/Chicago" },
-      "owner": { "phone": "101010101", "password": "101010101" },
+      "owner": { "phone": "111111111", "password": "111111111" },
       "store": {
         "name": "Willow & Co. Hair Studio",
         "countryCode": "1",
