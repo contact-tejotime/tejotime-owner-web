@@ -9,7 +9,7 @@ import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton"
 import { footerCols, nav } from "@/components/landing/landingData";
 import { shell } from "@/components/landing/shell";
 import { AppStoreBadges } from "@/components/AppStoreBadges";
-import { t } from "@/i18n";
+import { t, format } from "@/i18n";
 import { OWNER_ORIGIN } from "@/lib/config";
 
 const eyebrowStyle: CSSProperties = {
@@ -167,7 +167,8 @@ export function MarketingChrome({ children }: { children: ReactNode }) {
                 color: "var(--text-muted)",
               }}
             >
-              {t.landing.footer.note}
+              {/* Names the Twilio A2P brand's legal entity — see docs/sms-opt-in-a2p.md. */}
+              {t.landing.footer.note} {format(t.brand.operatedBy, { entity: t.legal.entity })}
             </span>
           </div>
         </div>

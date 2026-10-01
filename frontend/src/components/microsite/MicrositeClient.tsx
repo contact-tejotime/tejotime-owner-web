@@ -2303,6 +2303,11 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             <CookieSettingsButton style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }} />
           </span>
         </div>
+        {/* This page is the SMS opt-in URL Twilio reviewers open, so it names the legal entity
+            registered as the A2P brand (docs/sms-opt-in-a2p.md). */}
+        <p style={{ maxWidth: 1180, margin: "0 auto", padding: "0 clamp(16px, 4vw, 32px) 20px", font: "var(--fw-regular) 12px/1.5 var(--font-sans)", color: "var(--text-subtle)" }}>
+          {format(t.brand.operatedBy, { entity: t.legal.entity })}
+        </p>
       </div>
 
       {/* ===== RESUME PILL (restored session) ===== */}

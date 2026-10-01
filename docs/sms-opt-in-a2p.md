@@ -20,6 +20,15 @@ vetting fee is not refunded on rejection. If rejected, **edit and resubmit the s
 Notifications* with the four waitlist samples: **edit it** to the use case, flow and samples
 below and resubmit; do not create a second one.
 
+**Brand ↔ website (rejection, 2026-10-01).** The Twilio brand is the legal entity **INFRANET IT
+SOLUTIONS LLC**, but the site only ever said "TejoTime", so a reviewer could not tie the website,
+privacy policy and terms to the registered brand. The site now says **"TejoTime is operated by
+INFRANET IT SOLUTIONS LLC."** in four places: at the top of the /privacy and /terms intros, in the
+"Legal entity name" row of every legal page's contact box, in the marketing footers (homepage and
+`MarketingChrome`), and in the store booking page's footer, which is the opt-in URL. The name comes
+from one value, `t.legal.entity`, and the footers render `t.brand.operatedBy` with it. The consent
+box wording was deliberately **not** changed, so `message_flow` below still quotes it word for word.
+
 Owner-web and Expo are **not** an opt-in path. `message_flow` is website-only. Owner walk-ins
 and owner-created appointments default both flags to `false` and are never texted.
 
@@ -147,8 +156,11 @@ drops the `Address:` tail. Dates and times are in the store's own timezone.
       opt-in data or personal information with third parties for marketing purposes."
 - [ ] Support line +1 (239) 506-1324 is answered, and matches the HELP reply.
 - [ ] **Advanced Opt-Out** enabled on the Messaging Service.
-- [ ] Campaign description says TejoTime is a SaaS queue/booking platform sending messages on
-      behalf of the businesses that use it.
+- [ ] Campaign description says "TejoTime, operated by INFRANET IT SOLUTIONS LLC, is a SaaS
+      queue/booking platform sending messages on behalf of the businesses that use it."
+- [ ] The legal entity INFRANET IT SOLUTIONS LLC (the registered brand) is visible live on
+      /privacy and /terms (intro + contact box), the homepage footer, and the opt-in store page's
+      footer.
 
 ## Tests
 

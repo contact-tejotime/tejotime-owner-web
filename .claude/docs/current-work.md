@@ -684,12 +684,17 @@ All four values are now filled:
 
 | Key | Value |
 |---|---|
-| `entity` | `TejoTime` (confirmed as the name to use) |
+| `entity` | `INFRANET IT SOLUTIONS LLC` (was `TejoTime`, changed 2026-10-01 after the Twilio A2P rejection, see `docs/sms-opt-in-a2p.md`) |
 | `address` | `4213 Lee Blvd, Lehigh Acres, FL 33971` |
 | `supportPhone` | `+1 (239) 506-1324` |
 | `governingState` | `the State of Florida` |
 
 There are currently **zero** pending markers on any legal page.
+
+The /privacy and /terms intros open with "TejoTime is operated by {entity}." The same sentence,
+`t.brand.operatedBy`, also appears in the marketing footers (`app/page.tsx`, `MarketingChrome.tsx`)
+and the store booking page footer (`MicrositeClient.tsx`). Twilio needs the website to name the
+registered brand's legal entity.
 
 > These are solid, product-accurate drafts, **not attorney-reviewed**. The liability, indemnity and
 > governing-law sections in particular should get a lawyer's read before launch.

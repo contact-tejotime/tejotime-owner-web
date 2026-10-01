@@ -15,6 +15,7 @@
     "nameFirst": "Tejo",
     "nameSecond": "Time",
     "poweredBy": "Powered by",
+    "operatedBy": "TejoTime is operated by {entity}.",
     "terms": "Terms",
     "privacy": "Privacy",
     "cookieSettings": "Cookie Settings"
@@ -1289,7 +1290,7 @@
     }
   },
   "legal": {
-    "entity": "TejoTime",
+    "entity": "INFRANET IT SOLUTIONS LLC",
     "address": "4213 Lee Blvd, Lehigh Acres, FL 33971",
     "supportEmail": "support@tejotime.com",
     "supportPhone": "+1 (239) 506-1324",
@@ -1332,8 +1333,8 @@
     "metaTitle": "Privacy Policy — TejoTime",
     "metaDescription": "How TejoTime collects, uses, shares, and protects information across our website, booking pages, and owner app.",
     "title": "Privacy Policy",
-    "lastUpdated": "Last updated: September 28, 2026",
-    "intro": "This Privacy Policy explains how {entity} (“TejoTime,” “we,” “us”) collects, uses, shares, and protects information when you use our website, our owner and staff apps, and the public booking pages we host for businesses. Please read it alongside our Terms of Service.",
+    "lastUpdated": "Last updated: October 1, 2026",
+    "intro": "TejoTime is operated by {entity}. This Privacy Policy explains how {entity} (“TejoTime,” “we,” “us”) collects, uses, shares, and protects information when you use our website, our owner and staff apps, and the public booking pages we host for businesses. Please read it alongside our Terms of Service.",
     "sections": [
       {
         "heading": "1. Who uses TejoTime, and who controls your data",
@@ -1477,8 +1478,8 @@
     "metaTitle": "Terms of Service — TejoTime",
     "metaDescription": "The terms that govern your use of TejoTime’s online booking, scheduling, and client-management service.",
     "title": "Terms of Service",
-    "lastUpdated": "Last updated: September 16, 2026",
-    "intro": "These Terms of Service (“Terms”) are an agreement between you and {entity} (“TejoTime,” “we,” “us”). They govern your use of our website, our owner and staff apps, and the booking pages we host. By creating an account or using TejoTime, you agree to these Terms. If you do not agree, do not use the service.",
+    "lastUpdated": "Last updated: October 1, 2026",
+    "intro": "TejoTime is operated by {entity}. These Terms of Service (“Terms”) are an agreement between you and {entity} (“TejoTime,” “we,” “us”). They govern your use of our website, our owner and staff apps, and the booking pages we host. By creating an account or using TejoTime, you agree to these Terms. If you do not agree, do not use the service.",
     "sections": [
       {
         "heading": "1. Who may use TejoTime",
