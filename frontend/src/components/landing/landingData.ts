@@ -1,4 +1,5 @@
 import { t } from "@/i18n";
+import { INDUSTRY_STORES, isIndustryStorePath, type IndustrySlug } from "@/lib/industryStores";
 
 import type { ApptStatus, Tone } from "./ds";
 import type { IconName } from "./Icon";
@@ -32,20 +33,6 @@ export const features = t.landingData.features.map((f, i) => ({
 }));
 
 /** Stock placeholders for the industries grid — replace with pilot photography when ready. */
-export const INDUSTRY_SLUGS = [
-  "hair-salons",
-  "barbershops",
-  "nail-studios",
-  "spas",
-  "med-spas",
-  "massage-therapy",
-  "physical-therapy",
-  "tattoo-studios",
-  "pet-grooming",
-] as const;
-
-export type IndustrySlug = (typeof INDUSTRY_SLUGS)[number];
-
 const INDUSTRY_IMAGES: Record<IndustrySlug, string> = {
   "hair-salons": "/landing/industries/hair-salons.jpg",
   barbershops: "/landing/industries/barbershops.jpg",
@@ -58,31 +45,22 @@ const INDUSTRY_IMAGES: Record<IndustrySlug, string> = {
   "pet-grooming": "/landing/industries/pet-grooming.jpg",
 };
 
-export const industries = INDUSTRY_SLUGS.map((slug, n) => {
+/**
+ * Each card opens a live store in a new tab (the store page has no TejoTime menu to come back
+ * by). Copy is paired with a store by position — see the order rule in lib/industryStores.ts.
+ */
+export const industries = INDUSTRY_STORES.map(({ slug, path }, n) => {
   const i = t.landingData.industries[n];
   return {
     slug,
-    href: `/${slug}`,
+    href: `/${path}`,
+    newTab: true,
     name: i.name,
     detail: i.detail,
     n: String(n + 1).padStart(2, "0"),
     image: INDUSTRY_IMAGES[slug],
   };
 });
-
-export const industryPages = INDUSTRY_SLUGS.map((slug) => {
-  const page = t.landingData.industryPages[slug];
-  return {
-    slug,
-    href: `/${slug}`,
-    image: INDUSTRY_IMAGES[slug],
-    ...page,
-  };
-});
-
-export function getIndustryPage(slug: string) {
-  return industryPages.find((p) => p.slug === slug) ?? null;
-}
 
 /** Stock placeholders for the “Inside the shops” gallery — replace with pilot photography when ready. */
 const GALLERY_IMAGES = [
@@ -248,7 +226,11 @@ export const phoneNav = (["calendar", "dollar", "plus", "users", "grid"] as Icon
 
 /* ----------------------------------------------------------------- misc -- */
 
-export const footerCols = t.landingData.footerCols;
+/** Footer links to the nine stores open in a new tab, the same as their homepage cards. */
+export const footerCols = t.landingData.footerCols.map((col) => ({
+  ...col,
+  links: col.links.map((link) => ({ ...link, newTab: isIndustryStorePath(link.href) })),
+}));
 export const faqs = t.landingData.faqs;
 export const inquiryPerks = t.landingData.inquiryPerks;
 export const client = t.landingData.client;

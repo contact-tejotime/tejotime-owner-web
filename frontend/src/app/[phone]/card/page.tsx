@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { ApiError, publicApi } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/config";
+import { isIndustryStorePhone } from "@/lib/industryStores";
 import { t, format } from "@/i18n";
 import { micrositeThemeConfig } from "@/theme";
 import ThemeStyle from "@/theme/ThemeStyle";
@@ -26,14 +27,17 @@ type Props = { params: Promise<{ phone: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { phone } = await params;
   if (!/^\d{7,15}$/.test(phone)) return {};
+  // Same noindex as the store page itself (see [phone]/page.tsx) for the nine industry stores.
+  const robots: Metadata["robots"] = isIndustryStorePhone(phone) ? { index: false, follow: false } : undefined;
   try {
     const site = await publicApi.getMicrositeByPhone(phone);
     return {
       title: format(t.microsite.card.metaTitle, { name: site.name }),
       description: format(t.microsite.card.metaDescription, { name: site.name }),
+      ...(robots ? { robots } : {}),
     };
   } catch {
-    return {};
+    return robots ? { robots } : {};
   }
 }
 

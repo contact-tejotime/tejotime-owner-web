@@ -583,8 +583,16 @@ adminRouter.post(
 adminRouter.put(
   '/businesses/:id',
   limiters.ownerWrite,
-  validate({ params: idParam, body: updateSchema }),
+  validate({ params: idParam }),
   requireStoreAccess,
+  // A homepage demo store can't be disabled. Checked before the body schema so a bare
+  // `{ isActive: false }` gets the 409 that says why — and so a broken check fails validation
+  // instead of writing (updateBusiness re-checks with the full body).
+  asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
+    if (req.body?.isActive === false) await admin.assertStoreCanBeDisabled(req.params.id);
+    next();
+  }),
+  validate({ body: updateSchema }),
   asyncHandler(async (req: Request, res: Response) => {
     res.json(await admin.updateBusiness(req.params.id, req.body));
   }),

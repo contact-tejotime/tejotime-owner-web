@@ -1,6 +1,7 @@
 import { many, one } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
+import { isDemoStorePhone } from '../../domain/demo-stores';
 import { money } from '../../domain/money';
 import { Errors } from '../../domain/errors';
 import { businessDayRange, dayjs, lastVisitLabel } from '../../lib/time';
@@ -117,59 +118,61 @@ export async function getPlatformOverview(allowedIds: string[] | null = null) {
   // than trusted — the metrics rows by id, and today's revenue by asking per store, which reuses
   // the RPC's own definition of a visit instead of re-deriving it in a second query that could
   // drift from it.
-  const [allBusinesses, metricRows, todayRows] = await Promise.all([
-    many(
-      `select id, name, slug, city, category, is_active
-         from business
-        where ($1::uuid[] is null or id = any($1::uuid[]))`,
-      [allowedIds],
-    ),
-    callRpc<any[]>('admin_store_metrics', {}),
-    allowedIds === null
-      ? callRpc<DailyRow[]>('admin_daily_revenue', {
-          p_business_id: null,
-          p_tz: tz,
-          p_start: today.startIso,
-          p_end: today.endIso,
-        })
-      : Promise.all(
-          allowedIds.map((id) =>
-            callRpc<DailyRow[]>('admin_daily_revenue', {
-              p_business_id: id,
-              p_tz: tz,
-              p_start: today.startIso,
-              p_end: today.endIso,
-            }),
-          ),
-        ).then((perStore) => perStore.flat()),
-  ]);
-
-  const demoId = allBusinesses.find((b) => b.slug === DEMO_SLUG)?.id ?? null;
-  const businesses = allBusinesses.filter((b) => b.slug !== DEMO_SLUG);
+  //
+  // Left out of every figure here: /demo-store (by slug) and the nine homepage demo stores (by
+  // phone, domain/demo-stores.ts) — TejoTime's own showcase, not platform business. The store list
+  // comes first because those ids decide which per-store calls to make below.
+  const allBusinesses = await many(
+    `select id, name, slug, city, category, is_active, phone_full
+       from business
+      where ($1::uuid[] is null or id = any($1::uuid[]))`,
+    [allowedIds],
+  );
+  const isShowcase = (b: { slug: string; phone_full: string | null }) =>
+    b.slug === DEMO_SLUG || isDemoStorePhone(b.phone_full);
+  const excludedIds = allBusinesses.filter(isShowcase).map((b) => b.id as string);
+  // admin_daily_revenue(null) already skips /demo-store in SQL, but not the homepage stores.
+  const homepageDemoIds = allBusinesses.filter((b) => isDemoStorePhone(b.phone_full)).map((b) => b.id as string);
+  const businesses = allBusinesses.filter((b) => !isShowcase(b));
   const visibleIds = new Set(businesses.map((b) => b.id as string));
 
+  const dailyFor = (id: string | null) =>
+    callRpc<DailyRow[]>('admin_daily_revenue', {
+      p_business_id: id,
+      p_tz: tz,
+      p_start: today.startIso,
+      p_end: today.endIso,
+    });
+
+  const [metricRows, todayRows, homepageDemoRows] = await Promise.all([
+    callRpc<any[]>('admin_store_metrics', {}),
+    allowedIds === null
+      ? dailyFor(null)
+      : Promise.all(allowedIds.filter((id) => visibleIds.has(id)).map(dailyFor)).then((perStore) => perStore.flat()),
+    // Owner only: the platform-wide series above includes these stores, so their own visits are
+    // subtracted below — the same RPC asked per store, so "a visit" means the same thing.
+    allowedIds === null ? Promise.all(homepageDemoIds.map(dailyFor)).then((perStore) => perStore.flat()) : [],
+  ]);
+
   // Online bookings today — appointments booked from the microsite, demo excluded.
-  const bookingParams: unknown[] = [today.startIso, today.endIso, allowedIds];
-  let demoExclusion = '';
-  if (demoId) {
-    bookingParams.push(demoId);
-    demoExclusion = ` and business_id <> $${bookingParams.length}`;
-  }
   const bookingsRow = await one<{ count: number }>(
     `select count(*)::int as count from appointment
       where source = 'online'
         and scheduled_start_at >= $1
         and scheduled_start_at <= $2
-        and ($3::uuid[] is null or business_id = any($3::uuid[]))${demoExclusion}`,
-    bookingParams,
+        and ($3::uuid[] is null or business_id = any($3::uuid[]))
+        and business_id <> all($4::uuid[])`,
+    [today.startIso, today.endIso, allowedIds, excludedIds],
   );
   const onlineBookings = bookingsRow?.count ?? 0;
 
-  // admin_store_metrics() covers every store on the platform, so drop anything outside the
-  // caller's scope before a single figure is summed. Left untouched for the owner: their totals
-  // have always counted every metrics row, and narrowing it here would quietly restate the
-  // headline numbers on their dashboard.
-  const metrics = allowedIds === null ? (metricRows ?? []) : (metricRows ?? []).filter((m) => visibleIds.has(m.business_id));
+  // admin_store_metrics() covers every store on the platform (minus /demo-store), so drop the
+  // homepage demo stores — and, for an employee, anything outside their scope — before a single
+  // figure is summed.
+  const excluded = new Set(excludedIds);
+  const metrics = (metricRows ?? []).filter((m) =>
+    allowedIds === null ? !excluded.has(m.business_id) : visibleIds.has(m.business_id),
+  );
   const activeCount = businesses.filter((b) => b.is_active).length;
   const totalCustomers = metrics.reduce((sum, m) => sum + Number(m.customers_count ?? 0), 0);
 
@@ -184,7 +187,8 @@ export async function getPlatformOverview(allowedIds: string[] | null = null) {
       .sort((a, b) => b.count - a.count);
   };
 
-  const todayVisits = (todayRows ?? []).reduce((sum, r) => sum + Number(r.visits ?? 0), 0);
+  const sumVisits = (rows: DailyRow[]) => rows.reduce((sum, r) => sum + Number(r.visits ?? 0), 0);
+  const todayVisits = Math.max(0, sumVisits(todayRows ?? []) - sumVisits(homepageDemoRows ?? []));
 
   return {
     date: todayDate(tz),

@@ -74,7 +74,8 @@
     },
     "industriesSection": {
       "title": "Made for the way your business works",
-      "body": "Every service business schedules differently. TejoTime gives you flexible online booking, provider schedules, client details, reminders, and optional walk-in management — all in one place."
+      "body": "Every service business schedules differently. TejoTime gives you flexible online booking, provider schedules, client details, reminders, and optional walk-in management — all in one place.",
+      "opensInNewTab": "(opens in a new tab)"
     },
     "features": {
       "title": "Everything you need to stay booked and organized",
@@ -144,13 +145,6 @@
       "supportBody": "Questions about setup, your pilot, or the product? Email us and we’ll help.",
       "supportEmail": "support@tejotime.com",
       "supportPhone": "+1 (239) 506-1324"
-    },
-    "industryPage": {
-      "metaTitleSuffix": "· TejoTime",
-      "whyTitle": "Why TejoTime",
-      "whyBody": "One place for online booking, provider schedules, reminders, client details, and optional walk-ins — without bolting on another tool for each job.",
-      "otherTitle": "Explore other industries",
-      "backHome": "Back to home"
     },
     "close": {
       "title": "Ready to make booking easier?",
@@ -469,39 +463,39 @@
         "links": [
           {
             "label": "Hair salons",
-            "href": "/hair-salons"
+            "href": "/salon"
           },
           {
             "label": "Barbershops",
-            "href": "/barbershops"
+            "href": "/barber"
           },
           {
             "label": "Nail studios",
-            "href": "/nail-studios"
+            "href": "/nail"
           },
           {
             "label": "Spas",
-            "href": "/spas"
+            "href": "/spa"
           },
           {
             "label": "Med spas",
-            "href": "/med-spas"
+            "href": "/medspa"
           },
           {
             "label": "Massage therapy",
-            "href": "/massage-therapy"
+            "href": "/massage"
           },
           {
             "label": "Physical therapy",
-            "href": "/physical-therapy"
+            "href": "/physio"
           },
           {
             "label": "Tattoo studios",
-            "href": "/tattoo-studios"
+            "href": "/tattoo"
           },
           {
             "label": "Pet grooming",
-            "href": "/pet-grooming"
+            "href": "/pet"
           }
         ]
       },
@@ -548,125 +542,6 @@
         ]
       }
     ],
-    "industryPages": {
-      "hair-salons": {
-        "name": "Hair salons",
-        "eyebrow": "For hair salons",
-        "title": "Booking and schedules built for stylists",
-        "body": "Give clients an easy way to book a stylist while you manage services, add-ons, preferences, and rebooking from one place.",
-        "bullets": [
-          "Online booking with stylist selection and service add-ons",
-          "Provider schedules that match how your floor actually runs",
-          "Client preferences and notes that travel with every visit",
-          "Reminders that help cut no-shows and last-minute gaps",
-          "Optional walk-in waitlist when you still take walk-ins"
-        ]
-      },
-      "barbershops": {
-        "name": "Barbershops",
-        "eyebrow": "For barbershops",
-        "title": "Appointments and walk-ins in one view",
-        "body": "Let clients book a chair online while you keep the live waitlist, barber selection, and estimated wait times together.",
-        "bullets": [
-          "Barber selection and service-based booking windows",
-          "Appointments and walk-ins on the same board",
-          "Estimated wait times clients can trust",
-          "Client history for regulars and first-timers",
-          "Reminders for booked appointments"
-        ]
-      },
-      "nail-studios": {
-        "name": "Nail studios",
-        "eyebrow": "For nail studios",
-        "title": "Technician schedules without the phone tag",
-        "body": "Clients choose a nail technician, combine services, and add upgrades — while your team stays on one shared schedule.",
-        "bullets": [
-          "Technician selection with multi-service bookings",
-          "Clear upgrade and add-on options on the booking page",
-          "Schedules that respect chair time and turnaround",
-          "Client notes for preferences and allergies",
-          "Reminders that keep chairs filled"
-        ]
-      },
-      "spas": {
-        "name": "Spas",
-        "eyebrow": "For spas",
-        "title": "Coordinate providers, rooms, and packages",
-        "body": "Book treatments, packages, and follow-ups while keeping provider schedules and client intake in one simple platform.",
-        "bullets": [
-          "Online booking for services and packages",
-          "Provider and room-friendly scheduling",
-          "Client intake details in one profile",
-          "Reminders for appointments and follow-ups",
-          "Optional walk-in flow when you need it"
-        ]
-      },
-      "med-spas": {
-        "name": "Med spas",
-        "eyebrow": "For med spas",
-        "title": "Consults, treatments, and follow-ups — organized",
-        "body": "Schedule consultations, treatments, and follow-up visits with the right provider, without juggling separate tools.",
-        "bullets": [
-          "Provider-aware booking for consults and treatments",
-          "Follow-up visits on the same client timeline",
-          "Clear service menus clients can book online",
-          "Reminders that reduce missed appointments",
-          "Client details and notes for consistent care"
-        ]
-      },
-      "massage-therapy": {
-        "name": "Massage therapy",
-        "eyebrow": "For massage therapy",
-        "title": "Therapist selection and recurring visits, simplified",
-        "body": "Offer therapist choice, session lengths, and room availability while clients book online on their own time.",
-        "bullets": [
-          "Therapist selection and session-length options",
-          "Schedules that respect room availability",
-          "Support for recurring visits and regulars",
-          "Client preferences and pressure notes",
-          "Reminders that protect your day"
-        ]
-      },
-      "physical-therapy": {
-        "name": "Physical therapy",
-        "eyebrow": "For physical therapy",
-        "title": "Evaluations and follow-ups on one schedule",
-        "body": "Book evaluations and follow-up visits while managing therapist availability from a single dashboard.",
-        "bullets": [
-          "Therapist availability for evals and follow-ups",
-          "Online booking that fits your visit types",
-          "Client history in one place for the care team",
-          "Reminders for upcoming sessions",
-          "A simple mobile view for the day’s board"
-        ]
-      },
-      "tattoo-studios": {
-        "name": "Tattoo studios",
-        "eyebrow": "For tattoo studios",
-        "title": "Consults, deposits, and longer blocks — handled",
-        "body": "Connect artist availability with consultations and longer appointment blocks so clients book the right session the first time.",
-        "bullets": [
-          "Artist-aware booking and consult scheduling",
-          "Longer appointment blocks without calendar chaos",
-          "Client notes for designs, sessions, and preferences",
-          "Reminders for consults and follow-up sessions",
-          "A branded booking page for your studio"
-        ]
-      },
-      "pet-grooming": {
-        "name": "Pet grooming",
-        "eyebrow": "For pet grooming",
-        "title": "Pet profiles, packages, and drop-off windows",
-        "body": "Manage pet profiles, service packages, special notes, and drop-off windows while pet parents book online.",
-        "bullets": [
-          "Pet profiles with special notes and preferences",
-          "Service packages and add-ons on the booking page",
-          "Drop-off and pickup windows that fit your floor",
-          "Reminders for upcoming grooms",
-          "Client history for returning pets and owners"
-        ]
-      }
-    },
     "inquiryPerks": [
       "Free setup",
       "No card",

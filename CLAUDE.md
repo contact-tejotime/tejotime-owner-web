@@ -547,6 +547,11 @@ kept honest by generator scripts. **Never hand-edit a mirror.**
 Plus `npm run check:chat-facts` — the marketing chatbot's fact sheet
 (`backend/src/lib/chat-platform.ts`) is a hand-mirror of the landing copy in
 `frontend/src/i18n/en.json`; the guard fails if a price, plan or FAQ drifts.
+And `npm run check:demo-stores` — the nine homepage industry stores are described three times:
+`frontend/src/lib/industryStores.ts` (cards, rewrites, 308s, noindex),
+`backend/scripts/demo-stores.json` (what gets provisioned) and `backend/src/domain/demo-stores.ts`
+(admin API: `isDemo`, excluded from platform figures, 409 `DEMO_STORE_ALWAYS_ON` on disable); they
+must agree. See [docs/demo-stores.md](docs/demo-stores.md).
 And `npm run check:axes` — every editable theme axis must appear in **every** file that
 hand-lists them (including each Appearance panel's `key()` dirty-check; an axis missing there is
 silently **unsaveable**, with no error).
@@ -643,6 +648,10 @@ Checklist for any owner-facing change:
   `backend/scripts/smoke-booking-guards.mjs` pins the server-side booking rule (one booking when two
   customers confirm together; overlap / past / closed / out-of-hours / beyond-window → 409
   `SLOT_UNAVAILABLE`; foreign or malformed stylist → 400) — same fresh-API rule.
+  `backend/scripts/smoke-demo-stores.mjs` is the other odd one out: it needs **no seed** and runs
+  against a deployed environment (`SMOKE_BASE_URL`, optional `SMOKE_WEB_URL`) after
+  `provision-demo-stores.mjs` has created the nine homepage industry stores through the admin API.
+  Read-only apart from owner logins, which it revokes. See [docs/demo-stores.md](docs/demo-stores.md).
 - `docs/qa-report-2026-07-10.md` — a manual QA record.
 
 **There is no E2E framework.** No Playwright, Cypress, Detox, Maestro, Puppeteer, WebdriverIO,

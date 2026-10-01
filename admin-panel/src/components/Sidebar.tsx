@@ -22,17 +22,44 @@ function ago(iso: string): string {
   return format(t.storeDraft.daysAgo, { n: Math.floor(mins / (60 * 24)) });
 }
 
+/** One store row in the Stores / Demo stores groups; highlighted on its hub tabs too. */
+function StoreLink({ store: s, pathname, demo = false }: { store: StoreListItem; pathname: string; demo?: boolean }) {
+  // Store links stay highlighted on hub tabs (/stores/[id]/customers etc).
+  const base = `/stores/${s.id}`;
+  const active = pathname === base || pathname.startsWith(`${base}/`);
+  return (
+    <Link
+      href={base}
+      className={`store-item ${demo ? "demo" : ""} ${active ? "active" : ""}`}
+      aria-current={active ? "page" : undefined}
+    >
+      <span className="nm">{s.name || t.common.unnamed}</span>
+      <span className="sub">
+        /{s.phoneFull}
+        {/* A demo store shows the homepage card it backs ("Nail studios"): all nine share the
+            category "Salon & Barber", which would tell them apart from nothing. */}
+        {(s.demoIndustry ?? s.category) ? ` · ${s.demoIndustry ?? s.category}` : ""}
+      </span>
+    </Link>
+  );
+}
+
 /**
  * @param role hides the platform-wide sections an employee has no access to. This is UX only —
  *   the backend 403s those endpoints regardless, so a hand-typed /billing URL still gets an
  *   empty page rather than someone else's data.
+ * @param demoStores the homepage demo stores, listed in their own group under the real ones.
  */
 export function Sidebar({
   stores,
+  // Defaulted: during a dev hot reload the client half can briefly receive props from an older
+  // server render that didn't pass it, and `.length` of undefined took the whole shell down.
+  demoStores = [],
   drafts,
   role,
 }: {
   stores: StoreListItem[];
+  demoStores?: StoreListItem[];
   drafts: StoreDraftListItem[];
   role: AdminRole;
 }) {
@@ -172,25 +199,18 @@ export function Sidebar({
 
         <div className="side-label">{format(t.nav.storesGroup, { count: stores.length })}</div>
         {stores.length === 0 && <div className="side-empty">{t.nav.noStoresYet}</div>}
-        {stores.map((s) => {
-          // Store links stay highlighted on hub tabs (/stores/[id]/customers etc).
-          const base = `/stores/${s.id}`;
-          const active = pathname === base || pathname.startsWith(`${base}/`);
-          return (
-            <Link
-              key={s.id}
-              href={`/stores/${s.id}`}
-              className={`store-item ${active ? "active" : ""}`}
-              aria-current={active ? "page" : undefined}
-            >
-              <span className="nm">{s.name || t.common.unnamed}</span>
-              <span className="sub">
-                /{s.phoneFull}
-                {s.category ? ` · ${s.category}` : ""}
-              </span>
-            </Link>
-          );
-        })}
+        {stores.map((s) => (
+          <StoreLink key={s.id} store={s} pathname={pathname} />
+        ))}
+
+        {demoStores.length > 0 && (
+          <>
+            <div className="side-label">{format(t.nav.demoStoresGroup, { count: demoStores.length })}</div>
+            {demoStores.map((s) => (
+              <StoreLink key={s.id} store={s} pathname={pathname} demo />
+            ))}
+          </>
+        )}
       </nav>
 
       <button type="button" className="logout-btn" onClick={logout} disabled={loggingOut} aria-busy={loggingOut || undefined}>

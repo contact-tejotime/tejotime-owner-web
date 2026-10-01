@@ -803,10 +803,6 @@ a.tj-photo-well {
     justify-self: start;
   }
   [data-t="gal"] { grid-template-columns: 1fr !important; }
-  .tj-industry-hero {
-    grid-template-columns: 1fr !important;
-    gap: 28px !important;
-  }
   .tj-resources-grid {
     grid-template-columns: 1fr !important;
   }

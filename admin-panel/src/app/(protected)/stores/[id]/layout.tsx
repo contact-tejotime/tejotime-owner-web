@@ -24,7 +24,8 @@ export default async function StoreHubLayout({
   const detail = await getBusinessDetail(id);
   if (!detail) notFound();
 
-  const meta = [detail.category, detail.area, detail.city].filter(Boolean).join(" · ");
+  // A demo store shows the homepage card it backs ("Nail studios") instead of the shared category.
+  const meta = [detail.demoIndustry ?? detail.category, detail.area, detail.city].filter(Boolean).join(" · ");
   const phoneFull = detail.phoneFull || `${detail.countryCode ?? ""}${detail.phoneNumber ?? ""}`;
   const cardUrl = FRONTEND_URL && phoneFull ? `${FRONTEND_URL}/${phoneFull}/card` : "";
   const vcardUrl = detail.slug ? `${BACKEND_URL}/public/businesses/${detail.slug}/vcard` : "";
@@ -45,13 +46,22 @@ export default async function StoreHubLayout({
             />
           )}
           <span className="head-actions-divider" aria-hidden="true" />
-          {t.storeHub.enabled}
-          <StoreStatusToggle
-            key={`${detail.id}:${detail.isActive}`}
-            storeId={detail.id}
-            storeName={detail.name || t.common.unnamed}
-            isActive={detail.isActive}
-          />
+          {detail.isDemo ? (
+            // A homepage demo store can't be switched off (the API answers 409), so no toggle.
+            <span className="badge badge-active" title={t.storeHub.alwaysOnHint}>
+              {t.storeHub.alwaysOn}
+            </span>
+          ) : (
+            <>
+              {t.storeHub.enabled}
+              <StoreStatusToggle
+                key={`${detail.id}:${detail.isActive}`}
+                storeId={detail.id}
+                storeName={detail.name || t.common.unnamed}
+                isActive={detail.isActive}
+              />
+            </>
+          )}
         </span>
       </div>
       <p className="store-head-meta">
