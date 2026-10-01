@@ -169,11 +169,25 @@ export async function listAdmins(): Promise<AdminTeamMember[]> {
   return json?.data ?? [];
 }
 
-export async function listBusinesses(): Promise<StoreListItem[]> {
+async function listAllBusinesses(): Promise<StoreListItem[]> {
   const json = await get<{ data: StoreListItem[] }>("/admin/businesses", [TAGS.businesses], TTL.businesses);
   // The demo/example store is viewable only via the sidebar "View demo store" link — hide it
   // from the manageable Stores list so it isn't treated like a real store.
   return (json?.data ?? []).filter((s) => s.slug !== "demo-store");
+}
+
+/**
+ * The platform's stores — WITHOUT the nine homepage demo stores (`isDemo`), which are TejoTime's
+ * own showcase. Everything built on this (sidebar Stores group, Customers, Reports, the dashboard's
+ * customer chart) therefore leaves them out; they are listed on their own via listDemoBusinesses.
+ */
+export async function listBusinesses(): Promise<StoreListItem[]> {
+  return (await listAllBusinesses()).filter((s) => !s.isDemo);
+}
+
+/** The homepage demo stores, for their own "Demo stores" group. Same cached request as above. */
+export async function listDemoBusinesses(): Promise<StoreListItem[]> {
+  return (await listAllBusinesses()).filter((s) => s.isDemo);
 }
 
 /**
@@ -209,13 +223,23 @@ export async function getBusinessDetail(id: string): Promise<StoreDetail | null>
 
 // ---- Analytics reads (all degrade to null/empty like the helpers above) ----
 
-export async function listBusinessesWithMetrics(): Promise<StoreListItemWithMetrics[]> {
+async function listAllBusinessesWithMetrics(): Promise<StoreListItemWithMetrics[]> {
   const json = await get<{ data: StoreListItemWithMetrics[] }>(
     "/admin/businesses?withMetrics=1",
     [TAGS.businesses, TAGS.analytics],
     TTL.analytics,
   );
   return (json?.data ?? []).filter((s) => s.slug !== "demo-store");
+}
+
+/** Stores table, Billing and the dashboard — homepage demo stores left out (see listBusinesses). */
+export async function listBusinessesWithMetrics(): Promise<StoreListItemWithMetrics[]> {
+  return (await listAllBusinessesWithMetrics()).filter((s) => !s.isDemo);
+}
+
+/** The "Demo stores" section under the stores table. */
+export async function listDemoBusinessesWithMetrics(): Promise<StoreListItemWithMetrics[]> {
+  return (await listAllBusinessesWithMetrics()).filter((s) => s.isDemo);
 }
 
 export async function getPlatformOverview(): Promise<PlatformOverview | null> {

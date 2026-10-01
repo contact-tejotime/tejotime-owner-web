@@ -627,6 +627,19 @@ button {
   border-style: solid;
   border-color: var(--primary);
 }
+/* The Demo stores group (homepage industry stores): a teal edge sets it apart from real stores. */
+.store-item.demo {
+  border-left: 3px solid var(--teal-500);
+}
+/* The "Demo stores" heading under the main stores table. */
+.demo-stores-head {
+  margin-top: 36px;
+}
+.demo-stores-head h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  color: var(--text-strong);
+}
 .preview a {
   color: var(--primary);
   font-weight: 700;
@@ -1265,6 +1278,10 @@ button {
 .badge-red {
   background: var(--red-50);
   color: var(--red-700);
+}
+.badge-demo {
+  background: var(--teal-50);
+  color: var(--teal-700);
 }
 
 .tab-nav {

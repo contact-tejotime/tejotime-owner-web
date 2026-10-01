@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-09-30 · branch `feat-jay`.
+**Last updated:** 2026-10-01 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,46 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Homepage industry cards open live US stores (2026-10-01)
+
+The nine industry pages are **removed**. Each homepage card now opens (in a new tab) a real, fully
+working US store at a short word — `/salon /barber /nail /spa /medspa /massage /physio /tattoo
+/pet` — so sales can show a US shop owner the product running for a business like theirs. They are
+ordinary tenants (admin-editable, bookable, owner login on web/iOS/Android), never labelled demo in
+the UI. Runbook and rules: [docs/demo-stores.md](../../docs/demo-stores.md).
+
+- **Frontend.** `frontend/src/lib/industryStores.ts` (dependency-free, imported by
+  `next.config.ts`) drives the cards, footer links, word → phone rewrites, direct 308s from
+  `/<old-slug>` and `/industries/<old-slug>`, and an invisible `noindex` on those nine phones'
+  `/[phone]` and `/[phone]/card` pages. `app/industries/` and its i18n are deleted. `/demo-store`
+  untouched.
+- **Stores** are created by `backend/scripts/provision-demo-stores.mjs` through the admin API (never
+  the DB) from `backend/scripts/demo-stores.json`. **One run does everything**: create missing
+  stores, bring every owner password back to the sheet's (admin "Reset owner password"), upgrade to
+  premium, then run `smoke-demo-stores.mjs` (API + admin + website with `PROVISION_WEB_URL`).
+  Production = merge to main, then that one command (docs/demo-stores.md → "Production: one
+  command"). Never overwrites store content. All "Salon & Barber", USD, 7 AM–11 PM daily, 555-01xx
+  phones, owner logins `+1 101010101` (salon), `222222222` … `999999999`, **password = the login
+  number** (settled 2026-10-01 after two interim schemes on preprod). The salon was first created
+  as `111111111`, which collided on preprod with the "preprod" test store's owner
+  (+91 1111111111) — ambiguous logins are refused; see docs/demo-stores.md.
+- **Tests.** `backend/scripts/smoke-demo-stores.mjs` (E2E against a provisioned environment) and
+  `npm run check:demo-stores` (frontend map ≡ data sheet ≡ backend list). API + web sections pass
+  on preprod via the local API (202/203 — the salon login, pending the SQL below).
+- **Parity:** owner-web and `app/` unchanged — no new DTOs, endpoints, strings or permissions; both
+  login forms already default to +1 and send `1` + the 9 digits.
+- **Admin panel (same day):** the nine are listed apart as **Demo stores** (sidebar group, a table
+  under the Stores table, a hub badge) and left out of Stores, Dashboard, Customers, Reports,
+  Billing and Team figures. They can't be disabled: `PUT /admin/businesses/:id` with
+  `isActive:false` → 409 `DEMO_STORE_ALWAYS_ON`, checked before body validation. Recognised by
+  phone in `backend/src/domain/demo-stores.ts` (a constant, not a column — no migration, because
+  the local API runs against the shared preprod DB). Covered by
+  `backend/tests/unit/demo-stores-admin.test.ts` and the ADMIN section of `smoke-demo-stores.mjs`
+  (needs an owner-role admin login; **not yet run** — no admin credentials were used).
+- **Provisioned on preprod 2026-10-01.** Open item: the salon owner's login phone is still
+  `111111111` in the DB (the SQL that moves it to `101010101` is in the chat/runbook, to be run by
+  hand), so the salon store is still on Free.
 
 ### Store chat: check in, book, status, leave, cancel (2026-09-30)
 
@@ -643,9 +683,9 @@ guide. **Shipped** in `bc0b482`:
   photography and testimonials exist.
 - New routes: `/industries/[slug]` (9 industry pages), `/resources`, `/terms`, `/accessibility`;
   `/privacy` rewritten.
-- 2026-09-30: industry pages now live at the root (`/barbershops`, …) via a `next.config.ts`
-  rewrite onto `app/industries/[slug]/`; old `/industries/<slug>` URLs 308 to the new ones.
-  See `architecture.md` §7.
+- 2026-09-30: industry pages moved to the root (`/barbershops`, …).
+- 2026-10-01: **industry pages removed** — the cards open live US stores instead, and every old
+  industry URL 308s to its store. See §1 and `architecture.md` §7.
 
 ### The customer booking page (microsite) copy + correctness pass
 
@@ -756,6 +796,11 @@ clean.
   `tejotime-owner` service at `business.tejotime.com`. The only app service without
   config-as-code.
 - **`owner-web/` has no CI job.** Lint and build it by hand before merging.
+- **Store-page renders probably share one `publicRead` budget.** The frontend server fetches the
+  microsite from the API from its own IP, so every visitor's server render counts against the same
+  60/min key. Pre-existing; the homepage now linking nine stores makes it likelier to bite, and the
+  page would show its "failed to load" state. Unverified — check prod logs for 429s on
+  `/public/businesses/by-phone`.
 - CI does not run `check:theme`, `check:crop`, `check:axes` or `test:theme`, so the four theme
   mirrors can drift silently.
 - Migrations are manual and unversioned in deploy — nothing enforces schema-before-image.

@@ -62,6 +62,7 @@
     "reports": "Reports",
     "storesGroup": "Stores ({count})",
     "draftsGroup": "Drafts ({count})",
+    "demoStoresGroup": "Demo stores ({count})",
     "noStoresYet": "No stores yet",
     "logout": "Log out",
     "loggingOut": "Logging out…",
@@ -212,7 +213,10 @@
     "bulkDisableTitleOne": "Disable {count} store?",
     "bulkDisableBody": "Their microsites go offline and online bookings stop. Existing data is kept.",
     "bulkDisableConfirm": "Disable stores",
-    "bulkFailed": "{failed} of {total} failed: {reason}"
+    "bulkFailed": "{failed} of {total} failed: {reason}",
+    "demoTitle": "Demo stores",
+    "demoNote": "The stores behind the homepage industry cards. They're left out of every platform figure, and they're always on — a disabled one would break its homepage card.",
+    "alwaysOn": "Always on"
   },
   "storeStatus": {
     "enableLabel": "Enable {name}",
@@ -232,7 +236,9 @@
     "tabOverview": "Overview",
     "tabCustomers": "Customers",
     "tabVisits": "Visits",
-    "tabSettings": "Settings"
+    "tabSettings": "Settings",
+    "alwaysOn": "Always on",
+    "alwaysOnHint": "This store backs a homepage card, so it can't be disabled."
   },
   "storeOverview": {
     "loadError": "Could not load analytics — is the backend running?",
