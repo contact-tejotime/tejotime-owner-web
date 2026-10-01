@@ -278,6 +278,13 @@ baked into every printed QR code, so `PUT /businesses/:id` with a number differe
 one is **409 `PHONE_LOCKED`** (a legacy store with no number may still set one). The admin form
 disables the field in edit mode; owner-web and the app already showed it read-only.
 
+**The nine homepage demo stores can't be disabled** (`backend/src/domain/demo-stores.ts`):
+`PUT /businesses/:id` with `isActive: false` for one is **409 `DEMO_STORE_ALWAYS_ON`**, checked
+before the body is validated. `GET /businesses` rows and `GET /businesses/:id` carry `isDemo` and
+`demoIndustry` (the homepage card, e.g. "Hair salons", shown instead of the shared category);
+`/analytics/overview` and `GET /admins` (`storesCount`) leave those stores out.
+See [docs/demo-stores.md](../../docs/demo-stores.md).
+
 The admin router **re-checks the `admins` row on every request**, so a demotion or deactivation
 bites immediately rather than at token expiry.
 

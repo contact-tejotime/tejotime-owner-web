@@ -7,6 +7,7 @@ import { Logo } from "@/components/landing/Logo";
 import { Button, Input } from "@/components/landing/ui";
 import { AppointmentCard, Avatar, Badge, WaitTimeWidget } from "@/components/landing/ds";
 import { ProductTour } from "@/components/landing/ProductTour";
+import { visuallyHidden } from "@/components/landing/shell";
 import PhoneField from "@/components/ui/PhoneField";
 import ChatWidget from "@/components/chat/ChatWidget";
 import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton";
@@ -109,6 +110,8 @@ function Bullet({ color, children }: { color: string; children: React.ReactNode 
  * it the soft gradient + big number still read as designed rather than broken.
  * Caption sits under the media (not overlaid) so 2-up mobile grids never clip type.
  * `delayMs` staggers the scroll-reveal so a row of cards cascades in.
+ * `newTab` opens `href` in a new tab — the industry cards lead to a live store page, which
+ * has no TejoTime menu to come back by.
  */
 function PhotoWell({
   n,
@@ -118,6 +121,7 @@ function PhotoWell({
   gradient,
   image,
   href,
+  newTab = false,
   delayMs = 0,
 }: {
   n: string;
@@ -127,6 +131,7 @@ function PhotoWell({
   gradient: string;
   image?: string;
   href?: string;
+  newTab?: boolean;
   delayMs?: number;
 }) {
   const style: React.CSSProperties = {
@@ -241,6 +246,17 @@ function PhotoWell({
       </span>
     </>
   );
+
+  // A plain anchor, not <Link>: a new tab is a full page load, so Next's background prefetch
+  // of the store route would be a wasted server render for every visitor who scrolls past.
+  if (href && newTab) {
+    return (
+      <a data-reveal="1" href={href} target="_blank" rel="noopener noreferrer" className="tj-photo-well" style={style}>
+        {body}
+        <span style={visuallyHidden}>{t.landing.industriesSection.opensInNewTab}</span>
+      </a>
+    );
+  }
 
   if (href) {
     return (
@@ -1305,6 +1321,7 @@ export default function Home() {
                 gradient="linear-gradient(140deg,var(--blue-100) 0%,var(--blue-50) 46%,var(--teal-100) 100%)"
                 image={i.image}
                 href={i.href}
+                newTab={i.newTab}
                 delayMs={(idx % 3) * 70}
               />
             ))}
@@ -2027,6 +2044,7 @@ export default function Home() {
                   <a
                     key={fl.href + fl.label}
                     href={fl.href}
+                    {...(fl.newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                     className="tj-footlink"
                     style={{
                       font: "var(--fw-medium) 14px/1.35 var(--font-sans)",
@@ -2035,6 +2053,7 @@ export default function Home() {
                     }}
                   >
                     {fl.label}
+                    {fl.newTab && <span style={visuallyHidden}>{t.landing.industriesSection.opensInNewTab}</span>}
                   </a>
                 ))}
                 {/* Withdrawing consent has to be as reachable as giving it, so the Legal column

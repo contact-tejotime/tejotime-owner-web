@@ -201,13 +201,17 @@ business's full international phone number (digits only, no `+`), resolved to a 
 follow-on queue/booking calls.
 
 Consequence: a new top-level marketing route must exist as a real folder — `privacy/`, `terms/`,
-`accessibility/`, `resources/`, `industries/` — or `[phone]` swallows it.
+`accessibility/`, `resources/`, `demo-store/` — or `[phone]` swallows it.
 
-The one exception: the 9 industry pages are **served at the root** (`/barbershops`) while living in
-`app/industries/[slug]/`. `frontend/next.config.ts` rewrites `/<slug>` → `/industries/<slug>`
-(afterFiles, so it wins over `[phone]`) and permanently redirects the old `/industries/<slug>` URLs
-to `/<slug>`. A new industry must be added to `INDUSTRY_SLUGS` in `landingData.ts` **and** to
-`INDUSTRY_SLUG_PATTERN` in `next.config.ts`, or its root URL 404s.
+The one exception: the 9 homepage industry cards open **live stores at short words** (`/barber`).
+`frontend/next.config.ts` rewrites each word onto that store's phone microsite (`/barber` →
+`/17185550102`; afterFiles, so it runs before `[phone]` would 404 the non-digit word) and
+permanently (308) redirects the retired industry-page URLs — `/barbershops` and
+`/industries/barbershops` — **directly** to the word. Rewrites, redirects, card hrefs, footer links
+and the stores' `noindex` all come from one dependency-free map, `frontend/src/lib/industryStores.ts`,
+mirrored in `backend/scripts/demo-stores.json` (`npm run check:demo-stores`). Trap: a real `app/`
+folder named like one of the words wins over the rewrite and silently takes that URL. Full rules:
+[docs/demo-stores.md](../../docs/demo-stores.md).
 
 **Server/client boundary:** a plain function exported from a `"use client"` module cannot be called
 by a Server Component; Next fails at prerender ("Attempted to call X() from the server but X is on

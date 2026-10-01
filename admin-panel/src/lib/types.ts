@@ -119,6 +119,17 @@ export interface StoreListItem {
   category: string | null;
   city: string | null;
   isActive: boolean;
+  /**
+   * One of the nine homepage industry stores (docs/demo-stores.md): listed under "Demo stores",
+   * left out of every platform page, and never disable-able. Optional so a backend that predates
+   * the flag reads as "not demo" rather than breaking the list.
+   */
+  isDemo?: boolean;
+  /**
+   * For a demo store, the homepage card it backs ("Hair salons", "Barbershops", …). All nine share
+   * the category "Salon & Barber", so the panel shows this in its place. Null for other stores.
+   */
+  demoIndustry?: string | null;
   createdAt: string;
 }
 
@@ -191,6 +202,10 @@ export interface StoreDetail {
   slug: string;
   name: string;
   isActive: boolean;
+  /** Homepage demo store — the hub shows it as always on, with no Enabled toggle. See StoreListItem. */
+  isDemo?: boolean;
+  /** Its homepage card ("Hair salons"), shown in place of the category. See StoreListItem. */
+  demoIndustry?: string | null;
   category: string;
   area: string;
   address: string;

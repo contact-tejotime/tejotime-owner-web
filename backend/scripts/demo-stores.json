@@ -1,0 +1,379 @@
+{
+  "_readme": "Data sheet for the nine homepage industry stores. Read by provision-demo-stores.mjs (creates them through the admin API) and smoke-demo-stores.mjs (verifies them). Each POST body is { ...defaults, ...store, owner } — path, legacySlug and verify are never sent (the create schema is strict). path/phone/legacySlug/order are mirrored in frontend/src/lib/industryStores.ts; npm run check:demo-stores fails on drift. See docs/demo-stores.md.",
+  "defaults": {
+    "category": "Salon & Barber",
+    "currency": "USD",
+    "timezone": "",
+    "payments": ["Credit/Debit Card", "Apple Pay", "Cash"],
+    "hours": [
+      { "dayOfWeek": 0, "opensAt": "07:00", "closesAt": "23:00", "isClosed": false },
+      { "dayOfWeek": 1, "opensAt": "07:00", "closesAt": "23:00", "isClosed": false },
+      { "dayOfWeek": 2, "opensAt": "07:00", "closesAt": "23:00", "isClosed": false },
+      { "dayOfWeek": 3, "opensAt": "07:00", "closesAt": "23:00", "isClosed": false },
+      { "dayOfWeek": 4, "opensAt": "07:00", "closesAt": "23:00", "isClosed": false },
+      { "dayOfWeek": 5, "opensAt": "07:00", "closesAt": "23:00", "isClosed": false },
+      { "dayOfWeek": 6, "opensAt": "07:00", "closesAt": "23:00", "isClosed": false }
+    ]
+  },
+  "stores": [
+    {
+      "path": "salon",
+      "legacySlug": "hair-salons",
+      "verify": { "timezone": "America/Chicago" },
+      "owner": { "phone": "101010101", "password": "101010101" },
+      "store": {
+        "name": "Willow & Co. Hair Studio",
+        "countryCode": "1",
+        "phoneNumber": "5125550101",
+        "area": "South Congress",
+        "address": "1418 S Congress Ave, Suite 200, Austin, TX 78704",
+        "city": "Austin",
+        "tagline": "Modern cuts and color in the heart of SoCo",
+        "heroSubtitle": "Book your stylist online or join today's waitlist.",
+        "aboutHeading": "Hair that fits your life",
+        "description": "Willow & Co. is a friendly neighborhood studio known for lived-in color, precision cuts and blowouts that last. Our stylists take time to understand your hair and your routine.",
+        "establishedYear": 2016,
+        "statValue": "12k+",
+        "statLabel": "happy clients",
+        "rating": 4.8,
+        "reviewCount": 214,
+        "amenities": ["Free Wi-Fi", "Complimentary coffee", "Wheelchair accessible", "Street parking"],
+        "theme": { "preset": "luxury", "mode": "light", "brand": "#A0522D" },
+        "services": [
+          { "name": "Women's Haircut", "durationMinutes": 60, "priceType": "fixed", "priceRupees": 65 },
+          { "name": "Men's Haircut", "durationMinutes": 30, "priceType": "fixed", "priceRupees": 35 },
+          { "name": "Color", "durationMinutes": 120, "priceType": "range", "priceRupees": 120, "priceMaxRupees": 250 },
+          { "name": "Blowout", "durationMinutes": 45, "priceType": "fixed", "priceRupees": 45 }
+        ],
+        "staff": [
+          { "name": "Emily Carter", "roleLabel": "Senior Stylist" },
+          { "name": "Olivia Brooks", "roleLabel": "Color Specialist" }
+        ],
+        "reviews": [
+          { "stars": 5, "text": "Emily nailed exactly the color I wanted. Booking online took seconds.", "authorName": "Jessica M." },
+          { "stars": 5, "text": "Best blowout in Austin, and I'm never kept waiting past my time.", "authorName": "Lauren P." },
+          { "stars": 4, "text": "Great cut, friendly staff. Parking can be tight on weekends.", "authorName": "Daniel R." }
+        ]
+      }
+    },
+    {
+      "path": "barber",
+      "legacySlug": "barbershops",
+      "verify": { "timezone": "America/New_York" },
+      "owner": { "phone": "222222222", "password": "222222222" },
+      "store": {
+        "name": "Main Street Barber Co.",
+        "countryCode": "1",
+        "phoneNumber": "7185550102",
+        "area": "Park Slope",
+        "address": "214 7th Ave, Brooklyn, NY 11215",
+        "city": "Brooklyn",
+        "tagline": "Classic cuts, clean fades, no long waits",
+        "heroSubtitle": "Book a chair or join the walk-in line from your phone.",
+        "aboutHeading": "A neighborhood shop since 2012",
+        "description": "Main Street Barber Co. is a no-fuss Brooklyn barbershop for sharp fades, beard work and hot towel shaves. Walk in or book ahead; either way you'll see your wait time before you leave home.",
+        "establishedYear": 2012,
+        "statValue": "30k+",
+        "statLabel": "cuts and counting",
+        "rating": 4.9,
+        "reviewCount": 386,
+        "amenities": ["Walk-ins welcome", "Kids' cuts", "Free Wi-Fi", "TV & sports"],
+        "theme": { "preset": "bold", "mode": "light", "brand": "#B91C1C" },
+        "services": [
+          { "name": "Haircut", "durationMinutes": 30, "priceType": "fixed", "priceRupees": 35 },
+          { "name": "Skin Fade", "durationMinutes": 45, "priceType": "fixed", "priceRupees": 45 },
+          { "name": "Beard Trim", "durationMinutes": 20, "priceType": "fixed", "priceRupees": 20 },
+          { "name": "Hot Towel Shave", "durationMinutes": 30, "priceType": "fixed", "priceRupees": 40 }
+        ],
+        "staff": [
+          { "name": "Marcus Johnson", "roleLabel": "Master Barber" },
+          { "name": "Tony Russo", "roleLabel": "Barber" }
+        ],
+        "reviews": [
+          { "stars": 5, "text": "Cleanest fade in Park Slope. Checking in online saves me a 40-minute wait.", "authorName": "Chris D." },
+          { "stars": 5, "text": "Hot towel shave was worth every penny.", "authorName": "Andre W." },
+          { "stars": 4, "text": "Solid cut every time. Saturdays get busy, so book ahead.", "authorName": "Kevin L." }
+        ]
+      }
+    },
+    {
+      "path": "nail",
+      "legacySlug": "nail-studios",
+      "verify": { "timezone": "America/New_York" },
+      "owner": { "phone": "333333333", "password": "333333333" },
+      "store": {
+        "name": "Polished Nail Lounge",
+        "countryCode": "1",
+        "phoneNumber": "3055550103",
+        "area": "Brickell",
+        "address": "1001 Brickell Bay Dr, Suite 110, Miami, FL 33131",
+        "city": "Miami",
+        "tagline": "Clean, calm and picture-perfect nails",
+        "heroSubtitle": "Pick your nail tech, add your upgrades and book in under a minute.",
+        "aboutHeading": "Your nails, done right",
+        "description": "Polished Nail Lounge is a bright, spotless Brickell studio offering gel manicures, spa pedicures and custom nail art. Every tool is sterilized after each client.",
+        "establishedYear": 2018,
+        "statValue": "9k+",
+        "statLabel": "manicures done",
+        "rating": 4.7,
+        "reviewCount": 158,
+        "amenities": ["Sterilized tools", "Complimentary drinks", "Free Wi-Fi", "Wheelchair accessible"],
+        "theme": { "preset": "modern", "mode": "light", "brand": "#DB2777" },
+        "services": [
+          { "name": "Classic Manicure", "durationMinutes": 30, "priceType": "fixed", "priceRupees": 25 },
+          { "name": "Gel Manicure", "durationMinutes": 45, "priceType": "fixed", "priceRupees": 40 },
+          { "name": "Spa Pedicure", "durationMinutes": 60, "priceType": "fixed", "priceRupees": 50 },
+          { "name": "Nail Art", "durationMinutes": 30, "priceType": "unset" }
+        ],
+        "staff": [
+          { "name": "Linda Nguyen", "roleLabel": "Lead Nail Technician" },
+          { "name": "Jessica Tran", "roleLabel": "Nail Artist" }
+        ],
+        "reviews": [
+          { "stars": 5, "text": "Jessica's nail art is unreal. My gel set lasted three weeks.", "authorName": "Ashley G." },
+          { "stars": 5, "text": "Super clean, and I love choosing my tech when I book.", "authorName": "Maria S." },
+          { "stars": 4, "text": "Relaxing pedicure, friendly team. Be on time; they run a tight schedule.", "authorName": "Nicole B." }
+        ]
+      }
+    },
+    {
+      "path": "spa",
+      "legacySlug": "spas",
+      "verify": { "timezone": "America/Phoenix" },
+      "owner": { "phone": "444444444", "password": "444444444" },
+      "store": {
+        "name": "Still Waters Day Spa",
+        "countryCode": "1",
+        "phoneNumber": "4805550104",
+        "area": "Old Town",
+        "address": "7114 E Stetson Dr, Suite 120, Scottsdale, AZ 85251",
+        "city": "Scottsdale",
+        "tagline": "Slow down. Breathe. Restore.",
+        "heroSubtitle": "Massages, facials and body treatments in a quiet Old Town retreat.",
+        "aboutHeading": "A calm escape in Old Town",
+        "description": "Still Waters is a boutique day spa offering therapeutic massage, customized facials and body treatments. Choose your therapist, book your time, and leave the rest to us.",
+        "establishedYear": 2015,
+        "statValue": "15k+",
+        "statLabel": "treatments given",
+        "rating": 4.9,
+        "reviewCount": 241,
+        "amenities": ["Private treatment rooms", "Couples suite", "Robes & slippers", "Free parking"],
+        "theme": { "preset": "warm", "mode": "light", "brand": "#0F766E" },
+        "services": [
+          { "name": "Swedish Massage", "durationMinutes": 60, "priceType": "fixed", "priceRupees": 95 },
+          { "name": "Signature Facial", "durationMinutes": 60, "priceType": "fixed", "priceRupees": 110 },
+          { "name": "Body Scrub", "durationMinutes": 45, "priceType": "fixed", "priceRupees": 85 },
+          { "name": "Couples Massage", "durationMinutes": 90, "priceType": "fixed", "priceRupees": 220 }
+        ],
+        "staff": [
+          { "name": "Sarah Mitchell", "roleLabel": "Licensed Massage Therapist" },
+          { "name": "Hannah Lee", "roleLabel": "Esthetician" }
+        ],
+        "reviews": [
+          { "stars": 5, "text": "Sarah's Swedish massage was the best I've had in Arizona.", "authorName": "Rebecca H." },
+          { "stars": 5, "text": "Booked a couples massage for our anniversary. Perfect start to finish.", "authorName": "Michael T." },
+          { "stars": 4, "text": "Lovely facial and a really peaceful space.", "authorName": "Karen J." }
+        ]
+      }
+    },
+    {
+      "path": "medspa",
+      "legacySlug": "med-spas",
+      "verify": { "timezone": "America/Los_Angeles" },
+      "owner": { "phone": "555555555", "password": "555555555" },
+      "store": {
+        "name": "Lumière Aesthetics",
+        "countryCode": "1",
+        "phoneNumber": "3105550105",
+        "area": "Brentwood",
+        "address": "11980 San Vicente Blvd, Suite 300, Los Angeles, CA 90049",
+        "city": "Los Angeles",
+        "tagline": "Natural-looking results, medically led",
+        "heroSubtitle": "Book a consultation or treatment with our licensed medical team.",
+        "aboutHeading": "Aesthetics with a medical touch",
+        "description": "Lumière Aesthetics is a physician-led med spa offering injectables, HydraFacials and chemical peels. Every treatment starts with a consultation, so your plan fits your skin and your goals.",
+        "establishedYear": 2019,
+        "statValue": "5k+",
+        "statLabel": "treatments performed",
+        "rating": 4.8,
+        "reviewCount": 132,
+        "amenities": ["Physician-led", "Private consultation rooms", "Free parking", "Wheelchair accessible"],
+        "theme": { "preset": "minimal", "mode": "light", "brand": "#6D28D9" },
+        "services": [
+          { "name": "Consultation", "durationMinutes": 30, "priceType": "unset" },
+          { "name": "HydraFacial", "durationMinutes": 60, "priceType": "fixed", "priceRupees": 199 },
+          { "name": "Botox", "durationMinutes": 30, "priceType": "range", "priceRupees": 300, "priceMaxRupees": 600 },
+          { "name": "Chemical Peel", "durationMinutes": 45, "priceType": "fixed", "priceRupees": 150 }
+        ],
+        "staff": [
+          { "name": "Dr. Rachel Adams", "roleLabel": "Medical Director" },
+          { "name": "Megan Ross", "roleLabel": "Aesthetic Nurse, RN" }
+        ],
+        "reviews": [
+          { "stars": 5, "text": "Dr. Adams listened to what I wanted, and the results look completely natural.", "authorName": "Stephanie K." },
+          { "stars": 5, "text": "My HydraFacial glow lasted all week.", "authorName": "Brittany L." },
+          { "stars": 4, "text": "Professional, clean and easy to book. Pricing explained up front.", "authorName": "Jennifer W." }
+        ]
+      }
+    },
+    {
+      "path": "massage",
+      "legacySlug": "massage-therapy",
+      "verify": { "timezone": "America/Denver" },
+      "owner": { "phone": "666666666", "password": "666666666" },
+      "store": {
+        "name": "Knead & Unwind Massage",
+        "countryCode": "1",
+        "phoneNumber": "3035550106",
+        "area": "LoHi",
+        "address": "2550 15th St, Suite 101, Denver, CO 80211",
+        "city": "Denver",
+        "tagline": "Therapeutic massage for real-life stress",
+        "heroSubtitle": "Choose your therapist and session length, then book in seconds.",
+        "aboutHeading": "Massage that actually helps",
+        "description": "Knead & Unwind offers deep tissue, hot stone and prenatal massage from licensed therapists. Sore muscles or a long week, every session is tailored to you.",
+        "establishedYear": 2017,
+        "statValue": "20k+",
+        "statLabel": "sessions given",
+        "rating": 4.8,
+        "reviewCount": 197,
+        "amenities": ["Licensed therapists", "Hot towels", "Free Wi-Fi", "Street parking"],
+        "theme": { "preset": "warm", "mode": "light", "brand": "#9A3412" },
+        "services": [
+          { "name": "30-min Massage", "durationMinutes": 30, "priceType": "fixed", "priceRupees": 50 },
+          { "name": "60-min Deep Tissue", "durationMinutes": 60, "priceType": "fixed", "priceRupees": 90 },
+          { "name": "90-min Hot Stone", "durationMinutes": 90, "priceType": "fixed", "priceRupees": 130 },
+          { "name": "Prenatal Massage", "durationMinutes": 60, "priceType": "fixed", "priceRupees": 95 }
+        ],
+        "staff": [
+          { "name": "Jake Thompson", "roleLabel": "Licensed Massage Therapist" },
+          { "name": "Maria Lopez", "roleLabel": "Prenatal Specialist" }
+        ],
+        "reviews": [
+          { "stars": 5, "text": "Jake found knots I didn't know I had. Deep tissue done right.", "authorName": "Ryan K." },
+          { "stars": 5, "text": "Maria's prenatal massage was a lifesaver in my third trimester.", "authorName": "Emily S." },
+          { "stars": 4, "text": "Great hot stone session. Book early for weekends.", "authorName": "Tyler M." }
+        ]
+      }
+    },
+    {
+      "path": "physio",
+      "legacySlug": "physical-therapy",
+      "verify": { "timezone": "America/Chicago" },
+      "owner": { "phone": "777777777", "password": "777777777" },
+      "store": {
+        "name": "Forward Motion Physical Therapy",
+        "countryCode": "1",
+        "phoneNumber": "3125550107",
+        "area": "West Loop",
+        "address": "1000 W Randolph St, Suite 2, Chicago, IL 60607",
+        "city": "Chicago",
+        "tagline": "Move better, recover faster",
+        "heroSubtitle": "One-on-one physical therapy for injuries, surgery recovery and sports performance.",
+        "aboutHeading": "Personal care, every visit",
+        "description": "Forward Motion is an outpatient clinic offering one-on-one sessions with a Doctor of Physical Therapy. We treat sports injuries, back and neck pain, and post-surgery rehab.",
+        "establishedYear": 2014,
+        "statValue": "8k+",
+        "statLabel": "patients treated",
+        "rating": 4.9,
+        "reviewCount": 176,
+        "amenities": ["One-on-one sessions", "Private treatment rooms", "Wheelchair accessible", "Free Wi-Fi"],
+        "theme": { "preset": "medical", "mode": "light", "brand": "#0369A1" },
+        "services": [
+          { "name": "Initial Evaluation", "durationMinutes": 60, "priceType": "unset" },
+          { "name": "Follow-up Session", "durationMinutes": 45, "priceType": "fixed", "priceRupees": 110 },
+          { "name": "Sports Injury Rehab", "durationMinutes": 45, "priceType": "fixed", "priceRupees": 120 },
+          { "name": "Dry Needling", "durationMinutes": 30, "priceType": "fixed", "priceRupees": 75 }
+        ],
+        "staff": [
+          { "name": "Dr. Kevin Walsh, PT, DPT", "roleLabel": "Physical Therapist" }
+        ],
+        "reviews": [
+          { "stars": 5, "text": "Dr. Walsh got me back to running after knee surgery.", "authorName": "Brian O." },
+          { "stars": 5, "text": "Easy online booking, and I'm never kept waiting.", "authorName": "Patricia N." },
+          { "stars": 5, "text": "Finally some relief from my lower back pain.", "authorName": "Steven G." }
+        ]
+      }
+    },
+    {
+      "path": "tattoo",
+      "legacySlug": "tattoo-studios",
+      "verify": { "timezone": "America/Los_Angeles" },
+      "owner": { "phone": "888888888", "password": "888888888" },
+      "store": {
+        "name": "Black Anchor Tattoo",
+        "countryCode": "1",
+        "phoneNumber": "2065550108",
+        "area": "Capitol Hill",
+        "address": "418 Broadway E, Seattle, WA 98102",
+        "city": "Seattle",
+        "tagline": "Custom ink, done clean",
+        "heroSubtitle": "Book a consultation or a session with your favorite artist.",
+        "aboutHeading": "Art that lasts a lifetime",
+        "description": "Black Anchor is a custom tattoo and piercing studio on Capitol Hill. Our artists specialize in fine line, traditional and black-and-grey work in a licensed, spotless studio.",
+        "establishedYear": 2013,
+        "statValue": "6k+",
+        "statLabel": "tattoos inked",
+        "rating": 4.9,
+        "reviewCount": 223,
+        "amenities": ["Licensed & sterile", "Custom designs", "Aftercare kit included", "Walk-ins welcome"],
+        "theme": { "preset": "bold", "mode": "dark", "brand": "#CA8A04" },
+        "services": [
+          { "name": "Consultation", "durationMinutes": 30, "priceType": "unset" },
+          { "name": "Small Tattoo", "durationMinutes": 60, "priceType": "fixed", "priceRupees": 120 },
+          { "name": "Custom Piece", "durationMinutes": 180, "priceType": "range", "priceRupees": 300, "priceMaxRupees": 900 },
+          { "name": "Piercing", "durationMinutes": 20, "priceType": "fixed", "priceRupees": 45 }
+        ],
+        "staff": [
+          { "name": "Derek Hayes", "roleLabel": "Tattoo Artist" },
+          { "name": "Ava Morgan", "roleLabel": "Fine Line Artist" }
+        ],
+        "reviews": [
+          { "stars": 5, "text": "Ava's fine line work is incredible. Healed perfectly.", "authorName": "Megan F." },
+          { "stars": 5, "text": "Derek turned my rough idea into a piece I love.", "authorName": "Jason P." },
+          { "stars": 4, "text": "Talented artists, super clean shop. It's popular, so book ahead.", "authorName": "Alyssa V." }
+        ]
+      }
+    },
+    {
+      "path": "pet",
+      "legacySlug": "pet-grooming",
+      "verify": { "timezone": "America/New_York" },
+      "owner": { "phone": "999999999", "password": "999999999" },
+      "store": {
+        "name": "Happy Tails Grooming",
+        "countryCode": "1",
+        "phoneNumber": "4045550109",
+        "area": "Midtown",
+        "address": "950 W Peachtree St NW, Suite 105, Atlanta, GA 30309",
+        "city": "Atlanta",
+        "tagline": "Fresh, fluffy and happy, every visit",
+        "heroSubtitle": "Book a bath or full groom, and we'll treat your pup like family.",
+        "aboutHeading": "Gentle grooming for every breed",
+        "description": "Happy Tails is a friendly grooming salon for dogs of all sizes. We use gentle, pet-safe shampoos and never rush a nervous pup.",
+        "establishedYear": 2016,
+        "statValue": "10k+",
+        "statLabel": "pets pampered",
+        "rating": 4.8,
+        "reviewCount": 189,
+        "amenities": ["Pet-safe products", "Cage-free drying", "All breeds welcome", "Free parking"],
+        "theme": { "preset": "modern", "mode": "light", "brand": "#16A34A" },
+        "services": [
+          { "name": "Bath & Brush", "durationMinutes": 60, "priceType": "fixed", "priceRupees": 55 },
+          { "name": "Full Groom", "durationMinutes": 120, "priceType": "range", "priceRupees": 75, "priceMaxRupees": 140 },
+          { "name": "Nail Trim", "durationMinutes": 15, "priceType": "fixed", "priceRupees": 20 },
+          { "name": "De-shedding", "durationMinutes": 60, "priceType": "fixed", "priceRupees": 65 }
+        ],
+        "staff": [
+          { "name": "Chloe Bennett", "roleLabel": "Lead Groomer" },
+          { "name": "Ryan Cooper", "roleLabel": "Bather" }
+        ],
+        "reviews": [
+          { "stars": 5, "text": "Our doodle came home looking like a show dog.", "authorName": "Amanda C." },
+          { "stars": 5, "text": "Chloe is so patient with my anxious rescue.", "authorName": "Josh H." },
+          { "stars": 4, "text": "Great groom, easy booking. Full grooms take a while, so plan ahead.", "authorName": "Kelly D." }
+        ]
+      }
+    }
+  ]
+}

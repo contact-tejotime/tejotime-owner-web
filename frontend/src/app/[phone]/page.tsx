@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ApiError, publicApi } from "@/lib/api";
+import { isIndustryStorePhone } from "@/lib/industryStores";
 import MicrositeClient from "@/components/microsite/MicrositeClient";
 import ThemeStyle from "@/theme/ThemeStyle";
 import { micrositeThemeConfig } from "@/theme";
@@ -17,18 +18,26 @@ export const dynamic = "force-dynamic";
  *
  * A failed lookup falls through to the layout default rather than throwing: metadata must never
  * be the reason the page 500s, and the page body handles the same failure on its own.
+ *
+ * The nine homepage industry stores (lib/industryStores.ts) are kept out of search engines with an
+ * invisible noindex — nothing on the page changes. They are reached from the homepage cards, and
+ * without it Google would list made-up US shops, addresses and reviews as real businesses. Decided
+ * from the phone BEFORE the fetch, so it holds even when the lookup fails. Under the /salon →
+ * /15125550101 rewrite `params.phone` is the digits, so both URLs carry it.
  */
 export async function generateMetadata({ params }: { params: Promise<{ phone: string }> }): Promise<Metadata> {
   const { phone } = await params;
   if (!/^\d{7,15}$/.test(phone)) return {};
+  const robots: Metadata["robots"] = isIndustryStorePhone(phone) ? { index: false, follow: false } : undefined;
   try {
     const site = await publicApi.getMicrositeByPhone(phone);
     return {
       title: format(t.microsite.meta.title, { name: site.name }),
       description: format(t.microsite.meta.description, { name: site.name }),
+      ...(robots ? { robots } : {}),
     };
   } catch {
-    return {};
+    return robots ? { robots } : {};
   }
 }
 

@@ -7,7 +7,7 @@ import { Logo } from "@/components/landing/Logo";
 import { Button } from "@/components/landing/ui";
 import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton";
 import { footerCols, nav } from "@/components/landing/landingData";
-import { shell } from "@/components/landing/shell";
+import { shell, visuallyHidden } from "@/components/landing/shell";
 import { AppStoreBadges } from "@/components/AppStoreBadges";
 import { t, format } from "@/i18n";
 import { OWNER_ORIGIN } from "@/lib/config";
@@ -20,7 +20,7 @@ const eyebrowStyle: CSSProperties = {
 };
 
 /**
- * Shared chrome for marketing subpages (industry landings, resources).
+ * Shared chrome for marketing subpages (resources).
  * Start Free / Book a Demo return to the homepage inquiry flow via `?join=1`.
  */
 export function MarketingChrome({ children }: { children: ReactNode }) {
@@ -113,19 +113,38 @@ export function MarketingChrome({ children }: { children: ReactNode }) {
                 <span className="tj-foot-head" style={eyebrowStyle}>
                   {fc.head}
                 </span>
-                {fc.links.map((fl) => (
-                  <Link
-                    key={fl.href + fl.label}
-                    href={fl.href}
-                    className="tj-footlink"
-                    style={{
-                      font: "var(--fw-medium) 14px/1.35 var(--font-sans)",
-                      color: "var(--text-body)",
-                    }}
-                  >
-                    {fl.label}
-                  </Link>
-                ))}
+                {fc.links.map((fl) =>
+                  // Store links open a new tab (a full page load), so a plain anchor rather than
+                  // <Link>, which would prefetch a page this tab never navigates to.
+                  fl.newTab ? (
+                    <a
+                      key={fl.href + fl.label}
+                      href={fl.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="tj-footlink"
+                      style={{
+                        font: "var(--fw-medium) 14px/1.35 var(--font-sans)",
+                        color: "var(--text-body)",
+                      }}
+                    >
+                      {fl.label}
+                      <span style={visuallyHidden}>{t.landing.industriesSection.opensInNewTab}</span>
+                    </a>
+                  ) : (
+                    <Link
+                      key={fl.href + fl.label}
+                      href={fl.href}
+                      className="tj-footlink"
+                      style={{
+                        font: "var(--fw-medium) 14px/1.35 var(--font-sans)",
+                        color: "var(--text-body)",
+                      }}
+                    >
+                      {fl.label}
+                    </Link>
+                  ),
+                )}
                 {/* Same control as the homepage footer — see the note there. */}
                 {fc.head === footerCols[footerCols.length - 1].head && (
                   <CookieSettingsButton

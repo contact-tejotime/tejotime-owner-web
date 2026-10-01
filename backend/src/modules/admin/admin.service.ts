@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import { exec, many, one, transaction } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { env } from '../../config/env';
+import { DEMO_STORE_PHONES, demoStoreIndustry, isDemoStorePhone } from '../../domain/demo-stores';
 import { Errors } from '../../domain/errors';
 import { money } from '../../domain/money';
 import { timezoneForPhone } from '../../lib/phone-timezone';
@@ -378,12 +379,34 @@ export async function createBusiness(input: CreateBusinessInput, createdByAdminI
   return { id: bid, slug, phoneFull, micrositePath: `/${phoneFull}` };
 }
 
+/**
+ * A homepage industry store (domain/demo-stores.ts) backs a public homepage card, so switching it
+ * off would turn that card into a 404 — refused here, not just hidden in the panel. Everything
+ * else about it (content, services, staff, hours) stays editable like any store.
+ */
+function refuseDemoStoreDisable(phoneFull: string | null, isActive: boolean | undefined) {
+  if (isActive === false && isDemoStorePhone(phoneFull)) {
+    throw Errors.conflict('DEMO_STORE_ALWAYS_ON', "This demo store backs a homepage card, so it can't be disabled.");
+  }
+}
+
+/**
+ * Route-level form of the same rule, run BEFORE the PUT body is validated: a bare
+ * `{ isActive: false }` for a demo store gets the 409 that explains why, and if this check ever
+ * broke, that request would fail validation (400) rather than write anything.
+ */
+export async function assertStoreCanBeDisabled(id: string) {
+  const row = await one('select phone_full from business where id = $1', [id]);
+  refuseDemoStoreDisable((row?.phone_full as string | null) ?? null, false);
+}
+
 export async function updateBusiness(id: string, input: UpdateBusinessInput) {
   const existing = await one(
     'select id, currency, theme_color, phone_full, timezone from business where id = $1',
     [id],
   );
   if (!existing) throw Errors.notFound('Store not found');
+  refuseDemoStoreDisable((existing.phone_full as string | null) ?? null, input.isActive);
 
   const countryCode = input.countryCode.replace(/\D/g, '');
   const phoneNumber = input.phoneNumber.replace(/\D/g, '');
@@ -598,10 +621,16 @@ export async function listLookups(type: string) {
 /** Everyone with a login, active or not. `password_hash` is never selected, let alone returned. */
 export async function listAdmins() {
   const rows = await many(
+    // The homepage demo stores are TejoTime's own showcase, not stores an admin brought in, so
+    // they don't count towards anyone's total. coalesce: a NULL phone_full must still be counted
+    // (`NULL <> all(...)` is NULL, which would silently drop it).
     `select a.id, a.mobile, a.name, a.role, a.is_active, a.created_at,
-            (select count(*)::int from business b where b.created_by_admin_id = a.id) as stores_count
+            (select count(*)::int from business b
+              where b.created_by_admin_id = a.id
+                and coalesce(b.phone_full, '') <> all($1::text[])) as stores_count
        from admins a
       order by (a.role = 'owner') desc, a.created_at`,
+    [DEMO_STORE_PHONES],
   );
   return {
     data: rows.map((r) => ({
@@ -715,14 +744,20 @@ export async function listBusinesses(withMetrics = false, creatorId: string | nu
 
   return {
     data: data.map((b) => {
+      const phoneFull = `${b.country_code ?? ''}${b.phone_number ?? ''}`;
       const base = {
         id: b.id,
         name: b.name,
         slug: b.slug,
         category: b.category,
         city: b.city ?? null,
-        phoneFull: `${b.country_code ?? ''}${b.phone_number ?? ''}`,
+        phoneFull,
         isActive: b.is_active,
+        // Still listed (the provisioning script and the panel's "Demo stores" section need them);
+        // the panel filters them out of its platform pages by this flag.
+        isDemo: isDemoStorePhone(phoneFull),
+        // Which homepage card it backs ("Hair salons") — shown instead of the shared category.
+        demoIndustry: demoStoreIndustry(phoneFull),
         createdAt: b.created_at,
       };
       if (!withMetrics) return base;
@@ -798,6 +833,8 @@ export async function getBusinessDetail(id: string) {
     countryCode: b.country_code ?? '',
     phoneNumber: b.phone_number ?? '',
     phoneFull: `${b.country_code ?? ''}${b.phone_number ?? ''}`,
+    isDemo: isDemoStorePhone(`${b.country_code ?? ''}${b.phone_number ?? ''}`),
+    demoIndustry: demoStoreIndustry(`${b.country_code ?? ''}${b.phone_number ?? ''}`),
     ownerPhone: (owner?.phone as string | undefined) ?? '',
     hours: hours.map((h) => ({
       dayOfWeek: h.day_of_week,
