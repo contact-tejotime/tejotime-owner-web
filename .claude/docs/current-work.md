@@ -28,10 +28,13 @@ the UI. Runbook and rules: [docs/demo-stores.md](../../docs/demo-stores.md).
   premium, then run `smoke-demo-stores.mjs` (API + admin + website with `PROVISION_WEB_URL`).
   Production = merge to main, then that one command (docs/demo-stores.md → "Production: one
   command"). Never overwrites store content. All "Salon & Barber", USD, 7 AM–11 PM daily, 555-01xx
-  phones, owner logins `+1 101010101` (salon), `222222222` … `999999999`, **password = the login
-  number** (settled 2026-10-01 after two interim schemes on preprod). The salon was first created
-  as `111111111`, which collided on preprod with the "preprod" test store's owner
-  (+91 1111111111) — ambiguous logins are refused; see docs/demo-stores.md.
+  phones, owner logins `+1 111111111` (salon), `222222222` … `999999999`, **password = the login
+  number** (settled 2026-10-01 after two interim schemes on preprod). The salon's `111111111`
+  collided on preprod with the "preprod" test store's owner (+91 1111111111) — ambiguous logins
+  are refused — so it ran as `101010101` for a day. On 2026-10-01 the user chose to move that test
+  owner to +91 1010120100 and the salon back to `111111111` on preprod **and** production. The API
+  can't change a login phone, so this is the one-off SQL in docs/demo-stores.md → "Changing an
+  owner login", run by hand, followed by a provisioning re-run that resets the password.
 - **Tests.** `backend/scripts/smoke-demo-stores.mjs` (E2E against a provisioned environment) and
   `npm run check:demo-stores` (frontend map ≡ data sheet ≡ backend list). API + web sections pass
   on preprod via the local API (202/203 — the salon login, pending the SQL below).
@@ -45,9 +48,9 @@ the UI. Runbook and rules: [docs/demo-stores.md](../../docs/demo-stores.md).
   the local API runs against the shared preprod DB). Covered by
   `backend/tests/unit/demo-stores-admin.test.ts` and the ADMIN section of `smoke-demo-stores.mjs`
   (needs an owner-role admin login; **not yet run** — no admin credentials were used).
-- **Provisioned on preprod 2026-10-01.** Open item: the salon owner's login phone is still
-  `111111111` in the DB (the SQL that moves it to `101010101` is in the chat/runbook, to be run by
-  hand), so the salon store is still on Free.
+- **Provisioned on preprod and production 2026-10-01.** Open item: the salon login SQL above
+  (production and preprod), then a provisioning re-run per environment to reset the salon password
+  to `111111111` and re-verify.
 
 ### Store chat: check in, book, status, leave, cancel (2026-09-30)
 
