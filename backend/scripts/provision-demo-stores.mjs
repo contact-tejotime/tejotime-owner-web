@@ -223,9 +223,19 @@ async function main() {
       }
       if (login.status !== 200) {
         r.state = 'ERROR';
-        r.note = login.status === 429
-          ? 'owner login rate-limited — wait 5 minutes and re-run'
-          : `owner login ${errText(login)}${r.note?.includes('password reset') ? ' even after a password reset' : ''} — the login phone collides with another account (docs/demo-stores.md)`;
+        if (login.status === 429) {
+          r.note = 'owner login rate-limited — wait 5 minutes and re-run';
+          continue;
+        }
+        // Two causes look identical from the login endpoint. Tell them apart by reading the
+        // store's actual owner phone: the API can't change it, so a sheet edit without the
+        // one-off SQL leaves the store on the old number.
+        const detail = await api('GET', `/admin/businesses/${site.json.id}`, { token: adminToken });
+        const stored = String(detail.json?.ownerPhone ?? '').replace(/\D/g, '');
+        const afterReset = r.note?.includes('password reset') ? ' even after a password reset' : '';
+        r.note = stored && stored !== e.owner.phone && stored !== ownerLoginPhone(e)
+          ? `owner login ${errText(login)}${afterReset} — this store's owner login is still ${stored}, the sheet says ${e.owner.phone}. Run the SQL in docs/demo-stores.md → "Changing an owner login", then re-run`
+          : `owner login ${errText(login)}${afterReset} — the login phone collides with another account (docs/demo-stores.md)`;
         continue;
       }
       if (login.json.business?.id !== site.json.id) {
