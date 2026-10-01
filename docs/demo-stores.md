@@ -81,7 +81,7 @@ rings a real person.
 
 | Card | URL | Store | Store phone | Timezone | Theme | Owner login (+1) | Password |
 |---|---|---|---|---|---|---|---|
-| Hair salons | /salon | Willow & Co. Hair Studio | (512) 555-0101 | Chicago | luxury / light | 101010101 ¹ | 101010101 |
+| Hair salons | /salon | Willow & Co. Hair Studio | (512) 555-0101 | Chicago | luxury / light | 111111111 ¹ | 111111111 |
 | Barbershops | /barber | Main Street Barber Co. | (718) 555-0102 | New York | bold / light | 222222222 | 222222222 |
 | Nail studios | /nail | Polished Nail Lounge | (305) 555-0103 | New York | modern / light | 333333333 | 333333333 |
 | Spas | /spa | Still Waters Day Spa | (480) 555-0104 | Phoenix | warm / light | 444444444 | 444444444 |
@@ -91,10 +91,13 @@ rings a real person.
 | Tattoo studios | /tattoo | Black Anchor Tattoo | (206) 555-0108 | Los Angeles | bold / dark | 888888888 | 888888888 |
 | Pet grooming | /pet | Happy Tails Grooming | (404) 555-0109 | New York | modern / light | 999999999 | 999999999 |
 
-¹ Not `111111111`: on preprod, `1` + `111111111` also matches the "preprod" test store's owner
-(+91 1111111111, because the login lookup tries the store's country code in front of what was
-typed). `findLoginByPhone` refuses an ambiguous match, so neither account could sign in. Run the
-collision check below before choosing any new owner login.
+¹ The salon was first provisioned as `101010101`. On preprod, `1` + `111111111` also matched the
+"preprod" test store's owner (+91 1111111111), because the login lookup tries the store's country
+code in front of what was typed. `findLoginByPhone` refuses an ambiguous match, so neither account
+could sign in. On 2026-10-01 that preprod test owner moved to **+91 1010120100** (same password), and
+the salon moved to `111111111` on preprod and production with the SQL in
+[Changing an owner login](#changing-an-owner-login-one-off-sql). Run the collision check below before
+choosing any new owner login.
 
 Services, staff, reviews and copy for each: `backend/scripts/demo-stores.json`.
 
@@ -123,13 +126,80 @@ password.
 - **Never change these phone numbers or URLs.**
   - The phones are hard-coded in the frontend map, and the old URLs 308 to the paths *permanently*: browsers and search engines cache that.
   - The API already refuses to change a store's phone once it is set (`PHONE_LOCKED`, `admin.service.ts`), for admins too. Don't work around that for these nine.
-- **The owner login phone cannot be changed after creation.** Nothing exposes it; the admin panel shows it read-only.
+- **The owner login phone cannot be changed in the app or the admin panel.** The panel shows it read-only and `updateBusiness` never touches it. The one-off SQL below is the only way.
 - **Keep the category "Salon & Barber".**
   - It gives every store neutral page wording: "Choose Your Provider", "Choose a Service".
   - A category containing "pet" would switch the page to clinic wording: "Check in with Dr. …" plus a hospital-emergency banner (`frontend/src/components/microsite/domains.ts`).
 - **These stores can't be deactivated** (409 `DEMO_STORE_ALWAYS_ON`, see above). A deactivated one would turn its homepage card into a 404. A 10th store means adding its phone to all three lists that `check:demo-stores` compares.
 - **No "demo" in any store content, and no medical, HIPAA or insurance claims** for the med spa and physio stores (`.claude/docs/current-work.md`).
 - **No `app/` folder may be named like one of the paths** (`salon`, `barber`, …). A real folder wins over the rewrite and silently takes the URL.
+
+### Changing an owner login (one-off SQL)
+
+Used on 2026-10-01 to move the salon from `101010101` to `111111111`. Each block is one statement,
+so it runs as one transaction. Any surprise raises an error, and the error rolls everything back.
+Afterwards:
+1. Update `demo-stores.json` to the new login and password.
+2. Re-run `provision-demo-stores.mjs` for that environment. It finds the old password no longer
+   works, resets it to the sheet's, and re-verifies everything.
+
+**Production** (and any environment where nothing else answers to the new login):
+```sql
+do $$
+declare clash int; moved int;
+begin
+  -- Nobody else may answer to the login 1 + 111111111 (findLoginByPhone's three match rules)
+  select count(*) into clash
+    from app_user u join business b on b.id = u.business_id
+   where (u.phone = '1111111111' or u.phone = b.country_code || '1111111111'
+          or b.country_code || u.phone = '1111111111')
+     and not (b.country_code = '1' and b.phone_number = '5125550101');
+  if clash > 0 then raise exception '% other login(s) already answer to 1111111111 - nothing changed', clash; end if;
+
+  update app_user u set phone = '111111111'
+    from business b
+   where b.id = u.business_id and b.country_code = '1' and b.phone_number = '5125550101'
+     and u.is_super_owner and u.phone in ('101010101', '111111111');
+  get diagnostics moved = row_count;
+  if moved <> 1 then raise exception 'expected 1 salon owner, matched % - nothing changed', moved; end if;
+  raise notice 'Hair salons owner login is now 111111111';
+end $$;
+```
+
+**Preprod.** First the block moves the "preprod" test store's owner from +91 1111111111 to
++91 1010120100. Their number is kept in the same stored form, bare or with `91`, and their password
+doesn't change. Then the salon moves the same way as on production:
+```sql
+do $$
+declare clash int; moved int;
+begin
+  update app_user u
+     set phone = case when u.phone = '1111111111' then '1010120100' else b.country_code || '1010120100' end
+    from business b
+   where b.id = u.business_id
+     and not (b.country_code = '1' and b.phone_number = '5125550101')
+     and (u.phone = '1111111111' or u.phone = b.country_code || '1111111111');
+  get diagnostics moved = row_count;
+  if moved <> 1 then raise exception 'expected 1 preprod test login on 1111111111, matched % - nothing changed', moved; end if;
+
+  select count(*) into clash
+    from app_user u join business b on b.id = u.business_id
+   where (u.phone = '1111111111' or u.phone = b.country_code || '1111111111'
+          or b.country_code || u.phone = '1111111111')
+     and not (b.country_code = '1' and b.phone_number = '5125550101');
+  if clash > 0 then raise exception '% other login(s) still answer to 1111111111 - nothing changed', clash; end if;
+
+  update app_user u set phone = '111111111'
+    from business b
+   where b.id = u.business_id and b.country_code = '1' and b.phone_number = '5125550101'
+     and u.is_super_owner and u.phone in ('101010101', '111111111');
+  get diagnostics moved = row_count;
+  if moved <> 1 then raise exception 'expected 1 salon owner, matched % - nothing changed', moved; end if;
+  raise notice 'Preprod test owner is now +91 1010120100; Hair salons owner login is now 111111111';
+end $$;
+```
+If +91 1010120100 is already taken, the unique index `uq_app_user_phone` aborts the block. Nothing
+changes in that case either.
 
 ## Production: one command
 
@@ -177,7 +247,7 @@ test.
 1. **Optional collision check** (read-only, needs DB read access). Any row returned **before**
    provisioning means a login collision. After provisioning, expect exactly one row per number.
    ```sql
-   with d(digits) as (values ('1101010101'),('1222222222'),('1333333333'),('1444444444'),
+   with d(digits) as (values ('1111111111'),('1222222222'),('1333333333'),('1444444444'),
                              ('1555555555'),('1666666666'),('1777777777'),('1888888888'),('1999999999'))
    select d.digits, u.id, u.phone, b.name
      from d
