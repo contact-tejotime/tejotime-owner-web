@@ -10,7 +10,7 @@ import { ProductTour } from "@/components/landing/ProductTour";
 import PhoneField from "@/components/ui/PhoneField";
 import ChatWidget from "@/components/chat/ChatWidget";
 import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton";
-import { t } from "@/i18n";
+import { t, format } from "@/i18n";
 import { publicApi } from "@/lib/api";
 import { AppStoreBadges } from "@/components/AppStoreBadges";
 import { OWNER_ORIGIN } from "@/lib/config";
@@ -2085,7 +2085,9 @@ export default function Home() {
             <span
               style={{ font: "var(--fw-medium) 12.5px/1.5 var(--font-sans)", color: "var(--text-muted)" }}
             >
-              {t.landing.footer.note}
+              {/* The operator line ties tejotime.com to the legal entity registered as the
+                  Twilio A2P brand — a reviewer who can't connect the two rejects the campaign. */}
+              {t.landing.footer.note} {format(t.brand.operatedBy, { entity: t.legal.entity })}
             </span>
           </div>
         </div>
