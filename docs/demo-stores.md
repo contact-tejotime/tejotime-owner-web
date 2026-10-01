@@ -273,6 +273,7 @@ test.
 | `create 400 …` | The sheet broke a server rule; the per-field details are printed. |
 | `create 500 (likely: owner phone already used…)` | `uq_app_user_phone`: another login already uses that owner phone. The create rolled back. |
 | `password reset` | Informational. The store's password had been changed, and the run set it back to the sheet's. |
+| `owner login 401 … owner login is still X, the sheet says Y` | The sheet's login number was changed but the database wasn't. The API can't change an owner's login phone. Run the SQL in [Changing an owner login](#changing-an-owner-login-one-off-sql), then re-run. The failed run has already set that owner's password to the sheet's. |
 | `owner login 401 … collides with another account` | A reset can't fix this: another account matches the same login number (collision check above). Pick a free 9-digit number, which needs a one-row SQL update since the API can't change an owner's login phone. |
 | `owner login opens a DIFFERENT store` | An unrelated tenant holds the 555 number. Investigate before anything else. |
 | `PAYMENTS_ENABLED is on` | The upgrade needs real payment in that environment; the plan was not changed. |
