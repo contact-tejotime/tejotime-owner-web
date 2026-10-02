@@ -196,11 +196,27 @@ Gated by the `team` module, which is **not grantable** — see `business-logic.m
 
 ### `/dashboard` (2), `/notifications` (2), `/subscription` (3), `/uploads` (1)
 
-`GET /dashboard/summary` · `GET /dashboard/by-staff` (`perm=dashboard:view`).
+`GET /dashboard/summary` · `GET /dashboard/by-staff` (`perm=dashboard:view`). Both take
+`?range=today|week|month|custom&from=&to=` (`lib/report-window.ts`: store-local days, weeks start
+Monday, custom ≤ 366 days, half-open windows) and return `from`, `to`, `today`. `/by-staff` keeps a
+stylist removed mid-period who has work in it (`isActive: false`).
 `GET /notifications` · `POST /notifications/read` (`perm=notifications:view`).
 `GET /subscription` (`perm=billing:view`) · `POST /upgrade` · `POST /cancel`
 (`perm=billing:manage`).
 `POST /uploads/sign` (`ownerWrite`).
+
+### `/commission` (5) — staff commission
+
+Every visit at the rate of its own store-local day — see
+[docs/staff-commission.md](../../docs/staff-commission.md).
+
+| Method | Path | Guards |
+|---|---|---|
+| GET | `/summary` | `perm=commission:view`; a staff login gets only its own chair (`scope: 'self'`) |
+| GET | `/visits` | `perm=commission:view`; owner must pass `staffId`; staff: own chair only (other → 403) |
+| GET | `/rates` | `perm=commission:manage` |
+| PUT | `/rates/:staffId` | owner **role** + `perm=commission:manage`; `{ rateBp, effectiveFrom? }`; past day → 409 `COMMISSION_RATE_LOCKED` |
+| DELETE | `/rates/:staffId/:effectiveFrom` | owner role + `perm=commission:manage`; today or later only |
 
 ### `/public` (18) — no auth
 
@@ -271,7 +287,9 @@ Admin management: `GET /admins` · `POST /admins` · `PATCH /admins/:id`.
 Stores: `GET /businesses` · `GET /businesses/:id` · `POST /businesses` · `PUT /businesses/:id` ·
 `POST /businesses/:id/owner/password` · `GET /businesses/:id/analytics` ·
 `GET /businesses/:id/customers` · `GET /businesses/:id/customers/:customerId/visits` ·
-`GET /businesses/:id/visits` · `GET /businesses/:id/appointments`.
+`GET /businesses/:id/visits` (rows carry `rateBp` + `commission`) ·
+`GET /businesses/:id/commission` (read-only commission by stylist; admins never set rates) ·
+`GET /businesses/:id/appointments`.
 
 **A store's phone number is write-once.** It is the microsite address (`/{phone_full}`) and is
 baked into every printed QR code, so `PUT /businesses/:id` with a number different from the stored

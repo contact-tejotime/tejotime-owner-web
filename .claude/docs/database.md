@@ -46,6 +46,9 @@ written to be **idempotent / re-runnable**.
 | 0027 | `sms_opt_in.sql` | `customer.sms_opt_in_at` / `sms_opt_out_at`; `sms_opt_in` on `queue_entry` and `appointment` (default false) |
 | 0030 | `optional_seats.sql` | `_queue_renumber`, `queue_start`, `queue_move` made NULL-seat safe (a store with no stylists = one shared lane); `queue_checkout` refuses to derive an amount for an entry with no service and no add-ons. No signature changes. |
 | 0031 | `store_draft.sql` | `store_draft(id, admin_id → admins on delete cascade, name, data jsonb, created_at, updated_at)` + index `(admin_id, updated_at desc)`: the admin panel's parked Create store forms. Private per admin; owner password never stored. |
+| 0032 | `review_sms_opt_in.sql` | separate consent for the post-visit review SMS (per-visit flag + first-consent stamp on `customer`), see [docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md) |
+| 0033 | `business_timezone_from_phone.sql` | backfills `business.timezone` from the dial code for stores still on the IST default |
+| 0034 | `staff_commission.sql` | `staff_commission_rate` (dated pay rates) + the **`visit_commission` view** — the schema's first view. See below and [docs/staff-commission.md](../../docs/staff-commission.md). |
 
 > **`0016` is duplicated** across two independent files. Ordering relies on the filename sort, which
 > is deterministic. **Use a strictly increasing prefix from 0025 onward.**
@@ -206,6 +209,26 @@ survive the service row being edited or deleted.
 
 `id`, `business_id`, `customer_id`, `queue_entry_id`, `staff_id`, `service_name`,
 `amount_paise` `bigint`, `completed_at`. Written by `queue_checkout`.
+
+### `staff_commission_rate` — dated pay rates (0034)
+
+`id`, `business_id`, `staff_id` (both `on delete cascade`), `rate_bp` `int` (basis points,
+`check 0..10000`: 2000 = 20%), `effective_from` `date` (a **store-local** day), `set_by_user_id`,
+`created_at`, `updated_at`. `uq_staff_commission_rate_day unique (staff_id, effective_from)` — one
+rate per stylist per day, and the index the "latest rate on or before day D" lookup walks. Only
+`modules/commission` writes it, and it refuses any day before the store's today, which is what
+keeps history frozen.
+
+### `visit_commission` — view (0034)
+
+Every `visit` plus `local_at` / `local_date` (in `business.timezone`), the `rate_bp` and
+`rate_from` in force on that day (a lateral lookup), and `commission_paise =
+round(amount_paise × rate_bp / 10000)`, NULL when there is no rate or no stylist. The one place
+commission is computed. Filter it on `business_id` + a `completed_at` range (reaches
+`idx_visit_business_completed`), never on `local_date`. **First view in the schema:** `create or
+replace view` may only append columns, and retyping or dropping a column it reads needs the view
+dropped and recreated. Select its `date` columns as `::text` — `db/pool.ts` has no date parser, so
+node-pg turns a `date` into a JS Date at the server's local midnight.
 
 ### Supporting tables
 

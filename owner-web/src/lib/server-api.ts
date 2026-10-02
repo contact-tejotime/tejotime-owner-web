@@ -3,6 +3,7 @@ import "server-only";
 import { unstable_cache, revalidateTag } from "next/cache";
 
 import { BACKEND, REQUEST_TIMEOUT_MS } from "./http";
+import { reportQueryString, type ReportQuery, type ReportRange } from "./commission";
 import type { Access, Module, ModuleAccess, UserRole } from "./roles";
 import { getAccessToken, getBusinessId } from "./session";
 
@@ -137,6 +138,11 @@ export interface Me {
     plan: "free" | "premium";
     /** Free-text category — gates checkout add-on chips. */
     category?: string | null;
+    /**
+     * ISO 4217 code the store prices in (set in the admin panel). Carried on the session so every
+     * role — staff cannot read GET /business — can show the right symbol on a price input.
+     */
+    currency?: string | null;
     /** Store Appearance — present once the API ships theme on /auth/me. */
     theme?: ThemeConfig | null;
     themeColor?: string | null;
@@ -284,9 +290,13 @@ export interface CustomerRow {
 }
 
 export interface DashboardSummary {
-  range: "today" | "month";
+  range: ReportRange;
   periodLabel: string;
   date: string;
+  /** Store-local first and last day of the period, and the store's today (optional: older API). */
+  from?: string;
+  to?: string;
+  today?: string;
   kpis: {
     todaysAppointments: number;
     activeNow: number;
@@ -300,15 +310,108 @@ export interface DashboardSummary {
 export interface DashboardStaffRow {
   staffId: string;
   name: string;
+  /** False for a chair removed during the period — listed because it still did that work. */
+  isActive?: boolean;
   appointments: number;
   completed: number;
   revenue: Money;
 }
 
 export interface DashboardByStaff {
-  range: "today" | "month";
+  range: ReportRange;
   periodLabel: string;
   data: DashboardStaffRow[];
+}
+
+/* Commission — backend/src/modules/commission. Rates are basis points (2000 = 20%). */
+
+/** A run of days paid at one rate inside the period. `rateBp` null = no rate was set. */
+export interface CommissionSegment {
+  rateBp: number | null;
+  from: string;
+  to: string;
+  visits: number;
+  revenue: Money;
+  commission: Money;
+}
+
+export interface CommissionStaffRow {
+  staffId: string;
+  name: string;
+  isActive: boolean;
+  visits: number;
+  revenue: Money;
+  commission: Money;
+  /** Visits with no rate in force — they earn nothing. */
+  unratedVisits: number;
+  currentRateBp: number | null;
+  currentRateFrom: string | null;
+  /** The next scheduled change; owners only (null in a stylist's own view). */
+  nextRate: { rateBp: number; from: string } | null;
+  segments: CommissionSegment[];
+}
+
+export interface CommissionSummary {
+  range: ReportRange;
+  from: string;
+  to: string;
+  today: string;
+  periodLabel: string;
+  /** `self` = a staff login reading its own earnings. */
+  scope: "store" | "self";
+  totals: { visits: number; revenue: Money; commission: Money; salonKeeps: Money | null };
+  staff: CommissionStaffRow[];
+  /** Visits with no stylist. Owners only. */
+  unassigned: { visits: number; revenue: Money } | null;
+}
+
+export interface CommissionVisit {
+  id: string;
+  completedAt: string;
+  /** The store's own day and clock for the visit, worked out by the API. */
+  localDate: string;
+  localTime: string;
+  serviceName: string | null;
+  /** Absent for a login without customer access. */
+  customerName?: string | null;
+  amount: Money;
+  rateBp: number | null;
+  commission: Money | null;
+}
+
+export interface CommissionVisits {
+  range: ReportRange;
+  from: string;
+  to: string;
+  today: string;
+  periodLabel: string;
+  staff: { staffId: string; name: string; isActive: boolean };
+  totals: { visits: number; revenue: Money; commission: Money };
+  segments: CommissionSegment[];
+  data: CommissionVisit[];
+  meta: { shown: number; total: number; limit: number };
+}
+
+export interface CommissionRateItem {
+  rateBp: number;
+  from: string;
+  /** Last day this rate applies; null while it is the latest. */
+  to: string | null;
+  /** Today's and future rates can still be replaced or removed; earlier days are locked. */
+  editable: boolean;
+}
+
+export interface CommissionStaffRates {
+  staffId: string;
+  name: string;
+  current: CommissionRateItem | null;
+  upcoming: CommissionRateItem[];
+  history: CommissionRateItem[];
+}
+
+export interface CommissionRates {
+  today: string;
+  data: CommissionStaffRates[];
 }
 
 /** Mirrors `business.theme` — the microsite appearance config. Every field optional. */
@@ -395,12 +498,26 @@ export const getBusinessQr = () =>
   );
 
 /** Seat-scoped for staff — never share a business-wide cache entry. */
-export const getDashboard = (range: "today" | "month" = "today") =>
-  getFresh<DashboardSummary>(`/dashboard/summary?range=${range}`);
+export const getDashboard = (q: ReportQuery = { range: "today" }) =>
+  getFresh<DashboardSummary>(`/dashboard/summary?${reportQueryString(q)}`);
 
 /** Store-wide roles only; staff get 403 from the API. */
-export const getDashboardByStaff = (range: "today" | "month" = "today") =>
-  getFresh<DashboardByStaff>(`/dashboard/by-staff?range=${range}`);
+export const getDashboardByStaff = (q: ReportQuery = { range: "today" }) =>
+  getFresh<DashboardByStaff>(`/dashboard/by-staff?${reportQueryString(q)}`);
+
+/**
+ * Commission, all uncached: a staff login's figures are its own chair's, and the cached `get` is
+ * keyed by business + path only — it would hand one login's numbers to another.
+ */
+export const getCommissionSummary = (q: ReportQuery) =>
+  getFresh<CommissionSummary>(`/commission/summary?${reportQueryString(q)}`);
+
+/** One stylist's visits in the period. A staff login may only ask for its own chair (else 403). */
+export const getCommissionVisits = (staffId: string, q: ReportQuery) =>
+  getFresh<CommissionVisits>(`/commission/visits?staffId=${encodeURIComponent(staffId)}&${reportQueryString(q)}`);
+
+/** Every active stylist's rates — owners only. */
+export const getCommissionRates = () => getFresh<CommissionRates>("/commission/rates");
 
 /**
  * Uncached, unlike `getAppointments` below. GET /appointments is narrowed to a staff login's own
@@ -472,7 +589,8 @@ export const getTeam = () => getFresh<{ data: TeamUser[] }>("/users");
  */
 export const getPermissionCatalogue = () =>
   get<{
-    modules: { key: Module; label: string }[];
+    /** `levels`: what the grid may offer — commission stops at view (owners alone set rates). */
+    modules: { key: Module; label: string; levels?: Access[] }[];
     accessLevels: Access[];
     /** Grantable modules only — `team` is owner-role-only and never appears here. */
     defaults: { staff: Partial<ModuleAccess>; co_owner: Partial<ModuleAccess> };

@@ -600,14 +600,56 @@ export interface CustomerVisit {
 export interface VisitRow extends CustomerVisit {
   customerId: string | null;
   customerName: string;
+  /**
+   * The stylist's commission rate on the visit's own day, in basis points (2000 = 20%) — null when
+   * no rate applied (none set yet, or no stylist). Optional: an API older than migration 0034.
+   */
+  rateBp?: number | null;
+  commission?: Money | null;
 }
 
 export interface VisitsResponse {
   from: string;
   to: string;
   data: VisitRow[];
-  summary: { visits: number; revenue: Money; avgTicket: Money };
+  summary: { visits: number; revenue: Money; avgTicket: Money; commission?: Money; salonKeeps?: Money };
   meta: { shown: number; total: number; limit: number };
+}
+
+/** A run of days paid at one commission rate. `rateBp` null = no rate was set. */
+export interface CommissionSegment {
+  rateBp: number | null;
+  from: string;
+  to: string;
+  visits: number;
+  revenue: Money;
+  commission: Money;
+}
+
+/**
+ * GET /admin/businesses/:id/commission — the store's own commission report (each visit at the rate
+ * of its own day), read-only: admins never set rates. See docs/staff-commission.md.
+ */
+export interface StoreCommission {
+  from: string;
+  to: string;
+  today: string;
+  periodLabel: string;
+  totals: { visits: number; revenue: Money; commission: Money; salonKeeps: Money | null };
+  staff: {
+    staffId: string;
+    name: string;
+    isActive: boolean;
+    visits: number;
+    revenue: Money;
+    commission: Money;
+    unratedVisits: number;
+    currentRateBp: number | null;
+    currentRateFrom: string | null;
+    nextRate: { rateBp: number; from: string } | null;
+    segments: CommissionSegment[];
+  }[];
+  unassigned: { visits: number; revenue: Money } | null;
 }
 
 /** GET /admin/inquiries — "Request access" leads from the public marketing site. */

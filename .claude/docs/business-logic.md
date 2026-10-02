@@ -150,8 +150,8 @@ API is the boundary; the UI only decides what to draw.**
 
 ### Modules
 
-`dashboard`, `queue`, `appointments`, `calendar`, `customers`, `services`, `staff`, `hours`,
-`notifications`, `billing`, `profile`, `team`.
+`dashboard`, `commission`, `queue`, `appointments`, `calendar`, `customers`, `services`, `staff`,
+`hours`, `notifications`, `billing`, `profile`, `team`.
 
 The catalogue lives **in code, not the database** — adding a screen is a deploy, not a migration.
 
@@ -171,8 +171,18 @@ on save.
 |---|---|
 | `owner` | `manage` on everything (super owner; exactly one per business, created by the admin panel at provisioning) |
 | `co_owner` | `manage` on everything, but cannot touch the super owner |
-| `manager` | **legacy, no longer assigned** — `manage` everything except `billing: view`, `team: view` |
-| `staff` | `queue: manage`; `dashboard`/`appointments`/`calendar`/`notifications`: `view`; **everything else `none`** |
+| `manager` | **legacy, no longer assigned** — `manage` everything except `billing: view`, `team: view`, `commission: view` |
+| `staff` | `queue: manage`; `dashboard`/`appointments`/`calendar`/`notifications`: `view`; **everything else `none`** (including `commission`) |
+
+### Grant ceiling
+
+`GRANT_CEILING = { commission: 'view' }` is the most a role that is not an owner may hold.
+`commission: manage` is setting pay rates; a staff login holding it could give itself a raise — the
+reasoning that keeps `team` off `GRANTABLE_MODULES` — but unlike `team` there is a useful lower
+level (seeing one's own earnings), so the module is grantable and **capped**: the permission editor
+refuses more (400), `effectiveAccess` clamps a stored `manage` to `view`, the Team grids offer only
+Hidden / View only, and the rate routes also check the owner role. `PUT /users/:id/permissions`
+replaces only the modules in its payload, so a client older than a module cannot wipe its grant.
 
 `staff` is deliberately narrow: it gets its own chair's queue and nothing that would expose the
 shop's customer list or money. An owner grants those one at a time, and even when granted the read
@@ -197,6 +207,16 @@ holder out of their own business.
 | `requireSuperOwner` | the handful of actions co-owners must not reach |
 
 ---
+
+## 5a. Staff commission
+
+A dated percentage per stylist (`staff_commission_rate`, basis points), and every visit paid at the
+rate of its own **store-local** day through the `visit_commission` view — computed when read,
+nothing stamped on `visit`, `queue_checkout` untouched. "20% from 02/10, 30% from 16/10" pays
+2–15 Oct at 20% and all of 16 Oct onwards at 30%, in every report, for ever: rates start today or
+later and days that are over are locked (409 `COMMISSION_RATE_LOCKED`). Rounded per visit; totals
+are the sum of the lines. "Today" comes only from the server. All plans. Full rules, API and screens:
+[docs/staff-commission.md](../../docs/staff-commission.md).
 
 ## 6. Plan gating
 

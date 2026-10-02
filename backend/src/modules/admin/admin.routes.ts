@@ -9,6 +9,7 @@ import { MAX_IMAGE_BYTES, signUpload } from '../../integrations/storage';
 import { verifyAdminToken } from '../auth/token.service';
 import { reviewUrl } from '../business/review-url.schema';
 import { isValidTimezone } from '../../lib/phone-timezone';
+import { isoDateSchema } from '../../lib/report-window';
 import * as admin from './admin.service';
 import * as analytics from './admin-analytics.service';
 import * as inquiries from './admin-inquiries.service';
@@ -531,6 +532,24 @@ adminRouter.get(
   asyncHandler(async (req: Request, res: Response) => {
     res.json(
       await analytics.listStoreVisits(
+        req.params.id,
+        req.query.from as string | undefined,
+        req.query.to as string | undefined,
+      ),
+    );
+  }),
+);
+
+// Read-only: the store's commission by stylist for a date range. Admins never set rates — that is
+// the store owner's decision (owner-web / app, `PUT /commission/rates/:staffId`).
+adminRouter.get(
+  '/businesses/:id/commission',
+  limiters.ownerRead,
+  validate({ params: idParam, query: z.object({ from: isoDateSchema.optional(), to: isoDateSchema.optional() }) }),
+  requireStoreAccess,
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(
+      await analytics.getStoreCommission(
         req.params.id,
         req.query.from as string | undefined,
         req.query.to as string | undefined,

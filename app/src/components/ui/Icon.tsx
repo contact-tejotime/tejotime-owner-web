@@ -107,6 +107,11 @@ export const ICONS = {
   menuReceipt: '<path d="M6 3H18V19.5L16 21L14 19.5L12 21L10 19.5L8 21L6 19.5V3Z"/><path d="M9 7H15"/><path d="M9 10H15"/><path d="M9 13H12.5"/>',
   refresh:
     '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  /** Commission: the rates row in Settings and the commission tile on Reports (as owner-web). */
+  percent: '<path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+  /** "Salon keeps" — what is left of the takings after commission. */
+  wallet:
+    '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
 } as const;
 
 export type IconName = keyof typeof ICONS;

@@ -66,7 +66,9 @@ vi.mock('../../src/modules/public/public.service', async (importOriginal) => {
 const SESSION = '3b241101-e2bb-4255-8caf-4136c566a962';
 const PATH = '/api/v1/public/businesses/sharp-cuts/chat';
 
-describe('POST /public/businesses/:key/chat', () => {
+// 30s like the other router-mounting suites: the first test pays for a cold import of the whole
+// public router, which under a full parallel `npm test` run can take longer than vitest's 5s default.
+describe('POST /public/businesses/:key/chat', { timeout: 30_000 }, () => {
   const originalEnv = { ...process.env };
 
   function setEnv(extra: Record<string, string> = {}) {

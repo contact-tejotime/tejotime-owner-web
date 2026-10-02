@@ -25,6 +25,7 @@ import { TAB_ROUTES } from '@/navigation/routes';
 import { showToast } from '@/lib/toast';
 import { t, format } from '@/i18n';
 import { can, toSessionUser, type ModuleAccess, type SessionUser } from '@/lib/permissions';
+import type { CommissionSummary, ReportQuery, ReportRange as PeriodRange } from '@/lib/commission';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { BusinessProfilePatch, GalleryImageInput } from '@/lib/business-profile';
 import { LEGACY_THEME_CONFIG, normalizeThemeConfig, type ThemeConfig } from '@/theme/engine';
@@ -79,11 +80,14 @@ export interface DashboardKpis {
   revenue: Money;
 }
 
-export type ReportRange = 'today' | 'month';
+/** Today / This week / This month / Custom — the same four periods as owner-web's Reports. */
+export type ReportRange = PeriodRange;
 
 export interface DashboardStaffRow {
   staffId: string;
   name: string;
+  /** False for a chair removed during the period — listed because it still did that work. */
+  isActive?: boolean;
   appointments: number;
   completed: number;
   revenue: Money;
@@ -96,6 +100,11 @@ interface BusinessInfo {
   slug?: string;
   address?: string;
   category?: string;
+  /**
+   * ISO 4217 code the store prices in (set in the admin panel). From /auth/me and login as well
+   * as GET /business, because staff never load the latter and the price prefixes need it.
+   */
+  currency?: string;
   city?: string;
   countryCode?: string | null;
   phoneNumber?: string | null;
@@ -173,6 +182,17 @@ type State = {
   reportRange: ReportRange;
   reportPeriodLabel: string | null;
   dashboardByStaff: DashboardStaffRow[];
+  /**
+   * The period's first and last store-local day, and the store's today — all from the API. The app
+   * never knows the store's timezone, so it never works out "today" from the device clock.
+   */
+  reportFrom: string | null;
+  reportTo: string | null;
+  reportToday: string | null;
+  /** Commission for the Reports period. Null when this login is not allowed to see it. */
+  commission: CommissionSummary | null;
+  /** The stylist whose visits sheet is open (a Reports card, or "View visits"). */
+  commissionVisitsFor: { staffId: string; name: string } | null;
 };
 
 type Store = State & {
@@ -208,7 +228,10 @@ type Store = State & {
   commitCrossSeatMove: (id: string, toStaffId: string, toIndex: number) => void;
   checkInAppt: (a: AppointmentEntry) => void;
   loadCalendarAppointments: (from: string, to: string) => Promise<void>;
-  setReportRange: (range: ReportRange) => void;
+  /** Switch the Reports period; `from`/`to` (store-local days) only for `custom`. */
+  setReportQuery: (q: ReportQuery) => void;
+  openCommissionVisits: (staffId: string, name: string) => void;
+  closeCommissionVisits: () => void;
   saveProfile: (
     patch: BusinessProfilePatch,
     extras?: { amenities?: string[]; gallery?: GalleryImageInput[] },
@@ -343,6 +366,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     reportRange: 'today',
     reportPeriodLabel: null,
     dashboardByStaff: [],
+    reportFrom: null,
+    reportTo: null,
+    reportToday: null,
+    commission: null,
+    commissionVisitsFor: null,
   });
 
   const socketRef = useRef<Socket | null>(null);
@@ -350,8 +378,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const hoursSeq = useRef(0);
   /** Range currently shown on the calendar screen, so socket events can keep it fresh. */
   const calendarRangeRef = useRef<{ from: string; to: string } | null>(null);
-  /** Reports range — loadDashboard reads this on refresh so the toggle sticks. */
-  const reportRangeRef = useRef<ReportRange>('today');
+  /** Reports period — loadDashboard reads this on refresh so the switch (and custom dates) stick. */
+  const reportQueryRef = useRef<ReportQuery>({ range: 'today' });
   /**
    * The signed-in user's permissions, mirrored into a ref.
    *
@@ -434,35 +462,88 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       /* ignore */
     }
   }, []);
-  const loadDashboard = useCallback(async (range?: ReportRange) => {
-    const r = range ?? reportRangeRef.current;
-    try {
-      const summary: any = await api.getDashboard(r);
-      setS((p) => ({
-        ...p,
-        dashboard: summary.kpis,
-        reportRange: r,
-        reportPeriodLabel: summary.periodLabel ?? null,
-      }));
-    } catch {
-      /* ignore */
-    }
-    if (roleRef.current && roleRef.current !== 'staff') {
-      try {
-        const byStaff: any = await api.getDashboardByStaff(r);
-        setS((p) => ({ ...p, dashboardByStaff: byStaff.data ?? [] }));
-      } catch {
+  /**
+   * Everything Reports shows for the current period: the takings (`dashboard`), the per-chair
+   * breakdown (store-wide roles only — staff must not call /dashboard/by-staff), and commission —
+   * each only if this login may see it. Kept under its old name because every place that changes
+   * the figures (checkout, walk-in, check-in, the appointment socket events) already calls it.
+   */
+  const loadDashboard = useCallback(async (query?: ReportQuery) => {
+    const q = query ?? reportQueryRef.current;
+    const access = accessRef.current;
+    const jobs: Promise<void>[] = [];
+
+    if (can(access, 'dashboard')) {
+      jobs.push(
+        (async () => {
+          try {
+            const summary: any = await api.getDashboard(q);
+            setS((p) => ({
+              ...p,
+              dashboard: summary.kpis,
+              reportRange: q.range,
+              reportPeriodLabel: summary.periodLabel ?? null,
+              reportFrom: summary.from ?? p.reportFrom,
+              reportTo: summary.to ?? p.reportTo,
+              reportToday: summary.today ?? p.reportToday,
+            }));
+          } catch {
+            /* ignore */
+          }
+        })(),
+      );
+      if (roleRef.current && roleRef.current !== 'staff') {
+        jobs.push(
+          (async () => {
+            try {
+              const byStaff: any = await api.getDashboardByStaff(q);
+              setS((p) => ({ ...p, dashboardByStaff: byStaff.data ?? [] }));
+            } catch {
+              setS((p) => ({ ...p, dashboardByStaff: [] }));
+            }
+          })(),
+        );
+      } else {
         setS((p) => ({ ...p, dashboardByStaff: [] }));
       }
-    } else {
-      setS((p) => ({ ...p, dashboardByStaff: [] }));
     }
+
+    // Commission: each visit at the rate of its own day (docs/staff-commission.md). A staff login
+    // gets only its own chair, and only once the owner has shown it its earnings.
+    if (can(access, 'commission')) {
+      jobs.push(
+        (async () => {
+          try {
+            const commission = await api.getCommissionSummary(q);
+            setS((p) => ({
+              ...p,
+              commission,
+              reportRange: q.range,
+              reportPeriodLabel: commission.periodLabel ?? p.reportPeriodLabel,
+              reportFrom: commission.from,
+              reportTo: commission.to,
+              reportToday: commission.today,
+            }));
+          } catch {
+            setS((p) => ({ ...p, commission: null }));
+          }
+        })(),
+      );
+    } else {
+      setS((p) => ({ ...p, commission: null }));
+    }
+
+    await Promise.all(jobs);
   }, []);
-  const setReportRange = useCallback(
-    (range: ReportRange) => {
-      reportRangeRef.current = range;
-      setS((p) => ({ ...p, reportRange: range }));
-      void loadDashboard(range);
+  const setReportQuery = useCallback(
+    (q: ReportQuery) => {
+      reportQueryRef.current = q;
+      setS((p) => ({
+        ...p,
+        reportRange: q.range,
+        ...(q.range === 'custom' && q.from && q.to ? { reportFrom: q.from, reportTo: q.to } : {}),
+      }));
+      void loadDashboard(q);
     },
     [loadDashboard],
   );
@@ -498,7 +579,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       queueish || can(access, 'staff') ? loadStaff() : Promise.resolve(),
       can(access, 'appointments') ? loadAppointments() : Promise.resolve(),
       can(access, 'customers') ? loadCustomers() : Promise.resolve(),
-      can(access, 'dashboard') ? loadDashboard() : Promise.resolve(),
+      can(access, 'dashboard') || can(access, 'commission') ? loadDashboard() : Promise.resolve(),
       can(access, 'profile') ? loadBusiness() : Promise.resolve(),
     ]);
   }, [loadQueue, loadServices, loadStaff, loadAppointments, loadCustomers, loadDashboard, loadBusiness]);
@@ -630,8 +711,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       teardown();
       accessRef.current = null;
       roleRef.current = null;
+      reportQueryRef.current = { range: 'today' };
       setThemeConfig(null);
-      setS((p) => ({ ...p, authed: false, authLoading: false, session: null }));
+      // Earnings are one person's pay: never leave them on screen for whoever signs in next.
+      setS((p) => ({ ...p, authed: false, authLoading: false, session: null, commission: null, commissionVisitsFor: null }));
       showToast(t.toast.sessionExpired, 'error');
     });
     (async () => {
@@ -654,6 +737,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
                   name: me.business.name,
                   slug: me.business.slug,
                   category: me.business.category ?? '',
+                  currency: me.business.currency ?? undefined,
                 }
               : null,
             plan: me.business?.plan ?? 'free',
@@ -707,6 +791,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
                   name: res.business.name,
                   slug: res.business.slug,
                   category: res.business.category ?? '',
+                  currency: res.business.currency ?? undefined,
                 }
               : null,
             plan: res.business?.plan ?? 'free',
@@ -740,12 +825,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         // in on this device saw the previous user's nav for a frame.
         accessRef.current = null;
         roleRef.current = null;
+        reportQueryRef.current = { range: 'today' };
         setThemeConfig(null);
-        setS((p) => ({ ...p, authed: false, signOutLoading: false, session: null }));
+        // Earnings are one person's pay: never leave them on screen for whoever signs in next.
+        setS((p) => ({
+          ...p,
+          authed: false,
+          signOutLoading: false,
+          session: null,
+          commission: null,
+          commissionVisitsFor: null,
+        }));
         showToast(message, type);
       },
       refresh,
-      setReportRange,
+      setReportQuery,
+      openCommissionVisits: (staffId, name) => patch(() => ({ commissionVisitsFor: { staffId, name } })),
+      closeCommissionVisits: () => patch(() => ({ commissionVisitsFor: null })),
       setQueueStaff: (id) =>
         patch((p) => {
           // Staff cannot switch to the shop-wide "All" view.
@@ -1113,7 +1209,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     loadStaff,
     loadBusiness,
     loadCalendarAppointments,
-    setReportRange,
+    setReportQuery,
     setThemeConfig,
   ]);
 

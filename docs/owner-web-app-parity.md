@@ -37,7 +37,8 @@ selector behind a screen prefix so it cannot leak. `globals.css` keeps only shar
 | Screen | App | owner-web | CSS |
 |---|---|---|---|
 | Home | `(tabs)/dashboard.tsx`, `components/home/*`, `components/queue/QueueBoard.tsx` | `dashboard/page.tsx`, `LiveQueueCard`, `StoreMark`, `HomeQueueSection`, `QueueBoard`, `QueueTicketCard` | `globals.css` (`.home-*`, `.live-card*`, `.seat-*`), `shell-sheets.css` |
-| Reports | `(tabs)/stats.tsx`, `cards/StatCard.tsx` | `stats/page.tsx`, `stats/ReportQueuePreview.tsx` | `reports.css` (`.rp-*`) |
+| Reports | `(tabs)/stats.tsx`, `cards/StatCard.tsx`, `feedback/DateRangeSheet.tsx`, `feedback/CommissionVisitsSheet.tsx`, `lib/commission-text.ts` | `stats/page.tsx`, `stats/ReportQueuePreview.tsx`, `stats/CommissionVisitsSheet.tsx`, `stats/commission-text.ts` | `reports.css` (`.rp-*`) |
+| Commission rates | `settings/commission.tsx`, `components/settings/CommissionEditSheet.tsx`, `common/TMonthGrid.tsx` | `settings/commission/page.tsx`, `components/CommissionEditor.tsx` | `settings-b.css` (`.cm-*`) |
 | Appointments | `(tabs)/appointments.tsx`, `AppointmentListItem.tsx` | `appointments/page.tsx`, `components/AppointmentListItem.tsx`, `lib/appointments.ts` | `appointments.css` |
 | Calendar | `(tabs)/calendar.tsx`, `DayAppointmentsSheet.tsx` | `calendar/page.tsx`, `calendar/CalendarMonth.tsx` | `calendar.css` (`.calx-*`) |
 | Customers | `(tabs)/customers.tsx`, `cards/CustomerCard.tsx` | `customers/page.tsx`, `customers/CustomerCard.tsx`, `CustomerSearch.tsx` | `customers.css` |
@@ -99,6 +100,12 @@ Kept because a browser is not an App Store build, or because removing them would
 - **Profile / Appearance:** the store card (live status, Visit, QR), a sticky save bar from 641px,
   preset thumbnails, the preview's device switch, the native colour picker, gallery Move down.
 - **Team:** PhoneField with a country picker, fuller confirm copy.
+- **Commission dates** ([staff-commission.md](./staff-commission.md)): the web uses the browser's
+  `<input type="date">` (Reports' Custom period is a plain GET form); the app uses the pure-JS
+  `TMonthGrid` — inline in the rate sheet, because iOS will not present a date-picker modal over an
+  open sheet, and without a native module, which would need a new build. Both take their limits
+  (the store's today) from the API, and both copies of `lib/commission.ts` are kept in step by
+  `npm run test:commission`.
 - **No pull-to-refresh:** `LiveRefresh` (socket for owners, polling for staff) keeps pages current.
 - **Sheets animate in only**; the app also animates them out.
 

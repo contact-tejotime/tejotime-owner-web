@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { UNASSIGNED_GROUP_ID } from "@/components/LiveQueueCard";
 import { OverlayPortal } from "@/components/OverlayPortal";
 import { Skeleton, Spinner } from "@/components/Skeleton";
+import { currencySymbol } from "@/lib/currencies";
 import { formatMoney, formatServicePrice } from "@/lib/format";
 import { extrasForCategory } from "@/lib/service-extras";
 import { showToast } from "@/lib/toast";
@@ -378,8 +379,11 @@ export function QueueDetailSheet({
                 </p>
 
                 <div className="dp-amount">
+                  {/* The store's own symbol, off the billing DTO (it carries business.currency).
+                      Blank until billing lands — the box is disabled until then anyway, and a
+                      guessed ₹ is exactly what a USD store used to see here. */}
                   <span className="dp-amount-prefix" aria-hidden>
-                    ₹
+                    {billing ? currencySymbol(billing.serviceAmount.currency) : ""}
                   </span>
                   <input
                     className="dp-amount-input"
