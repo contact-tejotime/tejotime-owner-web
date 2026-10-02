@@ -803,8 +803,6 @@
     "accessView": "View only",
     "accessManage": "Full access",
     "moduleDashboard": "Dashboard",
-    "moduleCommission": "Commission & earnings",
-    "commissionHint": "Shows them their own earnings. Only owners can change rates.",
     "moduleQueue": "Queue",
     "moduleAppointments": "Appointments",
     "moduleCalendar": "Calendar",

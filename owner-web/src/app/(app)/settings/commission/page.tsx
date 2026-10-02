@@ -11,7 +11,7 @@ import "@/styles/settings-b.css";
  * Commission rates — what each stylist earns per visit, and from which day. The web twin of the
  * app's settings/commission.tsx. See docs/staff-commission.md.
  *
- * Owners only (`commission: manage`, which no staff login can hold — GRANT_CEILING). Its own page,
+ * Owners only (`commission: manage`, which only owner roles hold — staff get `view`). Its own page,
  * not a section of Staff & seats: /settings/staff is open to any login with the `staff` permission,
  * and a pay rate is not something a staff member may set, or even see for a colleague.
  */

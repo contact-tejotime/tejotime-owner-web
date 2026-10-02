@@ -5,11 +5,8 @@ import { Errors } from '../../domain/errors';
 import {
   ACCESS_LEVELS,
   GRANTABLE_MODULES,
-  GRANT_CEILING,
   MODULE_LABELS,
   ROLE_DEFAULTS,
-  atLeast,
-  grantLevels,
   grantableSubset,
   isOwnerRole,
 } from '../../domain/permissions';
@@ -40,23 +37,21 @@ usersRouter.use((req, _res, next) => {
 const idParams = z.object({ id: z.string().uuid() });
 
 /**
- * The permission map the editor sends. Only staff-grantable modules are accepted, and none above
- * its GRANT_CEILING — `commission: 'manage'` would let a staff login set its own pay rate.
+ * Modules that were once grantable and are now role-only. Clients built while they were still a
+ * checkbox keep sending them in every save (the editor sends its complete map), so they are
+ * dropped here rather than failing the whole save with "invalid key". Nothing is stored for them,
+ * and effectiveAccess ignores any row that already exists.
  */
-const permissionsSchema = z
-  .record(z.enum(GRANTABLE_MODULES), z.enum(ACCESS_LEVELS))
-  .superRefine((map, ctx) => {
-    for (const [mod, access] of Object.entries(map) as [keyof typeof GRANT_CEILING, (typeof ACCESS_LEVELS)[number]][]) {
-      const max = GRANT_CEILING[mod];
-      if (max && access && !atLeast(max, access)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [mod],
-          message: `${MODULE_LABELS[mod]} can be at most "${max}" for a staff login — only owners set commission rates`,
-        });
-      }
-    }
-  });
+const RETIRED_MODULES = ['commission'];
+
+/** The permission map the editor sends. Only staff-grantable modules are accepted. */
+const permissionsSchema = z.preprocess(
+  (raw) =>
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? Object.fromEntries(Object.entries(raw).filter(([mod]) => !RETIRED_MODULES.includes(mod)))
+      : raw,
+  z.record(z.enum(GRANTABLE_MODULES), z.enum(ACCESS_LEVELS)),
+);
 
 const createSchema = z
   .object({
@@ -98,8 +93,7 @@ const passwordSchema = z.object({ password: z.string().min(8).max(128) }).strict
  */
 usersRouter.get('/modules', limiters.ownerRead, asyncHandler(async (_req, res) => {
   res.json({
-    // `levels` is what the grid may offer per module: commission stops at view (GRANT_CEILING).
-    modules: GRANTABLE_MODULES.map((m) => ({ key: m, label: MODULE_LABELS[m], levels: grantLevels(m) })),
+    modules: GRANTABLE_MODULES.map((m) => ({ key: m, label: MODULE_LABELS[m] })),
     accessLevels: ACCESS_LEVELS,
     // Filtered to the grantable set: the editor seeds a draft straight from this, and an
     // unfiltered map would seed `team` — a key the create/update payloads reject.

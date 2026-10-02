@@ -475,8 +475,7 @@
     "dlgNewPasswordHint": "At least 8 characters.",
     "them": "They",
     "noAccessYet": "No access to anything yet.",
-    "canSee": "Can see: {modules}.",
-    "commissionHint": "Shows them their own earnings. Only owners can change rates."
+    "canSee": "Can see: {modules}."
   },
   "profile": {
     "title": "Business profile",

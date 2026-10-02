@@ -11,21 +11,20 @@ the system as designed, this one describes where it actually is.
 
 ### Staff commission % (2026-10-02)
 
-A commission rate per stylist that starts at an instant (migration **0034**, then **0035** which
-replaces `effective_from date` with `effective_at timestamptz` and recreates the `visit_commission`
-view — the schema's first view), on owner-web, the app, and the admin panel (optional percent on
-each staff row of Create / Edit store; Store → Visits stays read-only). A visit is
-paid at the latest rate with `effective_at <= completed_at`. Saving 20% at 1pm does not pay that
-morning, and changing it to 30% at 4pm does not reprice visits already paid at 20%. A future day
-still starts at store midnight. A started rate cannot be edited or deleted. New `commission`
-permission, hidden from staff by default and capped at view (`GRANT_CEILING`). Reports gained This
-week and Custom dates; `/dashboard/by-staff` now keeps a stylist removed mid-period. Rules, API,
-screens and tests: [docs/staff-commission.md](../../docs/staff-commission.md).
+A dated commission rate per stylist (migration **0034**: `staff_commission_rate` + the
+`visit_commission` view — the schema's first view), on owner-web, the app and (read-only) the admin
+panel. Every visit is paid at the rate of its own store-local day: "20% from 02/10, 30% from 16/10"
+pays 2–15 Oct at 20% for ever. Rates start today or later; earlier days are locked. New
+`commission` module, **role-only** (not in the Team grid): every staff login sees its own earnings,
+owners set rates. It shipped as a Hidden / View only grant and was made role-only the same day at
+the owner's request — stale `commission` override rows on preprod are ignored. Reports
+gained This week and Custom dates; `/dashboard/by-staff` now keeps a stylist removed mid-period.
+Rules, API, screens and tests: [docs/staff-commission.md](../../docs/staff-commission.md).
 
-- **Deploy:** 0034 and 0035 must be applied before the backend that reads them (the Coolify pipeline
-  runs migrations first). Until then `/commission/*` and the admin Visits page 500; Reports' revenue
-  does not depend on the view.
-- **Verified here (day rates, earlier):** backend `npm test` (35 files / 412 tests), owner-web
+- **Deploy:** 0034 must be applied before the backend that reads it (the Coolify pipeline runs
+  migrations first). Until then `/commission/*` and the admin Visits page 500; Reports' revenue does
+  not depend on the view.
+- **Verified here:** backend `npm test` (35 files / 412 tests), `npm run test:commission`, owner-web
   and admin-panel lint + type-check + build, app `tsc` (only the pre-existing missing
   `expo-screen-orientation` module) and lint on every changed file.
 - **Verified here (instant rates, 0035):** `npm test` on the four commission unit files (35 tests)

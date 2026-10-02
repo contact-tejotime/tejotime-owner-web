@@ -641,15 +641,6 @@
   font-weight: 600;
   color: var(--text-body);
 }
-/* The line under "Commission & earnings": why it stops at View only. */
-.sa-perm-hint {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
-  font-weight: 400;
-  line-height: 1.35;
-  color: var(--text-muted);
-}
 .sa-perm-options {
   display: flex;
   flex-wrap: wrap;

@@ -53,10 +53,13 @@ export const CREATABLE_ROLES: { value: "co_owner" | "staff"; label: string; blur
 
 export const MODULE_LABELS: Record<Module, string> = t.roles.modules;
 
-/** Mirrors backend GRANTABLE_MODULES — `team` is owner-only and never a checkbox. */
+/**
+ * Mirrors backend GRANTABLE_MODULES. Two modules are never a row in the grid: `team` is
+ * owner-only, and `commission` is decided by the role too — every staff login sees its own
+ * earnings, and only owners set rates.
+ */
 export const GRANTABLE_MODULES: Module[] = [
   "dashboard",
-  "commission",
   "queue",
   "appointments",
   "calendar",
@@ -75,19 +78,6 @@ const RANK: Record<Access, number> = { none: 0, view: 1, manage: 2 };
 
 export function can(access: ModuleAccess, module: Module, need: Access = "view"): boolean {
   return RANK[access?.[module] ?? "none"] >= RANK[need];
-}
-
-/**
- * Mirrors backend GRANT_CEILING: the most a staff login may be given. `commission: manage` is
- * setting pay rates, which only an owner can do — a staff login can at most SEE its own earnings.
- * The API refuses anything higher; this only keeps the grid from offering it.
- */
-const GRANT_CEILING: Partial<Record<Module, Access>> = { commission: "view" };
-
-/** The levels the Team permission grid offers for a module: Hidden up to its ceiling. */
-export function grantLevels(module: Module): Access[] {
-  const max = GRANT_CEILING[module] ?? "manage";
-  return (["none", "view", "manage"] as Access[]).filter((level) => RANK[level] <= RANK[max]);
 }
 
 export function isOwnerRole(role: UserRole): boolean {
@@ -122,7 +112,7 @@ const PATH_MODULES: [string, Module][] = [
   ["/settings/appearance", "profile"],
   ["/settings/services", "services"],
   ["/settings/staff", "staff"],
-  // Pay rates. The page also needs `manage` (canAccessPath) — owners only, see GRANT_CEILING.
+  // Pay rates. The page also needs `manage` (canAccessPath), which only owner roles hold.
   ["/settings/commission", "commission"],
   ["/settings/team", "team"],
   ["/settings/hours", "hours"],

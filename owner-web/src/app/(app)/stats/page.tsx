@@ -116,7 +116,7 @@ function StaffCommission({ row }: { row: CommissionStaffRow }) {
  * Reports — the same screen as the app's Reports tab (app/src/app/(app)/(tabs)/stats.tsx), in the
  * same order: the period switch (Today / This week / This month / Custom), the revenue card on the
  * store's brand colour, the metric tiles, commission (owners), the staff breakdown (store-wide
- * roles only), a stylist's own earnings (staff, when the owner shows them), then the queue preview
+ * roles only), a stylist's own earnings (every staff login), then the queue preview
  * on Today.
  *
  * Staff see their own chair only — the API narrows every figure — so their card says "My report"

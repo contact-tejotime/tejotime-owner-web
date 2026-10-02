@@ -4,7 +4,7 @@
 app (iOS + Android), admin panel (optional percent on the store staff form; the visits report stays read-only) · **Backend:** `backend/src/modules/commission/`
 
 Commission salons pay each stylist a percentage of the visits they complete. A store sets a rate
-per stylist; Reports show what each stylist earned and what the salon keeps; a stylist can be shown
+per stylist; Reports show what each stylist earned and what the salon keeps; every stylist sees
 their own earnings. Booth rental (a stylist renting the chair and keeping their own takings) is a
 different model and is not covered.
 
@@ -73,25 +73,38 @@ after `to`), built from store-local midnights, so a DST change cannot slip a day
 
 ## Who sees what
 
-A new module, `commission` ("Commission & earnings"), in `backend/src/domain/permissions.ts`:
+A module, `commission` ("Commission & earnings"), in `backend/src/domain/permissions.ts` — decided
+by the **role alone**, like `team`. It is not in `GRANTABLE_MODULES`, so it is never a row in the
+Team grid and no `user_permission` override changes it:
 
 | Role | Access | Means |
 |---|---|---|
 | owner, co_owner | `manage` | set rates; read the whole store |
 | manager (legacy) | `view` | read the whole store |
-| staff | `none` by default; the owner may grant `view` | read **only its own chair**; never rates |
+| staff | `view`, always | read **only its own chair**; never rates |
 
-`GRANT_CEILING = { commission: 'view' }` caps every role that is not an owner: `manage` means
-setting pay, and a staff login holding it could give itself a raise (the same reason `team` is not
-grantable). It is enforced four times — the Team grid offers only Hidden / View only; the
-permission editor refuses `manage` (400); `effectiveAccess` clamps any stored `manage` to `view`;
-and the rate routes also check the owner **role**. A staff login with no chair linked sees nothing.
+`manage` means setting pay, and a staff login holding it could give itself a raise. Nothing can
+give it one: no non-owner role defaults to `manage`, `effectiveAccess` applies overrides only to
+grantable modules, and the rate routes also check the owner **role**. A staff login with no chair
+linked sees nothing.
 
-`PUT /users/:id/permissions` now replaces only the modules in the payload, so an older app build
-that predates `commission` cannot wipe a grant it does not know about.
+**History.** It shipped on 2026-10-02 as a grantable Hidden / View only row, hidden from staff by
+default (capped by a `GRANT_CEILING`), and was made role-only the same day at the owner's request:
+earnings are a stylist's own pay, so there is nothing to hide. Two leftovers are handled on
+purpose, with no migration:
 
-Reports (`/stats`) open with `dashboard` **or** `commission`; each section draws only with its own
-permission. In a staff login's visit list, customer names appear only if it has `customers` access.
+- `commission` rows already saved in `user_permission` (an explicit "Hidden", say) are ignored by
+  `effectiveAccess`, so they can neither hide earnings nor raise them.
+- App builds from that day still send `commission` in every permission save (the editor sends its
+  complete map). `POST /users` and `PUT /users/:id/permissions` drop the key instead of failing the
+  whole save with 400, and store nothing for it.
+
+`PUT /users/:id/permissions` replaces only the modules in the payload, so an older app build that
+predates a module cannot wipe a grant it does not know about.
+
+Reports (`/stats`) open with `dashboard` **or** `commission` — so every staff login reaches it, even
+one whose Dashboard the owner has hidden; each section draws only with its own permission. In a
+staff login's visit list, customer names appear only if it has `customers` access.
 
 ## API
 
@@ -120,17 +133,17 @@ Never put rates on `GET /staff`: staff logins can read it, and would see colleag
 | Start | native `<input type="date">`. Today means "starts now"; a later day means midnight. | inline `TMonthGrid` + Today/Tomorrow chips (no second modal — iOS will not show one over a sheet). Same meaning. |
 | Reports period | Today / This week / This month / Custom (GET form, two date boxes) | same four; Custom opens `DateRangeSheet` |
 | Owner report | Commission + Salon keeps tiles; each stylist card shows commission, the rate today and the period rate by rate; tap → visits sheet | same |
-| Stylist | "My earnings" card + visits sheet, when the owner has granted it | same |
-| Admin panel | Create / Edit store, each staff row: optional commission %. Blank = no rate. Store → Visits stays read-only (Rate and Commission columns, totals, "Commission by stylist") | — |
+| Stylist | "My earnings" card + visits sheet, for every staff login | same |
+| Team logins | no commission row — it is not a permission | same |
+| Admin panel | Store → Visits: Rate and Commission columns, totals, "Commission by stylist" (read-only) | — |
 
 ## Tests
 
 | Command | Needs | Covers |
 |---|---|---|
-| `cd backend && npm test` | nothing | `report-window`, `commission-summary` (pure, including the admin skip / insert / refuse decision), `commission-permissions`, `commission-routes`, `dashboard-ranges`, `admin-commission`, `optional-store-data` (staff `rateBp` accepted, above 100% rejected) |
-| `SMOKE_ADMIN_MOBILE=... SMOKE_ADMIN_PASSWORD=... node backend/scripts/smoke-admin-staff-commission.mjs` | running API + migrated DB + an admin login. Skips (exit 0) when the login is unset | create at 20% → read back → same percent → 30% → clearing a started rate is 400 and the 30% remains → a new stylist with no rate. Deactivates the throwaway store |
-| `DATABASE_URL=<throwaway> node backend/scripts/smoke-commission-db.mjs` | a **migrated** throwaway DB (rolled back) | midnight boundaries in IST, the 1pm/4pm split (morning unrated, 20% not repriced by 30%), rounding, no-rate and no-stylist visits, constraints, index use, timezone does not reprice, cascades |
-| `node backend/scripts/smoke-commission.mjs` | running API + **seeded throwaway** DB | the HTTP flow: checkout before a rate earns nothing, a later checkout earns the new rate, changing the rate does not reprice, schedule + cancel, past day 409, staff login hidden → shown own chair only → never rates, ranges, removed chair kept |
+| `cd backend && npm test` | nothing | `report-window`, `commission-summary` (pure), `commission-permissions`, `commission-routes`, `dashboard-ranges`, `admin-commission` |
+| `DATABASE_URL=<throwaway> node backend/scripts/smoke-commission-db.mjs` | a **migrated** throwaway DB (rolled back) | the 20%→30% example against the real view, incl. 16/10 00:30 IST (still 15/10 in UTC) → 30%, rounding, no-rate and no-stylist visits, replace/delete, constraints, index use, timezone re-bucketing, cascades |
+| `node backend/scripts/smoke-commission.mjs` | running API + **seeded throwaway** DB | the HTTP flow: default today, checkout → commission, same-day replace, schedule + cancel, past day 409, staff login sees its own chair with no grant (no Team-grid row; an old app's `commission: none`/`manage` save is accepted and changes nothing) → never rates, ranges, removed chair kept |
 | `npm run test:commission` (repo root) | nothing | the app's and owner-web's copies of `lib/commission.ts` agree; `lib/date-grid.ts` |
 
 Never run the smoke scripts or a migration against the database in `backend/.env` — point

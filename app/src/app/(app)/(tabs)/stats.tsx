@@ -74,7 +74,7 @@ const STAFF_LEADS: Record<ReportRange, string> = {
 /**
  * Reports — owner-web's /stats on the phone, in the same order: the period switch (Today / This
  * week / This month / Custom), the revenue card, the metric tiles, commission (owners), the staff
- * breakdown (store-wide roles only), a stylist's own earnings (staff, once the owner shows them),
+ * breakdown (store-wide roles only), a stylist's own earnings (every staff login),
  * then the queue preview on Today.
  *
  * Commission is every visit at the rate of its own day (docs/staff-commission.md): each card's

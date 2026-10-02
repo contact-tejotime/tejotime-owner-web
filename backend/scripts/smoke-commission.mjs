@@ -9,8 +9,9 @@
 //   - saving again today does NOT reprice visits already checked out; a later checkout uses the new rate;
 //   - a change scheduled for tomorrow starts at midnight and does not touch today;
 //   - a day that is over is locked (409 COMMISSION_RATE_LOCKED);
-//   - a staff login cannot see earnings until the owner shows them, then sees ONLY its own chair,
-//     and can never set a rate — not directly, and not by being granted "manage";
+//   - a staff login sees its own earnings from the start, with no grant, and ONLY its own chair;
+//     an old app's permission save carrying `commission` neither hides nor raises it; and it can
+//     never read or set a rate;
 //   - a chair removed mid-period keeps its work in the reports (regression: /dashboard/by-staff
 //     used to drop it).
 // The "20% on the 2nd, 30% from the 16th" history itself needs dated visits, which no API can
@@ -144,7 +145,7 @@ async function main() {
   ok(latest?.localDate === today && /^\d{2}:\d{2}$/.test(latest?.localTime ?? ''), 'with store-local date and time from the server');
   ok(latest?.customerName === 'After 30%', 'the owner sees who it was');
 
-  console.log('STAFF LOGIN: hidden by default, own chair only once shown, never sets a rate');
+  console.log('STAFF LOGIN: sees its own earnings with no grant, own chair only, never sets a rate');
   const staffPhone = `91${String(Date.now()).slice(-10)}`;
   const created = await call('POST', '/users', {
     token,
@@ -152,18 +153,26 @@ async function main() {
   });
   ok(created.status === 201, `owner creates a staff login on the chair (got ${created.status})`);
   const staffUser = created.json.id;
-  ok(created.json.permissions?.commission === 'none', 'earnings start hidden');
+  ok(created.json.permissions?.commission === 'view', 'earnings are shown from the start — nothing to grant');
+
+  const modules = await call('GET', '/users/modules', { token });
+  ok(
+    modules.status === 200 && !modules.json.modules?.some((m) => m.key === 'commission'),
+    'and the Team grid has no commission row to toggle',
+  );
 
   const staffLogin = await call('POST', '/auth/login', { body: { phone: staffPhone, password: 'smoketest123' } });
   ok(staffLogin.status === 200, 'staff login');
   const staffToken = staffLogin.json.accessToken;
-  ok((await call('GET', '/commission/summary', { token: staffToken })).status === 403, 'hidden → 403');
+  const me = await call('GET', '/auth/me', { token: staffToken });
+  ok(me.json.permissions?.commission === 'view', '/auth/me tells the clients to draw "My earnings"');
 
-  // The editor sends its complete map of grantable modules.
+  // An app build from when earnings were a toggle sends its complete map, `commission` included.
   const perms = { ...created.json.permissions };
   delete perms.team;
-  const grant = await call('PUT', `/users/${staffUser}/permissions`, { token, body: { permissions: { ...perms, commission: 'view' } } });
-  ok(grant.status === 200 && grant.json.permissions?.commission === 'view', 'owner shows them their earnings');
+  const hide = await call('PUT', `/users/${staffUser}/permissions`, { token, body: { permissions: { ...perms, commission: 'none' } } });
+  ok(hide.status === 200, `an old app's save carrying commission: none still saves (got ${hide.status})`);
+  ok(hide.json.permissions?.commission === 'view', '…and does not hide their earnings');
 
   const own = await summary('', staffToken);
   ok(own.scope === 'self' && own.staff?.length === 1 && own.staff[0].staffId === chair, 'they see exactly their own chair');
@@ -183,10 +192,11 @@ async function main() {
     'staff cannot set their own rate',
   );
   const escalate = await call('PUT', `/users/${staffUser}/permissions`, { token, body: { permissions: { ...perms, commission: 'manage' } } });
-  ok(escalate.status === 400, `granting a staff login "manage" is refused (got ${escalate.status})`);
-  const revoke = await call('PUT', `/users/${staffUser}/permissions`, { token, body: { permissions: { ...perms, commission: 'none' } } });
-  ok(revoke.status === 200, 'owner hides it again');
-  ok((await call('GET', '/commission/summary', { token: staffToken })).status === 403, '…and it is hidden on the very next request');
+  ok(escalate.status === 200 && escalate.json.permissions?.commission === 'view', 'sending "manage" for a staff login is ignored');
+  ok(
+    (await call('PUT', `/commission/rates/${chair}`, { token: staffToken, body: { rateBp: 9000 } })).status === 403,
+    '…so it still cannot set its own rate',
+  );
 
   console.log('PERIODS');
   const week = await summary('?range=week');

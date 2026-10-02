@@ -212,7 +212,7 @@ Every visit at the latest rate whose start instant is at or before checkout — 
 
 | Method | Path | Guards |
 |---|---|---|
-| GET | `/summary` | `perm=commission:view`; a staff login gets only its own chair (`scope: 'self'`) |
+| GET | `/summary` | `perm=commission:view` (every role; not grantable); a staff login gets only its own chair (`scope: 'self'`) |
 | GET | `/visits` | `perm=commission:view`; owner must pass `staffId`; staff: own chair only (other → 403) |
 | GET | `/rates` | `perm=commission:manage` |
 | PUT | `/rates/:staffId` | owner **role** + `perm=commission:manage`; `{ rateBp, effectiveFrom? }` (`effectiveFrom` is a store-local day); today or omitted starts at `now()` as a new row; a future day starts at store midnight and replaces that instant; past day → 409 `COMMISSION_RATE_LOCKED` |
