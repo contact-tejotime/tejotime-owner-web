@@ -6,6 +6,7 @@ import {
   DAY_LABELS,
   EMPTY_FORM,
   draftData,
+  parseCommissionPercent,
   toPayload,
   type Category,
   type FaqRow,
@@ -492,6 +493,22 @@ export default function StoreForm({
           message: t.storeForm.durationRequired,
         })),
       ]);
+      setSaving(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    const badCommission = form.staff.filter(
+      (s) => s.name.trim() && (s.commissionPercent ?? "").trim() && parseCommissionPercent(s.commissionPercent) == null,
+    );
+    if (badCommission.length > 0) {
+      setError(t.storeForm.fillRequired);
+      setDetails(
+        badCommission.map((s) => ({
+          field: format(t.storeForm.staffCommissionField, { name: s.name.trim() }),
+          message: t.storeForm.staffCommissionInvalid,
+        })),
+      );
       setSaving(false);
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -1090,6 +1107,7 @@ export default function StoreForm({
         <section className="section">
           <h2>{t.storeForm.staffOptional}</h2>
           <p className="hint">{t.storeForm.servicesStaffOptionalHint}</p>
+          <p className="hint">{t.storeForm.staffCommissionHint}</p>
           {form.staff.map((s, i) => (
             <div className="row staff" key={i}>
               <div className="field">
@@ -1100,6 +1118,15 @@ export default function StoreForm({
                 <label>{t.storeForm.staffRole}</label>
                 <input value={s.roleLabel} onChange={(e) => setStaff(i, { roleLabel: e.target.value })} placeholder={t.storeForm.staffRolePlaceholder} />
               </div>
+              <div className="field">
+                <label>{t.storeForm.staffCommission}</label>
+                <input
+                  value={s.commissionPercent ?? ""}
+                  onChange={(e) => setStaff(i, { commissionPercent: e.target.value })}
+                  placeholder={t.storeForm.staffCommissionPlaceholder}
+                  inputMode="decimal"
+                />
+              </div>
               <button type="button" className="btn-remove" onClick={() => set("staff", removeAt(form.staff, i))}>
                 {t.common.remove}
               </button>
@@ -1109,7 +1136,7 @@ export default function StoreForm({
           <button
             type="button"
             className="btn-add"
-            onClick={() => set("staff", [...form.staff, { name: "", roleLabel: "", avatarUrl: "" }])}
+            onClick={() => set("staff", [...form.staff, { name: "", roleLabel: "", avatarUrl: "", commissionPercent: "" }])}
           >
             {t.storeForm.addStaff}
           </button>

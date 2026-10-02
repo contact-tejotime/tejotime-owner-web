@@ -30,7 +30,8 @@ const NAV: { id: TabId; label: string; icon: IconName; module: PermissionModule 
 function navVisible(id: TabId, module: PermissionModule | null, access: ModuleAccess | null): boolean {
   if (module === null) return true;
   if (id === 'dashboard') return can(access, 'dashboard') || can(access, 'queue');
-  if (id === 'stats') return can(access, 'dashboard');
+  // Reports holds the takings (dashboard) and the earnings (commission) — either opens it.
+  if (id === 'stats') return can(access, 'dashboard') || can(access, 'commission');
   return can(access, module);
 }
 

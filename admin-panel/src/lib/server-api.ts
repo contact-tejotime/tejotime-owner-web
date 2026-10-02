@@ -12,6 +12,7 @@ import type {
   PlatformCustomer,
   PlatformOverview,
   StoreAnalytics,
+  StoreCommission,
   StoreDetail,
   StoreDraft,
   StoreDraftListItem,
@@ -343,6 +344,19 @@ export async function listStoreVisits(id: string, from?: string, to?: string): P
   const qs = params.toString();
   return get<VisitsResponse>(
     `/admin/businesses/${id}/visits${qs ? `?${qs}` : ""}`,
+    [TAGS.visits, TAGS.business(id)],
+    TTL.activity,
+  );
+}
+
+/** The store's commission by stylist for the same window as its visit ledger. Read-only. */
+export async function getStoreCommission(id: string, from?: string, to?: string): Promise<StoreCommission | null> {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString();
+  return get<StoreCommission>(
+    `/admin/businesses/${id}/commission${qs ? `?${qs}` : ""}`,
     [TAGS.visits, TAGS.business(id)],
     TTL.activity,
   );

@@ -9,6 +9,7 @@ import { MAX_IMAGE_BYTES, signUpload } from '../../integrations/storage';
 import { verifyAdminToken } from '../auth/token.service';
 import { reviewUrl } from '../business/review-url.schema';
 import { isValidTimezone } from '../../lib/phone-timezone';
+import { isoDateSchema } from '../../lib/report-window';
 import * as admin from './admin.service';
 import * as analytics from './admin-analytics.service';
 import * as inquiries from './admin-inquiries.service';
@@ -197,6 +198,17 @@ const storeFieldsSchema = z.object({
         name: z.string().trim().min(1).max(80),
         roleLabel: z.string().max(80).nullable().optional(),
         avatarUrl: z.string().url().max(500).nullable().optional(),
+        /**
+         * Optional commission, in basis points (2000 = 20%). Null or omitted means no rate.
+         * The same integer the owner rate API takes, so 0–100% with at most two decimals.
+         */
+        rateBp: z
+          .number()
+          .int('Use at most two decimal places')
+          .min(0, 'A rate cannot be negative')
+          .max(10000, 'A rate cannot be above 100%')
+          .nullable()
+          .optional(),
       }),
     )
     .max(50)
@@ -531,6 +543,25 @@ adminRouter.get(
   asyncHandler(async (req: Request, res: Response) => {
     res.json(
       await analytics.listStoreVisits(
+        req.params.id,
+        req.query.from as string | undefined,
+        req.query.to as string | undefined,
+      ),
+    );
+  }),
+);
+
+// Read-only report: the store's commission by stylist for a date range. The current percent is
+// set on the staff rows of create/update store; later changes, including a future start, stay
+// on the owner's rate screen (owner-web / app, `PUT /commission/rates/:staffId`).
+adminRouter.get(
+  '/businesses/:id/commission',
+  limiters.ownerRead,
+  validate({ params: idParam, query: z.object({ from: isoDateSchema.optional(), to: isoDateSchema.optional() }) }),
+  requireStoreAccess,
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(
+      await analytics.getStoreCommission(
         req.params.id,
         req.query.from as string | undefined,
         req.query.to as string | undefined,

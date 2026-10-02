@@ -37,7 +37,7 @@ check("a draft round-trips: every typed field survives draftData -> JSON -> draf
     ownerPhone: "919812345678",
     ownerPassword: "",
     services: [{ name: "Haircut", durationMinutes: 45, priceRupees: 350, priceType: "fixed", priceMaxRupees: null }],
-    staff: [{ name: "John", roleLabel: "Barber", avatarUrl: "" }],
+    staff: [{ name: "John", roleLabel: "Barber", avatarUrl: "", commissionPercent: "20" }],
     faqs: [{ q: "Walk-ins?", a: "Yes" }],
   };
   const back = draftToForm(JSON.parse(JSON.stringify(draftData(typed))));
@@ -83,6 +83,14 @@ check("missing weekdays are filled in, in weekday order", () => {
   assert.deepEqual(back.hours.map((h) => h.dayOfWeek), [0, 1, 2, 3, 4, 5, 6]);
   assert.equal(back.hours[3]!.opensAt, "10:00");
   assert.equal(back.hours[0]!.opensAt, "09:00");
+});
+
+check("a staff row saved before commission still binds an empty percent", () => {
+  const back = draftToForm({
+    staff: [{ name: "John", roleLabel: "Barber", avatarUrl: "" }] as never,
+  });
+  assert.equal(back.staff[0]!.commissionPercent, "");
+  assert.equal(back.staff[0]!.name, "John");
 });
 
 check("empty services / staff lists fall back to one blank row (the form needs a row to type in)", () => {

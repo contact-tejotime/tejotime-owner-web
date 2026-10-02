@@ -1,10 +1,8 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import { many, one } from '../../db/pool';
 import { Errors } from '../../domain/errors';
 import { money } from '../../domain/money';
-import { businessDayRange, businessMonthRange, dayjs } from '../../lib/time';
-import { env } from '../../config/env';
+import { ReportQuery, reportQuerySchema, resolveReportWindow } from '../../lib/report-window';
 import { asyncHandler } from '../../http/async-handler';
 import { authenticate } from '../../middleware/authenticate';
 import { limiters } from '../../middleware/rate-limit';
@@ -14,38 +12,21 @@ import { validate } from '../../middleware/validate';
 export const dashboardRouter = Router();
 dashboardRouter.use(authenticate);
 
-const rangeQuery = z.object({
-  range: z.enum(['today', 'month']).default('today'),
-});
-
-type ReportRange = 'today' | 'month';
-
-function resolveReportWindow(tz: string | undefined, range: ReportRange) {
-  const zone = tz || env.DEFAULT_TIMEZONE;
-  if (range === 'month') {
-    const m = businessMonthRange(zone);
-    return { startIso: m.startIso, endIso: m.endIso, periodLabel: m.periodLabel, range };
-  }
-  const d = businessDayRange(zone);
-  return {
-    startIso: d.startIso,
-    endIso: d.endIso,
-    periodLabel: dayjs().tz(zone).format('ddd, D MMM YYYY'),
-    range,
-  };
-}
+// `?range=today|week|month|custom&from=&to=` — resolved in the store's timezone by
+// lib/report-window, the same window the commission reports use, so the revenue on Reports and
+// the commission beside it always cover the same days. Windows are half-open (`< endIso`).
+// Deliberately NOT built on the visit_commission view (migration 0034): Reports keeps working on
+// a backend that is briefly ahead of its schema.
 
 dashboardRouter.get(
   '/summary',
   limiters.ownerRead,
   requirePermission('dashboard'),
-  validate({ query: rangeQuery }),
+  validate({ query: reportQuerySchema }),
   asyncHandler(async (req, res) => {
     const businessId = req.principal!.businessId;
-    const range = (req.query.range as ReportRange) ?? 'today';
     const biz = await one('select timezone, currency from business where id = $1', [businessId]);
-    const tz = biz?.timezone;
-    const { startIso, endIso, periodLabel } = resolveReportWindow(tz, range);
+    const w = resolveReportWindow(biz?.timezone, req.query as unknown as ReportQuery);
 
     // A staff login gets its own window, not the shop's. Same KPIs, narrowed by seat —
     // otherwise "dashboard: view" would hand every chair the business's revenue.
@@ -56,13 +37,13 @@ dashboardRouter.get(
 
     // Postgres can aggregate these directly, so each KPI is one round trip instead
     // of pulling the day's rows back to count them in JS.
-    // activeNow / waitingNow remain a live queue snapshot (not month aggregates).
+    // activeNow / waitingNow remain a live queue snapshot (not period aggregates).
     const [apptCount, activeCounts, completedTotals] = await Promise.all([
       one<{ count: number }>(
         `select count(*)::int as count
            from appointment
-          where business_id = $1 and scheduled_start_at >= $2 and scheduled_start_at <= $3${seatFilter}`,
-        [businessId, startIso, endIso, ...seatParam],
+          where business_id = $1 and scheduled_start_at >= $2 and scheduled_start_at < $3${seatFilter}`,
+        [businessId, w.startIso, w.endIso, ...seatParam],
       ),
       one<{ active: number; waiting: number }>(
         `select count(*)::int as active,
@@ -74,8 +55,8 @@ dashboardRouter.get(
       one<{ completed: number; revenue: string }>(
         `select count(*)::int as completed, coalesce(sum(amount_paise), 0)::bigint as revenue
            from visit
-          where business_id = $1 and completed_at >= $2 and completed_at <= $3${seatFilter}`,
-        [businessId, startIso, endIso, ...seatParam],
+          where business_id = $1 and completed_at >= $2 and completed_at < $3${seatFilter}`,
+        [businessId, w.startIso, w.endIso, ...seatParam],
       ),
     ]);
 
@@ -85,9 +66,14 @@ dashboardRouter.get(
     const revenue = Number(completedTotals?.revenue ?? 0);
 
     res.json({
-      range,
-      periodLabel,
-      date: startIso.slice(0, 10),
+      range: w.range,
+      periodLabel: w.periodLabel,
+      from: w.from,
+      to: w.to,
+      today: w.today,
+      // Kept for older clients; the store-local first day (it used to be the UTC date of the
+      // window's start — yesterday, for an Indian store).
+      date: w.from,
       kpis: {
         todaysAppointments: apptCount?.count ?? 0,
         activeNow,
@@ -110,7 +96,7 @@ dashboardRouter.get(
   '/by-staff',
   limiters.ownerRead,
   requirePermission('dashboard'),
-  validate({ query: rangeQuery }),
+  validate({ query: reportQuerySchema }),
   asyncHandler(async (req, res) => {
     const principal = req.principal!;
     if (scopeStaffId(principal)) {
@@ -118,21 +104,21 @@ dashboardRouter.get(
     }
 
     const businessId = principal.businessId;
-    const range = (req.query.range as ReportRange) ?? 'today';
     const biz = await one('select timezone, currency from business where id = $1', [businessId]);
-    const tz = biz?.timezone;
     const currency = biz?.currency;
-    const { startIso, endIso, periodLabel } = resolveReportWindow(tz, range);
+    const w = resolveReportWindow(biz?.timezone, req.query as unknown as ReportQuery);
 
     const rows = await many<{
       id: string;
       name: string;
+      is_active: boolean;
       appointments: number;
       completed: number;
       revenue: string;
     }>(
       `select s.id,
               s.name,
+              s.is_active,
               coalesce(a.appointments, 0)::int as appointments,
               coalesce(v.completed, 0)::int as completed,
               coalesce(v.revenue, 0)::bigint as revenue
@@ -142,7 +128,7 @@ dashboardRouter.get(
              from appointment
             where business_id = $1
               and scheduled_start_at >= $2
-              and scheduled_start_at <= $3
+              and scheduled_start_at < $3
             group by staff_id
          ) a on a.staff_id = s.id
          left join (
@@ -152,20 +138,27 @@ dashboardRouter.get(
              from visit
             where business_id = $1
               and completed_at >= $2
-              and completed_at <= $3
+              and completed_at < $3
             group by staff_id
          ) v on v.staff_id = s.id
-        where s.business_id = $1 and s.is_active = true
+        -- A stylist removed mid-period still did that period's work: listing only active rows
+        -- made their revenue vanish from this breakdown while it still counted in /summary.
+        where s.business_id = $1
+          and (s.is_active or a.staff_id is not null or v.staff_id is not null)
         order by s.position, s.name`,
-      [businessId, startIso, endIso],
+      [businessId, w.startIso, w.endIso],
     );
 
     res.json({
-      range,
-      periodLabel,
+      range: w.range,
+      periodLabel: w.periodLabel,
+      from: w.from,
+      to: w.to,
+      today: w.today,
       data: rows.map((r) => ({
         staffId: r.id,
         name: r.name,
+        isActive: r.is_active,
         appointments: r.appointments,
         completed: r.completed,
         revenue: money(Number(r.revenue), currency),

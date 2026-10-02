@@ -148,7 +148,7 @@ observability/     health.ts (/healthz liveness, /readyz db-readiness)
   auth: `GET /healthz`, `GET /readyz`, and **`GET /media/*`** (image reads — these URLs are
   persisted in the DB, so the path must stay stable forever).
 - Routers: `auth business services staff users queue appointments customers dashboard
-  notifications subscription uploads public webhooks admin`.
+  commission notifications subscription uploads public webhooks admin`.
 - Every route composes the same chain: `authenticate → limiter → requirePermission → validate →
   asyncHandler`. Route handlers stay thin; logic lives in the service.
 - Uniform error envelope:
@@ -200,7 +200,10 @@ Core tables (`0001_init.sql`): `business` (tenant root), `business_hour`, `ameni
 ledger), `subscription`, `payment`, `notification`, `otp_verification`, `auth_session`,
 `audit_log`, `token_counter`, `idempotency_key`. Later: `master_data` (0005 lookup),
 `admins` (0007), `inquiry` (0014), `user_permission` (0019), `store_draft` (0031 — admin panel's
-parked Create store forms, private per admin, see [docs/admin-store-drafts.md](docs/admin-store-drafts.md)).
+parked Create store forms, private per admin, see [docs/admin-store-drafts.md](docs/admin-store-drafts.md)),
+`staff_commission_rate` (0034, instant starts in 0035) and the **`visit_commission` view**, the schema's
+first view: every visit at the latest rate whose start instant is at or before checkout, computed when read
+(see [docs/staff-commission.md](docs/staff-commission.md)).
 
 Notable constraints and conventions:
 - UUID PKs (`gen_random_uuid()`); `pgcrypto` + `pg_trgm` extensions.
@@ -268,9 +271,14 @@ panel at provisioning), `co_owner` (same powers, cannot touch the super owner), 
 `domain/permissions.ts` is the single source of truth:
 - `MODULES` catalogue lives **in code, not the DB** — adding a screen is a deploy, not a migration.
 - `GRANTABLE_MODULES` excludes `team` on purpose (granting login-creation would let a staff
-  account grant itself everything else).
+  account grant itself everything else) and `commission` (every staff login sees its own
+  earnings — `view`, own chair only — and setting pay is owner-only `manage`; nothing to toggle).
+  Both are decided by the **role alone**.
 - `ROLE_DEFAULTS` + **sparse overrides** in `user_permission` (a row exists only where an owner
-  deliberately changed something) → `effectiveAccess(role, overrides)`.
+  deliberately changed something) → `effectiveAccess(role, overrides)`. Overrides apply **only to
+  grantable modules**; a row for `team`/`commission` is ignored (preprod still holds `commission`
+  rows from when it was a Hidden / View only toggle). The permission editor silently drops a
+  `commission` key, because app builds from then still send it on every save.
 - Owner roles ignore overrides entirely, so a stale row can never lock out the account holder.
 
 Enforcement (`middleware/require-permission.ts`):
@@ -561,13 +569,18 @@ test:responsive` is the same idea for the mobile app's breakpoint/grid arithmeti
 (`admin-panel/src/lib/import-diff.ts`). `npm run test:chat-flow` walks the store chat's guided
 check-in/booking state machine (`frontend/src/components/chat/flow/engine.ts`) through its
 scenario matrix — keep that file free of React and `@/` imports so it stays runnable this way.
+And `npm run test:commission` — runs the app's and owner-web's hand-kept copies of
+`lib/commission.ts` (rate parsing/printing, store-day labels) through one case table so they cannot
+drift, plus `app/src/lib/date-grid.ts`. Both files must stay import-free.
 
 > These checks are **not wired into CI**. Run them manually after touching the theme engine, the
 > cropper, a theme axis, or the mobile breakpoints.
 
 Also duplicated by hand, with **no** generator: `lib/countries.ts`, `lib/phone.ts`,
 `lib/format.ts`, `lib/support.ts`, `lib/frontend-url.ts`, `PhoneField`, and the `i18n` module
-across the web apps.
+across the web apps — and `lib/currencies.ts` (the store-currency symbol map), byte-identical in
+`admin-panel`, `app`, `frontend` and `owner-web`. Never print a literal ₹ for store money; see
+[docs/store-currency.md](docs/store-currency.md).
 
 ### 11.1 The owner surfaces move together — owner-web, iOS and Android
 
@@ -620,7 +633,7 @@ Checklist for any owner-facing change:
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **17 vitest files, 165 tests**, run with `npm test` in `backend/`
+- `backend/tests/unit/` — **35 vitest files, 416 tests** (2026-10-02), run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
   Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
   `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
@@ -652,6 +665,10 @@ Checklist for any owner-facing change:
   against a deployed environment (`SMOKE_BASE_URL`, optional `SMOKE_WEB_URL`) after
   `provision-demo-stores.mjs` has created the nine homepage industry stores through the admin API.
   Read-only apart from owner logins, which it revokes. See [docs/demo-stores.md](docs/demo-stores.md).
+  Staff commission has a pair: `smoke-commission-db.mjs` (a **migrated** throwaway DB, rolled back —
+  the dated-rate rule against the real `visit_commission` view, which no API can reach because it
+  refuses past-dated rates) and `smoke-commission.mjs` (running API + seeded throwaway DB;
+  re-runnable — it makes its own chair and staff login). See [docs/staff-commission.md](docs/staff-commission.md).
 - `docs/qa-report-2026-07-10.md` — a manual QA record.
 
 **There is no E2E framework.** No Playwright, Cypress, Detox, Maestro, Puppeteer, WebdriverIO,

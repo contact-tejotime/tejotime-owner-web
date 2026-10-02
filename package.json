@@ -15,6 +15,7 @@
     "lint:app": "npm run lint --prefix app",
     "test:theme": "cd backend && npx tsx ../frontend/src/theme/engine/__tests__/run.ts",
     "test:responsive": "cd backend && npx tsx ../app/src/lib/__tests__/responsive-check.ts",
+    "test:commission": "cd backend && npx tsx ../app/src/lib/__tests__/commission-check.ts",
     "test:chat-flow": "cd backend && npx tsx ../frontend/src/components/chat/flow/__tests__/flow-check.ts",
     "test:import-diff": "cd backend && npx tsx ../admin-panel/src/lib/__tests__/import-diff-check.ts",
     "test:draft": "cd backend && npx tsx --tsconfig ../admin-panel/tsconfig.json ../admin-panel/src/lib/__tests__/draft-check.ts",

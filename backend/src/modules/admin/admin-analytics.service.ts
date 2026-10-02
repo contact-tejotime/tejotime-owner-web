@@ -5,6 +5,7 @@ import { isDemoStorePhone } from '../../domain/demo-stores';
 import { money } from '../../domain/money';
 import { Errors } from '../../domain/errors';
 import { businessDayRange, dayjs, lastVisitLabel } from '../../lib/time';
+import { summary as commissionSummary } from '../commission/commission.service';
 
 /**
  * Cross-tenant analytics for the admin panel. Read-only: grouped aggregates come
@@ -387,9 +388,11 @@ export async function listStoreVisits(id: string, from: string | undefined, to: 
   const endIso = businessDayRange(tz, toDate).endIso;
 
   const window = 'where business_id = $1 and completed_at >= $2 and completed_at <= $3';
-  const [totalRow, rows, dailyRows, staffNames] = await Promise.all([
+  // Rows come through `visit_commission` (migration 0034) so each carries the commission rate of
+  // its own day — read-only here; only the store's owner sets rates.
+  const [totalRow, rows, dailyRows, staffNames, commissionRow] = await Promise.all([
     one<{ count: number }>(`select count(*)::int as count from visit ${window}`, [id, startIso, endIso]),
-    many(`select * from visit ${window} order by completed_at desc limit ${LIST_LIMIT}`, [id, startIso, endIso]),
+    many(`select * from visit_commission ${window} order by completed_at desc limit ${LIST_LIMIT}`, [id, startIso, endIso]),
     callRpc<DailyRow[]>('admin_daily_revenue', {
       p_business_id: id,
       p_tz: tz,
@@ -397,6 +400,10 @@ export async function listStoreVisits(id: string, from: string | undefined, to: 
       p_end: endIso,
     }),
     getStaffNames(id),
+    one<{ commission: string }>(
+      `select coalesce(sum(commission_paise), 0)::bigint as commission from visit_commission ${window}`,
+      [id, startIso, endIso],
+    ),
   ]);
 
   // Resolve customer names in one query; visits with no CRM record are walk-ins.
@@ -411,26 +418,54 @@ export async function listStoreVisits(id: string, from: string | undefined, to: 
   // the row list is truncated at LIST_LIMIT.
   const summaryVisits = (dailyRows ?? []).reduce((sum, r) => sum + Number(r.visits ?? 0), 0);
   const summaryRevenue = (dailyRows ?? []).reduce((sum, r) => sum + Number(r.revenue_paise ?? 0), 0);
+  const summaryCommission = Number(commissionRow?.commission ?? 0);
 
   return {
     from: fromDate,
     to: toDate,
     data: rows.map((v) => ({
-      id: v.id,
+      id: v.visit_id,
       customerId: v.customer_id ?? null,
       customerName: (v.customer_id && customerNames.get(v.customer_id)) || 'Walk-in',
       serviceName: v.service_name ?? null,
       staffName: staffNames.get(v.staff_id) ?? null,
       amount: money(Number(v.amount_paise ?? 0), biz.currency),
+      // Basis points (2000 = 20%); null when the stylist had no rate that day, or no stylist.
+      rateBp: v.rate_bp ?? null,
+      commission: v.commission_paise == null ? null : money(Number(v.commission_paise), biz.currency),
       completedAt: v.completed_at,
     })),
     summary: {
       visits: summaryVisits,
       revenue: money(summaryRevenue, biz.currency),
       avgTicket: money(summaryVisits > 0 ? summaryRevenue / summaryVisits : 0, biz.currency),
+      commission: money(summaryCommission, biz.currency),
+      salonKeeps: money(summaryRevenue - summaryCommission, biz.currency),
     },
     meta: { shown: rows.length, total: totalRow?.count ?? rows.length, limit: LIST_LIMIT },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Commission by stylist — GET /admin/businesses/:id/commission[?from=&to=]
+// ---------------------------------------------------------------------------
+
+/**
+ * The store's commission report, read-only, over the same default window as the visit ledger
+ * (the last 30 days) so the two agree when the page loads. It is the owner's own report — the
+ * commission service's store scope — not a second implementation that could drift from it.
+ */
+export async function getStoreCommission(id: string, from: string | undefined, to: string | undefined) {
+  const biz = await getBusinessLite(id);
+  const tz = biz.timezone;
+
+  const toDate = to ?? todayDate(tz);
+  const fromDate = from ?? dayjs.tz(toDate, tz).subtract(29, 'day').format('YYYY-MM-DD');
+  const spanDays = dayjs(toDate).diff(dayjs(fromDate), 'day');
+  if (spanDays < 0) throw Errors.validation('`from` must be on or before `to`');
+  if (spanDays > 366) throw Errors.validation('Date range too large (max 366 days)');
+
+  return commissionSummary(id, { range: 'custom', from: fromDate, to: toDate }, null);
 }
 
 // ---------------------------------------------------------------------------

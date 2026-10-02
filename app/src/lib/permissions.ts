@@ -19,6 +19,7 @@ export type UserRole = 'owner' | 'co_owner' | 'manager' | 'staff';
 
 export type PermissionModule =
   | 'dashboard'
+  | 'commission'
   | 'queue'
   | 'appointments'
   | 'calendar'
@@ -35,7 +36,11 @@ export type Access = 'none' | 'view' | 'manage';
 
 export type ModuleAccess = Record<PermissionModule, Access>;
 
-/** Mirrors backend GRANTABLE_MODULES — `team` is owner-role-only and never a checkbox. */
+/**
+ * Mirrors backend GRANTABLE_MODULES. Two modules are never a row in the grid: `team` is
+ * owner-role-only, and `commission` is decided by the role too — every staff login sees its own
+ * earnings, and only owners set rates.
+ */
 export const GRANTABLE_MODULES: PermissionModule[] = [
   'dashboard',
   'queue',
@@ -67,6 +72,7 @@ export function isOwnerRole(role: UserRole | null): boolean {
  */
 export const NO_ACCESS: ModuleAccess = {
   dashboard: 'none',
+  commission: 'none',
   queue: 'none',
   appointments: 'none',
   calendar: 'none',

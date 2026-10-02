@@ -1,25 +1,26 @@
 import { t, format } from "@/i18n";
+import { currencySymbol } from "./currencies";
 import type { Money, ServicePriceType } from "./server-api";
 
 export { formatPhone } from "./phone";
 
 /**
- * Money for display. The API returns minor units (paise) with an ISO 4217 code — see
- * backend/src/domain/money.ts — so the amount is divided here, never on the server.
+ * Money for display. The API returns minor units (paise/cents) with the store's ISO 4217 code —
+ * see backend/src/domain/money.ts — so the amount is divided here, never on the server.
+ *
+ * The symbol comes from the static map shared with the app and the admin panel (so all three
+ * print the same "$1,840"), and lakh grouping is for INR only: this used to format everything
+ * in the en-IN locale, which printed a USD store's revenue as "$12,34,567".
  */
 export function formatMoney(money: Money | null | undefined): string {
   if (!money) return "—";
   const major = money.amount / 100;
-  try {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: money.currency || "INR",
-      maximumFractionDigits: major % 1 === 0 ? 0 : 2,
-    }).format(major);
-  } catch {
-    // Unknown currency code — show the number rather than throwing.
-    return `${money.currency} ${major.toFixed(0)}`;
-  }
+  const digits = major % 1 === 0 ? 0 : 2;
+  const grouped = Math.abs(major).toLocaleString(money.currency === "INR" ? "en-IN" : "en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+  return `${major < 0 ? "-" : ""}${currencySymbol(money.currency)}${grouped}`;
 }
 
 /** "9:05 AM" in the viewer's locale. */

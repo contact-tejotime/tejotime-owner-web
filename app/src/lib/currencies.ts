@@ -4,7 +4,7 @@
  * GENERATED once via Node's Intl (supportedValuesOf + DisplayNames + narrowSymbol);
  * do not hand-edit entries. Kept as static data so React Native (Hermes) never
  * needs Intl.DisplayNames at runtime. Identical copies live in admin-panel/,
- * app/ and frontend/ — keep them in sync.
+ * app/, frontend/ and owner-web/ — keep them in sync (CLAUDE.md §11).
  */
 
 export interface CurrencyInfo {

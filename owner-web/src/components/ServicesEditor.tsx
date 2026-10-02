@@ -8,6 +8,7 @@ import { Icon } from "@/components/Icon";
 import { Spinner } from "@/components/Skeleton";
 import { EditSheet } from "@/components/store-settings/EditSheet";
 import { SbEmpty, SbField } from "@/components/store-settings/ui";
+import { currencySymbol } from "@/lib/currencies";
 import { formatServicePrice } from "@/lib/format";
 import type { ServiceRow } from "@/lib/server-api";
 import { showToast } from "@/lib/toast";
@@ -49,7 +50,17 @@ interface ServiceFormValues {
   priceMaxRupees: number | null;
 }
 
-export function ServicesEditor({ services }: { services: ServiceRow[] }) {
+export function ServicesEditor({
+  services,
+  currency,
+}: {
+  services: ServiceRow[];
+  /**
+   * The store's ISO currency, from the session. Not read off `services`: a store with no
+   * services yet still needs the right symbol on its first price box.
+   */
+  currency?: string | null;
+}) {
   const router = useRouter();
   // The refresh is a transition so the list re-renders from fresh server data rather than the
   // stale props, without a manual loading state.
@@ -182,7 +193,14 @@ export function ServicesEditor({ services }: { services: ServiceRow[] }) {
         onClose={() => setOpen(false)}
       >
         {open ? (
-          <ServiceForm key={openCount} service={editing} busy={busy} onSave={onSave} onRemove={onRemove} />
+          <ServiceForm
+            key={openCount}
+            service={editing}
+            currency={currency}
+            busy={busy}
+            onSave={onSave}
+            onRemove={onRemove}
+          />
         ) : null}
       </EditSheet>
     </>
@@ -196,11 +214,13 @@ function rupees(paise: number | undefined | null): string {
 /** Remounted per opening (via key) so its fields seed from props without effects. */
 function ServiceForm({
   service,
+  currency,
   busy,
   onSave,
   onRemove,
 }: {
   service: ServiceRow | null;
+  currency?: string | null;
   busy: boolean;
   onSave: (f: ServiceFormValues) => void;
   onRemove: () => void;
@@ -217,6 +237,9 @@ function ServiceForm({
   const [price, setPrice] = useState(service && !unpriced ? rupees(service.price?.amount) : "");
   const [maxPrice, setMaxPrice] = useState(rupees(service?.priceMax?.amount));
   const [error, setError] = useState("");
+  // The session's code first; an existing service's own price is the fallback for a cached
+  // session from before /auth/me carried it.
+  const pricePrefix = currencySymbol(currency || service?.price?.currency);
 
   const edit = (fn: (v: string) => void) => (v: string) => {
     fn(v);
@@ -315,7 +338,7 @@ function ServiceForm({
           <SbField
             id="sv-price"
             label={priceType === "range" ? t.services.priceMin : t.services.price}
-            prefix={t.services.pricePrefix}
+            prefix={pricePrefix}
           >
             <input
               id="sv-price"
@@ -332,7 +355,7 @@ function ServiceForm({
 
       {priceType === "range" ? (
         <>
-          <SbField id="sv-price-max" label={t.services.priceMax} prefix={t.services.pricePrefix}>
+          <SbField id="sv-price-max" label={t.services.priceMax} prefix={pricePrefix}>
             <input
               id="sv-price-max"
               inputMode="decimal"

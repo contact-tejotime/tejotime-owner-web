@@ -7,6 +7,7 @@
  * side and not the other renders `undefined` at runtime — change both together.
  */
 import { t } from "@/i18n";
+import { currencySymbol } from "@/lib/currencies";
 import {
   DAY_LABELS,
   type FaqRow,
@@ -124,9 +125,10 @@ const SCALARS: Array<{ key: Extract<ImportKey, keyof StoreForm & keyof ImportedF
 
 const clock = (h: ImportedHour | HourRow) => (h.isClosed ? t.storeImport.closed : `${h.opensAt}–${h.closesAt}`);
 
-function priceLabel(s: NonNullable<ImportedFields["services"]>[number]): string {
-  if (s.priceType === "range") return ` ₹${s.priceRupees}–₹${s.priceMaxRupees}`;
-  if (s.priceType === "fixed") return ` ₹${s.priceRupees}`;
+/** `sym` is the form's currency symbol — the store's, not a fixed ₹ (a USD store showed ₹ here). */
+function priceLabel(s: NonNullable<ImportedFields["services"]>[number], sym: string): string {
+  if (s.priceType === "range") return ` ${sym}${s.priceRupees}–${sym}${s.priceMaxRupees}`;
+  if (s.priceType === "fixed") return ` ${sym}${s.priceRupees}`;
   return "";
 }
 
@@ -203,7 +205,7 @@ export function buildImportItems(form: StoreForm, fields: ImportedFields, opts: 
       existingCount: hasName(existing).length || undefined,
     });
   };
-  appendList("services", "services", t.storeImport.fieldServices, fields.services, form.services, (s) => `${s.name}${s.durationMinutes ? ` · ${s.durationMinutes} min` : ""}${priceLabel(s)}`);
+  appendList("services", "services", t.storeImport.fieldServices, fields.services, form.services, (s) => `${s.name}${s.durationMinutes ? ` · ${s.durationMinutes} min` : ""}${priceLabel(s, currencySymbol(form.currency))}`);
   appendList<{ name: string; roleLabel: string }>("staff", "team", t.storeImport.fieldStaff, fields.staff, form.staff, (s) => (s.roleLabel ? `${s.name} — ${s.roleLabel}` : s.name));
 
   if (fields.faqs?.length) {
@@ -308,7 +310,7 @@ export function applyImport(form: StoreForm, fields: ImportedFields, selected: R
     const have = new Set(kept.map((s) => s.name.trim().toLowerCase()));
     const added: StaffRow[] = fields.staff
       .filter((s) => !have.has(s.name.trim().toLowerCase()))
-      .map((s) => ({ name: s.name, roleLabel: s.roleLabel, avatarUrl: "" }));
+      .map((s) => ({ name: s.name, roleLabel: s.roleLabel, avatarUrl: "", commissionPercent: "" }));
     next.staff = [...kept, ...added].slice(0, 50);
   }
 

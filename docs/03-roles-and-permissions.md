@@ -47,7 +47,15 @@ Legend: ✅ full · 🟡 limited/own-seat · ➖ none · 💲 plan-gated
 | Edit business profile / hours | ✅ | ✅ | ➖ | ➖ |
 | View/share QR & booking link | ✅ | ✅ | ✅ | ➖ |
 | Manage subscription / billing | ✅ | ➖ | ➖ | ➖ |
+| Set commission rates (dated %) | ✅ | ➖ | ➖ (never — owner role only) | ➖ |
+| View commission report (whole store) | ✅ | ✅ | ➖ | ➖ |
+| View own earnings | ✅ | ✅ | 🟡 own chair, always (not something the owner toggles) | ➖ |
 | Toggle own dark-mode pref | ✅ | ✅ | ✅ | ➖ |
+
+> Commission (module `commission`, added 2026-10-02) is enforced by the code, not this aspirational
+> matrix: `backend/src/domain/permissions.ts` `ROLE_DEFAULTS`. Like `team`, it is role-only — not in
+> `GRANTABLE_MODULES`, so it is never a row in the Team grid and no override changes it. See
+> [staff-commission.md](./staff-commission.md).
 
 ## 4. Public / customer permissions (microsite scope)
 

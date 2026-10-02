@@ -491,6 +491,7 @@ textarea {
 .row.service {
   grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
 }
+/* name · role · commission % · remove. The photo is `.field.full` and spans the next row. */
 .row.staff {
   grid-template-columns: 1.5fr 1.5fr 1.2fr auto;
 }

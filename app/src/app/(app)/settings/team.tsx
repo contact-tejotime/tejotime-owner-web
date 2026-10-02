@@ -47,7 +47,8 @@ const ACCESS_LABELS: Record<Access, string> = {
  * stays in GRANTABLE_MODULES, so the payload still carries whatever the owner set on the web —
  * it is only never shown here.
  */
-type ShownModule = Exclude<PermissionModule, 'billing'>;
+// `commission` is not grantable at all (every stylist sees their own earnings), so it is never here.
+type ShownModule = Exclude<PermissionModule, 'billing' | 'commission'>;
 const SHOWN_MODULES = GRANTABLE_MODULES.filter((m): m is ShownModule => m !== 'billing');
 
 const MODULE_LABELS: Record<ShownModule, string> = {

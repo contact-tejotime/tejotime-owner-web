@@ -29,7 +29,8 @@ export function BottomNav({ access }: { access: ModuleAccess }) {
   const tabs = TABS.filter((t) => {
     if (t.module === null) return true;
     if (t.href === "/dashboard") return can(access, "dashboard") || can(access, "queue");
-    if (t.href === "/stats") return can(access, "dashboard");
+    // Reports holds the takings (dashboard) and the earnings (commission) — either opens it.
+    if (t.href === "/stats") return can(access, "dashboard") || can(access, "commission");
     return can(access, t.module);
   });
 

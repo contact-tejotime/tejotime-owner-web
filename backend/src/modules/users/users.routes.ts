@@ -36,10 +36,21 @@ usersRouter.use((req, _res, next) => {
 
 const idParams = z.object({ id: z.string().uuid() });
 
+/**
+ * Modules that were once grantable and are now role-only. Clients built while they were still a
+ * checkbox keep sending them in every save (the editor sends its complete map), so they are
+ * dropped here rather than failing the whole save with "invalid key". Nothing is stored for them,
+ * and effectiveAccess ignores any row that already exists.
+ */
+const RETIRED_MODULES = ['commission'];
+
 /** The permission map the editor sends. Only staff-grantable modules are accepted. */
-const permissionsSchema = z.record(
-  z.enum(GRANTABLE_MODULES),
-  z.enum(ACCESS_LEVELS),
+const permissionsSchema = z.preprocess(
+  (raw) =>
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? Object.fromEntries(Object.entries(raw).filter(([mod]) => !RETIRED_MODULES.includes(mod)))
+      : raw,
+  z.record(z.enum(GRANTABLE_MODULES), z.enum(ACCESS_LEVELS)),
 );
 
 const createSchema = z

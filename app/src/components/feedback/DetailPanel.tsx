@@ -9,6 +9,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useResponsive } from '@/hooks/useResponsive';
 import { t, format } from '@/i18n';
 import { api } from '@/lib/api';
+import { currencySymbol } from '@/lib/currencies';
 import { flatCards } from '@/lib/queue';
 import { formatMoney } from '@/lib/mappers';
 import { extrasForCategory } from '@/lib/service-extras';
@@ -368,8 +369,11 @@ export function DetailPanel() {
                         : t.detail.amountHint}
                   </TText>
                   <View style={s.amountRow}>
+                    {/* The store's own symbol — a literal ₹ here showed on stores set to USD.
+                        Billing carries business.currency; the session is the fallback while
+                        it loads. */}
                     <TText variant="h4" color="textMuted" weight="bold">
-                      ₹
+                      {currencySymbol(billing?.serviceAmount.currency ?? store.business?.currency)}
                     </TText>
                     <TextInput
                       maxFontSizeMultiplier={MAX_FONT_SCALE}
@@ -408,7 +412,9 @@ export function DetailPanel() {
                             {format(t.detail.extendChip, { label: x.label, mins: x.minutes })}
                           </TText>
                           <TText variant="caption" color="textMuted">
-                            ₹{Math.round(x.pricePaise / 100)}
+                            {/* Extras carry bare paise; they are priced in the store's currency,
+                                which the service amount already names. */}
+                            {formatMoney({ amount: x.pricePaise, currency: billing.serviceAmount.currency })}
                           </TText>
                         </View>
                       ))}
@@ -420,7 +426,7 @@ export function DetailPanel() {
                             {t.detail.amountSuggested}
                           </TText>
                           <TText variant="caption" color="textBody" weight="semibold">
-                            ₹{Math.round(billing.suggestedAmount.amount / 100)}
+                            {formatMoney(billing.suggestedAmount)}
                           </TText>
                         </View>
                       ) : null}

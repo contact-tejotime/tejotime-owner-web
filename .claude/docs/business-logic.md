@@ -150,8 +150,8 @@ API is the boundary; the UI only decides what to draw.**
 
 ### Modules
 
-`dashboard`, `queue`, `appointments`, `calendar`, `customers`, `services`, `staff`, `hours`,
-`notifications`, `billing`, `profile`, `team`.
+`dashboard`, `commission`, `queue`, `appointments`, `calendar`, `customers`, `services`, `staff`,
+`hours`, `notifications`, `billing`, `profile`, `team`.
 
 The catalogue lives **in code, not the database** — adding a screen is a deploy, not a migration.
 
@@ -171,8 +171,22 @@ on save.
 |---|---|
 | `owner` | `manage` on everything (super owner; exactly one per business, created by the admin panel at provisioning) |
 | `co_owner` | `manage` on everything, but cannot touch the super owner |
-| `manager` | **legacy, no longer assigned** — `manage` everything except `billing: view`, `team: view` |
-| `staff` | `queue: manage`; `dashboard`/`appointments`/`calendar`/`notifications`: `view`; **everything else `none`** |
+| `manager` | **legacy, no longer assigned** — `manage` everything except `billing: view`, `team: view`, `commission: view` |
+| `staff` | `queue: manage`; `dashboard`/`appointments`/`calendar`/`notifications`/`commission`: `view` (commission = its own chair's earnings only); **everything else `none`** |
+
+### Role-only modules
+
+`team` and `commission` are in `MODULES` (so `/auth/me` reports them and the guards use them) but
+**not** in `GRANTABLE_MODULES`: their level comes from `ROLE_DEFAULTS` alone. `effectiveAccess`
+applies overrides only to grantable modules, so a stale or hand-written row for either is ignored.
+
+`commission` was a grantable Hidden / View only row until 2026-10-02 (staff hidden by default,
+capped at view by a `GRANT_CEILING`). It is now role-only: every staff login sees its own earnings
+(`view`, scoped to its chair by `scopeStaffId`), owners `manage` (set rates), and no override can
+hide it or raise it. The rate routes also check the owner **role**. `PUT /users/:id/permissions`
+drops a `commission` key rather than 400-ing the whole save — app builds from the toggle era still
+send it — and replaces only the modules in its payload, so a client older than a module cannot
+wipe its grant.
 
 `staff` is deliberately narrow: it gets its own chair's queue and nothing that would expose the
 shop's customer list or money. An owner grants those one at a time, and even when granted the read
@@ -197,6 +211,18 @@ holder out of their own business.
 | `requireSuperOwner` | the handful of actions co-owners must not reach |
 
 ---
+
+## 5a. Staff commission
+
+A percentage per stylist (`staff_commission_rate`, basis points) that starts at an instant, and
+every visit paid at the latest rate with `effective_at <= completed_at` through the
+`visit_commission` view — computed when read, nothing stamped on `visit`, `queue_checkout`
+untouched. Saving 20% at 1pm does not pay that morning; changing it to 30% at 4pm does not reprice
+visits already paid at 20%. A future day still starts at store midnight. A rate that has already
+started is locked (409 `COMMISSION_RATE_LOCKED`); changing it is a new row at `now()`. The admin
+store form can set that current percent too (blank = no rate; clearing a started one is 400).
+Rounded per visit; totals are the sum of the lines. "Today" comes only from the server. All plans.
+Full rules, API and screens: [docs/staff-commission.md](../../docs/staff-commission.md).
 
 ## 6. Plan gating
 

@@ -14,6 +14,7 @@ import { UserRole } from './enums';
 /** Every screen an owner can grant or withhold. Order is the order shown in the portal. */
 export const MODULES = [
   'dashboard',
+  'commission',
   'queue',
   'appointments',
   'calendar',
@@ -29,9 +30,13 @@ export const MODULES = [
 export type PermissionModule = (typeof MODULES)[number];
 
 /**
- * What an owner may hand out. `team` is missing on purpose — "can create logins" is the one
- * permission that would let a staff account grant itself all the others, so it stays tied to
- * the owner roles instead of being a checkbox.
+ * What an owner may hand out. Two modules are missing on purpose, and their level comes from the
+ * role alone (ROLE_DEFAULTS) — effectiveAccess ignores any override row for them:
+ *  - `team`: "can create logins" is the one permission that would let a staff account grant
+ *    itself all the others, so it stays tied to the owner roles instead of being a checkbox.
+ *  - `commission`: every stylist sees their own earnings (staff `view`, own chair only), and
+ *    setting pay is the owners' (`manage`). There is nothing for an owner to toggle — it was a
+ *    Hidden / View only row until 2026-10-02, removed so earnings are never hidden from a stylist.
  */
 export const GRANTABLE_MODULES = [
   'dashboard',
@@ -69,6 +74,7 @@ export function grantableSubset(access: ModuleAccess): GrantableAccess {
 /** Human labels, reused by the portal's permission editor. */
 export const MODULE_LABELS: Record<PermissionModule, string> = {
   dashboard: 'Dashboard',
+  commission: 'Commission & earnings',
   queue: 'Queue',
   appointments: 'Appointments',
   calendar: 'Calendar',
@@ -103,9 +109,13 @@ export const ROLE_DEFAULTS: Record<UserRole, ModuleAccess> = {
   owner: everyModule('manage'),
   co_owner: everyModule('manage'),
   // Legacy role, kept so pre-0019 rows behave sensibly. Runs the shop, does not hold the account.
-  manager: { ...everyModule('manage'), billing: 'view', team: 'view' },
+  // Sees the commission report but cannot set rates — `manage` is setting pay, owners only.
+  manager: { ...everyModule('manage'), billing: 'view', team: 'view', commission: 'view' },
   staff: {
     dashboard: 'view',
+    // Always: a stylist sees their own earnings — only their own chair (scopeStaffId), never the
+    // shop's takings or anyone's rate. Not grantable, so no override can hide or raise it.
+    commission: 'view',
     queue: 'manage',
     appointments: 'view',
     calendar: 'view',
@@ -139,7 +149,18 @@ export function isAccess(value: string): value is Access {
   return (ACCESS_LEVELS as readonly string[]).includes(value);
 }
 
-/** Role defaults, then the owner's overrides on top. Owners ignore overrides entirely. */
+export function isGrantable(value: string): value is GrantableModule {
+  return (GRANTABLE_MODULES as readonly string[]).includes(value);
+}
+
+/**
+ * Role defaults, then the owner's overrides on top. Owners ignore overrides entirely.
+ *
+ * Only GRANTABLE modules take an override. A row for anything else is stale or hand-written and
+ * is ignored — that is what keeps `team` and `commission` role-only even though preprod still
+ * holds `commission` rows saved while it was a Hidden / View only toggle (a "Hidden" row must not
+ * keep hiding a stylist's earnings, and a `manage` row must never let one set pay).
+ */
 export function effectiveAccess(
   role: UserRole,
   overrides: Partial<Record<PermissionModule, Access>> = {},
@@ -147,7 +168,7 @@ export function effectiveAccess(
   const base = { ...(ROLE_DEFAULTS[role] ?? ROLE_DEFAULTS.staff) };
   if (isOwnerRole(role)) return base;
   for (const [mod, access] of Object.entries(overrides)) {
-    if (isModule(mod) && access && isAccess(access)) base[mod] = access;
+    if (isGrantable(mod) && access && isAccess(access)) base[mod] = access;
   }
   return base;
 }

@@ -18,6 +18,7 @@ import { t } from "@/i18n";
 
 export type Module =
   | "dashboard"
+  | "commission"
   | "queue"
   | "appointments"
   | "calendar"
@@ -52,7 +53,11 @@ export const CREATABLE_ROLES: { value: "co_owner" | "staff"; label: string; blur
 
 export const MODULE_LABELS: Record<Module, string> = t.roles.modules;
 
-/** Mirrors backend GRANTABLE_MODULES — `team` is owner-only and never a checkbox. */
+/**
+ * Mirrors backend GRANTABLE_MODULES. Two modules are never a row in the grid: `team` is
+ * owner-only, and `commission` is decided by the role too — every staff login sees its own
+ * earnings, and only owners set rates.
+ */
 export const GRANTABLE_MODULES: Module[] = [
   "dashboard",
   "queue",
@@ -85,6 +90,7 @@ export function isOwnerRole(role: UserRole): boolean {
  */
 export const NO_ACCESS: ModuleAccess = {
   dashboard: "none",
+  commission: "none",
   queue: "none",
   appointments: "none",
   calendar: "none",
@@ -106,6 +112,8 @@ const PATH_MODULES: [string, Module][] = [
   ["/settings/appearance", "profile"],
   ["/settings/services", "services"],
   ["/settings/staff", "staff"],
+  // Pay rates. The page also needs `manage` (canAccessPath), which only owner roles hold.
+  ["/settings/commission", "commission"],
   ["/settings/team", "team"],
   ["/settings/hours", "hours"],
   ["/settings/notifications", "notifications"],
@@ -131,6 +139,15 @@ export function canAccessPath(access: ModuleAccess, path: string): boolean {
   if (path === "/dashboard" || path.startsWith("/dashboard/")) {
     return can(access, "dashboard") || can(access, "queue");
   }
+  // Reports carries both the takings (dashboard) and the earnings (commission); either opens it,
+  // and the page draws only the sections its permissions allow.
+  if (path === "/stats" || path.startsWith("/stats/")) {
+    return can(access, "dashboard") || can(access, "commission");
+  }
+  // Setting pay rates, not reading them: owners only.
+  if (path === "/settings/commission" || path.startsWith("/settings/commission/")) {
+    return can(access, "commission", "manage");
+  }
   // Named `mod`, not `module` — Next forbids assigning to that identifier.
   const mod = moduleForPath(path);
   if (!mod) return true;
@@ -144,6 +161,7 @@ export function landingPath(access: ModuleAccess): string {
     ["appointments", "/appointments"],
     ["calendar", "/calendar"],
     ["customers", "/customers"],
+    ["commission", "/stats"],
   ];
   const hit = order.find(([mod]) => can(access, mod));
   return hit ? hit[1] : "/settings";
@@ -168,7 +186,7 @@ export function navItemsFor(access: ModuleAccess) {
   return NAV_ITEMS.filter((item) => {
     if (item.module === null) return true;
     if (item.href === "/dashboard") return can(access, "dashboard") || can(access, "queue");
-    if (item.href === "/stats") return can(access, "dashboard");
+    if (item.href === "/stats") return can(access, "dashboard") || can(access, "commission");
     return can(access, item.module);
   });
 }

@@ -37,6 +37,8 @@
   justify-content: center;
   border-radius: 7px;
   font-size: 13px;
+  /* Four periods share a 320px phone's row: "This month" steps down a size rather than spill. */
+  font-size: clamp(11px, 3.5vw, 13px);
   font-weight: 700;
   color: var(--text-muted);
   white-space: nowrap;
@@ -464,6 +466,315 @@
   font-size: min(15px, 14cqi);
 }
 
+/* ------------------------------------------------------------------ custom dates */
+
+/* The Custom period's two dates and "Show" — a plain GET form (stats/page.tsx). */
+.rp-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin: -4px 0 14px;
+}
+.rp-custom-field {
+  flex: 1 1 130px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rp-custom-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.rp-custom-field input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--surface-card);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 14px;
+  color-scheme: light dark;
+}
+.rp-custom-field input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.rp-custom-apply {
+  flex: 0 0 auto;
+  height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--primary);
+  color: var(--text-on-brand, #fff);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.rp-custom-apply:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ commission */
+
+/* Commission and Salon keeps: two tiles drawn exactly like the metric tiles. */
+.rp-comm-tiles {
+  display: flex;
+  gap: 8px;
+}
+.rp-comm-notes {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* A stylist card that opens their visits. */
+.rp-staff--link {
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--dur-fast, 120ms) var(--ease-standard, ease);
+}
+.rp-staff--link:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border-subtle));
+}
+.rp-staff--link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* The rate in force today, beside the name. */
+.rp-rate,
+.rp-tag {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.rp-rate {
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg, var(--primary));
+}
+.rp-staff.is-top .rp-rate {
+  background: var(--surface-card);
+}
+.rp-rate.is-none,
+.rp-tag {
+  background: var(--surface-hover);
+  color: var(--text-muted);
+}
+/* The card's commission line, then the period rate by rate. */
+.rp-comm {
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+.rp-comm-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.rp-comm-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.rp-comm-value {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+.rp-comm-break {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* A stylist's own earnings (a staff login the owner has shown them to). */
+.rp-earn {
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-card);
+}
+.rp-earn-value {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.6px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+.rp-earn-label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.rp-earn-rate {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-body);
+}
+
+/* ------------------------------------------------------------------ visits sheet */
+
+.rp-visits-sheet {
+  --bs-cap: 560px;
+}
+.rp-visits-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.rp-visits-heading {
+  min-width: 0;
+}
+.rp-visits-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.rp-visits-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.rp-visits-close {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  color: var(--text-body);
+  cursor: pointer;
+}
+.rp-visits-close:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.rp-visits-total {
+  flex-shrink: 0;
+  margin: 12px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+.rp-visits-sheet .rp-comm-break {
+  flex-shrink: 0;
+}
+.rp-visits-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.rp-visits-day + .rp-visits-day {
+  margin-top: 14px;
+}
+.rp-visits-day-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.rp-visits-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rp-visit {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.rp-visit-time {
+  flex: 0 0 64px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.rp-visit-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rp-visit-service {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.rp-visit-customer {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.rp-visit-money {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+.rp-visit-amount {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+.rp-visit-earned {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary);
+  white-space: nowrap;
+}
+.rp-visit-earned.is-none {
+  color: var(--text-muted);
+}
+.rp-visits-note {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 /* ------------------------------------------------------------------ queue preview */
 
 /* `minmax(0, 1fr)`, never the implicit `auto` track: an auto track grows to the cards' one-line
@@ -678,7 +989,10 @@
 /* Tablet and up: the switch keeps a control's width instead of spanning the page. */
 @media (min-width: 641px) {
   .rp-range {
-    max-width: 360px;
+    max-width: 440px;
+  }
+  .rp-custom {
+    max-width: 440px;
   }
   /* Two staff cards a row, as the app's tablet grid (300dp minimum, two at most). A lone card
      stays at half width there too. */
@@ -825,6 +1139,17 @@
     border-radius: 16px;
     box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
   }
+  /* Commission's two tiles take two of the summary row's card widths, not the whole monitor. */
+  .rp-comm-tiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .rp-earn {
+    max-width: 520px;
+    padding: 18px 20px;
+    border-radius: 16px;
+  }
 
   /* An empty section is a card, not one centred line floating in a monitor's width. */
   .rp-empty {
@@ -867,6 +1192,9 @@
 @media (min-width: 1280px) {
   .rp-summary {
     grid-template-columns: repeat(var(--rp-cols, 4), minmax(0, 1fr));
+  }
+  .rp-comm-tiles {
+    max-width: calc(50% - 7px);
   }
   /*
    * From 1280 the staff cards and queue preview take a column count chosen for how many cards

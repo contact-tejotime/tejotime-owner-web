@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-10-01 · branch `feat-jay`.
+**Last updated:** 2026-10-02 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,43 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Staff commission % (2026-10-02)
+
+A dated commission rate per stylist (migration **0034**: `staff_commission_rate` + the
+`visit_commission` view — the schema's first view), on owner-web, the app and (read-only) the admin
+panel. Every visit is paid at the rate of its own store-local day: "20% from 02/10, 30% from 16/10"
+pays 2–15 Oct at 20% for ever. Rates start today or later; earlier days are locked. New
+`commission` module, **role-only** (not in the Team grid): every staff login sees its own earnings,
+owners set rates. It shipped as a Hidden / View only grant and was made role-only the same day at
+the owner's request — stale `commission` override rows on preprod are ignored. Reports
+gained This week and Custom dates; `/dashboard/by-staff` now keeps a stylist removed mid-period.
+Rules, API, screens and tests: [docs/staff-commission.md](../../docs/staff-commission.md).
+
+- **Deploy:** 0034 must be applied before the backend that reads it (the Coolify pipeline runs
+  migrations first). Until then `/commission/*` and the admin Visits page 500; Reports' revenue does
+  not depend on the view.
+- **Verified here:** backend `npm test` (35 files / 412 tests), `npm run test:commission`, owner-web
+  and admin-panel lint + type-check + build, app `tsc` (only the pre-existing missing
+  `expo-screen-orientation` module) and lint on every changed file.
+- **Verified here (instant rates, 0035):** `npm test` on the four commission unit files (35 tests)
+  and `npm run test:commission` (119 checks). The smoke scripts were updated for the 1pm split and
+  were not run — they need a throwaway Postgres, and `backend/.env` is preprod.
+- **Not run yet:** `smoke-commission-db.mjs` and `smoke-commission.mjs`; no device pass on iOS /
+  Android yet.
+- **Open:** no tips field (a tip typed into the total earns commission); no payouts / "mark as
+  paid"; one rate per stylist (no per-service %).
+
+### A USD store no longer shows ₹ (2026-10-02)
+
+A store set to USD in the admin panel still showed ₹ on price inputs and the checkout box in
+owner-web and the app (literal symbols / an i18n `pricePrefix`), owner-web grouped USD in lakhs
+(`$12,34,567`), and the admin autofill preview hardcoded ₹. `/auth/me` + login now carry
+`business.currency` for every role; owner-web gained the mirrored `lib/currencies.ts`; all three
+surfaces format alike (INR-only lakh grouping, 0 or 2 decimals). Rules and what is deliberately
+still INR: [docs/store-currency.md](../../docs/store-currency.md). Regression test:
+`backend/tests/unit/auth-session-currency.test.ts`; `smoke-rest.mjs` extended (not run — no
+throwaway DB here). Still open: the `DEFAULT_CURRENCY=INR` default itself (§2).
 
 ### Homepage industry cards open live US stores (2026-10-01)
 
