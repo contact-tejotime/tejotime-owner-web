@@ -7,7 +7,7 @@ import { CommissionEditSheet, SettingsPageShell } from '@/components/settings';
 import { Icon } from '@/components/ui/Icon';
 import { format, t } from '@/i18n';
 import { api, ApiError } from '@/lib/api';
-import { formatDayKey, formatRate, type CommissionRates } from '@/lib/commission';
+import { formatRate, formatWhen, type CommissionRates } from '@/lib/commission';
 import { can } from '@/lib/permissions';
 import { showToast } from '@/lib/toast';
 import { useAppState } from '@/state/store';
@@ -107,9 +107,9 @@ export default function CommissionRatesScreen() {
             const next = r.upcoming[0];
             const sub = [
               r.current
-                ? format(t.commission.since, { rate: formatRate(r.current.rateBp), day: formatDayKey(r.current.from) })
+                ? format(t.commission.since, { rate: formatRate(r.current.rateBp), day: formatWhen(r.current.fromLocal) })
                 : t.commission.noRate,
-              next ? format(t.commission.from, { rate: formatRate(next.rateBp), day: formatDayKey(next.from) }) : null,
+              next ? format(t.commission.from, { rate: formatRate(next.rateBp), day: formatWhen(next.fromLocal) }) : null,
             ]
               .filter(Boolean)
               .join(' · ');

@@ -310,7 +310,7 @@ export function applyImport(form: StoreForm, fields: ImportedFields, selected: R
     const have = new Set(kept.map((s) => s.name.trim().toLowerCase()));
     const added: StaffRow[] = fields.staff
       .filter((s) => !have.has(s.name.trim().toLowerCase()))
-      .map((s) => ({ name: s.name, roleLabel: s.roleLabel, avatarUrl: "" }));
+      .map((s) => ({ name: s.name, roleLabel: s.roleLabel, avatarUrl: "", commissionPercent: "" }));
     next.staff = [...kept, ...added].slice(0, 50);
   }
 

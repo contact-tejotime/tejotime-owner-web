@@ -207,7 +207,7 @@ stylist removed mid-period who has work in it (`isActive: false`).
 
 ### `/commission` (5) — staff commission
 
-Every visit at the rate of its own store-local day — see
+Every visit at the latest rate whose start instant is at or before checkout — see
 [docs/staff-commission.md](../../docs/staff-commission.md).
 
 | Method | Path | Guards |
@@ -215,8 +215,8 @@ Every visit at the rate of its own store-local day — see
 | GET | `/summary` | `perm=commission:view` (every role; not grantable); a staff login gets only its own chair (`scope: 'self'`) |
 | GET | `/visits` | `perm=commission:view`; owner must pass `staffId`; staff: own chair only (other → 403) |
 | GET | `/rates` | `perm=commission:manage` |
-| PUT | `/rates/:staffId` | owner **role** + `perm=commission:manage`; `{ rateBp, effectiveFrom? }`; past day → 409 `COMMISSION_RATE_LOCKED` |
-| DELETE | `/rates/:staffId/:effectiveFrom` | owner role + `perm=commission:manage`; today or later only |
+| PUT | `/rates/:staffId` | owner **role** + `perm=commission:manage`; `{ rateBp, effectiveFrom? }` (`effectiveFrom` is a store-local day); today or omitted starts at `now()` as a new row; a future day starts at store midnight and replaces that instant; past day → 409 `COMMISSION_RATE_LOCKED` |
+| DELETE | `/rates/:staffId/:effectiveFrom` | owner role + `perm=commission:manage`; `effectiveFrom` is the UTC instant; only a future instant; a started rate → 409 |
 
 ### `/public` (18) — no auth
 
@@ -288,7 +288,8 @@ Stores: `GET /businesses` · `GET /businesses/:id` · `POST /businesses` · `PUT
 `POST /businesses/:id/owner/password` · `GET /businesses/:id/analytics` ·
 `GET /businesses/:id/customers` · `GET /businesses/:id/customers/:customerId/visits` ·
 `GET /businesses/:id/visits` (rows carry `rateBp` + `commission`) ·
-`GET /businesses/:id/commission` (read-only commission by stylist; admins never set rates) ·
+`GET /businesses/:id/commission` (read-only commission by stylist) ·
+staff on `POST` / `PUT /businesses` may carry optional `rateBp` (basis points; null = no rate; a change starts at `now()`; clearing a started rate is 400) ·
 `GET /businesses/:id/appointments`.
 
 **A store's phone number is write-once.** It is the microsite address (`/{phone_full}`) and is

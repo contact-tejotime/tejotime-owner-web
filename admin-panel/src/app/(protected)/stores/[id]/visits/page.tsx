@@ -15,12 +15,16 @@ export const dynamic = "force-dynamic";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const clean = (v?: string) => (v && DATE_RE.test(v) ? v : undefined);
 
-/** A store-local `YYYY-MM-DD` day → "2 Oct", on the calendar (no timezone shift). */
+/** A store-local day or wall time → "2 Oct" or "2 Oct, 1:05 PM". No timezone shift. */
 function day(key: string): string {
-  const d = new Date(`${key}T00:00:00Z`);
-  return Number.isNaN(d.getTime())
-    ? key
-    : d.toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+  const m = /^(\d{4}-\d{2}-\d{2})(?:T(\d{2}):(\d{2}))?/.exec(key);
+  if (!m) return key;
+  const d = new Date(`${m[1]}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return key;
+  const date = d.toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+  if (!m[2]) return date;
+  const h = Number(m[2]);
+  return `${date}, ${h % 12 || 12}:${m[3]} ${h < 12 ? "AM" : "PM"}`;
 }
 
 function segmentText(seg: CommissionSegment): string {
@@ -35,9 +39,9 @@ function segmentText(seg: CommissionSegment): string {
 }
 
 /**
- * A store's visit ledger, with each visit's commission (the rate of its own day) and a read-only
- * "Commission by stylist" summary for the same dates. Admins never set rates — the store owner
- * does, in owner-web or the app. See docs/staff-commission.md.
+ * A store's visit ledger, with each visit's commission (the rate in force at checkout) and a read-only
+ * "Commission by stylist" summary for the same dates. The current percent is edited on the store
+ * staff form; later changes, including a future start, stay with the owner. See docs/staff-commission.md.
  */
 export default async function StoreVisitsPage({
   params,

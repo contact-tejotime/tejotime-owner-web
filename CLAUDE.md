@@ -201,8 +201,8 @@ ledger), `subscription`, `payment`, `notification`, `otp_verification`, `auth_se
 `audit_log`, `token_counter`, `idempotency_key`. Later: `master_data` (0005 lookup),
 `admins` (0007), `inquiry` (0014), `user_permission` (0019), `store_draft` (0031 — admin panel's
 parked Create store forms, private per admin, see [docs/admin-store-drafts.md](docs/admin-store-drafts.md)),
-`staff_commission_rate` (0034 — dated pay rates) and the **`visit_commission` view**, the schema's
-first view: every visit at the commission rate of its own store-local day, computed when read
+`staff_commission_rate` (0034, instant starts in 0035) and the **`visit_commission` view**, the schema's
+first view: every visit at the latest rate whose start instant is at or before checkout, computed when read
 (see [docs/staff-commission.md](docs/staff-commission.md)).
 
 Notable constraints and conventions:

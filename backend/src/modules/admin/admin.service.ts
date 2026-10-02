@@ -6,6 +6,7 @@ import { env } from '../../config/env';
 import { DEMO_STORE_PHONES, demoStoreIndustry, isDemoStorePhone } from '../../domain/demo-stores';
 import { Errors } from '../../domain/errors';
 import { money } from '../../domain/money';
+import { staffRateWrite } from '../../lib/commission';
 import { timezoneForPhone } from '../../lib/phone-timezone';
 import { signAdminToken } from '../auth/token.service';
 // Shared with the owner portal so both writers produce the same appearance columns.
@@ -69,7 +70,13 @@ export interface StoreFields {
     priceType?: 'fixed' | 'range' | 'unset';
     priceMaxRupees?: number | null;
   }[];
-  staff: { name: string; roleLabel?: string | null; avatarUrl?: string | null }[];
+  staff: {
+    name: string;
+    roleLabel?: string | null;
+    avatarUrl?: string | null;
+    /** Basis points in force from now. Null or omitted = no rate. */
+    rateBp?: number | null;
+  }[];
   faqs?: { q: string; a: string }[];
   reviews?: { stars: number; text: string; authorName: string }[];
 }
@@ -269,15 +276,27 @@ async function syncStaff(client: PoolClient, bid: string, rows: StoreFields['sta
     'select id, name from staff where business_id = $1',
     [bid],
   );
+  // The rate already in force (latest start at or before now). A future rate the owner
+  // scheduled is not in this map, and this save does not touch it.
+  const currentRates = await client.query<{ staff_id: string; rate_bp: number }>(
+    `select distinct on (staff_id) staff_id, rate_bp
+       from staff_commission_rate
+      where business_id = $1 and effective_at <= now()
+      order by staff_id, effective_at desc`,
+    [bid],
+  );
+  const currentByStaff = new Map(currentRates.rows.map((r) => [r.staff_id, Number(r.rate_bp)]));
   const byName = new Map(existing.rows.map((r) => [r.name.trim().toLowerCase(), r.id]));
   const keep = new Set<string>();
 
   for (const [position, s] of rows.entries()) {
     const key = s.name.trim().toLowerCase();
     const id = byName.get(key);
+    let staffId: string;
     if (id) {
       byName.delete(key);
       keep.add(id);
+      staffId = id;
       await client.query(
         `update staff
             set name = $1, role_label = $2, avatar_url = $3, position = $4,
@@ -291,7 +310,27 @@ async function syncStaff(client: PoolClient, bid: string, rows: StoreFields['sta
          values ($1, $2, $3, $4, $5) returning id`,
         [bid, s.name, s.roleLabel ?? null, s.avatarUrl ?? null, position],
       );
-      keep.add(ins.rows[0]!.id);
+      staffId = ins.rows[0]!.id;
+      keep.add(staffId);
+    }
+
+    // Not setRate(): that needs an owner principal, and it would insert again even when the
+    // percent has not changed. set_by_user_id stays null — it references app_user, and an
+    // admin is not one. A started rate is never deleted; blank on a stylist who already has
+    // one is a 400 so the rest of the save rolls back with it.
+    const nextBp = s.rateBp ?? null;
+    const decision = staffRateWrite(currentByStaff.get(staffId) ?? null, nextBp);
+    if (decision === 'refuse') {
+      throw Errors.validation(
+        `${s.name} already has a commission rate. Enter 0 if they should earn nothing from now on — a rate that has started cannot be removed.`,
+      );
+    }
+    if (decision === 'insert') {
+      await client.query(
+        `insert into staff_commission_rate (business_id, staff_id, rate_bp, effective_at, set_by_user_id)
+         values ($1, $2, $3, now(), null)`,
+        [bid, staffId, nextBp],
+      );
     }
   }
 
@@ -784,14 +823,22 @@ export async function getBusinessDetail(id: string) {
   const b = await one('select * from business where id = $1', [id]);
   if (!b) throw Errors.notFound('Store not found');
 
-  const [hours, amenities, gallery, services, staff, owner] = await Promise.all([
+  const [hours, amenities, gallery, services, staff, owner, currentRates] = await Promise.all([
     many('select * from business_hour where business_id = $1 order by day_of_week', [id]),
     many('select * from amenity where business_id = $1 order by position', [id]),
     many('select * from gallery_image where business_id = $1 order by position', [id]),
     many('select * from service where business_id = $1 and is_active = true order by position', [id]),
     many('select * from staff where business_id = $1 and is_active = true order by position', [id]),
     one('select phone from app_user where business_id = $1 and is_super_owner = true limit 1', [id]),
+    many<{ staff_id: string; rate_bp: number }>(
+      `select distinct on (staff_id) staff_id, rate_bp
+         from staff_commission_rate
+        where business_id = $1 and effective_at <= now()
+        order by staff_id, effective_at desc`,
+      [id],
+    ),
   ]);
+  const rateByStaff = new Map(currentRates.map((r) => [r.staff_id, Number(r.rate_bp)]));
 
   const hhmm = (t: string | null) => (t ? t.slice(0, 5) : '');
 
@@ -857,6 +904,9 @@ export async function getBusinessDetail(id: string) {
       name: s.name,
       roleLabel: s.role_label ?? '',
       avatarUrl: s.avatar_url ?? '',
+      // Null, not omitted: the edit form binds this to a text box, and a missing field would
+      // look the same as "no rate" only until the next save cleared a rate the response forgot.
+      rateBp: rateByStaff.get(s.id) ?? null,
     })),
     faqs: (Array.isArray(b.faqs) ? b.faqs : []) as { q: string; a: string }[],
     reviews: (Array.isArray(b.reviews) ? b.reviews : []) as { stars: number; text: string; authorName: string }[],

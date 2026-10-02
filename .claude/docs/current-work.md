@@ -24,11 +24,14 @@ Rules, API, screens and tests: [docs/staff-commission.md](../../docs/staff-commi
 - **Deploy:** 0034 must be applied before the backend that reads it (the Coolify pipeline runs
   migrations first). Until then `/commission/*` and the admin Visits page 500; Reports' revenue does
   not depend on the view.
-- **Verified here:** backend `npm test` (35 files / 416 tests), `npm run test:commission`, owner-web
+- **Verified here:** backend `npm test` (35 files / 412 tests), `npm run test:commission`, owner-web
   and admin-panel lint + type-check + build, app `tsc` (only the pre-existing missing
   `expo-screen-orientation` module) and lint on every changed file.
-- **Not run yet:** `smoke-commission-db.mjs` and `smoke-commission.mjs` need a throwaway Postgres;
-  no device pass on iOS / Android yet.
+- **Verified here (instant rates, 0035):** `npm test` on the four commission unit files (35 tests)
+  and `npm run test:commission` (119 checks). The smoke scripts were updated for the 1pm split and
+  were not run — they need a throwaway Postgres, and `backend/.env` is preprod.
+- **Not run yet:** `smoke-commission-db.mjs` and `smoke-commission.mjs`; no device pass on iOS /
+  Android yet.
 - **Open:** no tips field (a tip typed into the total earns commission); no payouts / "mark as
   paid"; one rate per stylist (no per-service %).
 

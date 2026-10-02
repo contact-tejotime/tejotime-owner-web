@@ -200,12 +200,12 @@ export const api = {
     raw<CommissionVisits>('GET', `/commission/visits?staffId=${encodeURIComponent(staffId)}&${reportQueryString(q)}`),
   /** Owners only. */
   getCommissionRates: () => raw<CommissionRates>('GET', '/commission/rates'),
-  /** Owners only. `effectiveFrom` defaults to the store's today on the server. */
+  /** Owners only. Today's date, or none, starts at now(); a later day starts at store midnight. */
   setCommissionRate: (staffId: string, rateBp: number, effectiveFrom?: string) =>
     raw('PUT', `/commission/rates/${staffId}`, effectiveFrom ? { rateBp, effectiveFrom } : { rateBp }),
-  /** Owners only; today's or a future day. 409 COMMISSION_RATE_LOCKED for a day that is over. */
+  /** Owners only. `effectiveFrom` is the UTC instant. 409 once that instant has passed. */
   deleteCommissionRate: (staffId: string, effectiveFrom: string) =>
-    raw('DELETE', `/commission/rates/${staffId}/${effectiveFrom}`),
+    raw('DELETE', `/commission/rates/${staffId}/${encodeURIComponent(effectiveFrom)}`),
   getBusiness: () => raw('GET', '/business'),
   updateBusiness: (b: import('@/lib/business-profile').BusinessProfilePatch) =>
     raw('PATCH', '/business', b),

@@ -214,13 +214,15 @@ holder out of their own business.
 
 ## 5a. Staff commission
 
-A dated percentage per stylist (`staff_commission_rate`, basis points), and every visit paid at the
-rate of its own **store-local** day through the `visit_commission` view — computed when read,
-nothing stamped on `visit`, `queue_checkout` untouched. "20% from 02/10, 30% from 16/10" pays
-2–15 Oct at 20% and all of 16 Oct onwards at 30%, in every report, for ever: rates start today or
-later and days that are over are locked (409 `COMMISSION_RATE_LOCKED`). Rounded per visit; totals
-are the sum of the lines. "Today" comes only from the server. All plans. Full rules, API and screens:
-[docs/staff-commission.md](../../docs/staff-commission.md).
+A percentage per stylist (`staff_commission_rate`, basis points) that starts at an instant, and
+every visit paid at the latest rate with `effective_at <= completed_at` through the
+`visit_commission` view — computed when read, nothing stamped on `visit`, `queue_checkout`
+untouched. Saving 20% at 1pm does not pay that morning; changing it to 30% at 4pm does not reprice
+visits already paid at 20%. A future day still starts at store midnight. A rate that has already
+started is locked (409 `COMMISSION_RATE_LOCKED`); changing it is a new row at `now()`. The admin
+store form can set that current percent too (blank = no rate; clearing a started one is 400).
+Rounded per visit; totals are the sum of the lines. "Today" comes only from the server. All plans.
+Full rules, API and screens: [docs/staff-commission.md](../../docs/staff-commission.md).
 
 ## 6. Plan gating
 

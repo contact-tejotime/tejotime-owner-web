@@ -7,7 +7,7 @@ import { authenticate } from '../../middleware/authenticate';
 import { limiters } from '../../middleware/rate-limit';
 import { loadAccess, requirePermission, scopeStaffId } from '../../middleware/require-permission';
 import { validate } from '../../middleware/validate';
-import { rateDayParams, setRateSchema, staffParams, visitsQuerySchema } from './commission.schemas';
+import { rateInstantParams, setRateSchema, staffParams, visitsQuerySchema } from './commission.schemas';
 import * as commission from './commission.service';
 
 /**
@@ -99,7 +99,7 @@ commissionRouter.delete(
   limiters.ownerWrite,
   requireOwnerRole,
   requirePermission('commission', 'manage'),
-  validate({ params: rateDayParams }),
+  validate({ params: rateInstantParams }),
   asyncHandler(async (req, res) => {
     res.json(await commission.deleteRate(req.principal!, req.params.staffId, req.params.effectiveFrom));
   }),

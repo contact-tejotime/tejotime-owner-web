@@ -9,11 +9,16 @@ export const visitsQuerySchema = reportQueryWith({
 
 export const staffParams = z.object({ staffId: z.string().uuid() });
 
-export const rateDayParams = z.object({ staffId: z.string().uuid(), effectiveFrom: isoDateSchema });
+/** The UTC instant DELETE sends back (`from` on a rate row), not a calendar day. */
+export const rateInstantParams = z.object({
+  staffId: z.string().uuid(),
+  effectiveFrom: z.string().datetime(),
+});
 
 /**
  * A rate in basis points (2000 = 20%, 3750 = 37.5%) — whole numbers, for the same reason money is
- * paise. `effectiveFrom` is a store-local day and defaults to the store's today on the server.
+ * paise. `effectiveFrom` is a store-local day. Omitted, or equal to the store's today, the rate
+ * starts at now(). A later day starts at midnight in the store's timezone.
  */
 export const setRateSchema = z
   .object({
