@@ -36,10 +36,13 @@ export type Access = 'none' | 'view' | 'manage';
 
 export type ModuleAccess = Record<PermissionModule, Access>;
 
-/** Mirrors backend GRANTABLE_MODULES — `team` is owner-role-only and never a checkbox. */
+/**
+ * Mirrors backend GRANTABLE_MODULES. Two modules are never a row in the grid: `team` is
+ * owner-role-only, and `commission` is decided by the role too — every staff login sees its own
+ * earnings, and only owners set rates.
+ */
 export const GRANTABLE_MODULES: PermissionModule[] = [
   'dashboard',
-  'commission',
   'queue',
   'appointments',
   'calendar',
@@ -61,19 +64,6 @@ export function can(access: ModuleAccess | null, mod: PermissionModule, need: Ac
 
 export function isOwnerRole(role: UserRole | null): boolean {
   return role === 'owner' || role === 'co_owner';
-}
-
-/**
- * Mirrors backend GRANT_CEILING: the most a staff login may be given. `commission: manage` is
- * setting pay rates, which only an owner can do — a staff login can at most SEE its own earnings.
- * The API refuses anything higher; this only keeps the Team grid from offering it.
- */
-const GRANT_CEILING: Partial<Record<PermissionModule, Access>> = { commission: 'view' };
-
-/** The levels the Team permission grid offers for a module: Hidden up to its ceiling. */
-export function grantLevels(mod: PermissionModule): Access[] {
-  const max = GRANT_CEILING[mod] ?? 'manage';
-  return (['none', 'view', 'manage'] as Access[]).filter((level) => RANK[level] <= RANK[max]);
 }
 
 /**

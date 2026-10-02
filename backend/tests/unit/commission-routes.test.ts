@@ -123,13 +123,8 @@ describe('commission API', { timeout: 30_000 }, () => {
   const bucketCall = () => many.mock.calls.find((c) => /group by vc\.staff_id/.test(c[0] as string))!;
 
   describe('a staff login', () => {
-    it('sees nothing until an owner turns earnings on for it', async () => {
-      const res = await request(await app()).get('/api/v1/commission/summary').set('authorization', await token('staff'));
-      expect(res.status).toBe(403);
-    });
-
-    it('once granted, sees only its own chair — no salon keeps, no unassigned, no other stylist', async () => {
-      overrides.rows = [{ module: 'commission', access: 'view' }];
+    // Earnings are not a permission an owner grants any more: every stylist sees their own.
+    it('sees only its own chair with no grant at all — no salon keeps, no unassigned, no other stylist', async () => {
       const res = await request(await app())
         .get('/api/v1/commission/summary?range=month')
         .set('authorization', await token('staff'));
@@ -143,8 +138,14 @@ describe('commission API', { timeout: 30_000 }, () => {
       expect(res.body.unassigned).toBeNull();
     });
 
+    it('is not hidden by a "Hidden" row saved while earnings were still a toggle', async () => {
+      overrides.rows = [{ module: 'commission', access: 'none' }];
+      const res = await request(await app()).get('/api/v1/commission/summary').set('authorization', await token('staff'));
+      expect(res.status).toBe(200);
+      expect(res.body.scope).toBe('self');
+    });
+
     it("cannot read another chair's visits", async () => {
-      overrides.rows = [{ module: 'commission', access: 'view' }];
       const res = await request(await app())
         .get(`/api/v1/commission/visits?staffId=${LISA}`)
         .set('authorization', await token('staff'));
@@ -152,13 +153,12 @@ describe('commission API', { timeout: 30_000 }, () => {
     });
 
     it('reads its own visits without naming itself', async () => {
-      overrides.rows = [{ module: 'commission', access: 'view' }];
       const res = await request(await app()).get('/api/v1/commission/visits').set('authorization', await token('staff'));
       expect(res.status).toBe(200);
       expect(res.body.staff.staffId).toBe(JOHN);
     });
 
-    it('can never read or set a rate — even holding a (clamped) manage row', async () => {
+    it('can never read or set a rate — even holding a stale or hand-written manage row', async () => {
       overrides.rows = [{ module: 'commission', access: 'manage' }];
       const a = await app();
       const auth = await token('staff');

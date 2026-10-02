@@ -212,7 +212,7 @@ Every visit at the rate of its own store-local day — see
 
 | Method | Path | Guards |
 |---|---|---|
-| GET | `/summary` | `perm=commission:view`; a staff login gets only its own chair (`scope: 'self'`) |
+| GET | `/summary` | `perm=commission:view` (every role; not grantable); a staff login gets only its own chair (`scope: 'self'`) |
 | GET | `/visits` | `perm=commission:view`; owner must pass `staffId`; staff: own chair only (other → 403) |
 | GET | `/rates` | `perm=commission:manage` |
 | PUT | `/rates/:staffId` | owner **role** + `perm=commission:manage`; `{ rateBp, effectiveFrom? }`; past day → 409 `COMMISSION_RATE_LOCKED` |

@@ -192,7 +192,7 @@ export const api = {
     raw('GET', `/dashboard/by-staff?${reportQueryString(q)}`),
 
   // ---------- commission (docs/staff-commission.md) ----------
-  /** The period's commission. A staff login gets only its own chair — and only once shown it. */
+  /** The period's commission. A staff login always gets it, for its own chair only. */
   getCommissionSummary: (q: ReportQuery) =>
     raw<CommissionSummary>('GET', `/commission/summary?${reportQueryString(q)}`),
   /** One stylist's visits, each at its day's rate. A staff login may only ask for its own chair. */

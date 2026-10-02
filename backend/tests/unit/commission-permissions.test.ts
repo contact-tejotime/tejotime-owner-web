@@ -3,16 +3,16 @@ import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Who may see and set commission. The rule this whole feature depends on: a staff login can be
- * SHOWN its own earnings (hidden unless an owner grants it) but can never set a pay rate — not
- * through the permission editor, not through a stale row, not by any route.
+ * Who may see and set commission. The rule this whole feature depends on: every staff login sees
+ * its own earnings — by role, not by a grant, so no owner toggle hides them — and can never set a
+ * pay rate: not through the permission editor, not through a stale row, not by any route.
  * No DB: the pool is stubbed.
  */
 
 const { one, many, exec } = vi.hoisted(() => ({
   one: vi.fn(),
   many: vi.fn(async () => [] as unknown[]),
-  exec: vi.fn(async () => 1),
+  exec: vi.fn(async (_sql: string, _params?: unknown[]) => 1),
 }));
 
 vi.mock('../../src/db/pool', () => ({
@@ -58,16 +58,25 @@ describe('commission permissions', { timeout: 30_000 }, () => {
   });
 
   describe('effective access', () => {
-    it('hides earnings from a staff login by default, and shows them once granted', async () => {
+    it('shows every staff login its own earnings by default', async () => {
       const { effectiveAccess } = await import('../../src/domain/permissions');
-      expect(effectiveAccess('staff').commission).toBe('none');
-      expect(effectiveAccess('staff', { commission: 'view' }).commission).toBe('view');
+      expect(effectiveAccess('staff').commission).toBe('view');
     });
 
-    it('clamps a stale or hand-written "manage" row for a staff login down to view', async () => {
+    it('ignores commission rows saved while it was a toggle — "Hidden" does not hide, "manage" does not raise', async () => {
       const { effectiveAccess } = await import('../../src/domain/permissions');
+      expect(effectiveAccess('staff', { commission: 'none' }).commission).toBe('view');
       expect(effectiveAccess('staff', { commission: 'manage' }).commission).toBe('view');
       expect(effectiveAccess('manager', { commission: 'manage' }).commission).toBe('view');
+    });
+
+    it('still applies overrides to the modules an owner can grant', async () => {
+      const { effectiveAccess } = await import('../../src/domain/permissions');
+      expect(effectiveAccess('staff', { customers: 'view', dashboard: 'none' })).toMatchObject({
+        customers: 'view',
+        dashboard: 'none',
+        commission: 'view',
+      });
     });
 
     it('gives the legacy manager the report but not the rates, and owners everything', async () => {
@@ -77,10 +86,11 @@ describe('commission permissions', { timeout: 30_000 }, () => {
       expect(effectiveAccess('co_owner', { commission: 'none' }).commission).toBe('manage'); // owners ignore overrides
     });
 
-    it('offers only none/view for commission in the editor, and the full range elsewhere', async () => {
-      const { grantLevels } = await import('../../src/domain/permissions');
-      expect(grantLevels('commission')).toEqual(['none', 'view']);
-      expect(grantLevels('queue')).toEqual(['none', 'view', 'manage']);
+    it('is not something an owner grants — like team, it is decided by the role', async () => {
+      const { GRANTABLE_MODULES, MODULES } = await import('../../src/domain/permissions');
+      expect(MODULES).toContain('commission'); // still in /auth/me, so the clients can draw it
+      expect(GRANTABLE_MODULES).not.toContain('commission');
+      expect(GRANTABLE_MODULES).not.toContain('team');
     });
   });
 
@@ -111,7 +121,8 @@ describe('commission permissions', { timeout: 30_000 }, () => {
       );
     }
 
-    const fullMap = (commission: string) => ({
+    /** The complete map an app build from while earnings were a toggle still sends on every save. */
+    const oldAppMap = (commission: string) => ({
       dashboard: 'view',
       commission,
       queue: 'manage',
@@ -126,51 +137,72 @@ describe('commission permissions', { timeout: 30_000 }, () => {
       profile: 'none',
     });
 
-    it('refuses to give a staff login "manage" on commission — it could set its own pay', async () => {
+    for (const commission of ['none', 'view', 'manage']) {
+      it(`accepts an old app's save carrying commission: ${commission}, and stores nothing for it`, async () => {
+        staffTarget();
+        const res = await request(await app())
+          .put(`/api/v1/users/${STAFF_USER}/permissions`)
+          .set('authorization', `Bearer ${await ownerToken()}`)
+          .send({ permissions: oldAppMap(commission) });
+
+        expect(res.status).toBe(200);
+        const del = exec.mock.calls.find((c) => /delete from user_permission/.test(c[0]))!;
+        expect(del[1]![1]).not.toContain('commission');
+        const insert = exec.mock.calls.find((c) => /insert into user_permission/.test(c[0]))!;
+        expect(insert[1]).not.toContain('commission');
+        expect(insert[1]).toEqual(expect.arrayContaining(['queue', 'manage']));
+      });
+    }
+
+    it('still refuses a module that never existed', async () => {
       staffTarget();
       const res = await request(await app())
         .put(`/api/v1/users/${STAFF_USER}/permissions`)
         .set('authorization', `Bearer ${await ownerToken()}`)
-        .send({ permissions: fullMap('manage') });
+        .send({ permissions: { dashboard: 'view', payroll: 'view' } });
 
       expect(res.status).toBe(400);
-      expect(res.body.error.details?.[0]?.field).toBe('permissions.commission');
       expect(exec).not.toHaveBeenCalled();
     });
 
-    it('lets the owner show a stylist their earnings (view)', async () => {
-      staffTarget();
-      const res = await request(await app())
-        .put(`/api/v1/users/${STAFF_USER}/permissions`)
-        .set('authorization', `Bearer ${await ownerToken()}`)
-        .send({ permissions: fullMap('view') });
+    it("lets an old app's create form through validation too (the create body shares the schema)", async () => {
+      // Only validation is under test: the service behind it is not stubbed, so the request is
+      // judged by whether the 400 it may still get names a permission field.
+      const create = async (permissions: Record<string, string>) =>
+        request(await app())
+          .post('/api/v1/users')
+          .set('authorization', `Bearer ${await ownerToken()}`)
+          .send({ name: 'Lisa', phone: '919000000001', password: 'longenough', role: 'staff', staffId: STAFF_USER, permissions });
+      const permissionFields = (res: request.Response) =>
+        ((res.body.error?.details ?? []) as { field: string }[]).filter((d) => d.field.startsWith('permissions'));
 
-      expect(res.status).toBe(200);
-      const insert = exec.mock.calls.find((c) => /insert into user_permission/.test(c[0] as string));
-      expect(insert?.[1]).toEqual(expect.arrayContaining(['commission', 'view']));
+      expect(permissionFields(await create(oldAppMap('none')))).toEqual([]);
+      // …and the check is real: an unknown module IS named.
+      expect(permissionFields(await create({ dashboard: 'view', payroll: 'view' })).length).toBeGreaterThan(0);
     });
 
-    it('replaces only the modules sent, so an older app build cannot wipe a commission grant', async () => {
+    it('replaces only the modules sent, so an older app build cannot wipe a grant it does not know', async () => {
       staffTarget();
       const res = await request(await app())
         .put(`/api/v1/users/${STAFF_USER}/permissions`)
         .set('authorization', `Bearer ${await ownerToken()}`)
-        .send({ permissions: { dashboard: 'view', queue: 'manage' } }); // a map from before `commission`
+        .send({ permissions: { dashboard: 'view', queue: 'manage' } });
 
       expect(res.status).toBe(200);
-      const del = exec.mock.calls.find((c) => /delete from user_permission/.test(c[0] as string))!;
+      const del = exec.mock.calls.find((c) => /delete from user_permission/.test(c[0]))!;
       expect(del[0]).toMatch(/module = any\(\$2::text\[\]\)/);
       expect(del[1]).toEqual([STAFF_USER, ['dashboard', 'queue']]);
     });
 
-    it('serves the levels the grid may offer, and staff default to hidden', async () => {
+    it('does not offer commission in the grid', async () => {
       const res = await request(await app())
         .get('/api/v1/users/modules')
         .set('authorization', `Bearer ${await ownerToken()}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.modules).toContainEqual({ key: 'commission', label: 'Commission & earnings', levels: ['none', 'view'] });
-      expect(res.body.defaults.staff.commission).toBe('none');
+      expect(res.body.modules.map((m: { key: string }) => m.key)).not.toContain('commission');
+      expect(res.body.modules).toContainEqual({ key: 'queue', label: 'Queue' });
+      expect(res.body.defaults.staff).not.toHaveProperty('commission');
     });
   });
 });

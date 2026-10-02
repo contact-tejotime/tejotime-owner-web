@@ -172,17 +172,21 @@ on save.
 | `owner` | `manage` on everything (super owner; exactly one per business, created by the admin panel at provisioning) |
 | `co_owner` | `manage` on everything, but cannot touch the super owner |
 | `manager` | **legacy, no longer assigned** — `manage` everything except `billing: view`, `team: view`, `commission: view` |
-| `staff` | `queue: manage`; `dashboard`/`appointments`/`calendar`/`notifications`: `view`; **everything else `none`** (including `commission`) |
+| `staff` | `queue: manage`; `dashboard`/`appointments`/`calendar`/`notifications`/`commission`: `view` (commission = its own chair's earnings only); **everything else `none`** |
 
-### Grant ceiling
+### Role-only modules
 
-`GRANT_CEILING = { commission: 'view' }` is the most a role that is not an owner may hold.
-`commission: manage` is setting pay rates; a staff login holding it could give itself a raise — the
-reasoning that keeps `team` off `GRANTABLE_MODULES` — but unlike `team` there is a useful lower
-level (seeing one's own earnings), so the module is grantable and **capped**: the permission editor
-refuses more (400), `effectiveAccess` clamps a stored `manage` to `view`, the Team grids offer only
-Hidden / View only, and the rate routes also check the owner role. `PUT /users/:id/permissions`
-replaces only the modules in its payload, so a client older than a module cannot wipe its grant.
+`team` and `commission` are in `MODULES` (so `/auth/me` reports them and the guards use them) but
+**not** in `GRANTABLE_MODULES`: their level comes from `ROLE_DEFAULTS` alone. `effectiveAccess`
+applies overrides only to grantable modules, so a stale or hand-written row for either is ignored.
+
+`commission` was a grantable Hidden / View only row until 2026-10-02 (staff hidden by default,
+capped at view by a `GRANT_CEILING`). It is now role-only: every staff login sees its own earnings
+(`view`, scoped to its chair by `scopeStaffId`), owners `manage` (set rates), and no override can
+hide it or raise it. The rate routes also check the owner **role**. `PUT /users/:id/permissions`
+drops a `commission` key rather than 400-ing the whole save — app builds from the toggle era still
+send it — and replaces only the modules in its payload, so a client older than a module cannot
+wipe its grant.
 
 `staff` is deliberately narrow: it gets its own chair's queue and nothing that would expose the
 shop's customer list or money. An owner grants those one at a time, and even when granted the read

@@ -271,13 +271,15 @@ panel at provisioning), `co_owner` (same powers, cannot touch the super owner), 
 `domain/permissions.ts` is the single source of truth:
 - `MODULES` catalogue lives **in code, not the DB** — adding a screen is a deploy, not a migration.
 - `GRANTABLE_MODULES` excludes `team` on purpose (granting login-creation would let a staff
-  account grant itself everything else).
+  account grant itself everything else) and `commission` (every staff login sees its own
+  earnings — `view`, own chair only — and setting pay is owner-only `manage`; nothing to toggle).
+  Both are decided by the **role alone**.
 - `ROLE_DEFAULTS` + **sparse overrides** in `user_permission` (a row exists only where an owner
-  deliberately changed something) → `effectiveAccess(role, overrides)`.
+  deliberately changed something) → `effectiveAccess(role, overrides)`. Overrides apply **only to
+  grantable modules**; a row for `team`/`commission` is ignored (preprod still holds `commission`
+  rows from when it was a Hidden / View only toggle). The permission editor silently drops a
+  `commission` key, because app builds from then still send it on every save.
 - Owner roles ignore overrides entirely, so a stale row can never lock out the account holder.
-- `GRANT_CEILING` caps what a non-owner role can hold: `commission` stops at `view` (a staff login
-  may be shown its own earnings, hidden by default, but setting pay is owner-only). Refused by the
-  permission editor and clamped in `effectiveAccess`.
 
 Enforcement (`middleware/require-permission.ts`):
 - `requirePermission(module, 'view'|'manage')` — the boundary; UI hiding is cosmetic.
@@ -631,7 +633,7 @@ Checklist for any owner-facing change:
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **35 vitest files, 412 tests** (2026-10-02), run with `npm test` in `backend/`
+- `backend/tests/unit/` — **35 vitest files, 416 tests** (2026-10-02), run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
   Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
   `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with

@@ -298,8 +298,8 @@ export async function setPermissions(
 
   // Replace exactly the modules this payload names. The editor always sends its complete map, so
   // a module the owner reset back to its default is still overwritten rather than lingering as a
-  // stale override — but a client older than a module (an app build that predates `commission`)
-  // no longer silently wipes a grant it never knew existed.
+  // stale override — but a client older than a module (an app build that predates it) no longer
+  // silently wipes a grant it never knew existed.
   const entries = Object.entries(permissions);
   if (entries.length) {
     await exec('delete from user_permission where user_id = $1 and module = any($2::text[])', [

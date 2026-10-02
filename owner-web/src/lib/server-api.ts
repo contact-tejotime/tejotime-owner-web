@@ -589,8 +589,7 @@ export const getTeam = () => getFresh<{ data: TeamUser[] }>("/users");
  */
 export const getPermissionCatalogue = () =>
   get<{
-    /** `levels`: what the grid may offer — commission stops at view (owners alone set rates). */
-    modules: { key: Module; label: string; levels?: Access[] }[];
+    modules: { key: Module; label: string }[];
     accessLevels: Access[];
     /** Grantable modules only — `team` is owner-role-only and never appears here. */
     defaults: { staff: Partial<ModuleAccess>; co_owner: Partial<ModuleAccess> };

@@ -14,18 +14,20 @@ import * as commission from './commission.service';
  * Staff commission: dated pay rates per stylist, and the reports built on them.
  * See docs/staff-commission.md.
  *
- *  - Reading (`commission: view`): owners see the whole store; a staff login sees ONLY its own
- *    chair (scopeStaffId), and only once an owner has granted it — the module defaults to none.
- *  - Setting rates (`commission: manage`): owner roles only. GRANT_CEILING caps every other role
- *    at view, so no staff login can set its own pay.
+ *  - Reading (`commission: view`): owners see the whole store; every staff login sees its own
+ *    chair and ONLY its own chair (scopeStaffId). It is not a grantable module — no owner toggle
+ *    hides it, and no override row raises it (domain/permissions.ts).
+ *  - Setting rates (`commission: manage`): owner roles only. No other role holds `manage`, so no
+ *    staff login can set its own pay.
  */
 export const commissionRouter = Router();
 commissionRouter.use(authenticate);
 
 /**
  * Rate writes check the ROLE as well as the permission. The permission alone already excludes
- * staff (GRANT_CEILING), but "a staff login can never set a rate" is the rule this feature lives
- * or dies by, so it should not hang on a single constant staying as it is.
+ * staff (ROLE_DEFAULTS gives it `view`, and commission takes no overrides), but "a staff login can
+ * never set a rate" is the rule this feature lives or dies by, so it should not hang on a single
+ * table entry staying as it is.
  */
 function requireOwnerRole(req: Request, _res: Response, next: NextFunction): void {
   if (!req.principal) return next(Errors.unauthenticated());
