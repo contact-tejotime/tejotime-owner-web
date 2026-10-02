@@ -126,8 +126,18 @@ export default function Settings() {
                 label={t.settings.teamLogins}
                 sub={t.settings.teamLoginsSub}
                 onPress={goTo('team')}
-                showBorder={false}
+                showBorder={can(access, 'commission', 'manage')}
               />
+              {/* Pay rates: owner roles only (`commission: manage` — no staff login can hold it). */}
+              {can(access, 'commission', 'manage') ? (
+                <TSettingsRow
+                  icon="percent"
+                  label={t.settings.commissionRates}
+                  sub={t.settings.commissionRatesSub}
+                  onPress={goTo('commission')}
+                  showBorder={false}
+                />
+              ) : null}
             </View>
           </Section>
         ) : null}

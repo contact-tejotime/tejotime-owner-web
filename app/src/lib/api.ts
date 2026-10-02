@@ -1,4 +1,11 @@
 import { t } from '@/i18n';
+import {
+  reportQueryString,
+  type CommissionRates,
+  type CommissionSummary,
+  type CommissionVisits,
+  type ReportQuery,
+} from '@/lib/commission';
 import { API_BASE_URL } from '@/lib/config';
 import { clearTokens, getTokens, setTokens } from '@/lib/tokenStore';
 
@@ -179,10 +186,26 @@ export const api = {
   checkIn: (id: string) => raw('POST', `/appointments/${id}/check-in`),
   getCustomers: (search?: string) =>
     raw('GET', `/customers${search ? `?search=${encodeURIComponent(search)}` : ''}`),
-  getDashboard: (range: 'today' | 'month' = 'today') =>
-    raw('GET', `/dashboard/summary?range=${range}`),
-  getDashboardByStaff: (range: 'today' | 'month' = 'today') =>
-    raw('GET', `/dashboard/by-staff?range=${range}`),
+  getDashboard: (q: ReportQuery = { range: 'today' }) =>
+    raw('GET', `/dashboard/summary?${reportQueryString(q)}`),
+  getDashboardByStaff: (q: ReportQuery = { range: 'today' }) =>
+    raw('GET', `/dashboard/by-staff?${reportQueryString(q)}`),
+
+  // ---------- commission (docs/staff-commission.md) ----------
+  /** The period's commission. A staff login gets only its own chair — and only once shown it. */
+  getCommissionSummary: (q: ReportQuery) =>
+    raw<CommissionSummary>('GET', `/commission/summary?${reportQueryString(q)}`),
+  /** One stylist's visits, each at its day's rate. A staff login may only ask for its own chair. */
+  getCommissionVisits: (staffId: string, q: ReportQuery) =>
+    raw<CommissionVisits>('GET', `/commission/visits?staffId=${encodeURIComponent(staffId)}&${reportQueryString(q)}`),
+  /** Owners only. */
+  getCommissionRates: () => raw<CommissionRates>('GET', '/commission/rates'),
+  /** Owners only. `effectiveFrom` defaults to the store's today on the server. */
+  setCommissionRate: (staffId: string, rateBp: number, effectiveFrom?: string) =>
+    raw('PUT', `/commission/rates/${staffId}`, effectiveFrom ? { rateBp, effectiveFrom } : { rateBp }),
+  /** Owners only; today's or a future day. 409 COMMISSION_RATE_LOCKED for a day that is over. */
+  deleteCommissionRate: (staffId: string, effectiveFrom: string) =>
+    raw('DELETE', `/commission/rates/${staffId}/${effectiveFrom}`),
   getBusiness: () => raw('GET', '/business'),
   updateBusiness: (b: import('@/lib/business-profile').BusinessProfilePatch) =>
     raw('PATCH', '/business', b),

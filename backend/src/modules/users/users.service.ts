@@ -296,11 +296,16 @@ export async function setPermissions(
     throw Errors.validation('Co-owners have full access — there is nothing to configure');
   }
 
-  // Replace wholesale: the editor always sends the complete map, so a module the owner reset
-  // back to its default disappears rather than lingering as a stale override.
-  await exec('delete from user_permission where user_id = $1', [userId]);
+  // Replace exactly the modules this payload names. The editor always sends its complete map, so
+  // a module the owner reset back to its default is still overwritten rather than lingering as a
+  // stale override — but a client older than a module (an app build that predates `commission`)
+  // no longer silently wipes a grant it never knew existed.
   const entries = Object.entries(permissions);
   if (entries.length) {
+    await exec('delete from user_permission where user_id = $1 and module = any($2::text[])', [
+      userId,
+      entries.map(([m]) => m),
+    ]);
     const values = entries.map((_, i) => `($1, $${i * 2 + 2}, $${i * 2 + 3})`).join(', ');
     await exec(
       `insert into user_permission (user_id, module, access) values ${values}`,

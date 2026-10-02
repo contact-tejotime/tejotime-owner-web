@@ -10,6 +10,7 @@ import { api, ApiError } from '@/lib/api';
 import {
   Access,
   GRANTABLE_MODULES,
+  grantLevels,
   isOwnerRole,
   PermissionModule,
   toPermissionPayload,
@@ -52,6 +53,7 @@ const SHOWN_MODULES = GRANTABLE_MODULES.filter((m): m is ShownModule => m !== 'b
 
 const MODULE_LABELS: Record<ShownModule, string> = {
   dashboard: t.team.moduleDashboard,
+  commission: t.team.moduleCommission,
   queue: t.team.moduleQueue,
   appointments: t.team.moduleAppointments,
   calendar: t.team.moduleCalendar,
@@ -632,8 +634,15 @@ function PermissionGrid({
           <TText variant="caption" color="textBody" weight="semibold">
             {MODULE_LABELS[mod]}
           </TText>
+          {/* Earnings stop at "View only": a staff login sees its own commission, never the rates —
+              those are the owner's alone (the API refuses more). */}
+          {mod === 'commission' ? (
+            <TText variant="caption" color="textMuted">
+              {t.team.commissionHint}
+            </TText>
+          ) : null}
           <View style={badgeStyles.gridOptions}>
-            {(['none', 'view', 'manage'] as Access[]).map((level) => (
+            {grantLevels(mod).map((level) => (
               <Chip
                 key={level}
                 label={ACCESS_LABELS[level]}

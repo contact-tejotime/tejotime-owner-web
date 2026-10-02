@@ -19,6 +19,7 @@ export type SettingsPageId =
   | 'services'
   | 'staff'
   | 'team'
+  | 'commission'
   | 'password'
   | 'notifications';
 
@@ -29,6 +30,7 @@ export const SETTINGS_ROUTES: Record<SettingsPageId, string> = {
   services: '/(app)/settings/services',
   staff: '/(app)/settings/staff',
   team: '/(app)/settings/team',
+  commission: '/(app)/settings/commission',
   password: '/(app)/settings/password',
   notifications: '/(app)/settings/notifications',
 };

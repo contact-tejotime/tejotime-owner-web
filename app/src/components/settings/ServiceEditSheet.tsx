@@ -5,6 +5,8 @@ import { TButton, TInput, TText } from '@/components/common';
 import { EditSheet } from '@/components/settings/EditSheet';
 import { t } from '@/i18n';
 import { ServiceVM } from '@/data/sample';
+import { currencySymbol } from '@/lib/currencies';
+import { useAppState } from '@/state/store';
 import { styles } from '@/styles';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -69,6 +71,9 @@ function ServiceForm({
   onRemove: () => void;
 }) {
   const { colors } = useTheme();
+  // The store's own symbol on the price boxes — this was a fixed ₹ even on a store set to USD.
+  // From the session, so it is right for staff too and before the store has any services.
+  const pricePrefix = currencySymbol(useAppState().business?.currency);
   const [name, setName] = useState(service?.name ?? '');
   const [duration, setDuration] = useState(service ? String(service.durationMinutes) : '');
   // An `unset` service opens on "No price" with an empty box: the zero it carries in the database
@@ -163,7 +168,7 @@ function ServiceForm({
           <View style={styles.flex}>
             <TInput
               label={priceType === 'range' ? t.serviceSheet.priceMinLabel : t.serviceSheet.priceLabel}
-              prefix={t.serviceSheet.pricePrefix}
+              prefix={pricePrefix}
               placeholder={t.serviceSheet.pricePlaceholder}
               keyboardType="number-pad"
               value={price}
@@ -181,7 +186,7 @@ function ServiceForm({
         <>
           <TInput
             label={t.serviceSheet.priceMaxLabel}
-            prefix={t.serviceSheet.pricePrefix}
+            prefix={pricePrefix}
             placeholder={t.serviceSheet.priceMaxPlaceholder}
             keyboardType="number-pad"
             value={maxPrice}

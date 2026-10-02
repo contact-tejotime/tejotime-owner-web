@@ -5,27 +5,14 @@ import { THeader, TScopeNotice, TScreenScroll, TText } from '@/components/common
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { t } from '@/i18n';
+// Shared with the date pickers (TMonthGrid) — the same 6-week, Sunday-first month.
+import { buildGrid } from '@/lib/date-grid';
 import { toDateKey } from '@/lib/mappers';
 import { useAppState } from '@/state/store';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
 import type { ThemeStyleProps } from '@/styles/types';
 import { useTheme } from '@/theme/ThemeProvider';
-
-const GRID_CELLS = 42; // 6 weeks × 7 days — always covers a month plus lead/trail days.
-
-function startOfGrid(year: number, month: number): Date {
-  const firstOfMonth = new Date(year, month, 1);
-  return new Date(year, month, 1 - firstOfMonth.getDay());
-}
-
-function buildGrid(year: number, month: number): Date[] {
-  const start = startOfGrid(year, month);
-  return Array.from(
-    { length: GRID_CELLS },
-    (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i),
-  );
-}
 
 export default function Calendar() {
   const theme = useTheme();

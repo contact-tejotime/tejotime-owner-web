@@ -14,6 +14,7 @@ import { UserRole } from './enums';
 /** Every screen an owner can grant or withhold. Order is the order shown in the portal. */
 export const MODULES = [
   'dashboard',
+  'commission',
   'queue',
   'appointments',
   'calendar',
@@ -35,6 +36,7 @@ export type PermissionModule = (typeof MODULES)[number];
  */
 export const GRANTABLE_MODULES = [
   'dashboard',
+  'commission',
   'queue',
   'appointments',
   'calendar',
@@ -69,6 +71,7 @@ export function grantableSubset(access: ModuleAccess): GrantableAccess {
 /** Human labels, reused by the portal's permission editor. */
 export const MODULE_LABELS: Record<PermissionModule, string> = {
   dashboard: 'Dashboard',
+  commission: 'Commission & earnings',
   queue: 'Queue',
   appointments: 'Appointments',
   calendar: 'Calendar',
@@ -88,6 +91,24 @@ export function atLeast(have: Access, need: Access): boolean {
   return RANK[have] >= RANK[need];
 }
 
+/**
+ * The most a role that is NOT an owner may ever hold, per module.
+ *
+ * `commission: 'manage'` is setting pay rates. A staff login must never be able to set its own
+ * rate, or a colleague's — the reasoning that keeps `team` off GRANTABLE_MODULES — but unlike
+ * `team` there is a legitimate lower level: an owner may let a stylist SEE their own earnings.
+ * So the module is grantable and capped. The permission editor refuses anything above the cap
+ * (users.routes), and effectiveAccess clamps to it, so a stale or hand-written user_permission
+ * row can never get past a guard.
+ */
+export const GRANT_CEILING: Partial<Record<PermissionModule, Access>> = { commission: 'view' };
+
+/** The levels the permission editor may offer for a module: `none` up to its ceiling. */
+export function grantLevels(mod: PermissionModule): Access[] {
+  const max = GRANT_CEILING[mod] ?? 'manage';
+  return ACCESS_LEVELS.filter((level) => atLeast(max, level));
+}
+
 function everyModule(access: Access): ModuleAccess {
   return Object.fromEntries(MODULES.map((m) => [m, access])) as ModuleAccess;
 }
@@ -103,9 +124,12 @@ export const ROLE_DEFAULTS: Record<UserRole, ModuleAccess> = {
   owner: everyModule('manage'),
   co_owner: everyModule('manage'),
   // Legacy role, kept so pre-0019 rows behave sensibly. Runs the shop, does not hold the account.
-  manager: { ...everyModule('manage'), billing: 'view', team: 'view' },
+  // Sees the commission report but cannot set rates (GRANT_CEILING applies to it too).
+  manager: { ...everyModule('manage'), billing: 'view', team: 'view', commission: 'view' },
   staff: {
     dashboard: 'view',
+    // Hidden until the owner chooses to show a stylist their own earnings.
+    commission: 'none',
     queue: 'manage',
     appointments: 'view',
     calendar: 'view',
@@ -139,7 +163,10 @@ export function isAccess(value: string): value is Access {
   return (ACCESS_LEVELS as readonly string[]).includes(value);
 }
 
-/** Role defaults, then the owner's overrides on top. Owners ignore overrides entirely. */
+/**
+ * Role defaults, then the owner's overrides on top, then the grant ceiling. Owners ignore
+ * overrides (and the ceiling) entirely.
+ */
 export function effectiveAccess(
   role: UserRole,
   overrides: Partial<Record<PermissionModule, Access>> = {},
@@ -148,6 +175,9 @@ export function effectiveAccess(
   if (isOwnerRole(role)) return base;
   for (const [mod, access] of Object.entries(overrides)) {
     if (isModule(mod) && access && isAccess(access)) base[mod] = access;
+  }
+  for (const [mod, max] of Object.entries(GRANT_CEILING) as [PermissionModule, Access][]) {
+    if (!atLeast(max, base[mod])) base[mod] = max;
   }
   return base;
 }

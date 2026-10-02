@@ -88,6 +88,16 @@ export function formatPercent(x: number | null | undefined): string {
   return `${Math.round(x * 100)}%`;
 }
 
+/**
+ * A commission rate in basis points → "20%", "37.5%", "12.25%"; null → "—". The same reading as
+ * owner-web's and the app's `formatRate` (lib/commission.ts), where the rates are set.
+ */
+export function formatRate(bp: number | null | undefined): string {
+  if (bp === null || bp === undefined) return "—";
+  const pct = bp / 100;
+  return `${Number.isInteger(pct) ? pct : pct.toFixed(2).replace(/0$/, "")}%`;
+}
+
 /** ISO → "9 Jul 2026". */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";

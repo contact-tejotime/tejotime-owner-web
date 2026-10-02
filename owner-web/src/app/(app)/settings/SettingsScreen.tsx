@@ -278,6 +278,15 @@ export function SettingsScreen({
               label={t.settings.teamLogins}
               sub={t.settings.teamLoginsSub}
             />
+            {/* Pay rates: owner roles only (`commission: manage` — no staff login can hold it). */}
+            {can(access, "commission", "manage") ? (
+              <SettingsRow
+                href="/settings/commission"
+                icon="percent"
+                label={t.settings.commissionRates}
+                sub={t.settings.commissionRatesSub}
+              />
+            ) : null}
           </Group>
         ) : null}
 

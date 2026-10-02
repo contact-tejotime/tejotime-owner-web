@@ -75,7 +75,9 @@ export function formatMoney(m?: Money): string {
   // Symbol comes from the store's currency (static map — no runtime Intl.DisplayNames on Hermes).
   const symbol = currencySymbol(m?.currency);
   const locale = !m?.currency || m.currency === 'INR' ? 'en-IN' : 'en-US';
-  return `${symbol}${value.toLocaleString(locale, { maximumFractionDigits: value % 1 ? 1 : 0 })}`;
+  // Two places or none: a single decimal printed $12.50 as "$12.5".
+  const digits = value % 1 ? 2 : 0;
+  return `${symbol}${value.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 }
 
 /**
@@ -133,6 +135,8 @@ export function mapBusinessDetail(r: any) {
     slug: r.slug,
     address: r.address ?? '',
     category: r.category ?? '',
+    // Kept on every GET /business refresh, or this replace would drop what /auth/me set.
+    currency: r.currency ?? undefined,
     city: r.city ?? '',
     countryCode: r.countryCode ?? null,
     phoneNumber: r.phoneNumber ?? null,

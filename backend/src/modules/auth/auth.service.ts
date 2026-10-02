@@ -22,9 +22,11 @@ async function planForBusiness(businessId: string): Promise<PlanType> {
 async function businessSummary(businessId: string) {
   // theme + themeColor (+ category for checkout add-on chips) travel with every login/`/auth/me`
   // so owner-web and the Expo app can theme chrome / gate extras for staff as well as owners —
-  // without requiring `profile` permission.
+  // without requiring `profile` permission. `currency` travels for the same reason: the price
+  // prefixes and the checkout amount box need the store's symbol, and without it both clients
+  // fell back to a hardcoded ₹ on a store set to USD.
   return one(
-    `select id, name, slug, category, theme, theme_color as "themeColor"
+    `select id, name, slug, category, currency, theme, theme_color as "themeColor"
        from business where id = $1`,
     [businessId],
   );

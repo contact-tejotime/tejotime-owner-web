@@ -13,6 +13,7 @@ import {
   GRANTABLE_MODULES,
   MODULE_LABELS,
   ROLE_LABELS,
+  grantLevels,
   type Access,
   type Module,
   type ModuleAccess,
@@ -607,9 +608,14 @@ function PermissionGrid({
       <div className="sa-perm-list">
         {GRANTABLE_MODULES.map((mod) => (
           <div key={mod} className="sa-perm-row" role="group" aria-label={MODULE_LABELS[mod]}>
-            <span className="sa-perm-label">{MODULE_LABELS[mod]}</span>
+            <span className="sa-perm-label">
+              {MODULE_LABELS[mod]}
+              {/* Earnings stop at "View only": a staff login sees its own commission, never the
+                  rates — those are the owner's alone (the API refuses more). */}
+              {mod === "commission" ? <span className="sa-perm-hint">{t.team.commissionHint}</span> : null}
+            </span>
             <div className="sa-perm-options">
-              {(["none", "view", "manage"] as Access[]).map((level) => {
+              {grantLevels(mod).map((level) => {
                 const active = (value[mod] ?? "none") === level;
                 return (
                   <button

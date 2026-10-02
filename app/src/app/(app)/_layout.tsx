@@ -5,6 +5,7 @@ import { View } from 'react-native';
 
 import { TSplashScreen } from '@/components/common';
 import { AddWalkInSheet } from '@/components/feedback/AddWalkInSheet';
+import { CommissionVisitsSheet } from '@/components/feedback/CommissionVisitsSheet';
 import { DayAppointmentsSheet } from '@/components/feedback/DayAppointmentsSheet';
 import { DetailPanel } from '@/components/feedback/DetailPanel';
 import { QRSheet } from '@/components/feedback/QRSheet';
@@ -32,6 +33,7 @@ export default function AppLayout() {
       <QRSheet />
       <DetailPanel />
       <DayAppointmentsSheet />
+      <CommissionVisitsSheet />
     </View>
   );
 }

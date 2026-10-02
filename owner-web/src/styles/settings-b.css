@@ -752,6 +752,112 @@
   cursor: default;
 }
 
+/* ------------------------------------------------------------------ commission rates */
+
+/* The rate in force, at the end of a stylist's row (CommissionEditor). */
+.cm-chip {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg, var(--primary));
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cm-chip.is-none {
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.cm-current {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-hover);
+}
+.cm-current-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.cm-current-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-strong);
+  text-align: right;
+}
+.cm-list-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.cm-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.cm-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 14px;
+  font-size: 14px;
+  color: var(--text-body);
+}
+.cm-list-row + .cm-list-row {
+  border-top: 1px solid var(--border-subtle);
+}
+/* History: days that are over keep the rate they were paid at, so it is read-only. */
+.cm-list-row.is-locked {
+  color: var(--text-muted);
+}
+.cm-list-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.cm-lock {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+}
+.cm-confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.cm-confirm-q {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.cm-keep {
+  min-height: 34px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
 /* ------------------------------------------------------------------ profile */
 
 /* The store card — owner-web's own header (live status, public link, booking QR), kept from before

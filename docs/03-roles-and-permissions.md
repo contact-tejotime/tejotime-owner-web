@@ -47,7 +47,14 @@ Legend: ✅ full · 🟡 limited/own-seat · ➖ none · 💲 plan-gated
 | Edit business profile / hours | ✅ | ✅ | ➖ | ➖ |
 | View/share QR & booking link | ✅ | ✅ | ✅ | ➖ |
 | Manage subscription / billing | ✅ | ➖ | ➖ | ➖ |
+| Set commission rates (dated %) | ✅ | ➖ | ➖ (never — capped at view) | ➖ |
+| View commission report (whole store) | ✅ | ✅ | ➖ | ➖ |
+| View own earnings | ✅ | ✅ | 🟡 own chair, only if the owner grants it (hidden by default) | ➖ |
 | Toggle own dark-mode pref | ✅ | ✅ | ✅ | ➖ |
+
+> Commission (module `commission`, added 2026-10-02) is enforced by the code, not this aspirational
+> matrix: `backend/src/domain/permissions.ts` `GRANT_CEILING`. See
+> [staff-commission.md](./staff-commission.md).
 
 ## 4. Public / customer permissions (microsite scope)
 

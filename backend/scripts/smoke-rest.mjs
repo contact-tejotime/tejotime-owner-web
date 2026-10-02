@@ -50,6 +50,11 @@ async function main() {
   ok(bad.status === 401, 'wrong password → 401');
   const me = await call('GET', '/auth/me', { token });
   ok(me.status === 200 && me.json.user, 'GET /auth/me works');
+  // The session is the only place every role (staff cannot read GET /business) learns the
+  // store's currency — the clients' price prefixes and checkout box hardcoded ₹ without it.
+  const sessionCurrency = me.json.business?.currency;
+  ok(sessionCurrency === 'INR', `GET /auth/me carries the store currency (got ${sessionCurrency})`);
+  ok(login.json.business?.currency === sessionCurrency, 'login carries the same currency');
 
   console.log('QUEUE (read)');
   let q = await call('GET', '/queue?view=grouped', { token });
@@ -353,6 +358,11 @@ async function main() {
   const fixedBilling = await call('GET', `/queue/${fixedEntry}`, { token });
   ok(fixedBilling.json.amountRequired === false, 'a fixed service does not demand an amount');
   ok(fixedBilling.json.suggestedAmount?.amount === 35000, 'a fixed service pre-fills its price');
+  ok(
+    fixedBilling.json.serviceAmount?.currency === sessionCurrency &&
+      fixedBilling.json.suggestedAmount?.currency === sessionCurrency,
+    'checkout billing is in the same currency the session reports',
+  );
   const fixedOut = await call('POST', `/queue/${fixedEntry}/checkout`, { token });
   ok(fixedOut.status === 200, 'fixed-price checkout still derives its total from an empty body');
 
