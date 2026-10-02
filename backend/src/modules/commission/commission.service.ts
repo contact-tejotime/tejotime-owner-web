@@ -9,26 +9,43 @@ import {
   Segment,
   StaffRef,
   buildSegments,
-  shiftDay,
   summarizeCommission,
 } from '../../lib/commission';
 import { ReportQuery, addDays, businessToday, resolveReportWindow } from '../../lib/report-window';
+import { dayjs } from '../../lib/time';
 
 /**
- * Commission reports and pay rates. See docs/staff-commission.md and migration 0034.
+ * Commission reports and pay rates. See docs/staff-commission.md and migration 0035.
  *
  * Every figure here is read through the `visit_commission` view, which prices each visit at the
- * rate of its own store-local day — so "20% from 02/10, 30% from 16/10" pays the first fortnight
- * at 20% in every report, forever, however many times the rate changes afterwards. History stays
- * that way because this module is the only writer of rates and refuses any day already over.
+ * latest rate whose start instant is at or before checkout. Saving 20% at 1pm does not pay the
+ * morning, and changing it to 30% at 4pm does not reprice visits already paid at 20%. A future
+ * day still starts at midnight in the store's timezone, because nothing has been checked out yet.
+ * A rate that has already started cannot be edited or deleted — changing it is a new row at now().
  *
- * Dates go in and out as `YYYY-MM-DD` text: `date` columns are always selected `::text`, because
- * db/pool registers no type parser and node-pg would otherwise hand back a JS Date at the API
- * server's local midnight — a day early on any machine east of UTC.
+ * Instants leave the database as `timestamptz` (a JS Date) and are normalised to UTC ISO here.
+ * Clients never see that: every display field is a store-local wall time `YYYY-MM-DDTHH:mm`.
  */
 
 /** How far ahead a change of rate can be scheduled. */
 const MAX_SCHEDULE_DAYS = 365;
+
+/** `timestamptz` comes back as a Date; tests hand back an ISO string. Either becomes UTC ISO. */
+function asInstant(value: Date | string | null | undefined): string | null {
+  if (value == null) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** Store-local wall clock for a client that must not learn the timezone. */
+function wall(iso: string, tz: string): string {
+  return dayjs(iso).tz(tz).format('YYYY-MM-DDTHH:mm');
+}
+
+/** Midnight at the start of a store-local day, as UTC ISO. */
+function storeMidnight(day: string, tz: string): string {
+  return dayjs.tz(day, tz).startOf('day').utc().toISOString();
+}
 
 interface Store {
   timezone: string;
@@ -57,14 +74,14 @@ async function loadBuckets(
   const rows = await many<{
     staff_id: string | null;
     rate_bp: number | null;
-    rate_from: string | null;
+    rate_from: Date | string | null;
     visits: number;
     revenue: string;
     commission: string;
   }>(
     `select vc.staff_id,
             vc.rate_bp,
-            vc.rate_from::text as rate_from,
+            vc.rate_from,
             count(*)::int as visits,
             coalesce(sum(vc.amount_paise), 0)::bigint as revenue,
             coalesce(sum(vc.commission_paise), 0)::bigint as commission
@@ -78,7 +95,7 @@ async function loadBuckets(
   return rows.map((r) => ({
     staffId: r.staff_id,
     rateBp: r.rate_bp,
-    rateFrom: r.rate_from,
+    rateFrom: asInstant(r.rate_from),
     visits: Number(r.visits),
     revenue: Number(r.revenue),
     commission: Number(r.commission),
@@ -86,14 +103,17 @@ async function loadBuckets(
 }
 
 async function loadRates(businessId: string, staffId: string | null): Promise<RateRow[]> {
-  const rows = await many<{ staff_id: string; rate_bp: number; effective_from: string }>(
-    `select staff_id, rate_bp, effective_from::text as effective_from
+  const rows = await many<{ staff_id: string; rate_bp: number; effective_at: Date | string }>(
+    `select staff_id, rate_bp, effective_at
        from staff_commission_rate
       where business_id = $1${staffId ? ' and staff_id = $2' : ''}
-      order by staff_id, effective_from`,
+      order by staff_id, effective_at`,
     staffId ? [businessId, staffId] : [businessId],
   );
-  return rows.map((r) => ({ staffId: r.staff_id, rateBp: r.rate_bp, effectiveFrom: r.effective_from }));
+  return rows.flatMap((r) => {
+    const effectiveFrom = asInstant(r.effective_at);
+    return effectiveFrom ? [{ staffId: r.staff_id, rateBp: r.rate_bp, effectiveFrom }] : [];
+  });
 }
 
 async function loadStaff(businessId: string, staffId: string | null): Promise<StaffRef[]> {
@@ -134,8 +154,17 @@ export async function summary(businessId: string, query: Partial<ReportQuery>, s
     loadRates(businessId, scopeStaff),
   ]);
   const scope = scopeStaff ? 'self' : 'store';
-  const s = summarizeCommission({ buckets, staff, rates, window: w, today: w.today, scope });
+  const now = new Date().toISOString();
+  const s = summarizeCommission({
+    buckets,
+    staff,
+    rates,
+    window: { startIso: w.startIso, endIso: w.endIso },
+    now,
+    scope,
+  });
   const m = (amount: number) => money(amount, store.currency);
+  const local = (iso: string) => wall(iso, store.timezone);
 
   return {
     range: w.range,
@@ -159,16 +188,16 @@ export async function summary(businessId: string, query: Partial<ReportQuery>, s
       commission: m(row.commission),
       unratedVisits: row.unratedVisits,
       currentRateBp: row.currentRateBp,
-      currentRateFrom: row.currentRateFrom,
-      nextRate: row.nextRate,
-      segments: row.segments.map((seg) => segmentDTO(seg, store.currency)),
+      currentRateFrom: row.currentRateFrom ? local(row.currentRateFrom) : null,
+      nextRate: row.nextRate ? { rateBp: row.nextRate.rateBp, from: local(row.nextRate.from) } : null,
+      segments: row.segments.map((seg) => ({ ...segmentDTO(seg, store.currency), from: local(seg.from), to: local(seg.to) })),
     })),
     unassigned: s.unassigned ? { visits: s.unassigned.visits, revenue: m(s.unassigned.revenue) } : null,
   };
 }
 
 /**
- * One stylist's visits in a period, each with the rate of its day and what it earned.
+ * One stylist's visits in a period, each with the rate in force at checkout and what it earned.
  * The caller has already decided whose visits these may be (a staff login: only its own).
  */
 export async function visits(
@@ -235,7 +264,11 @@ export async function visits(
       revenue: m(buckets.reduce((n, b) => n + b.revenue, 0)),
       commission: m(buckets.reduce((n, b) => n + b.commission, 0)),
     },
-    segments: buildSegments(buckets, rates, w).map((seg) => segmentDTO(seg, store.currency)),
+    segments: buildSegments(buckets, rates, { startIso: w.startIso, endIso: w.endIso }).map((seg) => ({
+      ...segmentDTO(seg, store.currency),
+      from: wall(seg.from, store.timezone),
+      to: wall(seg.to, store.timezone),
+    })),
     data: rows.map((r) => ({
       id: r.visit_id,
       completedAt: r.completed_at,
@@ -259,29 +292,35 @@ export async function visits(
 
 interface RateItem {
   rateBp: number;
+  /** UTC instant. This is what DELETE sends back. */
   from: string;
-  /** Last day this rate applies, or null while it is the latest. */
+  /** Store-local `YYYY-MM-DDTHH:mm` for display. */
+  fromLocal: string;
+  /** The next rate's UTC instant, or null while this is the latest. */
   to: string | null;
-  /** Today's and future rows can still be replaced or removed; earlier days are locked. */
+  toLocal: string | null;
+  /** Only a rate that has not started yet can be removed. A started rate is changed by saving a new one. */
   editable: boolean;
 }
 
 /** A stylist's rate rows (ascending) split into what is in force, what is coming and what was. */
-function rateView(rates: RateRow[], today: string) {
+function rateView(rates: RateRow[], now: string, tz: string) {
   const sorted = [...rates].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
   const items: RateItem[] = sorted.map((r, i) => {
     const next = sorted[i + 1];
     return {
       rateBp: r.rateBp,
       from: r.effectiveFrom,
-      to: next ? shiftDay(next.effectiveFrom, -1) : null,
-      editable: r.effectiveFrom >= today,
+      fromLocal: wall(r.effectiveFrom, tz),
+      to: next ? next.effectiveFrom : null,
+      toLocal: next ? wall(next.effectiveFrom, tz) : null,
+      editable: r.effectiveFrom > now,
     };
   });
-  const started = items.filter((i) => i.from <= today);
+  const started = items.filter((i) => i.from <= now);
   return {
     current: started[started.length - 1] ?? null,
-    upcoming: items.filter((i) => i.from > today),
+    upcoming: items.filter((i) => i.from > now),
     // Most recent first; a long-serving stylist's whole career is not needed on one sheet.
     history: started.slice(0, -1).reverse().slice(0, 12),
   };
@@ -290,6 +329,7 @@ function rateView(rates: RateRow[], today: string) {
 export async function listRates(businessId: string) {
   const store = await loadStore(businessId);
   const today = businessToday(store.timezone);
+  const now = new Date().toISOString();
   const [staff, rates] = await Promise.all([
     many<{ id: string; name: string }>(
       'select id, name from staff where business_id = $1 and is_active order by position, name',
@@ -304,13 +344,14 @@ export async function listRates(businessId: string) {
       name: s.name,
       ...rateView(
         rates.filter((r) => r.staffId === s.id),
-        today,
+        now,
+        store.timezone,
       ),
     })),
   };
 }
 
-/** The stylist being changed, with the store's today. Removed or foreign chairs are a 404. */
+/** The stylist being changed, with the store's today and timezone. Removed or foreign chairs are a 404. */
 async function staffForWrite(businessId: string, staffId: string) {
   const row = await one<{ id: string; name: string; is_active: boolean; timezone: string | null }>(
     `select s.id, s.name, s.is_active, b.timezone
@@ -320,24 +361,33 @@ async function staffForWrite(businessId: string, staffId: string) {
     [staffId, businessId],
   );
   if (!row || !row.is_active) throw Errors.notFound('Staff member not found');
-  return { id: row.id, name: row.name, today: businessToday(row.timezone) };
+  const timezone = row.timezone || env.DEFAULT_TIMEZONE;
+  return { id: row.id, name: row.name, today: businessToday(timezone), timezone };
 }
 
-async function rateEntry(businessId: string, staff: { id: string; name: string; today: string }) {
+async function rateEntry(businessId: string, staff: { id: string; name: string; today: string; timezone: string }) {
   const rates = await loadRates(businessId, staff.id);
   return {
     today: staff.today,
-    data: { staffId: staff.id, name: staff.name, ...rateView(rates, staff.today) },
+    data: {
+      staffId: staff.id,
+      name: staff.name,
+      ...rateView(rates, new Date().toISOString(), staff.timezone),
+    },
   };
 }
 
-/** A day already over keeps the rate it was paid at — that is the whole point of dated rates. */
+/** A day already over, or a rate that has already started, is history. */
 const rateLocked = () =>
-  Errors.conflict('COMMISSION_RATE_LOCKED', 'That day is over — a rate can start today or later');
+  Errors.conflict(
+    'COMMISSION_RATE_LOCKED',
+    'That rate has already started — a change starts from now, and only a future rate can be removed',
+  );
 
 /**
- * Set a stylist's rate from a day (default: the store's today). Saving again for the same day
- * replaces it — and since today is not over, today's visits so far are re-priced with it.
+ * Set a stylist's rate. Today's date, or none, starts at now() — a new row, so visits already
+ * checked out keep the previous rate. A future day starts at midnight in the store's timezone
+ * and replaces only that scheduled instant.
  */
 export async function setRate(
   principal: Principal,
@@ -350,26 +400,35 @@ export async function setRate(
   if (from > addDays(staff.today, MAX_SCHEDULE_DAYS)) {
     throw Errors.validation('A rate can be scheduled at most a year ahead');
   }
-  await exec(
-    `insert into staff_commission_rate (business_id, staff_id, rate_bp, effective_from, set_by_user_id)
-     values ($1, $2, $3, $4::date, $5)
-     on conflict (staff_id, effective_from)
-     do update set rate_bp = excluded.rate_bp,
-                   set_by_user_id = excluded.set_by_user_id,
-                   updated_at = now()`,
-    [principal.businessId, staffId, body.rateBp, from, principal.userId],
-  );
+  if (from === staff.today) {
+    await exec(
+      `insert into staff_commission_rate (business_id, staff_id, rate_bp, effective_at, set_by_user_id)
+       values ($1, $2, $3, now(), $4)`,
+      [principal.businessId, staffId, body.rateBp, principal.userId],
+    );
+  } else {
+    await exec(
+      `insert into staff_commission_rate (business_id, staff_id, rate_bp, effective_at, set_by_user_id)
+       values ($1, $2, $3, $4::timestamptz, $5)
+       on conflict (staff_id, effective_at)
+       do update set rate_bp = excluded.rate_bp,
+                     set_by_user_id = excluded.set_by_user_id,
+                     updated_at = now()`,
+      [principal.businessId, staffId, body.rateBp, storeMidnight(from, staff.timezone), principal.userId],
+    );
+  }
   return rateEntry(principal.businessId, staff);
 }
 
-/** Remove a rate that has not started yet (a scheduled change), or today's. */
+/** Remove a rate that has not started yet. One that has already started is history. */
 export async function deleteRate(principal: Principal, staffId: string, effectiveFrom: string) {
   const staff = await staffForWrite(principal.businessId, staffId);
-  if (effectiveFrom < staff.today) throw rateLocked();
+  if (new Date(effectiveFrom).getTime() <= Date.now()) throw rateLocked();
   const removed = await exec(
-    'delete from staff_commission_rate where business_id = $1 and staff_id = $2 and effective_from = $3::date',
+    `delete from staff_commission_rate
+      where business_id = $1 and staff_id = $2 and effective_at = $3::timestamptz and effective_at > now()`,
     [principal.businessId, staffId, effectiveFrom],
   );
-  if (!removed) throw Errors.notFound('No rate starts on that day');
+  if (!removed) throw Errors.notFound('No rate starts at that time');
   return rateEntry(principal.businessId, staff);
 }

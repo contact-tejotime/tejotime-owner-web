@@ -39,6 +39,8 @@ const pick = (lib: typeof appLib | typeof webLib) => ({
   shiftDayKey: lib.shiftDayKey,
   formatDayKey: lib.formatDayKey,
   formatDayRange: lib.formatDayRange,
+  formatWhen: lib.formatWhen,
+  formatWhenRange: lib.formatWhenRange,
   formatClock: lib.formatClock,
   reportQueryString: lib.reportQueryString,
 });
@@ -96,6 +98,11 @@ both('formatDayKey', ['2026-10-16', { weekday: true }], 'Fri, 16 Oct');
 both('formatDayKey', ['2026-10-02', { year: true }], '2 Oct 2026');
 both('formatDayRange', ['2026-10-02', '2026-10-15'], '2 Oct – 15 Oct');
 both('formatDayRange', ['2026-10-16', '2026-10-16'], '16 Oct');
+both('formatWhen', ['2026-10-02'], '2 Oct');
+both('formatWhen', ['2026-10-02T13:05', { year: true }], '2 Oct 2026, 1:05 PM');
+both('formatWhen', ['2026-10-02T00:00'], '2 Oct, 12:00 AM');
+both('formatWhenRange', ['2026-10-02T13:00', '2026-10-02T16:00'], '2 Oct, 1:00 PM – 2 Oct, 4:00 PM');
+both('formatWhenRange', ['2026-10-02T13:05', '2026-10-02T13:05'], '2 Oct, 1:05 PM');
 both('formatClock', ['00:30'], '12:30 AM');
 both('formatClock', ['09:05'], '9:05 AM');
 both('formatClock', ['12:00'], '12:00 PM');

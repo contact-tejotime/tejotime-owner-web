@@ -10,8 +10,9 @@ import { EditSheet } from "@/components/store-settings/EditSheet";
 import { SbEmpty, SbField } from "@/components/store-settings/ui";
 import {
   formatDayKey,
-  formatDayRange,
   formatRate,
+  formatWhen,
+  formatWhenRange,
   isDayKey,
   parseRateInput,
   rateInputValue,
@@ -23,14 +24,13 @@ import { showToast } from "@/lib/toast";
 /**
  * Commission rates — the web twin of the app's settings/commission.tsx + CommissionEditSheet.
  *
- * A rate is dated: it applies to every visit from the start of the day it begins, in the store's
- * timezone, until the next one. "20% from 2 Oct, 30% from 16 Oct" pays the first fortnight at 20%
- * for ever — the reports never re-price a day that is over. So:
+ * A rate starts at an instant. Choosing today means "from now" — visits already checked out keep
+ * the earlier rate, or none. A later day starts at midnight in the store's timezone. A rate that
+ * has already started cannot be removed; saving again starts a new instant. So:
  *
  *  - the start date defaults to the store's today (from the API, never this browser's clock — the
  *    owner may be travelling, and the server renders in UTC) and cannot be earlier;
- *  - saving again for the same day replaces that day's rate;
- *  - a scheduled change, or today's, can be removed; earlier rates are history and are locked.
+ *  - a future scheduled rate can be removed; one that has started is history and is locked.
  *
  * The API enforces every one of these (409 COMMISSION_RATE_LOCKED); this screen only explains them.
  */
@@ -108,8 +108,8 @@ export function CommissionEditor({ rates }: { rates: CommissionRates }) {
         {rates.data.map((s) => {
           const next = s.upcoming[0];
           const sub = [
-            s.current ? format(t.commission.since, { rate: formatRate(s.current.rateBp), day: formatDayKey(s.current.from) }) : t.commission.noRate,
-            next ? format(t.commission.from, { rate: formatRate(next.rateBp), day: formatDayKey(next.from) }) : null,
+            s.current ? format(t.commission.since, { rate: formatRate(s.current.rateBp), day: formatWhen(s.current.fromLocal) }) : t.commission.noRate,
+            next ? format(t.commission.from, { rate: formatRate(next.rateBp), day: formatWhen(next.fromLocal) }) : null,
           ]
             .filter(Boolean)
             .join(" · ");
@@ -204,7 +204,7 @@ function RateForm({
           {staff.current
             ? format(t.commission.since, {
                 rate: formatRate(staff.current.rateBp),
-                day: formatDayKey(staff.current.from, { year: true }),
+                day: formatWhen(staff.current.fromLocal, { year: true }),
               })
             : t.commission.noRate}
         </span>
@@ -229,7 +229,13 @@ function RateForm({
       <SbField
         id="cm-from"
         label={t.commission.startsLabel}
-        hint={isDayKey(from) ? format(t.commission.startsHint, { day: formatDayKey(from, { weekday: true, year: true }) }) : undefined}
+        hint={
+          from === today
+            ? t.commission.startsNowHint
+            : isDayKey(from)
+              ? format(t.commission.startsHint, { day: formatDayKey(from, { weekday: true, year: true }) })
+              : undefined
+        }
         error={fromError}
       >
         <input
@@ -257,7 +263,7 @@ function RateForm({
             {removable.map((r) => (
               <li key={r.from} className="cm-list-row">
                 <span className="cm-list-text">
-                  {format(t.commission.from, { rate: formatRate(r.rateBp), day: formatDayKey(r.from, { year: true }) })}
+                  {format(t.commission.from, { rate: formatRate(r.rateBp), day: formatWhen(r.fromLocal, { year: true }) })}
                 </span>
                 {confirming === r.from ? (
                   <span className="cm-confirm">
@@ -287,7 +293,7 @@ function RateForm({
             {staff.history.map((r) => (
               <li key={r.from} className="cm-list-row is-locked">
                 <span className="cm-list-text">
-                  {`${formatRate(r.rateBp)} · ${r.to ? formatDayRange(r.from, r.to) : formatDayKey(r.from)}`}
+                  {`${formatRate(r.rateBp)} · ${r.toLocal ? formatWhenRange(r.fromLocal, r.toLocal) : formatWhen(r.fromLocal)}`}
                 </span>
                 <Icon name="lock" size={14} className="cm-lock" />
               </li>

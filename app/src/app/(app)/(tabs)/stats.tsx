@@ -18,7 +18,7 @@ import { DateRangeSheet } from '@/components/feedback/DateRangeSheet';
 import { useTabContent } from '@/hooks/useResponsive';
 import { format, plural, t } from '@/i18n';
 import { Icon, type IconName } from '@/components/ui/Icon';
-import { formatDayKey, formatDayRange, formatRate, type CommissionStaffRow } from '@/lib/commission';
+import { formatDayRange, formatRate, formatWhen, type CommissionStaffRow } from '@/lib/commission';
 import { segmentBreakdown } from '@/lib/commission-text';
 import { dayKeyOf } from '@/lib/date-grid';
 import { can } from '@/lib/permissions';
@@ -545,7 +545,7 @@ export default function Stats() {
                   {own.currentRateBp != null && own.currentRateFrom
                     ? format(t.stats.yourRate, {
                         rate: formatRate(own.currentRateBp),
-                        day: formatDayKey(own.currentRateFrom, { year: true }),
+                        day: formatWhen(own.currentRateFrom, { year: true }),
                       })
                     : t.stats.yourRateNone}
                 </TText>

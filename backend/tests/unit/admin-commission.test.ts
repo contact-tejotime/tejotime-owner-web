@@ -56,7 +56,7 @@ describe('admin commission view', { timeout: 30_000 }, () => {
       if (/from visit_commission/.test(sql)) {
         return [{ staff_id: 's1', rate_bp: 2000, rate_from: '2026-01-01', visits: 2, revenue: '100000', commission: '20000' }];
       }
-      if (/from staff_commission_rate/.test(sql)) return [{ staff_id: 's1', rate_bp: 2000, effective_from: '2026-01-01' }];
+      if (/from staff_commission_rate/.test(sql)) return [{ staff_id: 's1', rate_bp: 2000, effective_at: '2026-01-01T00:00:00.000Z' }];
       if (/from staff/.test(sql)) return [{ id: 's1', name: 'John', is_active: true }];
       return [];
     });

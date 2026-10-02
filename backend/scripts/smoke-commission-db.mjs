@@ -1,8 +1,8 @@
 // Migration 0034 (staff commission), exercised against a REAL migrated Postgres.
 //
 // WHY THIS IS NOT PART OF smoke-commission.mjs
-//   The rule under test is about PAST days — "20% from 02/10, 30% from 16/10: every visit keeps
-//   the rate of its own day" — and the API deliberately refuses to create a rate dated in the
+//   The rule under test is about instants — "20% from 02/10 00:00, 30% from 16/10 00:00, and a
+//   rate saved at 13:00 does not pay 11:00" — and the API deliberately refuses to create a rate dated in the
 //   past or to move the clock. So this inserts dated rates and visits directly and reads them
 //   back through the `visit_commission` view, which is the one place commission is computed.
 //
@@ -67,7 +67,7 @@ async function main() {
     const [{ id: lisa }] = await q(`insert into staff (business_id, name) values ($1, 'Lisa') returning id`, [biz]);
 
     const rate = (staff, bp, from) =>
-      q(`insert into staff_commission_rate (business_id, staff_id, rate_bp, effective_from) values ($1, $2, $3, $4)`,
+      q(`insert into staff_commission_rate (business_id, staff_id, rate_bp, effective_at) values ($1, $2, $3, $4::timestamptz)`,
         [biz, staff, bp, from]);
     const visit = async (staff, paise, at, label) => {
       const [{ id }] = await q(
@@ -80,7 +80,8 @@ async function main() {
     /** One visit read back through the view. Dates come back as text: see the migration header. */
     const read = async (id) => {
       const [r] = await q(
-        `select rate_bp, commission_paise, local_date::text as local_date, rate_from::text as rate_from
+        `select rate_bp, commission_paise, local_date::text as local_date,
+                to_char(rate_from at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as rate_from
            from visit_commission where business_id = $1 and visit_id = $2`,
         [biz, id],
       );
@@ -92,9 +93,9 @@ async function main() {
       };
     };
 
-    console.log("THE USER'S EXAMPLE: 20% from 02/10/2026, 30% from 16/10/2026 (store in IST)");
-    await rate(john, 2000, '2026-10-02');
-    await rate(john, 3000, '2026-10-16');
+    console.log("20% from 02/10 00:00 IST, 30% from 16/10 00:00 IST");
+    await rate(john, 2000, '2026-10-01T18:30:00Z');
+    await rate(john, 3000, '2026-10-15T18:30:00Z');
 
     const v1 = await visit(john, 50000, '2026-10-01T06:30:00Z', 'before any rate'); //    01/10 12:00 IST
     const v2 = await visit(john, 50000, '2026-10-01T18:35:00Z', 'first minutes of 02/10'); // 02/10 00:05 IST
@@ -114,7 +115,7 @@ async function main() {
     r = await read(v4);
     ok(r.day === '2026-10-16', `16/10 00:30 IST is store day 16/10 although its UTC date is 15/10 (got ${r.day})`);
     ok(r.rate === 3000 && r.commission === 30000, `16/10 ₹1,000 → 30% = ₹300 (got ${r.rate}, ${r.commission})`);
-    ok(r.from === '2026-10-16', `…and reports the rate's start day (got ${r.from})`);
+    ok(r.from === '2026-10-15T18:30:00Z', `…and reports the rate's start instant (got ${r.from})`);
     r = await read(v5);
     ok(r.commission === 302, `₹10.05 × 30% = 301.5 paise rounds half away from zero to 302 (got ${r.commission})`);
     r = await read(v6);
@@ -143,27 +144,40 @@ async function main() {
       `salon keeps = revenue − commission = ${411005 - 60302} (got ${Number(store.revenue) - Number(store.commission)})`);
 
     console.log('HISTORY STAYS PUT: a later rate never reaches back');
-    await rate(john, 4000, '2026-10-25');
+    await rate(john, 4000, '2026-10-24T18:30:00Z');
     const after = await Promise.all([v2, v3, v4, v5].map(read));
     ok(after.map((x) => x.commission).join(',') === '10000,20000,30000,302',
       `adding 40% from 25/10 leaves 02/10–20/10 untouched (got ${after.map((x) => x.commission).join(',')})`);
 
-    console.log('SAME-DAY REPLACE AND DELETE: the day re-prices, nothing else does');
-    await q(`update staff_commission_rate set rate_bp = 2500 where staff_id = $1 and effective_from = '2026-10-16'`, [john]);
-    ok((await read(v4)).commission === 25000, `replacing 16/10's rate with 25% re-prices 16/10 (got ${(await read(v4)).commission})`);
-    ok((await read(v3)).commission === 20000, '…and not 15/10');
-    await q(`delete from staff_commission_rate where staff_id = $1 and effective_from = '2026-10-16'`, [john]);
+    console.log('EDITING A STORED INSTANT REPRICES ONLY VISITS AFTER IT');
+    await q(`update staff_commission_rate set rate_bp = 2500 where staff_id = $1 and effective_at = '2026-10-15T18:30:00Z'`, [john]);
+    ok((await read(v4)).commission === 25000, `changing the 16/10 00:00 row to 25% re-prices that instant onward (got ${(await read(v4)).commission})`);
+    ok((await read(v3)).commission === 20000, '…and not a visit from before it');
+    await q(`delete from staff_commission_rate where staff_id = $1 and effective_at = '2026-10-15T18:30:00Z'`, [john]);
     r = await read(v4);
-    ok(r.rate === 2000 && r.commission === 20000, `deleting the 16/10 row falls back to the 20% before it (got ${r.rate}, ${r.commission})`);
+    ok(r.rate === 2000 && r.commission === 20000, `deleting that row falls back to the 20% before it (got ${r.rate}, ${r.commission})`);
+
+    console.log('A RATE SAVED AT 13:00 DOES NOT PAY 11:00, AND A 16:00 CHANGE DOES NOT REPRICE 14:00');
+    const [{ id: lalu }] = await q(`insert into staff (business_id, name) values ($1, 'Lalu') returning id`, [biz]);
+    await rate(lalu, 2000, '2026-10-02T07:30:00Z'); // 13:00 IST
+    await rate(lalu, 3000, '2026-10-02T10:30:00Z'); // 16:00 IST
+    const morning = await visit(lalu, 100000, '2026-10-02T05:30:00Z', '11:00 IST, before the rate');
+    const afternoon = await visit(lalu, 100000, '2026-10-02T08:30:00Z', '14:00 IST, under 20%');
+    const evening = await visit(lalu, 100000, '2026-10-02T11:30:00Z', '17:00 IST, under 30%');
+    ok((await read(morning)).commission === null, '11:00 has no commission');
+    ok((await read(afternoon)).rate === 2000 && (await read(afternoon)).commission === 20000, '14:00 stays at 20% after the 16:00 change');
+    ok((await read(evening)).rate === 3000 && (await read(evening)).commission === 30000, '17:00 is 30%');
 
     console.log('CONSTRAINTS');
-    const dup = await sqlState(() => rate(john, 3300, '2026-10-02'));
-    ok(dup === '23505', `one rate per stylist per day — a second row for 02/10 is refused (got ${dup})`);
-    const big = await sqlState(() => rate(john, 10001, '2026-11-01'));
+    const dup = await sqlState(() => rate(john, 3300, '2026-10-01T18:30:00Z'));
+    ok(dup === '23505', `one rate per stylist per instant — the same timestamp is refused (got ${dup})`);
+    const second = await sqlState(() => rate(john, 2200, '2026-10-02T07:30:00Z'));
+    ok(second === null, 'a second rate later the same day is allowed');
+    const big = await sqlState(() => rate(john, 10001, '2026-10-31T18:30:00Z'));
     ok(big === '23514', `a rate above 100% is refused (got ${big})`);
-    const neg = await sqlState(() => rate(john, -1, '2026-11-01'));
+    const neg = await sqlState(() => rate(john, -1, '2026-10-31T18:30:00Z'));
     ok(neg === '23514', `a negative rate is refused (got ${neg})`);
-    const zero = await sqlState(() => rate(lisa, 0, '2026-10-01'));
+    const zero = await sqlState(() => rate(lisa, 0, '2026-09-30T18:30:00Z'));
     ok(zero === null, '0% is a valid explicit rate (e.g. a stylist moved to salary)');
     ok((await read(v7)).commission === 0, `…and earns 0, not "no rate" (got ${(await read(v7)).commission})`);
 
@@ -179,7 +193,7 @@ async function main() {
     console.log('DOCUMENTED BEHAVIOUR: a timezone correction re-buckets days, like every other report');
     await q(`update business set timezone = 'UTC' where id = $1`, [biz]);
     r = await read(v2);
-    ok(r.day === '2026-10-01' && r.rate === null, `in UTC the 18:35Z visit is 01/10 — before the 02/10 rate (got ${r.day}, ${r.rate})`);
+    ok(r.day === '2026-10-01' && r.rate === 2000, `the local day moves to 01/10, but the rate is an absolute instant so it stays 20% (got ${r.day}, ${r.rate})`);
     await q(`update business set timezone = 'Asia/Kolkata' where id = $1`, [biz]);
 
     console.log('CASCADES');

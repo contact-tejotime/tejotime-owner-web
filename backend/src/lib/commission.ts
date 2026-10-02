@@ -3,19 +3,22 @@
  * is (tests/unit/commission-summary.test.ts).
  *
  * The money itself is NOT computed here. Every visit's rate and commission come out of the
- * `visit_commission` view (migration 0034), which applies the rate of the visit's own store-local
- * day and rounds per visit. This file only groups those already-priced rows into the periods a
- * person reads ("₹4,000 × 20% · ₹6,000 × 30%") and adds them up, so a total is always the sum of
- * the lines it is made of — never revenue × today's rate.
+ * `visit_commission` view (migration 0035), which applies the latest rate whose start instant is
+ * at or before the visit's checkout and rounds per visit. This file only groups those
+ * already-priced rows into the periods a person reads ("₹4,000 × 20% · ₹6,000 × 30%") and adds
+ * them up, so a total is always the sum of the lines it is made of — never revenue × the rate
+ * in force now.
  *
- * All amounts are integer minor units (paise); dates are `YYYY-MM-DD` store-local days.
+ * All amounts are integer minor units (paise). Rate instants are UTC ISO strings
+ * (`2026-10-02T07:30:00.000Z`), which sort lexicographically. The service turns them into
+ * store-local wall times before they reach a client.
  */
 
 /** One `group by staff_id, rate_bp, rate_from` row out of `visit_commission` for a window. */
 export interface CommissionBucket {
   staffId: string | null;
   rateBp: number | null;
-  /** The day the rate in force began; null for visits before the stylist's first rate. */
+  /** UTC instant the rate in force began; null for visits before the stylist's first rate. */
   rateFrom: string | null;
   visits: number;
   revenue: number;
@@ -35,7 +38,7 @@ export interface StaffRef {
   isActive: boolean;
 }
 
-/** A run of consecutive days paid at one rate, inside the report window. */
+/** One stretch paid at one rate, inside the report window. `from`/`to` are UTC instants; `to` is exclusive. */
 export interface Segment {
   rateBp: number | null;
   from: string;
@@ -79,22 +82,23 @@ const later = (a: string, b: string) => (a > b ? a : b);
 const earlier = (a: string, b: string) => (a < b ? a : b);
 
 /**
- * Turn one stylist's buckets into dated periods, clipped to the window.
+ * Turn one stylist's buckets into periods, clipped to the half-open window `[startIso, endIso)`.
  *
- * A period starts on its rate's first day (or the window's first day, if that is later) and ends
- * the day before the NEXT rate begins — taken from the rate rows, not from the visits, so a rate
- * that was in force for a few days with no visits still closes the period before it correctly.
+ * A period starts at its rate's instant (or the window's start, if that is later) and ends at
+ * the NEXT rate's instant — taken from the rate rows, not from the visits, so a rate that was in
+ * force with no visits still closes the period before it. Visits before the first rate run from
+ * the window's start up to that instant.
  *
- * @param rates this stylist's rate rows, any order; rows after the window are ignored.
+ * @param rates this stylist's rate rows, any order; a rate that starts at or after `endIso` is ignored.
  */
 export function buildSegments(
   buckets: CommissionBucket[],
   rates: RateRow[],
-  window: { from: string; to: string },
+  window: { startIso: string; endIso: string },
 ): Segment[] {
   const starts = rates
     .map((r) => r.effectiveFrom)
-    .filter((d) => d <= window.to)
+    .filter((d) => d < window.endIso)
     .sort();
 
   return buckets
@@ -102,15 +106,14 @@ export function buildSegments(
       let from: string;
       let to: string;
       if (b.rateFrom == null) {
-        // Visits before the stylist's first rate: from the window's start until that rate.
-        from = window.from;
-        to = starts.length ? shiftDay(starts[0]!, -1) : window.to;
+        from = window.startIso;
+        to = starts.length ? starts[0]! : window.endIso;
       } else {
-        from = later(b.rateFrom, window.from);
+        from = later(b.rateFrom, window.startIso);
         const next = starts.find((d) => d > b.rateFrom!);
-        to = next ? shiftDay(next, -1) : window.to;
+        to = next ?? window.endIso;
       }
-      to = earlier(to, window.to);
+      to = earlier(to, window.endIso);
       if (to < from) to = from;
       return {
         rateBp: b.rateBp,
@@ -124,13 +127,31 @@ export function buildSegments(
     .sort((a, b) => a.from.localeCompare(b.from));
 }
 
-/** The rate in force on `today`, and the first change after it. */
-export function currentAndNext(rates: RateRow[], today: string) {
+/** The rate in force at `now`, and the first change after it. An instant equal to `now` is current. */
+export function currentAndNext(rates: RateRow[], now: string) {
   const sorted = [...rates].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
-  const past = sorted.filter((r) => r.effectiveFrom <= today);
+  const past = sorted.filter((r) => r.effectiveFrom <= now);
   const current = past[past.length - 1] ?? null;
-  const next = sorted.find((r) => r.effectiveFrom > today) ?? null;
+  const next = sorted.find((r) => r.effectiveFrom > now) ?? null;
   return { current, next };
+}
+
+/**
+ * What an admin store save should do with one stylist's commission box.
+ *
+ * `nextBp` null is a blank field (no rate). A blank field on a stylist who has no rate yet
+ * writes nothing. A blank field on a stylist whose rate has already started is refused — that
+ * row is history, and 0% is how an admin says "earn nothing from now on". The same percent as
+ * the rate in force writes nothing, so saving hours or a photo does not add another identical
+ * row. A different percent inserts one row at now(); a future rate the owner already scheduled
+ * is not this decision and is left where it is.
+ */
+export type StaffRateWrite = 'skip' | 'insert' | 'refuse';
+
+export function staffRateWrite(currentBp: number | null, nextBp: number | null): StaffRateWrite {
+  if (nextBp == null) return currentBp == null ? 'skip' : 'refuse';
+  if (currentBp === nextBp) return 'skip';
+  return 'insert';
 }
 
 /**
@@ -146,11 +167,12 @@ export function summarizeCommission(input: {
   buckets: CommissionBucket[];
   staff: StaffRef[];
   rates: RateRow[];
-  window: { from: string; to: string };
-  today: string;
+  window: { startIso: string; endIso: string };
+  /** UTC instant "now", so a rate saved at 1pm is not current at 11am. */
+  now: string;
   scope: 'store' | 'self';
 }): CommissionSummary {
-  const { buckets, staff, rates, window, today, scope } = input;
+  const { buckets, staff, rates, window, now, scope } = input;
 
   const byStaff = new Map<string, CommissionBucket[]>();
   for (const b of buckets) {
@@ -171,7 +193,7 @@ export function summarizeCommission(input: {
     .map((s) => {
       const own = byStaff.get(s.id) ?? [];
       const ownRates = ratesByStaff.get(s.id) ?? [];
-      const { current, next } = currentAndNext(ownRates, today);
+      const { current, next } = currentAndNext(ownRates, now);
       return {
         staffId: s.id,
         name: s.name,
