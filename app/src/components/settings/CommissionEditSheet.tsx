@@ -8,8 +8,9 @@ import { Icon } from '@/components/ui/Icon';
 import { format, t } from '@/i18n';
 import {
   formatDayKey,
-  formatDayRange,
   formatRate,
+  formatWhen,
+  formatWhenRange,
   parseRateInput,
   rateInputValue,
   shiftDayKey,
@@ -27,8 +28,8 @@ import { useTheme } from '@/theme/ThemeProvider';
  *
  * "Starts on" is an INLINE month grid, and Remove is an inline two-step confirm: this is already a
  * modal, and iOS will not present a second one over it (a date picker or ConfirmSheet opened from
- * here would never appear). The start day defaults to the store's today (from the API) and cannot
- * be earlier — days that are over keep the rate they were paid at; the API refuses them too.
+ * here would never appear). Today means "from now". A later day starts at midnight. A rate that
+ * has already started cannot be removed; the API refuses that too.
  */
 export function CommissionEditSheet({
   open,
@@ -127,7 +128,7 @@ function RateForm({
           {staff.current
             ? format(t.commission.since, {
                 rate: formatRate(staff.current.rateBp),
-                day: formatDayKey(staff.current.from, { year: true }),
+                day: formatWhen(staff.current.fromLocal, { year: true }),
               })
             : t.commission.noRate}
         </TText>
@@ -164,7 +165,9 @@ function RateForm({
           maxKey={latest}
         />
         <TText variant="caption" color="textMuted">
-          {format(t.commission.startsHint, { day: formatDayKey(from, { weekday: true, year: true }) })}
+          {from === today
+            ? t.commission.startsNowHint
+            : format(t.commission.startsHint, { day: formatDayKey(from, { weekday: true, year: true }) })}
         </TText>
       </View>
 
@@ -183,7 +186,7 @@ function RateForm({
                 key={r.from}
                 style={[s.listRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderSubtle }]}>
                 <TText variant="bodySm" color="textBody" style={styles.flex}>
-                  {format(t.commission.from, { rate: formatRate(r.rateBp), day: formatDayKey(r.from, { year: true }) })}
+                  {format(t.commission.from, { rate: formatRate(r.rateBp), day: formatWhen(r.fromLocal, { year: true }) })}
                 </TText>
                 {confirming === r.from ? (
                   <View style={s.confirm}>
@@ -222,7 +225,7 @@ function RateForm({
                 key={r.from}
                 style={[s.listRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderSubtle }]}>
                 <TText variant="bodySm" color="textMuted" style={styles.flex}>
-                  {`${formatRate(r.rateBp)} · ${r.to ? formatDayRange(r.from, r.to) : formatDayKey(r.from)}`}
+                  {`${formatRate(r.rateBp)} · ${r.toLocal ? formatWhenRange(r.fromLocal, r.toLocal) : formatWhen(r.fromLocal)}`}
                 </TText>
                 {/* Days that are over keep the rate they were paid at. */}
                 <Icon name="lock" size={14} color={colors.textSubtle} />

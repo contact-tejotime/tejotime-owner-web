@@ -257,6 +257,33 @@ describe('optional store data', { timeout: 30_000 }, () => {
       expect(bad.status).toBe(400);
       expect(createBusiness).toHaveBeenCalledTimes(1); // only the valid one got through
     });
+
+    it('accepts an optional staff commission, and refuses one above 100%', async () => {
+      createBusiness.mockResolvedValue({ id: 'b-new' });
+      const send = async (staff: object[]) =>
+        request(await app())
+          .post(ADMIN_BUSINESSES)
+          .set('authorization', `Bearer ${await adminToken()}`)
+          .send({ ...minimalStore(), staff });
+
+      const withRate = await send([{ name: 'Lalu', roleLabel: 'Hair master', rateBp: 2000 }]);
+      expect(withRate.status).toBe(201);
+      expect(createBusiness.mock.calls.at(-1)![0].staff).toEqual([
+        { name: 'Lalu', roleLabel: 'Hair master', rateBp: 2000 },
+      ]);
+
+      const blank = await send([{ name: 'Lalu', roleLabel: 'Hair master', rateBp: null }]);
+      expect(blank.status).toBe(201);
+      expect(createBusiness.mock.calls.at(-1)![0].staff[0].rateBp).toBeNull();
+
+      const omitted = await send([{ name: 'Lalu', roleLabel: 'Hair master' }]);
+      expect(omitted.status).toBe(201);
+      expect(createBusiness.mock.calls.at(-1)![0].staff[0].rateBp).toBeUndefined();
+
+      const tooHigh = await send([{ name: 'Lalu', roleLabel: 'Hair master', rateBp: 10001 }]);
+      expect(tooHigh.status).toBe(400);
+      expect(createBusiness).toHaveBeenCalledTimes(3);
+    });
   });
 
   describe('chat facts say nothing about a price the page does not show', () => {

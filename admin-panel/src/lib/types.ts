@@ -32,6 +32,30 @@ export interface StaffRow {
   name: string;
   roleLabel: string;
   avatarUrl: string; // "" when no photo
+  /**
+   * Commission as typed ("20", "37.5"). "" means no rate. Kept as text so a draft can hold a
+   * half-typed value; `toPayload` turns a finished percent into basis points.
+   */
+  commissionPercent: string;
+}
+
+/**
+ * What the admin typed into the commission box, as basis points: "20" → 2000, "37.5" → 3750,
+ * "12,25" → 1225. Null unless it is 0–100 with at most two decimals. The same reading as the
+ * owner's rate box (owner-web `parseRateInput`).
+ */
+export function parseCommissionPercent(raw: string): number | null {
+  const s = raw.trim().replace(/%$/, "").trim().replace(",", ".");
+  if (!/^\d{1,3}(\.\d{1,2})?$/.test(s)) return null;
+  const bp = Math.round(Number(s) * 100);
+  return bp >= 0 && bp <= 10000 ? bp : null;
+}
+
+/** 2000 → "20", 3750 → "37.5". Null (no rate) → "". */
+export function commissionPercentFromRateBp(bp: number | null | undefined): string {
+  if (bp == null || Number.isNaN(Number(bp))) return "";
+  const pct = Number(bp) / 100;
+  return Number.isInteger(pct) ? String(pct) : pct.toFixed(2).replace(/0$/, "");
 }
 export interface GalleryRow {
   url: string;
@@ -189,7 +213,7 @@ export const EMPTY_FORM: StoreForm = {
   amenities: [],
   gallery: [],
   services: [{ name: "", durationMinutes: 30, priceRupees: 0, priceType: "fixed", priceMaxRupees: null }],
-  staff: [{ name: "", roleLabel: "", avatarUrl: "" }],
+  staff: [{ name: "", roleLabel: "", avatarUrl: "", commissionPercent: "" }],
   faqs: [],
   reviews: [],
   ownerPhone: "",
@@ -250,7 +274,13 @@ export interface StoreDetail {
   amenities: string[];
   gallery: GalleryRow[];
   services: ServiceRow[];
-  staff: StaffRow[];
+  staff: {
+    name: string;
+    roleLabel: string;
+    avatarUrl: string;
+    /** Basis points in force now. Null when this stylist has no rate. */
+    rateBp?: number | null;
+  }[];
   faqs: FaqRow[];
   reviews: ReviewRow[];
 }
@@ -315,7 +345,14 @@ export function fromDetail(d: StoreDetail): StoreForm {
           priceMaxRupees: s.priceMaxRupees ?? null,
         }))
       : EMPTY_FORM.services,
-    staff: d.staff.length ? d.staff : EMPTY_FORM.staff,
+    staff: d.staff.length
+      ? d.staff.map((s) => ({
+          name: s.name,
+          roleLabel: s.roleLabel ?? "",
+          avatarUrl: s.avatarUrl ?? "",
+          commissionPercent: commissionPercentFromRateBp(s.rateBp),
+        }))
+      : EMPTY_FORM.staff,
     faqs: d.faqs,
     reviews: d.reviews ?? [],
     ownerPhone: d.ownerPhone ?? "",
@@ -385,7 +422,14 @@ export function draftToForm(data: Partial<StoreForm> | null | undefined): StoreF
           priceMaxRupees: s.priceMaxRupees ?? null,
         }))
       : EMPTY_FORM.services,
-    staff: form.staff.length ? form.staff : EMPTY_FORM.staff,
+    staff: form.staff.length
+      ? form.staff.map((s) => ({
+          ...s,
+          // A draft saved before this field exists has no commissionPercent; a controlled
+          // input cannot be handed undefined.
+          commissionPercent: typeof s.commissionPercent === "string" ? s.commissionPercent : "",
+        }))
+      : EMPTY_FORM.staff,
     ownerPassword: "",
   };
 }
@@ -469,11 +513,20 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
       })),
     staff: f.staff
       .filter((s) => s.name.trim())
-      .map((s) => ({
-        name: s.name.trim(),
-        roleLabel: s.roleLabel.trim() || null,
-        avatarUrl: s.avatarUrl.trim() || null,
-      })),
+      .map((s) => {
+        const raw = (s.commissionPercent ?? "").trim();
+        // onSubmit refuses a bad string first. Throwing here is the backstop: turning it into
+        // null would save "no rate" and, for a stylist who already has one, the API rejects
+        // that clear — or worse, would drop a rate if the check were ever skipped.
+        const rateBp = raw ? parseCommissionPercent(raw) : null;
+        if (raw && rateBp == null) throw new Error("Invalid commission");
+        return {
+          name: s.name.trim(),
+          roleLabel: s.roleLabel.trim() || null,
+          avatarUrl: s.avatarUrl.trim() || null,
+          rateBp,
+        };
+      }),
     faqs: f.faqs.filter((x) => x.q.trim() && x.a.trim()).map((x) => ({ q: x.q.trim(), a: x.a.trim() })),
     reviews: f.reviews
       .filter((r) => r.text.trim() && r.authorName.trim())
@@ -616,7 +669,7 @@ export interface VisitsResponse {
   meta: { shown: number; total: number; limit: number };
 }
 
-/** A run of days paid at one commission rate. `rateBp` null = no rate was set. */
+/** One stretch paid at one rate. `from`/`to` are store-local wall times. `rateBp` null = no rate was set. */
 export interface CommissionSegment {
   rateBp: number | null;
   from: string;
@@ -628,7 +681,8 @@ export interface CommissionSegment {
 
 /**
  * GET /admin/businesses/:id/commission — the store's own commission report (each visit at the rate
- * of its own day), read-only: admins never set rates. See docs/staff-commission.md.
+ * of its own day). This page does not edit rates; the current percent is on the store staff form.
+ * See docs/staff-commission.md.
  */
 export interface StoreCommission {
   from: string;

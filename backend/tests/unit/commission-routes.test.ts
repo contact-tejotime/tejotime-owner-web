@@ -63,7 +63,7 @@ function stubStore() {
       ];
     }
     if (/from staff_commission_rate/.test(sql)) {
-      return [{ staff_id: JOHN, rate_bp: 2000, effective_from: '2026-10-02' }];
+      return [{ staff_id: JOHN, rate_bp: 2000, effective_at: '2026-10-02T00:00:00.000Z' }];
     }
     if (/from staff/.test(sql)) {
       return [
@@ -193,7 +193,7 @@ describe('commission API', { timeout: 30_000 }, () => {
       expect(res.body.staff.map((s: { name: string }) => s.name)).toEqual(['John', 'Lisa']);
     });
 
-    it("sets a rate from the STORE's today when no date is given — not the UTC date", async () => {
+    it('starts a rate at now() when no date is given — not midnight, and not the UTC date', async () => {
       const res = await request(await app())
         .put(`/api/v1/commission/rates/${JOHN}`)
         .set('authorization', await token('owner'))
@@ -201,27 +201,43 @@ describe('commission API', { timeout: 30_000 }, () => {
 
       expect(res.status).toBe(200);
       const [sql, params] = exec.mock.calls[0]!;
-      expect(sql).toMatch(/on conflict \(staff_id, effective_from\)/);
-      expect(params).toEqual(['b1', JOHN, 2000, '2026-10-16', 'u1']);
+      expect(sql).toMatch(/now\(\)/);
+      expect(sql).not.toMatch(/on conflict/);
+      expect(params).toEqual(['b1', JOHN, 2000, 'u1']);
       expect(res.body.today).toBe('2026-10-16');
     });
 
-    it('schedules a future change', async () => {
+    it("saving again for today inserts another instant, so earlier visits are not repriced", async () => {
+      const res = await request(await app())
+        .put(`/api/v1/commission/rates/${JOHN}`)
+        .set('authorization', await token('owner'))
+        .send({ rateBp: 3000, effectiveFrom: '2026-10-16' });
+      expect(res.status).toBe(200);
+      const [sql] = exec.mock.calls[0]!;
+      expect(sql).toMatch(/now\(\)/);
+      expect(sql).not.toMatch(/on conflict/);
+    });
+
+    it('schedules a future change at store midnight and replaces only that instant', async () => {
       const res = await request(await app())
         .put(`/api/v1/commission/rates/${JOHN}`)
         .set('authorization', await token('co_owner'))
         .send({ rateBp: 3000, effectiveFrom: '2026-10-30' });
       expect(res.status).toBe(200);
-      expect(exec.mock.calls[0]![1]).toEqual(['b1', JOHN, 3000, '2026-10-30', 'u1']);
+      const [sql, params] = exec.mock.calls[0]!;
+      expect(sql).toMatch(/on conflict \(staff_id, effective_at\)/);
+      expect(params).toEqual(['b1', JOHN, 3000, '2026-10-29T18:30:00.000Z', 'u1']);
     });
 
-    it('cannot change a day that is over (409 COMMISSION_RATE_LOCKED)', async () => {
+    it('cannot change a day that is over, or remove a rate that has already started', async () => {
       const a = await app();
       const auth = await token('owner');
       const put = await request(a).put(`/api/v1/commission/rates/${JOHN}`).set('authorization', auth).send({ rateBp: 3000, effectiveFrom: '2026-10-15' });
       expect(put.status).toBe(409);
       expect(put.body.error.code).toBe('COMMISSION_RATE_LOCKED');
-      const del = await request(a).delete(`/api/v1/commission/rates/${JOHN}/2026-10-15`).set('authorization', auth);
+      const del = await request(a)
+        .delete(`/api/v1/commission/rates/${JOHN}/${encodeURIComponent('2026-10-15T18:29:00.000Z')}`)
+        .set('authorization', auth);
       expect(del.status).toBe(409);
       expect(exec).not.toHaveBeenCalled();
     });
@@ -257,7 +273,7 @@ describe('commission API', { timeout: 30_000 }, () => {
     it('removing a rate that does not exist is a 404', async () => {
       exec.mockImplementation(async () => 0);
       const res = await request(await app())
-        .delete(`/api/v1/commission/rates/${JOHN}/2026-10-20`)
+        .delete(`/api/v1/commission/rates/${JOHN}/${encodeURIComponent('2026-10-20T00:00:00.000Z')}`)
         .set('authorization', await token('owner'));
       expect(res.status).toBe(404);
     });

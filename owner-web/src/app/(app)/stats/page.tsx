@@ -8,8 +8,8 @@ import { Icon, type IconName } from "@/components/Icon";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { ScopeNotice } from "@/components/ScopeNotice";
 import {
-  formatDayKey,
   formatRate,
+  formatWhen,
   parseReportQuery,
   reportQueryString,
   type ReportQuery,
@@ -489,7 +489,7 @@ export default async function StatsPage({
                 {own.currentRateBp != null && own.currentRateFrom
                   ? format(t.stats.yourRate, {
                       rate: formatRate(own.currentRateBp),
-                      day: formatDayKey(own.currentRateFrom, { year: true }),
+                      day: formatWhen(own.currentRateFrom, { year: true }),
                     })
                   : t.stats.yourRateNone}
               </p>

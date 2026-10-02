@@ -102,10 +102,14 @@ export interface CommissionVisits {
 
 export interface CommissionRateItem {
   rateBp: number;
+  /** UTC instant. DELETE sends this back. */
   from: string;
-  /** Last day this rate applies; null while it is the latest. */
+  /** Store-local `YYYY-MM-DDTHH:mm` for display. */
+  fromLocal: string;
+  /** The next rate's UTC instant, or null while this is the latest. */
   to: string | null;
-  /** Today's and future rates can still be replaced or removed; earlier days are locked. */
+  toLocal: string | null;
+  /** Only a rate that has not started yet. A started rate is changed by saving a new one. */
   editable: boolean;
 }
 
@@ -183,4 +187,20 @@ export function formatClock(hhmm: string): string {
 /** "2 Oct – 15 Oct"; a single day reads "2 Oct". */
 export function formatDayRange(from: string, to: string): string {
   return from === to ? formatDayKey(from) : `${formatDayKey(from)} – ${formatDayKey(to)}`;
+}
+
+/**
+ * A store-local day or wall time from the API. "2026-10-02" → "2 Oct".
+ * "2026-10-02T13:05" → "2 Oct, 1:05 PM". Nothing here converts a timezone.
+ */
+export function formatWhen(value: string, opts: { year?: boolean } = {}): string {
+  const m = /^(\d{4}-\d{2}-\d{2})(?:T(\d{2}:\d{2}))?/.exec(value);
+  if (!m || !isDayKey(m[1]!)) return value;
+  const day = formatDayKey(m[1]!, opts);
+  return m[2] ? `${day}, ${formatClock(m[2])}` : day;
+}
+
+/** "2 Oct, 1:05 PM – 2 Oct, 4:00 PM"; one instant reads as itself. */
+export function formatWhenRange(from: string, to: string): string {
+  return from === to ? formatWhen(from) : `${formatWhen(from)} – ${formatWhen(to)}`;
 }

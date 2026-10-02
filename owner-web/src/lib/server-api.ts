@@ -325,7 +325,7 @@ export interface DashboardByStaff {
 
 /* Commission — backend/src/modules/commission. Rates are basis points (2000 = 20%). */
 
-/** A run of days paid at one rate inside the period. `rateBp` null = no rate was set. */
+/** One stretch paid at one rate. `from`/`to` are store-local wall times `YYYY-MM-DDTHH:mm`. */
 export interface CommissionSegment {
   rateBp: number | null;
   from: string;
@@ -346,7 +346,7 @@ export interface CommissionStaffRow {
   unratedVisits: number;
   currentRateBp: number | null;
   currentRateFrom: string | null;
-  /** The next scheduled change; owners only (null in a stylist's own view). */
+  /** The next scheduled change, as a store-local wall time. Owners only. */
   nextRate: { rateBp: number; from: string } | null;
   segments: CommissionSegment[];
 }
@@ -394,10 +394,14 @@ export interface CommissionVisits {
 
 export interface CommissionRateItem {
   rateBp: number;
+  /** UTC instant. DELETE sends this back. */
   from: string;
-  /** Last day this rate applies; null while it is the latest. */
+  /** Store-local `YYYY-MM-DDTHH:mm` for display. */
+  fromLocal: string;
+  /** The next rate's UTC instant, or null while this is the latest. */
   to: string | null;
-  /** Today's and future rates can still be replaced or removed; earlier days are locked. */
+  toLocal: string | null;
+  /** Only a rate that has not started yet. A started rate is changed by saving a new one. */
   editable: boolean;
 }
 

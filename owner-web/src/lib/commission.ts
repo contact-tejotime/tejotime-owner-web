@@ -101,3 +101,19 @@ export function formatClock(hhmm: string): string {
 export function formatDayRange(from: string, to: string): string {
   return from === to ? formatDayKey(from) : `${formatDayKey(from)} – ${formatDayKey(to)}`;
 }
+
+/**
+ * A store-local day or wall time from the API. "2026-10-02" → "2 Oct".
+ * "2026-10-02T13:05" → "2 Oct, 1:05 PM". Nothing here converts a timezone.
+ */
+export function formatWhen(value: string, opts: { year?: boolean } = {}): string {
+  const m = /^(\d{4}-\d{2}-\d{2})(?:T(\d{2}:\d{2}))?/.exec(value);
+  if (!m || !isDayKey(m[1]!)) return value;
+  const day = formatDayKey(m[1]!, opts);
+  return m[2] ? `${day}, ${formatClock(m[2])}` : day;
+}
+
+/** "2 Oct, 1:05 PM – 2 Oct, 4:00 PM"; one instant reads as itself. */
+export function formatWhenRange(from: string, to: string): string {
+  return from === to ? formatWhen(from) : `${formatWhen(from)} – ${formatWhen(to)}`;
+}
