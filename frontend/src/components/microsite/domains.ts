@@ -8,14 +8,15 @@
  * from the store's category.
  *
  * Matching is by the `business_category` lookup values the admin panel already stores
- * ("Salon & Barber", "Hospital", …), lowercased and substring-matched so a new category like
- * "Dental Clinic" still lands on the clinic profile rather than falling back to generic.
+ * ("Salon & Barber", "Hospital", …), through `familyFor` (lib/store-family.ts) — the same matcher
+ * the setup screens use, so the ready-made gallery headings they offer are this page's.
  *
  * Anything not listed falls through to DEFAULT_DOMAIN, which is the current salon wording —
  * so a category nobody has profiled yet renders exactly as it does today.
  */
 
 import { t, format } from "@/i18n";
+import { familyFor, type StoreFamily } from "@/lib/store-family";
 
 /** Sections whose order varies by domain. Everything else keeps its fixed position. */
 export type DomainSection = "live" | "services" | "about" | "gallery" | "reviews";
@@ -53,9 +54,9 @@ export const DEFAULT_DOMAIN: DomainProfile = {
   ctaHeading: t.domains.generic.ctaHeading,
 };
 
-const PROFILES: { match: string[]; profile: DomainProfile }[] = [
+const PROFILES: { family: Exclude<StoreFamily, "generic">; profile: DomainProfile }[] = [
   {
-    match: ["salon", "barber", "beauty", "parlour", "parlor", "spa", "nail", "tattoo"],
+    family: "beauty",
     profile: {
       ...DEFAULT_DOMAIN,
       id: "beauty",
@@ -70,7 +71,7 @@ const PROFILES: { match: string[]; profile: DomainProfile }[] = [
     },
   },
   {
-    match: ["hospital", "clinic", "dental", "dentist", "medical", "health", "diagnostic", "pet"],
+    family: "clinic",
     profile: {
       ...DEFAULT_DOMAIN,
       id: "clinic",
@@ -87,7 +88,7 @@ const PROFILES: { match: string[]; profile: DomainProfile }[] = [
     },
   },
   {
-    match: ["restaurant", "cafe", "coffee", "bakery", "food", "dhaba", "bar", "kitchen"],
+    family: "food",
     profile: {
       ...DEFAULT_DOMAIN,
       id: "food",
@@ -103,7 +104,7 @@ const PROFILES: { match: string[]; profile: DomainProfile }[] = [
     },
   },
   {
-    match: ["gym", "fitness", "yoga", "crossfit", "sport", "studio", "academy"],
+    family: "fitness",
     profile: {
       ...DEFAULT_DOMAIN,
       id: "fitness",
@@ -121,10 +122,6 @@ const PROFILES: { match: string[]; profile: DomainProfile }[] = [
 
 /** Never throws; an unknown or empty category returns the current salon-flavoured wording. */
 export function domainFor(category: string | null | undefined): DomainProfile {
-  const c = (category ?? "").toLowerCase();
-  if (!c) return DEFAULT_DOMAIN;
-  for (const { match, profile } of PROFILES) {
-    if (match.some((m) => c.includes(m))) return profile;
-  }
-  return DEFAULT_DOMAIN;
+  const family = familyFor(category);
+  return PROFILES.find((p) => p.family === family)?.profile ?? DEFAULT_DOMAIN;
 }

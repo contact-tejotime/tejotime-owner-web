@@ -18,9 +18,11 @@ import {
 } from "@/lib/types";
 import { CURRENCIES, CURRENCY_BY_CODE, currencySymbol } from "@/lib/currencies";
 import { countryByDial, DEFAULT_ISO2 } from "@/lib/phone";
+import { currencyForCountry } from "@/lib/country-currency";
 import { timezoneForPhone } from "@/lib/phone-timezone";
 import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { presetForCategory, type ThemeConfig } from "@/theme/engine";
+import { familyFor } from "@/lib/store-family";
 import { t, format } from "@/i18n";
 import { Icon } from "@/components/icons";
 import AppearancePanel from "@/components/appearance/AppearancePanel";
@@ -88,6 +90,22 @@ const SOCIAL_FIELDS = [
   { key: "yelpUrl", placeholder: "https://yelp.com/biz/yourshop" },
 ] as const;
 
+/**
+ * Per-store-type wording for the setup screen (docs/store-setup-review-2026-10-05.md), picked by the
+ * same matcher the customer page uses, so the options always describe the kind of page it renders.
+ * They are plain en.json arrays because the client's own lines get appended to them later.
+ *
+ * The FIRST gallery heading of each type is what the page shows when none is chosen (frontend
+ * en.json `domains.*.galleryHeading`), which is why "Default for your store type" names it.
+ */
+const headlineIdeasFor = (category: string): readonly string[] => t.headlineSuggestions[familyFor(category)];
+const galleryHeadingsFor = (category: string): readonly string[] => t.galleryHeadings[familyFor(category)];
+
+/** The backend's limit (admin.routes.ts `galleryHeading` max 40). */
+const GALLERY_HEADING_MAX = 40;
+/** The gallery-heading <select> value for "Custom…". Not a heading anyone would write. */
+const CUSTOM_HEADING = "__custom__";
+
 export default function StoreForm({
   mode,
   categories,
@@ -98,7 +116,15 @@ export default function StoreForm({
   justSaved = false,
 }: Props) {
   const router = useRouter();
-  const [form, setForm] = useState<StoreFormState>(initial ?? EMPTY_FORM);
+  // A brand-new store starts in its phone country's currency (US → USD), not EMPTY_FORM's INR —
+  // client review row 29: the form offered ₹ next to a +1 phone and a US time zone.
+  const [form, setForm] = useState<StoreFormState>(
+    () =>
+      initial ?? {
+        ...EMPTY_FORM,
+        currency: currencyForCountry(countryByDial(EMPTY_FORM.countryCode)?.iso2 ?? DEFAULT_ISO2) ?? EMPTY_FORM.currency,
+      },
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState<ErrorDetail[]>([]);
@@ -111,6 +137,22 @@ export default function StoreForm({
   // Once the admin picks a preset by hand, changing the category must not overwrite it. A draft
   // counts as touched: its saved look may well be a deliberate choice, and we cannot tell.
   const presetTouched = useRef(Boolean(draftId));
+  // The currency follows the phone's country on a NEW store until the admin picks one. Never on an
+  // existing store (changing it does not convert prices), and not on a draft (its currency may be
+  // a deliberate choice, as with the preset above).
+  const currencyTouched = useRef(mode === "edit" || Boolean(draftId));
+  // Same idea for the headline: a NEW store's is pre-filled with its type's first suggestion and
+  // keeps following the category until the admin types one or taps an idea. Only event handlers set
+  // this — never a setForm updater, which must stay pure (StrictMode runs updaters twice). A draft
+  // counts as touched for the reason above.
+  const headlineTouched = useRef(Boolean(draftId));
+  // Set by a save attempt with no headline. From then on a blank headline shows its inline error,
+  // however the text left (typing, a category change taking back our suggestion); any text hides it.
+  const [headlineError, setHeadlineError] = useState(false);
+  // "Custom…" picked for the gallery heading. Kept apart from the value because an empty or
+  // half-typed custom heading must keep its text box open, rather than snap back to Default or onto
+  // a ready-made option whose text it happens to match.
+  const [customHeading, setCustomHeading] = useState(false);
 
   // ---- Drafts -------------------------------------------------------------------------------
   // A draft exists only because the admin clicked "Save as draft"; a form that never was one
@@ -168,15 +210,53 @@ export default function StoreForm({
   };
 
   /**
-   * Category drives the *suggested* preset, for NEW stores only and only until the admin picks
-   * one themselves. An existing store's look never moves because someone re-categorised it.
+   * True while the headline is the one this form filled in itself: a create form the admin has not
+   * written a headline into, still holding its category's first suggestion. That text is ours, not
+   * the admin's — a category change may replace it, and autofill treats it as empty (runImport).
+   */
+  const isAutoHeadline = (f: StoreFormState) =>
+    mode === "create" &&
+    !headlineTouched.current &&
+    f.tagline !== "" &&
+    !!f.category &&
+    f.tagline === headlineIdeasFor(f.category)[0];
+
+  /** The headline once the category becomes `category`: refilled only while blank or still ours. */
+  const headlineAfter = (f: StoreFormState, category: string): string => {
+    if (mode !== "create") return f.tagline;
+    const ours = isAutoHeadline(f);
+    if (f.tagline.trim() && !ours) return f.tagline;
+    // Category cleared: take our suggestion back, so an untouched form reads as untouched again
+    // (isPristineCreate) instead of holding a headline nobody chose.
+    if (!category) return ours ? "" : f.tagline;
+    return headlineIdeasFor(category)[0] ?? f.tagline;
+  };
+
+  /**
+   * Category drives the *suggested* preset and headline, for NEW stores only and only until the
+   * admin picks their own. An existing store's look and words never move because someone
+   * re-categorised it.
    */
   const setCategory = (value: string) => {
-    setForm((f) =>
-      mode === "create" && !presetTouched.current
-        ? { ...f, category: value, theme: { ...f.theme, preset: presetForCategory(value) } }
-        : { ...f, category: value },
-    );
+    setForm((f) => ({
+      ...f,
+      category: value,
+      tagline: headlineAfter(f, value),
+      ...(mode === "create" && !presetTouched.current ? { theme: { ...f.theme, preset: presetForCategory(value) } } : {}),
+    }));
+  };
+
+  /** A new store's currency follows the country picked for its phone, until the admin chooses one. */
+  const followCountry = (iso2: string) => {
+    if (currencyTouched.current) return;
+    const code = currencyForCountry(iso2);
+    if (code) set("currency", code);
+  };
+
+  /** An idea chip replaces the headline outright; that counts as the admin choosing one. */
+  const pickHeadline = (idea: string) => {
+    headlineTouched.current = true;
+    set("tagline", idea);
   };
 
   useEffect(() => {
@@ -375,8 +455,15 @@ export default function StoreForm({
       const previous = lastImport.current?.url === url ? lastImport.current.fields : null;
       const offered = previous ? diffImportedFields(previous, response.fields) : response.fields;
       const warnings = previous ? [] : response.warnings;
+      // A headline the form filled in from the category is not the admin's, so both checks below
+      // see it as empty. In the review dialog that makes the page's own headline a plain fill
+      // (ticked) rather than an unticked "Replaces" row. For isPristineCreate it is never the
+      // reason a form stops being pristine — though the category it came from already counts as
+      // typed there (docs/store-autofill-from-link.md), so that outcome is unchanged.
+      // applyImport still runs on the real form, so an unticked headline row keeps ours.
+      const base = isAutoHeadline(form) ? { ...form, tagline: "" } : form;
       // A saved store's phone is locked (the backend answers 409 PHONE_LOCKED), so don't offer it.
-      const items = buildImportItems(form, offered, { phoneLocked: mode === "edit" && !!initial?.phoneNumber });
+      const items = buildImportItems(base, offered, { phoneLocked: mode === "edit" && !!initial?.phoneNumber });
       // The first fetch into a still-empty create form has nothing to protect: every row only fills
       // a gap, so asking the admin to tick them is pure friction. Apply the lot — silently. There is
       // no "Filled in N items" banner and no warnings box: whether the page gave 2 fields or 15, the
@@ -384,7 +471,7 @@ export default function StoreForm({
       // announced here; Save names each service that still needs one.) Only "nothing found" is said,
       // because a fetch that visibly does nothing reads as a broken button.
       // Anything else (an edit, a form with typed data, a second fetch) keeps the review dialog.
-      if (mode === "create" && !hasImported.current && isPristineCreate(form)) {
+      if (mode === "create" && !hasImported.current && isPristineCreate(base)) {
         if (items.length === 0) {
           setImportNotice(t.storeImport.nothingNew);
         } else {
@@ -415,10 +502,15 @@ export default function StoreForm({
       if (selected.has("category") && fields.category && mode === "create" && !presetTouched.current) {
         next.theme = { ...next.theme, preset: presetForCategory(fields.category) };
       }
+      // And the same rule as the category <select> for the headline, when the page gave none: a
+      // blank (or still self-filled) headline follows the category the import may just have set.
+      if (!(selected.has("tagline") && fields.tagline)) next.tagline = headlineAfter(f, next.category);
       return next;
     });
     if (selected.has("phone") && fields.countryCode) {
-      setPhoneIso2(countryByDial(fields.countryCode)?.iso2 ?? DEFAULT_ISO2);
+      const iso2 = countryByDial(fields.countryCode)?.iso2 ?? DEFAULT_ISO2;
+      setPhoneIso2(iso2);
+      followCountry(iso2);
     }
     hasImported.current = true;
     // Recorded on APPLY, not on fetch: a dialog the admin cancelled applied nothing, so the next
@@ -470,9 +562,9 @@ export default function StoreForm({
     setResult(null);
 
     // Required business fields — blocked here for a friendly message (native `required` also guards).
+    // The neighborhood (`area`) is optional: left blank, the page shows the city instead.
     const requiredFields: { key: keyof StoreFormState; label: string }[] = [
       { key: "category", label: t.storeForm.reqCategory },
-      { key: "area", label: t.storeForm.reqArea },
       { key: "city", label: t.storeForm.reqCity },
       { key: "address", label: t.storeForm.reqAddress },
       { key: "tagline", label: t.storeForm.reqTagline },
@@ -480,6 +572,9 @@ export default function StoreForm({
       { key: "description", label: t.storeForm.reqDescription },
     ];
     const missing = requiredFields.filter((f) => !String(form[f.key] ?? "").trim());
+    // The headline also says why under its own field: it is the biggest text on the page. (A
+    // spaces-only one gets past native `required`, so this is where it is caught.)
+    if (!form.tagline.trim()) setHeadlineError(true);
     // A service's duration is still required (it sizes every slot and wait estimate), but it is
     // never guessed: an imported service with no stated time arrives blank, so name it here rather
     // than let the API answer with a bare "Number must be greater than or equal to 1".
@@ -487,7 +582,10 @@ export default function StoreForm({
     if (missing.length > 0 || noDuration.length > 0) {
       setError(t.storeForm.fillRequired);
       setDetails([
-        ...missing.map((f) => ({ field: f.label, message: t.storeForm.fieldRequired })),
+        ...missing.map((f) => ({
+          field: f.label,
+          message: f.key === "tagline" ? t.storeForm.headlineRequired : t.storeForm.fieldRequired,
+        })),
         ...noDuration.map((s) => ({
           field: format(t.storeForm.serviceDurationField, { name: s.name.trim() }),
           message: t.storeForm.durationRequired,
@@ -587,6 +685,23 @@ export default function StoreForm({
       ? [{ code: form.currency, symbol: form.currency, name: form.currency }, ...CURRENCIES]
       : CURRENCIES;
   }, [form.currency]);
+
+  const showHeadlineError = headlineError && !form.tagline.trim();
+  // Ideas and headings follow the category as it is NOW, so re-categorising re-offers them.
+  const headlineIdeas = headlineIdeasFor(form.category);
+  const headingOptions = galleryHeadingsFor(form.category);
+  const defaultHeading = headingOptions[0] ?? "";
+  // How a stored heading reads back: "" → Default; a ready-made heading of this type → that option;
+  // anything else → Custom with its text. Derived every render, so a heading picked under another
+  // type stays visible (as Custom) after a category change instead of being silently dropped.
+  const headingChoice =
+    customHeading || (form.galleryHeading.trim() !== "" && !headingOptions.includes(form.galleryHeading))
+      ? CUSTOM_HEADING
+      : headingOptions.includes(form.galleryHeading)
+        ? form.galleryHeading
+        : "";
+  // What the page will put above the photos: "" (or a blank custom box) saves as the type default.
+  const shownHeading = form.galleryHeading.trim() || defaultHeading;
 
   return (
     <div className={embedded ? undefined : "wrap"}>
@@ -737,7 +852,15 @@ export default function StoreForm({
             </div>
             <div className="field">
               <label htmlFor="sf-currency">{t.storeForm.currency}</label>
-              <select id="sf-currency" value={form.currency} onChange={(e) => set("currency", e.target.value)} required>
+              <select
+                id="sf-currency"
+                value={form.currency}
+                onChange={(e) => {
+                  currencyTouched.current = true;
+                  set("currency", e.target.value);
+                }}
+                required
+              >
                 {currencyOptions.map((c) => (
                   <option key={c.code} value={c.code}>
                     {`${c.symbol} — ${c.name} (${c.code})`}
@@ -745,7 +868,7 @@ export default function StoreForm({
                 ))}
               </select>
               <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
-                {t.storeForm.currencyHint}
+                {mode === "create" ? `${t.storeForm.currencyAutoHint} ${t.storeForm.currencyHint}` : t.storeForm.currencyHint}
               </p>
             </div>
             <div className="field">
@@ -766,7 +889,17 @@ export default function StoreForm({
             </div>
             <div className="field">
               <label htmlFor="sf-area">{t.storeForm.area}</label>
-              <input id="sf-area" value={form.area} onChange={(e) => set("area", e.target.value)} required maxLength={120} />
+              <input
+                id="sf-area"
+                value={form.area}
+                onChange={(e) => set("area", e.target.value)}
+                maxLength={120}
+                placeholder={t.storeForm.areaPlaceholder}
+                aria-describedby="sf-area-hint"
+              />
+              <p id="sf-area-hint" className="hint" style={{ marginBottom: 0 }}>
+                {t.storeForm.areaHint}
+              </p>
             </div>
             <div className="field">
               <label htmlFor="sf-city">{t.storeForm.city}</label>
@@ -778,7 +911,45 @@ export default function StoreForm({
             </div>
             <div className="field full">
               <label htmlFor="sf-tagline">{t.storeForm.tagline}</label>
-              <input id="sf-tagline" value={form.tagline} onChange={(e) => set("tagline", e.target.value)} required maxLength={160} />
+              <input
+                id="sf-tagline"
+                value={form.tagline}
+                onChange={(e) => {
+                  headlineTouched.current = true;
+                  set("tagline", e.target.value);
+                }}
+                // Native `required` stops an empty submit before onSubmit runs; this still puts the
+                // reason under the field.
+                onInvalid={() => setHeadlineError(true)}
+                aria-invalid={showHeadlineError || undefined}
+                aria-describedby={showHeadlineError ? "sf-tagline-err sf-tagline-hint" : "sf-tagline-hint"}
+                required
+                maxLength={160}
+              />
+              {showHeadlineError && (
+                <p id="sf-tagline-err" className="hint" role="alert" style={{ color: "var(--red-600)", marginBottom: 0 }}>
+                  {t.storeForm.headlineRequired}
+                </p>
+              )}
+              <p id="sf-tagline-hint" className="hint" style={{ marginBottom: 0 }}>
+                {t.storeForm.taglineHint}
+              </p>
+              <div className="chip-row" style={{ marginTop: 8 }}>
+                <span className="hint" style={{ margin: 0 }}>
+                  {t.storeForm.headlineIdeas}
+                </span>
+                {headlineIdeas.map((idea) => (
+                  <button
+                    key={idea}
+                    type="button"
+                    className={`pill-choice${form.tagline === idea ? " selected" : ""}`}
+                    aria-pressed={form.tagline === idea}
+                    onClick={() => pickHeadline(idea)}
+                  >
+                    {idea}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="field full">
               <label htmlFor="sf-heroSubtitle">{t.storeForm.bannerSubtitle}</label>
@@ -789,14 +960,6 @@ export default function StoreForm({
                 maxLength={200}
                 placeholder={t.storeForm.bannerSubtitlePlaceholder}
               />
-            </div>
-            <div className="field">
-              <label htmlFor="sf-statValue">{t.storeForm.highlightNumber}</label>
-              <input id="sf-statValue" value={form.statValue} onChange={(e) => set("statValue", e.target.value)} maxLength={40} placeholder={t.storeForm.highlightNumberPlaceholder} />
-            </div>
-            <div className="field">
-              <label htmlFor="sf-statLabel">{t.storeForm.highlightCaption}</label>
-              <input id="sf-statLabel" value={form.statLabel} onChange={(e) => set("statLabel", e.target.value)} maxLength={60} placeholder={t.storeForm.highlightCaptionPlaceholder} />
             </div>
             <div className="field full">
               <label htmlFor="sf-aboutHeading">{t.storeForm.aboutHeading}</label>
@@ -895,6 +1058,7 @@ export default function StoreForm({
               set("countryCode", v.dialCode);
               set("phoneNumber", v.national);
               setPhoneIso2(v.iso2);
+              followCountry(v.iso2);
             }}
           />
           <p className="hint">
@@ -968,6 +1132,7 @@ export default function StoreForm({
           />
           <ImageUpload
             label={t.storeForm.aboutPhoto}
+            hint={t.storeForm.aboutPhotoHint}
             assetType="about"
             value={form.aboutImageUrl}
             onChange={(url) => set("aboutImageUrl", url)}
@@ -983,6 +1148,50 @@ export default function StoreForm({
         {/* Gallery ------------------------------------------------------ */}
         <section className="section">
           <h2>{t.storeForm.galleryPhotos}</h2>
+          <div className="grid" style={{ marginBottom: 16 }}>
+            <div className="field">
+              <label htmlFor="sf-galleryHeading">{t.storeForm.galleryHeading}</label>
+              <select
+                id="sf-galleryHeading"
+                value={headingChoice}
+                aria-describedby="sf-galleryHeading-hint"
+                onChange={(e) => {
+                  const v = e.target.value;
+                  // Custom opens an empty box (its placeholder invites the admin's own words); until
+                  // something is typed it saves as "", i.e. the type default.
+                  setCustomHeading(v === CUSTOM_HEADING);
+                  set("galleryHeading", v === CUSTOM_HEADING ? "" : v);
+                }}
+              >
+                <option value="">{format(t.storeForm.galleryHeadingDefault, { heading: defaultHeading })}</option>
+                {headingOptions.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+                <option value={CUSTOM_HEADING}>{t.storeForm.galleryHeadingCustom}</option>
+              </select>
+              {headingChoice === CUSTOM_HEADING && (
+                <input
+                  aria-label={t.storeForm.galleryHeading}
+                  value={form.galleryHeading}
+                  onChange={(e) => {
+                    // Typing pins Custom, so text that happens to match a ready-made heading (or a
+                    // box cleared mid-edit) cannot hide the box under the admin's cursor.
+                    setCustomHeading(true);
+                    set("galleryHeading", e.target.value);
+                  }}
+                  placeholder={t.storeForm.galleryHeadingPlaceholder}
+                  maxLength={GALLERY_HEADING_MAX}
+                  style={{ marginTop: 8 }}
+                />
+              )}
+              <p id="sf-galleryHeading-hint" className="hint" style={{ marginBottom: 0 }}>
+                {t.storeForm.galleryHeadingHint}
+              </p>
+            </div>
+          </div>
+          <label>{format(t.storeForm.galleryPhotosFor, { heading: shownHeading })}</label>
           <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
             {t.storeForm.galleryHint}
           </p>

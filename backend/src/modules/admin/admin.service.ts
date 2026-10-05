@@ -29,8 +29,11 @@ export interface StoreFields {
   city?: string;
   tagline?: string;
   heroSubtitle?: string;
+  /** Accepted from old clients and ignored (removed 2026-10-05). */
   statValue?: string;
   statLabel?: string;
+  /** Gallery heading on the page; '' clears it, undefined leaves it untouched. */
+  galleryHeading?: string;
   description?: string;
   aboutHeading?: string;
   heroImageUrl?: string;
@@ -119,8 +122,8 @@ async function uniqueValue(column: 'slug' | 'handle', base: string): Promise<str
   return `${base}-${Date.now()}`;
 }
 
-/** Columns on the `business` row itself, derived from the shared store fields. */
-function businessColumns(input: StoreFields) {
+/** Columns on the `business` row itself, derived from the shared store fields. Exported for tests. */
+export function businessColumns(input: StoreFields) {
   return {
     name: input.name,
     category: input.category ?? null,
@@ -129,8 +132,8 @@ function businessColumns(input: StoreFields) {
     city: input.city ?? null,
     tagline: input.tagline ?? null,
     hero_subtitle: input.heroSubtitle ?? null,
-    stat_value: input.statValue ?? null,
-    stat_label: input.statLabel ?? null,
+    // stat_value / stat_label are no longer written (the fields were removed); the columns stay
+    // until no client sends them any more.
     description: input.description ?? null,
     about_heading: input.aboutHeading ?? null,
     hero_image_url: input.heroImageUrl ?? null,
@@ -150,6 +153,8 @@ function businessColumns(input: StoreFields) {
     // Only written when the caller sent it. Owners edit this link too, so an older admin build
     // that does not know the field must not wipe it on every store save.
     ...(input.googleReviewUrl !== undefined ? { google_review_url: input.googleReviewUrl || null } : {}),
+    // Same rule: owners choose the gallery heading too, so only a caller that sends it changes it.
+    ...(input.galleryHeading !== undefined ? { gallery_heading: input.galleryHeading.trim() || null } : {}),
     // faqs/reviews are jsonb — serialize explicitly, otherwise pg would send a
     // JS array as a Postgres array literal and the insert would fail.
     faqs: JSON.stringify(input.faqs ?? []),
@@ -853,8 +858,7 @@ export async function getBusinessDetail(id: string) {
     city: b.city ?? '',
     tagline: b.tagline ?? '',
     heroSubtitle: b.hero_subtitle ?? '',
-    statValue: b.stat_value ?? '',
-    statLabel: b.stat_label ?? '',
+    galleryHeading: b.gallery_heading ?? '',
     description: b.description ?? '',
     aboutHeading: b.about_heading ?? '',
     heroImageUrl: b.hero_image_url ?? '',

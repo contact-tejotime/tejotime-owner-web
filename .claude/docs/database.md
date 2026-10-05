@@ -24,7 +24,7 @@ written to be **idempotent / re-runnable**.
 | 0005 | `admin_master_and_fields.sql` | `master_data` table, `about_heading`, `faqs` |
 | 0006 | `business_about_image.sql` | `about_image_url` |
 | 0007 | `admins.sql` | `admins` allow-list |
-| 0008 | `business_hero_stats_reviews.sql` | `hero_subtitle`, `stat_value`, `stat_label`, `reviews` |
+| 0008 | `business_hero_stats_reviews.sql` | `hero_subtitle`, `stat_value`, `stat_label` (**unused since 2026-10-05**: no longer written or returned; kept until old clients stop sending the fields, then drop), `reviews` |
 | 0009 | `master_data_team_noun.sql` | `team_noun` |
 | 0010 | `admin_analytics.sql` | admin analytics support |
 | 0011 | `staff_avatar.sql` | `staff.avatar_url` |
@@ -51,6 +51,7 @@ written to be **idempotent / re-runnable**.
 | 0034 | `staff_commission.sql` | `staff_commission_rate` (dated pay rates) + the **`visit_commission` view** — the schema's first view. See below and [docs/staff-commission.md](../../docs/staff-commission.md). |
 | 0036 | `recurring_appointments.sql` | `appointment_series`, `appointment_series_service`, `appointment_series_issue`; `appointment.series_id / series_version / occurrence_date / cancel_reason`; `business.recurring_enabled` (default true). See below and [docs/recurring-appointments.md](../../docs/recurring-appointments.md). |
 | 0037 | `recurring_edit.sql` | `appointment.rescheduled_at` (a visit moved by hand — kept through a "change all future visits"), `appointment_series.anchor_index` (rule dates before the re-anchored first date, so `end_count` keeps its original total), and `admin_appointment_stats` re-created to ignore superseded rows. |
+| 0038 | `business_gallery_heading.sql` | `business.gallery_heading` — the owner's heading for the page's photo gallery; NULL = the default for the store type ([docs/store-setup-review-2026-10-05.md](../../docs/store-setup-review-2026-10-05.md)) |
 
 > **`0016` is duplicated** across two independent files. Ordering relies on the filename sort, which
 > is deterministic. **Use a strictly increasing prefix from 0025 onward.**
@@ -102,7 +103,7 @@ Everything cascades from here (`on delete cascade` throughout).
 
 Added later: `country_code`, `phone_number`, **`phone_full` (generated column,
 `country_code || phone_number`, uniquely indexed)**, `about_heading`, `faqs` jsonb,
-`about_image_url`, `hero_subtitle`, `stat_value`, `stat_label`, `reviews` jsonb, `theme_color`,
+`about_image_url`, `hero_subtitle`, `stat_value`, `stat_label` (unused), `reviews` jsonb, `gallery_heading` (0038), `theme_color`,
 `theme` jsonb, `instagram_url`, `facebook_url`, `twitter_url`, `linkedin_url`, `yelp_url`,
 `created_by_admin_id`.
 

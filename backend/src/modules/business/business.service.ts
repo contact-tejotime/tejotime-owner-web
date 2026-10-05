@@ -17,8 +17,8 @@ function businessDTO(b: any, hours: any[], amenities: any[], gallery: any[], pla
     phoneNumber: b.phone_number ?? null,
     tagline: b.tagline,
     heroSubtitle: b.hero_subtitle ?? null,
-    statValue: b.stat_value ?? null,
-    statLabel: b.stat_label ?? null,
+    // The photo gallery's heading on the page; null = the default for this kind of store (0038).
+    galleryHeading: b.gallery_heading ?? null,
     description: b.description,
     aboutHeading: b.about_heading ?? null,
     establishedYear: b.established_year,
@@ -105,9 +105,11 @@ const BASE_COLUMNS: Record<string, string> = {
  */
 const OWNER_ONLY_COLUMNS: Record<string, string> = {
   heroSubtitle: 'hero_subtitle',
-  statValue: 'stat_value',
-  statLabel: 'stat_label',
+  // statValue / statLabel were removed on 2026-10-05 (never shown on the page). Older app and
+  // owner-web builds still send them; with no column here they are now simply ignored.
   aboutHeading: 'about_heading',
+  // The gallery heading is how the store presents itself, so it is the owner's call (0038).
+  galleryHeading: 'gallery_heading',
   aboutImageUrl: 'about_image_url',
   instagramUrl: 'instagram_url',
   facebookUrl: 'facebook_url',
@@ -158,6 +160,10 @@ export async function updateBusiness(
 
   for (const [k, v] of Object.entries(patch)) {
     if (allowed[k] === undefined) continue;
+    // The headline is required (client review, 2026-10-05): a blank one left the page with an
+    // empty <h1>. Ignored rather than refused, because older app builds send whatever the field
+    // holds on every save, and a 400 there would block the owner's other changes too.
+    if (k === 'tagline' && typeof v === 'string' && !v.trim()) continue;
     // '' → NULL so the microsite drops icons / photos instead of keeping a stale URL.
     row[allowed[k]!] = clearable.has(k) && v === '' ? null : v;
   }

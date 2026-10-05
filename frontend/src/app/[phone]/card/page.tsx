@@ -137,7 +137,7 @@ export default async function CardPage({ params }: Props) {
               margin: "0 0 26px",
             }}
           >
-            {[site.category, site.area].filter(Boolean).join(" · ")}
+            {[site.category, site.area?.trim() || site.city?.trim()].filter(Boolean).join(" · ")}
           </p>
 
           <a

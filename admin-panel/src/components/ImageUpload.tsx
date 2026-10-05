@@ -32,11 +32,14 @@ export function ImageUpload({
   onChange,
   assetType,
   label,
+  hint,
 }: {
   value: string;
   onChange: (url: string) => void;
   assetType: string;
   label: string;
+  /** Helper text under the picker, e.g. what kind of photo suits this slot. */
+  hint?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -125,6 +128,11 @@ export function ImageUpload({
           )}
         </div>
       </div>
+      {hint && (
+        <p className="hint" style={{ marginBottom: 0 }}>
+          {hint}
+        </p>
+      )}
       {busy && (
         <p className="hint" style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <Spinner /> {t.imageUpload.uploading}

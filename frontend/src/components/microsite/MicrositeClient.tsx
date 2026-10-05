@@ -1127,6 +1127,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // The example store (/demo-store) showcases every photo slot as a blank placeholder frame,
   // even when no image is set — so operators see where photos go. Scoped to that one slug only.
   const isDemo = site.slug === "demo-store";
+  // Where the store is, as the page says it: the neighborhood, or the city when the owner left the
+  // neighborhood blank (optional since the client review of 2026-10-05).
+  const place = site.area?.trim() || site.city?.trim() || null;
 
   // Render each About piece only when it has real content; collapse the section otherwise.
   const hasHeading = !!site.aboutHeading?.trim();
@@ -1933,7 +1936,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       [gallery.length > 0, t.microsite.nav.gallery, "#gallery"],
       [reviews.length > 0, t.microsite.nav.reviews, "#reviews"],
       [showAbout, t.microsite.nav.about, "#about"],
-      [Boolean(site.address || site.area || site.hours.length > 0), t.microsite.nav.visitUs, "#visit"],
+      [Boolean(site.address || place || site.hours.length > 0), t.microsite.nav.visitUs, "#visit"],
     ] as [boolean, string, string][]
   ).filter(([show]) => show);
 
@@ -2025,13 +2028,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // Service names only — prices belong on the Services cards, not this marquee strip.
   const tickerItems = [
     ...services.map((sv) => sv.name),
-    site.area ?? null,
+    place,
     site.establishedYear != null ? format(t.microsite.hero.since, { year: site.establishedYear }) : null,
     reviewCount > 0 ? format(t.microsite.ticker.ratingReviews, { rating, reviewCount }) : null,
   ].filter(Boolean) as string[];
   const statCards = [
-    site.establishedYear != null && site.area
-      ? { icon: "calendar" as const, value: format(t.microsite.ticker.sinceYear, { year: site.establishedYear }), label: format(t.microsite.ticker.servingArea, { area: site.area }) }
+    site.establishedYear != null && place
+      ? { icon: "calendar" as const, value: format(t.microsite.ticker.sinceYear, { year: site.establishedYear }), label: format(t.microsite.ticker.servingArea, { area: place }) }
       : null,
     reviewCount > 0
       ? { icon: "star" as const, value: rating.toFixed(1), label: format(t.microsite.ticker.reviewsLabel, { count: reviewCount }) }
@@ -2141,7 +2144,8 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
 
   const reviewsSection = reviews.length > 0 ? (
     <Section id="reviews">
-      <ReviewsBlock reviews={reviews} rating={rating} reviewCount={reviewCount} avatarColors={AVATAR_COLORS} />
+      {/* The demo store's reviews are made up — say so (client review, row 28/29). */}
+      <ReviewsBlock reviews={reviews} rating={rating} reviewCount={reviewCount} avatarColors={AVATAR_COLORS} sample={isDemo} />
     </Section>
   ) : null;
 
@@ -2296,7 +2300,8 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             )}
 
             <h1 style={{ font: "var(--fw-extrabold) clamp(32px, 5.9vw, 100px)/0.96 var(--font-display, var(--font-sans))", letterSpacing: "-.045em", color: "var(--text-strong)", margin: walkInsClosed ? 0 : "22px 0 0", overflowWrap: "break-word", textWrap: "balance" }}>
-              {site.tagline ?? site.name}
+              {/* `||`, not `??`: a store saved with an empty headline would otherwise show an empty h1. */}
+              {site.tagline?.trim() || site.name}
             </h1>
 
             <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginTop: 26 }}>
@@ -2309,7 +2314,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                   </span>
                 </span>
               )}
-              {site.area && <span style={{ font: "var(--fw-medium) 15px/1 var(--font-sans)", color: "var(--text-muted)" }}>{site.area}</span>}
+              {place && <span style={{ font: "var(--fw-medium) 15px/1 var(--font-sans)", color: "var(--text-muted)" }}>{place}</span>}
               {site.establishedYear != null && <span style={{ font: "var(--fw-medium) 15px/1 var(--font-sans)", color: "var(--text-muted)" }}>{format(t.microsite.hero.since, { year: site.establishedYear })}</span>}
             </div>
 
@@ -2383,7 +2388,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         if (key === "gallery" && galleryPhotos.length > 0) {
           return (
             <Section key={key} id="gallery" tone="tint">
-              <GalleryMosaic photos={galleryPhotos} heading={domain.galleryHeading} onOpen={setLightbox} />
+              <GalleryMosaic photos={galleryPhotos} heading={site.galleryHeading?.trim() || domain.galleryHeading} onOpen={setLightbox} />
             </Section>
           );
         }
@@ -2429,7 +2434,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       )}
 
       {/* ===== VISIT ===== */}
-      {(site.address || site.area || site.hours.length > 0) && (
+      {(site.address || place || site.hours.length > 0) && (
       <div id="visit" style={{ background: "var(--surface-card)", borderTop: "1px solid var(--border-subtle)" }}>
         <div style={{ ...revealStyle, maxWidth: 1180, margin: "0 auto", padding: 0, display: "flex", flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 300, padding: "calc(clamp(28px, 7vw, 56px) * var(--density-scale, 1)) clamp(16px, 4vw, 32px)" }}>
@@ -2477,10 +2482,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               </>
             )}
           </div>
-          {(site.address || site.area) && (
+          {(site.address || place) && (
             <iframe
               title={format(t.microsite.visit.mapTitle, { name: site.name })}
-              src={`https://www.google.com/maps?q=${encodeURIComponent(site.address ?? site.area ?? site.name)}&output=embed`}
+              src={`https://www.google.com/maps?q=${encodeURIComponent(site.address || place || site.name)}&output=embed`}
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
               style={{ flex: 1, minWidth: 300, minHeight: 280, border: 0, borderLeft: "1px solid var(--border-subtle)" }}

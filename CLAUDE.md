@@ -214,6 +214,9 @@ first view: every visit at the latest rate whose start instant is at or before c
 `appointment_series_service` + `appointment_series_issue` (0036 — recurring appointments; every
 visit stays an ordinary `appointment` row carrying `series_id`, see §7; 0037 adds
 `appointment.rescheduled_at` and `appointment_series.anchor_index` for moving and changing visits).
+0038 adds `business.gallery_heading`: the owner-chosen heading for the page's photo gallery
+([docs/store-setup-review-2026-10-05.md](docs/store-setup-review-2026-10-05.md); that review also made
+the neighborhood optional, kept the headline required, and retired `stat_value`/`stat_label`).
 
 Notable constraints and conventions:
 - UUID PKs (`gen_random_uuid()`); `pgcrypto` + `pg_trgm` extensions.
@@ -589,6 +592,7 @@ kept honest by generator scripts. **Never hand-edit a mirror.**
 |---|---|---|---|
 | Theme engine | `frontend/src/theme/engine/` | `admin-panel`, `owner-web`, `app` | `npm run sync:theme` / `check:theme` |
 | Image cropper | `admin-panel/src/components/image-crop/` | `owner-web` | `npm run sync:crop` / `check:crop` |
+| Store-type matcher (`familyFor`) | `frontend/src/lib/store-family.ts` | `admin-panel`, `owner-web`, `app` (`src/lib/`) | `npm run sync:family` / `check:family`; `test:family` pins it |
 
 Plus `npm run check:chat-facts` — the marketing chatbot's fact sheet
 (`backend/src/lib/chat-platform.ts`) is a hand-mirror of the landing copy in
@@ -671,7 +675,7 @@ Checklist for any owner-facing change:
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **38 vitest files, 482 tests** (2026-10-05), run with `npm test` in `backend/`
+- `backend/tests/unit/` — **39 vitest files, 495 tests** (2026-10-05), run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
   Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
   `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
@@ -700,6 +704,10 @@ Checklist for any owner-facing change:
   2026-10-05 "My appointments" decision: a device holding only the phone number moves and cancels a
   one-off and manages a series, while another number, a bare number and a wrong key get nothing
   ([docs/customer-my-appointments.md](docs/customer-my-appointments.md)).
+  `backend/scripts/smoke-store-setup.mjs` covers the client's store-setup review: gallery heading,
+  blank headline ignored, old clients' `statValue` accepted, city in the page payload, and a store
+  created with no neighborhood. Its admin half needs `SMOKE_ADMIN_TOKEN` or the admin login pair,
+  and is otherwise skipped ([docs/store-setup-review-2026-10-05.md](docs/store-setup-review-2026-10-05.md)).
   `backend/scripts/smoke-booking-guards.mjs` pins the server-side booking rule (one booking when two
   customers confirm together; overlap / past / closed / out-of-hours / beyond-window → 409
   `SLOT_UNAVAILABLE`; foreign or malformed stylist → 400) — same fresh-API rule.

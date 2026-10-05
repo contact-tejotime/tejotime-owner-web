@@ -5,8 +5,9 @@ import { router } from 'expo-router';
 
 import { TButton, TEmptyState, TInput, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
-import { t } from '@/i18n';
+import { format, t } from '@/i18n';
 import { DEFAULT_DIAL_CODE } from '@/lib/phone';
+import { familyFor } from '@/lib/store-family';
 import { showToast } from '@/lib/toast';
 import { pickAndUploadImage, type UploadAssetType } from '@/lib/upload';
 import { useAppState } from '@/state/store';
@@ -18,6 +19,9 @@ import { useTheme } from '@/theme/ThemeProvider';
 type Faq = { q: string; a: string };
 type Review = { stars: number; text: string; authorName: string };
 type GalleryItem = { url: string; alt?: string | null };
+
+/** The gallery heading's longest value — the API's limit (`galleryHeading` max 40). */
+const GALLERY_HEADING_MAX = 40;
 
 function splitPayments(raw: string): string[] {
   return raw
@@ -36,14 +40,13 @@ export function OwnerStoreProfileForm() {
   const [name, setName] = useState(biz?.name ?? '');
   const [category, setCategory] = useState(biz?.category ?? '');
   const [tagline, setTagline] = useState(biz?.tagline ?? '');
+  const [taglineError, setTaglineError] = useState<string | undefined>(undefined);
   const [heroSubtitle, setHeroSubtitle] = useState(biz?.heroSubtitle ?? '');
   const [address, setAddress] = useState(biz?.address ?? '');
   const [area, setArea] = useState(biz?.area ?? '');
   const [city, setCity] = useState(biz?.city ?? '');
   const [aboutHeading, setAboutHeading] = useState(biz?.aboutHeading ?? '');
   const [description, setDescription] = useState(biz?.description ?? '');
-  const [statValue, setStatValue] = useState(biz?.statValue ?? '');
-  const [statLabel, setStatLabel] = useState(biz?.statLabel ?? '');
   const [establishedYear, setEstablishedYear] = useState(
     biz?.establishedYear != null ? String(biz.establishedYear) : '',
   );
@@ -66,6 +69,42 @@ export function OwnerStoreProfileForm() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
 
+  // Gallery heading: '' = Default (the page follows the store type's default, even if it changes).
+  const [galleryHeading, setGalleryHeading] = useState(biz?.galleryHeading ?? '');
+  // Sticky "Custom…" choice. Without it, typing a custom heading that happens to spell a ready-made
+  // one ("Our Work") would flip the selection to that chip and hide the input mid-word. Seeded from
+  // the saved value: anything that is not one of this store type's ready-made headings is Custom.
+  const [headingCustom, setHeadingCustom] = useState(() => {
+    const saved = biz?.galleryHeading ?? '';
+    return saved !== '' && !t.galleryHeadings[familyFor(biz?.category)].includes(saved);
+  });
+
+  // Recomputed from the CURRENT category field, so the lists follow an edit before it is saved.
+  const family = familyFor(category);
+  const readyHeadings = t.galleryHeadings[family];
+  const typeDefaultHeading = readyHeadings[0];
+  const headlineIdeas = t.headlineSuggestions[family];
+  // A ready-made heading from another store type (the category was just edited) shows as Custom,
+  // text intact, rather than being silently dropped.
+  const headingIsCustom =
+    headingCustom || (galleryHeading !== '' && !readyHeadings.includes(galleryHeading));
+  const shownHeading = galleryHeading.trim() || typeDefaultHeading;
+
+  /** One option of the gallery-heading choice (a radio chip, same look as Appearance's chips). */
+  const headingChoice = (key: string, label: string, selected: boolean, onPress: () => void) => (
+    <Pressable
+      key={key}
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected }}
+      style={[s.chip, selected && s.chipSelected]}
+    >
+      <TText variant="caption" weight="semibold" color={selected ? 'primary' : 'textBody'}>
+        {label}
+      </TText>
+    </Pressable>
+  );
+
   const upload = async (assetType: UploadAssetType, onUrl: (url: string) => void) => {
     setUploading(assetType);
     try {
@@ -84,6 +123,15 @@ export function OwnerStoreProfileForm() {
   const save = async () => {
     if (!name.trim()) {
       showToast(t.profile.nameRequired, 'error');
+      return;
+    }
+    // The headline is required: a blank one left the page with an empty top heading. The API
+    // ignores a blank tagline rather than refusing it (older builds send whatever the field holds),
+    // so without this check the owner would see "Saved" with the old headline still live. The field
+    // sits at the top of a long form, out of view of this button, so the toast says it too.
+    if (!tagline.trim()) {
+      setTaglineError(t.profile.taglineRequired);
+      showToast(t.profile.taglineRequired, 'error');
       return;
     }
     const yearRaw = establishedYear.trim();
@@ -115,8 +163,9 @@ export function OwnerStoreProfileForm() {
         city: city.trim(),
         aboutHeading: aboutHeading.trim(),
         description: description.trim(),
-        statValue: statValue.trim(),
-        statLabel: statLabel.trim(),
+        // Always sent: this form is only rendered for owner roles (settings/profile.tsx), and the
+        // API refuses this field from a staff login. A blank custom heading saves as Default ('').
+        galleryHeading: galleryHeading.trim(),
         establishedYear: year,
         logoUrl: logoUrl.trim(),
         heroImageUrl: heroImageUrl.trim(),
@@ -151,12 +200,43 @@ export function OwnerStoreProfileForm() {
           placeholder={t.profile.categoryPlaceholder}
           hint={t.profile.categoryHint}
         />
-        <TInput
-          label={t.profile.taglineLabel}
-          value={tagline}
-          onChangeText={setTagline}
-          placeholder={t.profile.taglinePlaceholder}
-        />
+        <View style={s.fieldWithChips}>
+          <TInput
+            label={t.profile.taglineLabel}
+            value={tagline}
+            onChangeText={(v) => {
+              setTagline(v);
+              if (taglineError && v.trim()) setTaglineError(undefined);
+            }}
+            hint={t.profile.taglineHint}
+            error={taglineError}
+          />
+          {/* Tap-to-use ideas for this kind of store; a tap REPLACES the headline. */}
+          <View style={s.chipRow}>
+            <TText variant="caption" color="textMuted" weight="semibold" style={s.chipLead}>
+              {t.profile.taglineIdeas}
+            </TText>
+            {headlineIdeas.map((idea) => {
+              const selected = tagline === idea;
+              return (
+                <Pressable
+                  key={idea}
+                  onPress={() => {
+                    setTagline(idea);
+                    setTaglineError(undefined);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  style={[s.chip, selected && s.chipSelected]}
+                >
+                  <TText variant="caption" weight="semibold" color={selected ? 'primary' : 'textBody'}>
+                    {idea}
+                  </TText>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
         <TInput
           label={t.profile.heroSubtitleLabel}
           value={heroSubtitle}
@@ -167,7 +247,13 @@ export function OwnerStoreProfileForm() {
 
       <Section title={t.profile.sectionWhere}>
         <TInput label={t.profile.addressLabel} value={address} onChangeText={setAddress} />
-        <TInput label={t.profile.areaLabel} value={area} onChangeText={setArea} />
+        <TInput
+          label={t.profile.areaLabel}
+          value={area}
+          onChangeText={setArea}
+          placeholder={t.profile.areaPlaceholder}
+          hint={t.profile.areaHint}
+        />
         <TInput label={t.profile.cityLabel} value={city} onChangeText={setCity} />
         <TInput
           label={t.profile.phoneLabel}
@@ -187,24 +273,6 @@ export function OwnerStoreProfileForm() {
           multiline
           numberOfLines={5}
         />
-        <View style={s.row}>
-          <View style={s.half}>
-            <TInput
-              label={t.profile.statValueLabel}
-              value={statValue}
-              onChangeText={setStatValue}
-              placeholder={t.profile.statValuePlaceholder}
-            />
-          </View>
-          <View style={s.half}>
-            <TInput
-              label={t.profile.statLabelLabel}
-              value={statLabel}
-              onChangeText={setStatLabel}
-              placeholder={t.profile.statLabelPlaceholder}
-            />
-          </View>
-        </View>
         <TInput
           label={t.profile.yearLabel}
           value={establishedYear}
@@ -234,6 +302,7 @@ export function OwnerStoreProfileForm() {
         />
         <ImagePickerRow
           label={t.profile.aboutImageLabel}
+          hint={t.profile.aboutImageHint}
           url={aboutImageUrl}
           busy={uploading === 'about'}
           onPick={() => upload('about', setAboutImageUrl)}
@@ -289,54 +358,110 @@ export function OwnerStoreProfileForm() {
         />
       </Section>
 
-      <Section title={t.profile.sectionGallery} hint={t.profile.galleryHint}>
-        {gallery.length === 0 ? <TEmptyState compact icon="grid" title={t.profile.galleryEmpty} /> : null}
-        {gallery.map((g, i) => (
-          <View key={`${g.url}-${i}`} style={s.galleryRow}>
-            <Image source={{ uri: g.url }} style={s.galleryThumb} contentFit="cover" />
-            <View style={s.galleryActions}>
-              {i > 0 ? (
+      <Section title={t.profile.sectionGallery}>
+        <View style={[s.blockGap, s.imageDivider]}>
+          <View style={s.labelBlock}>
+            <TText variant="bodySm" color="textStrong" weight="semibold">
+              {t.profile.galleryHeadingLabel}
+            </TText>
+            <TText variant="caption" color="textMuted">
+              {t.profile.galleryHeadingHint}
+            </TText>
+          </View>
+          <View style={s.chipRow} accessibilityRole="radiogroup">
+            {headingChoice(
+              'default',
+              format(t.profile.galleryHeadingDefault, { heading: typeDefaultHeading }),
+              !headingIsCustom && galleryHeading === '',
+              () => {
+                setHeadingCustom(false);
+                setGalleryHeading('');
+              },
+            )}
+            {readyHeadings.map((h) =>
+              headingChoice(`ready:${h}`, h, !headingIsCustom && galleryHeading === h, () => {
+                setHeadingCustom(false);
+                setGalleryHeading(h);
+              }),
+            )}
+            {headingChoice('custom', t.profile.galleryHeadingCustom, headingIsCustom, () => {
+              if (headingIsCustom) return;
+              // Starts empty so the placeholder invites their own words; left blank, it saves as Default.
+              setHeadingCustom(true);
+              setGalleryHeading('');
+            })}
+          </View>
+          {headingIsCustom ? (
+            <TInput
+              value={galleryHeading}
+              onChangeText={(v) => {
+                setHeadingCustom(true);
+                setGalleryHeading(v);
+              }}
+              placeholder={t.profile.galleryHeadingPlaceholder}
+              maxLength={GALLERY_HEADING_MAX}
+              accessibilityLabel={t.profile.galleryHeadingLabel}
+            />
+          ) : null}
+        </View>
+
+        <View style={s.blockGap}>
+          <View style={s.labelBlock}>
+            <TText variant="bodySm" color="textStrong" weight="semibold">
+              {format(t.profile.galleryPhotosFor, { heading: shownHeading })}
+            </TText>
+            <TText variant="caption" color="textMuted">
+              {t.profile.galleryHint}
+            </TText>
+          </View>
+          {gallery.length === 0 ? <TEmptyState compact icon="grid" title={t.profile.galleryEmpty} /> : null}
+          {gallery.map((g, i) => (
+            <View key={`${g.url}-${i}`} style={s.galleryRow}>
+              <Image source={{ uri: g.url }} style={s.galleryThumb} contentFit="cover" />
+              <View style={s.galleryActions}>
+                {i > 0 ? (
+                  <TButton
+                    variant="secondary"
+                    size="sm"
+                    onPress={() =>
+                      setGallery((xs) => {
+                        const next = [...xs];
+                        [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                        return next;
+                      })
+                    }
+                  >
+                    {t.profile.galleryMoveUp}
+                  </TButton>
+                ) : null}
                 <TButton
                   variant="secondary"
                   size="sm"
-                  onPress={() =>
-                    setGallery((xs) => {
-                      const next = [...xs];
-                      [next[i - 1], next[i]] = [next[i], next[i - 1]];
-                      return next;
-                    })
-                  }
+                  onPress={() => setGallery((xs) => xs.filter((_, idx) => idx !== i))}
                 >
-                  {t.profile.galleryMoveUp}
+                  {t.profile.galleryRemove}
                 </TButton>
-              ) : null}
-              <TButton
-                variant="secondary"
-                size="sm"
-                onPress={() => setGallery((xs) => xs.filter((_, idx) => idx !== i))}
-              >
-                {t.profile.galleryRemove}
-              </TButton>
+              </View>
             </View>
-          </View>
-        ))}
-        <TButton
-          variant="secondary"
-          size="md"
-          loading={uploading === 'gallery'}
-          disabled={gallery.length >= 7 || uploading === 'gallery'}
-          onPress={() => {
-            if (gallery.length >= 7) {
-              showToast(t.profile.galleryFull, 'error');
-              return;
-            }
-            upload('gallery', (url) =>
-              setGallery((xs) => (xs.length >= 7 ? xs : [...xs, { url, alt: null }])),
-            );
-          }}
-        >
-          {t.profile.galleryAdd}
-        </TButton>
+          ))}
+          <TButton
+            variant="secondary"
+            size="md"
+            loading={uploading === 'gallery'}
+            disabled={gallery.length >= 7 || uploading === 'gallery'}
+            onPress={() => {
+              if (gallery.length >= 7) {
+                showToast(t.profile.galleryFull, 'error');
+                return;
+              }
+              upload('gallery', (url) =>
+                setGallery((xs) => (xs.length >= 7 ? xs : [...xs, { url, alt: null }])),
+              );
+            }}
+          >
+            {t.profile.galleryAdd}
+          </TButton>
+        </View>
       </Section>
 
       <Section title={t.profile.sectionOffer}>
@@ -548,8 +673,26 @@ const createStyles = ({ colors, radius }: ThemeStyleProps) =>
       gap: moderateScale(16),
     },
     row: { ...styles.flexRow, ...styles.g2, ...styles.itemsStart },
-    half: { ...styles.flex },
     blockGap: { gap: moderateScale(10) },
+    labelBlock: { gap: moderateScale(2) },
+    fieldWithChips: { gap: moderateScale(10) },
+    chipRow: { ...styles.flexRow, ...styles.itemsCenter, flexWrap: 'wrap', gap: moderateScale(8) },
+    chipLead: { marginRight: moderateScale(2) },
+    chip: {
+      // A long option ("Default for your store type — …") wraps inside its chip instead of
+      // running off the card on a narrow phone or at a large system text size.
+      maxWidth: '100%',
+      paddingVertical: moderateScale(8),
+      paddingHorizontal: moderateScale(12),
+      borderRadius: moderateScale(radius.md),
+      borderWidth: moderateScale(1),
+      borderColor: colors.borderSubtle,
+      backgroundColor: colors.surfaceSunken,
+    },
+    chipSelected: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primarySoft,
+    },
     nestedCard: {
       gap: moderateScale(12),
       padding: moderateScale(12),

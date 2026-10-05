@@ -1077,6 +1077,8 @@
       "gallery": "Gallery",
       "openPhoto": "Open photo {index} of {total}",
       "reviewsEyebrow": "Customer Reviews",
+      "reviewsSampleEyebrow": "Sample reviews",
+      "reviewSampleTag": "Sample",
       "reviewsTitle": "What clients are saying",
       "photoViewer": "Photo viewer",
       "prevPhoto": "Previous photo",

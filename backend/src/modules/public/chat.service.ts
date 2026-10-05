@@ -88,7 +88,8 @@ export function storeFacts(site: MicrositeDTO): StoreFacts {
     isOpen: site.openStatus.isOpen,
     statusLabel: site.openStatus.label,
     hoursLines: site.hours.map((h) => `${DAY_NAMES[h.dayOfWeek] ?? `Day ${h.dayOfWeek}`}: ${h.label}`),
-    address: [site.address, site.area].filter(Boolean).join(', ') || null,
+    // The neighborhood is optional (2026-10-05); the city stands in for it, as on the page.
+    address: [site.address, site.area || site.city].filter(Boolean).join(', ') || null,
     phone: digits ? `+${digits}` : null,
     payments: Array.isArray(site.payments) ? site.payments.map(String).filter(Boolean) : [],
     services: site.services.map((s) => ({ name: s.name, priceLabel: priceLabel(s), minutes: s.durationMinutes })),

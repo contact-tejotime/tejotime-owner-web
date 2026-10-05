@@ -200,7 +200,7 @@ describe('demo stores in the admin panel', { timeout: 30_000 }, () => {
       many.mockResolvedValueOnce([
         { id: REGULAR_ID, slug: 'curv', city: 'Naples', category: 'Salon', is_active: true, phone_full: REGULAR_PHONE },
         { id: DEMO_ID, slug: 'willow', city: 'Austin', category: 'Salon & Barber', is_active: true, phone_full: DEMO_PHONE },
-        { id: DEMO_STORE_SLUG_ID, slug: 'demo-store', city: 'Mumbai', category: 'Salon & Barber', is_active: true, phone_full: '919000000000' },
+        { id: DEMO_STORE_SLUG_ID, slug: 'demo-store', city: 'Naples', category: 'Salon & Barber', is_active: true, phone_full: '12395550110' },
       ]);
       callRpc.mockImplementation(async (fn: string, args: any) => {
         if (fn === 'admin_store_metrics') {

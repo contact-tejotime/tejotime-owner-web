@@ -9,6 +9,39 @@ the system as designed, this one describes where it actually is.
 
 ## 1. What is in flight
 
+### Store setup review — client points 14, 23, 29, 30, 34, 35 (2026-10-05)
+
+The client's spreadsheet review, six rows, on the admin panel, owner web, the app and the customer
+page ([docs/store-setup-review-2026-10-05.md](../../docs/store-setup-review-2026-10-05.md)):
+- **14:** "About section photo" label and hint.
+- **23:** an owner-chosen gallery heading (migration **0038** `business.gallery_heading`).
+- **29:** admin Create store defaults the currency from the phone's country (US → USD), and
+  /demo-store is a US store with sample-labelled reviews.
+- **30:** Neighborhood optional, with the city as fallback.
+- **34:** "Headline on your page", still required, with Ideas chips and a pre-fill in admin
+  Create store.
+- **35:** highlight fields removed; the API still accepts and ignores them.
+
+The store-type matcher `familyFor` is now shared (`npm run sync:family`).
+
+- **Deploy:** 0038 before the backend. Re-seed `demo-store` on each live site **only with
+  approval**: `npm run seed:demo` replaces that one store and changes its owner login to
+  `12395550110`.
+- **Verified here:**
+  - Backend: `npx vitest run` 39 files / 495 tests (new `store-setup-review.test.ts`, plus cases in
+    `optional-store-data.test.ts`).
+  - Local throwaway DB: 0038 applied, `seed:demo` produced the US store,
+    `smoke-store-setup.mjs` 16/16.
+  - Static checks: frontend, admin-panel and owner-web tsc + lint + build clean; app tsc + lint
+    clean.
+  - Root checks: `check:family` in sync, `test:family` 18/18, `test:import-diff` 12/12,
+    `test:draft` 13/13, `test:chat-flow` 171/171, `check:demo-stores` ok,
+    `test:responsive` 1262/1262.
+  - `check:theme` flags admin-panel's and app's `theme/engine/index.ts`. Last changed 2026-08-10,
+    not touched here.
+- **Not verified here:** the app on an iOS or Android device. Check the wrapping chip rows at 1.15×
+  text, the keyboard on the Custom heading field, and the screen-reader roles on the chips.
+
 ### My Appointments — manage a booking with the phone number (2026-10-05)
 
 **Client decision:** the phone number alone now views, moves and cancels a customer's appointments,

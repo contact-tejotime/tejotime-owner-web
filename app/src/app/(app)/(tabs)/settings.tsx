@@ -74,7 +74,8 @@ export default function Settings() {
                 <TSettingsRow
                   icon="building"
                   label={t.settings.businessProfile}
-                  sub={[biz?.name, biz?.area].filter(Boolean).join(' · ') || t.settings.businessProfileSub}
+                  // The neighborhood is optional now; the page shows the city when it is blank.
+                  sub={[biz?.name, biz?.area || biz?.city].filter(Boolean).join(' · ') || t.settings.businessProfileSub}
                   onPress={goTo('profile')}
                   showBorder={lastBusiness !== 'profile'}
                 />
