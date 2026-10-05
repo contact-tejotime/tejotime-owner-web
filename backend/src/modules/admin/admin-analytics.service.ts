@@ -159,6 +159,7 @@ export async function getPlatformOverview(allowedIds: string[] | null = null) {
   const bookingsRow = await one<{ count: number }>(
     `select count(*)::int as count from appointment
       where source = 'online'
+        and cancel_reason is distinct from 'superseded'
         and scheduled_start_at >= $1
         and scheduled_start_at <= $2
         and ($3::uuid[] is null or business_id = any($3::uuid[]))
@@ -223,7 +224,8 @@ export async function getStoreAnalytics(id: string, range: '30d' | '90d') {
     await Promise.all([
       one<{ count: number }>(
         `select count(*)::int as count from appointment
-          where business_id = $1 and scheduled_start_at >= $2 and scheduled_start_at <= $3`,
+          where business_id = $1 and scheduled_start_at >= $2 and scheduled_start_at <= $3
+            and cancel_reason is distinct from 'superseded'`,
         [id, today.startIso, today.endIso],
       ),
       one<{ count: number }>(
@@ -500,6 +502,7 @@ export async function listStoreAppointments(
     many(
       `select * from appointment
         where business_id = $1 and scheduled_start_at >= $2 and scheduled_start_at <= $3${statusFilter}
+          and cancel_reason is distinct from 'superseded'
         order by scheduled_start_at desc
         limit ${LIST_LIMIT}`,
       params,

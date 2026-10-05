@@ -85,7 +85,6 @@ function ctxWith(over: Partial<FlowCtx> = {}): FlowCtx {
     held: null,
     lastName: "",
     lastPhone: "",
-    savedApptCount: 0,
     hasPhone: true,
     maxServices: 10,
     now: NOW,
@@ -467,9 +466,15 @@ section("23. waitlist status");
 section("24/25/26. my appointments");
 {
   const mine = { appointmentId: "a1", serviceName: "Haircut", staffName: "Lisa", scheduledStartAt: SLOTS[0].startAt, status: "confirmed", canCancel: true };
-  const f = new Flow(ctxWith({ savedApptCount: 1 }));
+  // Number first, like waitlist status (2026-10-05): with a last number it asks "Use +91…?" and
+  // lists only that number's bookings. Nothing is listed from this browser, however many numbers
+  // booked here.
+  const f = new Flow(ctxWith({ lastPhone: "+919876543210" }));
   let r = f.start("appts");
-  check(r.effect?.type === "refreshAppts", "saved bookings → refreshed live");
+  check(!r.effect && optionIds(r.out).includes("appts:yes") && optionIds(r.out).includes("apptsOther"),
+    "starts by asking which number — Use +91…? / a different number — and lists nothing yet");
+  r = f.opt("appts:yes");
+  check(r.effect?.type === "lookupAppts" && r.effect.phone === "+919876543210", "Yes → looks up that number only");
   r = f.ok({ appts: [mine] });
   check(cards(r.out).includes("appointment") && optionIds(r.out).includes("cancelAppt:a1"), "listed with Cancel");
   r = f.opt("cancelAppt:a1");
@@ -479,19 +484,62 @@ section("24/25/26. my appointments");
   r = f.ok({});
   check(has(r.out, S.cancelled) && optionIds(r.out).includes("start:book"), "cancelled → Book another time");
 
+  // "A different number" → asks for it, and looks up only that one.
+  const other = new Flow(ctxWith({ lastPhone: "+919876543210" }));
+  other.start("appts");
+  r = other.opt("apptsOther");
+  check(!r.effect && other.state.step === "apptsPhone" && has(r.out, S.apptsNoneSaved), "a different number → asks for it");
+  r = other.text("9811122233");
+  check(r.effect?.type === "lookupAppts" && r.effect.phone === "+919811122233", "…and looks up that number");
+
+  // Client decision 2026-10-05 (docs/customer-my-appointments.md): the phone number alone is enough.
+  // The lookup now carries each booking's key, so a booking made on another device is cancellable
+  // here — this scenario used to end in "booked elsewhere → call the store".
   const o = new Flow(ctxWith({ lastPhone: "+919876543210" }));
   r = o.start("appts");
-  check(optionIds(r.out).includes("appts:yes"), "nothing saved → asks which number");
+  check(optionIds(r.out).includes("appts:yes"), "asks which number");
   r = o.opt("appts:yes");
-  check(r.effect?.type === "lookupAppts", "looks up by phone");
-  r = o.ok({ appts: [{ ...mine, canCancel: false }] });
-  check(has(r.out, S.apptOtherDevice) && optionIds(r.out).includes("call"), "booked elsewhere → call the store");
-  check(!optionIds(r.out).includes("cancelAppt:a1"), "…and no Cancel");
+  check(r.effect?.type === "lookupAppts" && r.effect.phone === "+919876543210", "looks up by phone, as +<cc><number>");
+  r = o.ok({ appts: [mine] });
+  check(optionIds(r.out).includes("cancelAppt:a1") && !optionIds(r.out).includes("call"),
+    "booked elsewhere → cancellable (the lookup handed over the key), no 'call the store'");
+  check(!r.out.some((x) => x.text?.includes("another device")), "…and no 'booked on another device' line");
   r = o.opt("cancelAppt:a1");
+  check(o.state.step === "cancelConfirm" && has(r.out, "Cancel Haircut"), "lookup → cancel asks to confirm");
+  r = o.opt("cancel:yes");
+  check(r.effect?.type === "cancelAppt" && r.effect.id === "a1", "lookup → cancel effect for that booking");
+  r = o.ok({});
+  check(has(r.out, S.cancelled), "…cancelled");
+
+  // A row the page holds no key for is one the API would refuse anyway (it has started).
+  const started = new Flow(ctxWith({ lastPhone: "+919876543210" }));
+  started.start("appts");
+  started.opt("appts:yes");
+  r = started.ok({ appts: [{ ...mine, canCancel: false }] });
+  check(cards(r.out).includes("appointment") && !optionIds(r.out).includes("cancelAppt:a1"), "no key → shown, no Cancel");
+  r = started.opt("cancelAppt:a1");
   check(!r.effect && r.out.length === 0, "a forged cancel tap does nothing");
 
-  const e = new Flow(ctxWith({ savedApptCount: 1 }));
+  // One visit of a repeating booking: same endpoint, worded as the skip the API records.
+  const visit = { ...mine, appointmentId: "a2", repeats: true };
+  const sv = new Flow(ctxWith({ lastPhone: "+919876543210" }));
+  sv.start("appts");
+  sv.opt("appts:yes");
+  r = sv.ok({ appts: [mine, visit] });
+  const labels = r.out.flatMap((x) => x.options ?? []).map((x) => `${x.id}=${x.label}`);
+  check(labels.includes(`cancelAppt:a2=${S.skipThis}`) && labels.includes(`cancelAppt:a1=${S.cancelThis}`),
+    `series visit → "Skip this visit", one-off → "Cancel this appointment" (got ${labels.join(", ")})`);
+  r = sv.opt("cancelAppt:a2");
+  check(has(r.out, "Skip Haircut") && has(r.out, "stays booked") && optionIds(r.out).includes("cancel:yes"), "skip asks to confirm, as a skip");
+  check(r.out.some((x) => x.options?.some((p) => p.id === "cancel:yes" && p.label === S.skipYes)), "…with 'Yes, skip it'");
+  r = sv.opt("cancel:yes");
+  check(r.effect?.type === "cancelAppt" && r.effect.id === "a2", "skip → the same cancel effect");
+  r = sv.ok({});
+  check(has(r.out, S.skipped) && !has(r.out, S.cancelled), "…answered as a skipped visit");
+
+  const e = new Flow(ctxWith({ lastPhone: "+919876543210" }));
   e.start("appts");
+  e.opt("appts:yes");
   e.ok({ appts: [mine] });
   e.opt("cancelAppt:a1");
   e.opt("cancel:yes");
@@ -499,7 +547,8 @@ section("24/25/26. my appointments");
   check(has(r.out, "can't be cancelled any more"), "422 → the server's reason");
 
   const none = new Flow(ctxWith());
-  none.start("appts");
+  r = none.start("appts");
+  check(!r.effect && has(r.out, S.apptsNoneSaved), "no last number → asks for one, lists nothing");
   none.text("9876543210");
   r = none.ok({ appts: [] });
   check(has(r.out, "No upcoming appointments") && optionIds(r.out).includes("start:book"), "none → Book instead");

@@ -41,6 +41,8 @@ selector behind a screen prefix so it cannot leak. `globals.css` keeps only shar
 | Commission rates | `settings/commission.tsx`, `components/settings/CommissionEditSheet.tsx`, `common/TMonthGrid.tsx` | `settings/commission/page.tsx`, `components/CommissionEditor.tsx` | `settings-b.css` (`.cm-*`) |
 | Appointments | `(tabs)/appointments.tsx`, `AppointmentListItem.tsx` | `appointments/page.tsx`, `components/AppointmentListItem.tsx`, `lib/appointments.ts` | `appointments.css` |
 | Calendar | `(tabs)/calendar.tsx`, `DayAppointmentsSheet.tsx` | `calendar/page.tsx`, `calendar/CalendarMonth.tsx` | `calendar.css` (`.calx-*`) |
+| Recurring: Regulars, Needs attention, series sheet ([recurring-appointments.md](./recurring-appointments.md)) | `(tabs)/appointments.tsx` (Today \| Regulars), `appointments/RegularCard.tsx`, `appointments/NeedsAttentionCard.tsx`, `feedback/SeriesSheet.tsx` (mounted in `(app)/_layout.tsx`), `lib/series.ts`, `state/store.tsx` | `appointments/page.tsx` (`?view=regulars`), `appointments/RegularsList.tsx`, `components/series/*` (`SeriesSheet` in a `BottomSheet`/`OverlayPortal`, `NeedsAttentionCard`, `RepeatMark`, `ResolveIssueButton`), `lib/series.ts`, BFF `api/appointments/series/**` | `appointments.css`, `series.css` |
+| Recurring Phase 2: Move visit, Change future visits, Book another time | `appointments/SlotPickerInline.tsx`, `appointments/RescheduleInline.tsx`, `appointments/ChangeFuturePanel.tsx`, `lib/zoned.ts` (store-clock times) | `series/RescheduleSheet.tsx`, `series/ChangeFuturePanel.tsx`, `series/BookingSheets.tsx` (one host for the series sheet, row Reschedule and Book another time on Appointments and Calendar), BFF `api/appointments/[id]/slots`, `series/[id]/slots`, `series/[id]/preview-change`, `series/issues/[issueId]/book` | `series.css`, `calendar.css` |
 | Customers | `(tabs)/customers.tsx`, `cards/CustomerCard.tsx` | `customers/page.tsx`, `customers/CustomerCard.tsx`, `CustomerSearch.tsx` | `customers.css` |
 | Settings hub | `(tabs)/settings.tsx`, `TSettingsRow.tsx` | `settings/page.tsx`, `SettingsScreen.tsx`, `settings/account/` | `settings-hub.css` (`.st-*`) |
 | Hours, Team, Notifications, Password | `settings/hours|team|notifications|password.tsx` | `settings/hours|team|notifications/`, `HoursEditor`, `TeamManager`, `ChangePasswordForm`, `SettingsSubpageShell` | `settings-a.css` (`.sa-*`) |
@@ -96,7 +98,21 @@ Kept because a browser is not an App Store build, or because removing them would
 - **Mouse-only affordances:** drag-to-reorder (the ticket's number tile is the handle), hover
   Start / End / × on tickets, hover and focus rings.
 - **Appointments:** a second "Checked in or closed" section, and a × no-show shortcut on bookings
-  whose start time has passed. The app shows neither.
+  whose start time has passed. The app shows no second section.
+- **Appointment row actions (recurring, 2026-10-03):** the same set on both — Skip (upcoming series
+  visit), Cancel (upcoming one-off) and Mark no-show (time has passed), each confirmed except
+  no-show — but drawn differently: the web shows icon buttons beside "Add to queue"; the app
+  folds them behind a "⋮" button that unfolds inline (no native action sheet, so iOS and Android
+  match). The series sheet's confirmations are inline on the app because iOS will not present a
+  second modal over an open sheet.
+- **Recurring times:** both now show the **store's** clock. The app gets the zone from `/auth/me` (`business.timezone`, every role) and formats through `lib/zoned.ts`. If Intl can't convert, it falls back silently to the phone's clock, so Hermes on iOS needs a device check. (Until Phase 2 the app used the phone's clock.)
+- **Recurring Phase 2 (2026-10-03).** Same flows and wording on both, drawn differently:
+  - **The picker:** the web uses a native `<input type="date">`; the app uses the pure-JS `TMonthGrid`. Both take their range from the API (`today`/`lastDay`), and both order it Day → Stylist → Time, because the free times depend on the stylist.
+  - **Where it opens:** on the web, Move and Book replace the series sheet's body in place, and row Reschedule opens a sheet. The app runs them inline in the row strip and in the sheet; iOS cannot stack a second modal.
+  - **Calendar day sheet → series sheet:** the app closes the day sheet and opens the series sheet 320ms later (same iOS rule).
+  - **Escape (web only):** `BottomSheet` marks the Escape it handles (`preventDefault`), so a series sheet opened from the Calendar's day sheet doesn't close both.
+  - **Row Reschedule** is offered on both only before the booking's start time. The API also accepts a booking earlier on the store's today.
+  - **Staff logins** see only their own chair and no "Any stylist"; the API answers 403 for any other chair.
 - **Profile / Appearance:** the store card (live status, Visit, QR), a sticky save bar from 641px,
   preset thumbnails, the preview's device switch, the native colour picker, gallery Move down.
 - **Team:** PhoneField with a country picker, fuller confirm copy.

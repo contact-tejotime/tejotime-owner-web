@@ -7,7 +7,20 @@ import type { Socket } from "socket.io-client";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/Button";
 import PhoneField from "@/components/ui/PhoneField";
-import { ApiError, publicApi, type Microsite, type MicrositeStaff, type Slot, type Ticket } from "@/lib/api";
+import {
+  ApiError,
+  publicApi,
+  type AppointmentLookup,
+  type BookedSeries,
+  type Microsite,
+  type MicrositeStaff,
+  type RepeatRule,
+  type SeriesPreview,
+  type Slot,
+  type Ticket,
+} from "@/lib/api";
+import { REPEAT_LIMITS, addDaysYmd, formatYmd, rhythmLabel, ruleTotalVisits } from "@/lib/series";
+import { localYmd, viewerBookDays } from "@/lib/booking-days";
 import { t, format, plural } from "@/i18n";
 import { currencySymbol } from "@/lib/currencies";
 import { combineToE164, DEFAULT_DIAL_CODE, DEFAULT_ISO2, formatPhone, splitPhone } from "@/lib/phone";
@@ -23,7 +36,7 @@ import "./salon.css";
 import { SocialLinks } from "./SocialLinks";
 import ChatWidget, { storeChatTitle } from "@/components/chat/ChatWidget";
 import { BlockedError, useChatFlow, type FlowAdapter } from "@/components/chat/flow/useChatFlow";
-import type { ApptView, Card, Draft, FlowCtx } from "@/components/chat/flow/engine";
+import type { Card, Draft, FlowCtx } from "@/components/chat/flow/engine";
 import { maskPhone, parseTypedPhone } from "@/components/chat/flow/phone";
 import {
   AppointmentCard,
@@ -44,6 +57,9 @@ import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton"
  * they render nothing until opened, so there is no server markup to miss.
  */
 const SaveContactSheet = dynamic(() => import("./SaveContactSheet"), { ssr: false });
+// My appointments brings the time picker and the repeating-booking manager with it — both only
+// ever opened by a tap.
+const MyAppointments = dynamic(() => import("./MyAppointments"), { ssr: false });
 const Lightbox = dynamic(() => import("./sections").then((m) => ({ default: m.Lightbox })), {
   ssr: false,
 });
@@ -60,19 +76,6 @@ const BOOKING_DAYS_AHEAD = 14;
 const MAX_SERVICES_PER_VISIT = 10;
 /** Characters of the store name the header shows before cutting it with an ellipsis. */
 const HEADER_NAME_MAX = 30;
-
-/**
- * YYYY-MM-DD in the VIEWER's timezone.
- *
- * NOT `toISOString().slice(0, 10)`, which is the UTC date. A customer in IST opening the page at
- * 2am would have asked the API for *yesterday's* slots, been handed a day that had already
- * ended, and been told no appointments were available. Local date parts are what the shop and
- * the customer both mean by "today".
- */
-function localYmd(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 // Client-side abuse simulation: after this many joins from one phone in a session we
 // show the "too many attempts" view (the backend enforces only a generic per-IP 429).
@@ -103,36 +106,89 @@ interface HeldRecord {
   businessId: string;
   token: string;
 }
-/**
- * A booking this browser made. `key` is the appointmentKey the API handed back — the only thing
- * that lets anyone read or cancel it without calling the store (docs/customer-chatbot-booking.md).
+/*
+ * Bookings are NOT kept in this browser (since 2026-10-05, docs/customer-my-appointments.md).
+ * My Appointments and the chat's "My appointments" both start from a phone number, like Check
+ * Waitlist Status, and the phone lookup returns every key and series token the page needs. A list
+ * saved here would show the next person on a shared phone everyone's bookings: four numbers booked
+ * from one browser all appeared together. Old records still carrying `appointments` / `series` are
+ * cleared when they load (readStore).
  */
-interface SavedAppointment {
-  id: string;
-  key: string;
-  phone: string;
-  scheduledStartAt: string;
-  serviceName: string | null;
-  staffName: string | null;
-}
 interface Store {
   hold: HeldRecord | null;
   attempts: Record<string, number>;
   blocked: Record<string, boolean>;
   lastPhone: string;
   lastName: string;
-  appointments: SavedAppointment[];
 }
-const defaultStore = (): Store => ({ hold: null, attempts: {}, blocked: {}, lastPhone: "", lastName: "", appointments: [] });
-/** A booking stays listed until a few hours after its start — long enough to show "Checked in". */
-const APPOINTMENT_KEEP_MS = 6 * 60 * 60 * 1000;
-// `now` defaults here, at module level: every caller runs from an event, never during render.
-const upcomingAppointments = (list: SavedAppointment[] | undefined, now: number = Date.now()) =>
-  (Array.isArray(list) ? list : []).filter((a) => a && a.key && Date.parse(a.scheduledStartAt) > now - APPOINTMENT_KEEP_MS);
+const defaultStore = (): Store => ({ hold: null, attempts: {}, blocked: {}, lastPhone: "", lastName: "" });
+
+/** "Repeat this booking?" choices; the numbers are days. "once" is the default — nobody signs up for a series by accident. */
+type RepeatChoice = "once" | "7" | "14" | "21" | "28" | "custom";
+const REPEAT_PRESETS: { value: RepeatChoice; label: string }[] = [
+  { value: "once", label: t.microsite.repeat.once },
+  { value: "7", label: t.microsite.repeat.everyWeek },
+  { value: "14", label: t.microsite.repeat.every2Weeks },
+  { value: "21", label: t.microsite.repeat.every3Weeks },
+  { value: "28", label: t.microsite.repeat.every4Weeks },
+];
+type RepeatEndChoice = "count" | "until" | "never";
+/** The plan's defaults (docs/recurring-appointments.md §1.1): custom shows 18 days, a series stops after 6 visits. */
+const DEFAULT_CUSTOM_DAYS = "18";
+const DEFAULT_END_COUNT = "6";
+/** Wait this long after the last change to the rule before asking the API for the dates. */
+const PREVIEW_DEBOUNCE_MS = 300;
+
+// Styles shared by the repeat section. Native radios rather than the div-chips used elsewhere in
+// the modal: these are true pick-one groups, and a real <input type="radio"> gives keyboard and
+// screen-reader users the group semantics for free.
+const fieldLabel: CSSProperties = {
+  font: "var(--fw-bold) 12px/1 var(--font-sans)",
+  letterSpacing: ".06em",
+  textTransform: "uppercase",
+  color: "var(--text-muted)",
+  marginBottom: 9,
+  padding: 0,
+};
+const fieldsetReset: CSSProperties = { border: 0, padding: 0, margin: 0, minWidth: 0 };
+const repeatPill = (on: boolean): CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 7,
+  cursor: "pointer",
+  font: "var(--fw-semibold) 13px/1.2 var(--font-sans)",
+  padding: "7px 12px",
+  borderRadius: "calc(10px * var(--radius-scale, 1))",
+  transition: "border-color .15s ease, background .15s ease",
+  color: "var(--text-strong)",
+  background: on ? "color-mix(in srgb, var(--primary) 6%, var(--surface-card))" : "var(--surface-card)",
+  border: `1.5px solid ${on ? "var(--primary)" : "var(--border-subtle)"}`,
+});
+const repeatRadio: CSSProperties = { margin: 0, width: 15, height: 15, flexShrink: 0, accentColor: "var(--primary)" };
+const repeatInput: CSSProperties = {
+  padding: "4px 6px",
+  border: "1.5px solid var(--border-default)",
+  borderRadius: "calc(8px * var(--radius-scale, 1))",
+  font: "var(--fw-semibold) 13px/1.2 var(--font-sans)",
+  color: "var(--text-strong)",
+  background: "var(--surface-card)",
+  outline: "none",
+};
+const repeatHint: CSSProperties = { font: "var(--fw-regular) 12.5px/1.45 var(--font-sans)", color: "var(--text-muted)", marginTop: 8 };
+const repeatErrorText: CSSProperties = { font: "var(--fw-medium) 12.5px/1.4 var(--font-sans)", color: "var(--error)", marginTop: 8 };
 function readStore(key: string): Store {
   if (typeof window === "undefined") return defaultStore();
   try {
-    return { ...defaultStore(), ...(JSON.parse(localStorage.getItem(key) || "null") || {}) };
+    const raw = JSON.parse(localStorage.getItem(key) || "null") || {};
+    // Until 2026-10-05 every booking made here was saved with its key (and a repeating booking with
+    // its manage token). Nothing reads them any more; clear them once rather than leave working
+    // keys on a shared phone.
+    if ("appointments" in raw || "series" in raw) {
+      delete raw.appointments;
+      delete raw.series;
+      localStorage.setItem(key, JSON.stringify(raw));
+    }
+    return { ...defaultStore(), ...raw };
   } catch {
     return defaultStore();
   }
@@ -484,6 +540,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const shopPhone = site.phoneNumber ? formatPhone(combineToE164(site.countryCode ?? "", site.phoneNumber)) : null;
   const [menuOpen, setMenuOpen] = useState(false); // mobile hamburger dropdown
   const [saveOpen, setSaveOpen] = useState(false); // "Save contact" (vCard) sheet
+  const [apptsOpen, setApptsOpen] = useState(false); // My appointments pop-up
+  // The number My appointments opens pre-filled with, captured as it opens (never read from the
+  // store ref during render).
+  const [apptsPhone, setApptsPhone] = useState("");
   // Pictures are optional, and a stored URL is not proof of a picture (a deleted or unreachable
   // object 404s). Record the URL that failed — not a boolean — so the page falls back to the
   // no-image layout instead of a blank frame, and a later re-upload (a new URL) is tried afresh
@@ -576,8 +636,38 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
    * answers would otherwise let an earlier request land last and paint the wrong day's times.
    */
   const slotReq = useRef(0);
+  /**
+   * "Repeat this booking?" (docs/recurring-appointments.md). Only offered when the store allows it
+   * and only once a time is picked; "Just this once" stays the default on every open.
+   */
+  const [repeatChoice, setRepeatChoice] = useState<RepeatChoice>("once");
+  const [customDays, setCustomDays] = useState(DEFAULT_CUSTOM_DAYS);
+  const [endChoice, setEndChoice] = useState<RepeatEndChoice>("count");
+  const [endCount, setEndCount] = useState(DEFAULT_END_COUNT);
+  const [endDate, setEndDate] = useState("");
+  /**
+   * The last preview the API answered, tagged with the request it answers. Rendering compares the
+   * tag with the current rule, so a stale answer (the customer changed the rule while it was in
+   * flight) is simply never shown — no effect has to clear it.
+   */
+  const [preview, setPreview] = useState<{ key: string; data: SeriesPreview | null; error: string } | null>(null);
+  const previewSeq = useRef(0);
+  const resetRepeat = () => {
+    setRepeatChoice("once");
+    setCustomDays(DEFAULT_CUSTOM_DAYS);
+    setEndChoice("count");
+    setEndCount(DEFAULT_END_COUNT);
+    setEndDate("");
+  };
   const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [booking, setBooking] = useState<{ serviceName: string | null; scheduledStartAt: string } | null>(null);
+  const [booking, setBooking] = useState<{
+    serviceName: string | null;
+    staffName: string | null;
+    scheduledStartAt: string;
+    series?: BookedSeries;
+    /** The rule has dates beyond the ones booked now (the job books them ~3 weeks ahead). */
+    moreToCome?: boolean;
+  } | null>(null);
   const [justTurn, setJustTurn] = useState(false);
   const [initialAhead, setInitialAhead] = useState(0);
   // Wall-clock tick that drives the live countdown. null until mount (keeps SSR/first paint equal
@@ -869,6 +959,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // live — gating on the raw flag alone would silently switch check-in off for every such store.
   const hasHours = site.hours.length > 0;
   const walkInsClosed = hasHours && !site.openStatus.isOpen;
+  // Greyed in My appointments' time picker, gated on hours the same way the booking strip is.
+  // Memoised: the picker's day strip is built from it.
+  const closedWeekdays = useMemo(
+    () => (hasHours ? site.hours.filter((h) => h.isClosed).map((h) => h.dayOfWeek) : []),
+    [site.hours, hasHours],
+  );
   const nextOpenLabel = site.openStatus.nextOpenLabel ?? null;
 
   /**
@@ -882,29 +978,109 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
    * Rendered only inside the modal, which cannot be open during SSR — so `new Date()` here can
    * never produce a server/client hydration mismatch.
    */
-  const bookDays = useMemo(() => {
-    const base = new Date();
-    base.setHours(0, 0, 0, 0);
-    return Array.from({ length: BOOKING_DAYS_AHEAD }, (_, i) => {
-      const d = new Date(base);
-      d.setDate(base.getDate() + i);
-      const closedDay = site.hours.find((h) => h.dayOfWeek === d.getDay())?.isClosed ?? false;
-      return {
-        ymd: localYmd(d),
-        closed: hasHours && closedDay,
-        weekday:
-          i === 0
-            ? t.microsite.join.dayToday
-            : i === 1
-              ? t.microsite.join.dayTomorrow
-              : d.toLocaleDateString(undefined, { weekday: "short" }),
-        dayNum: d.getDate(),
-        month: d.toLocaleDateString(undefined, { month: "short" }),
-        full: d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }),
-      };
-    });
-  }, [site.hours, hasHours]);
+  // Built from the viewer's clock (lib/booking-days.ts) — the repeating-booking picker uses the
+  // store-day builder next to it instead.
+  const bookDays = useMemo(() => viewerBookDays(BOOKING_DAYS_AHEAD, site.hours, hasHours), [site.hours, hasHours]);
   const selectedDay = bookDays.find((d) => d.ymd === bookDate) ?? bookDays[0];
+
+  // ---- "Repeat this booking?" (docs/recurring-appointments.md §1.1) ----
+  // Booking only (a walk-in cannot repeat), and only where the store allows it. The API refuses a
+  // repeat from a store that switched it off anyway; hiding it here just avoids offering it.
+  const repeatOffered = mode === "book" && !!site.recurringEnabled;
+  const repeatEveryDays =
+    repeatChoice === "once"
+      ? null
+      : repeatChoice === "custom"
+        ? /^\d+$/.test(customDays.trim())
+          ? Number(customDays.trim())
+          : NaN
+        : Number(repeatChoice);
+  const everyDaysValid =
+    repeatEveryDays !== null &&
+    Number.isInteger(repeatEveryDays) &&
+    repeatEveryDays >= REPEAT_LIMITS.minEveryDays &&
+    repeatEveryDays <= REPEAT_LIMITS.maxEveryDays;
+  // The first visit is on the picked day; "today" is the strip's first day. Both are local
+  // YYYY-MM-DD, and every bound below is plain calendar arithmetic on them — the server re-checks
+  // with the store's own clock and its message wins if the two ever disagree.
+  const todayYmd = bookDays[0]?.ymd ?? bookDate;
+  const endDateMax = addDaysYmd(todayYmd, REPEAT_LIMITS.maxEndDays);
+  const endDateMin = addDaysYmd(bookDate, everyDaysValid ? repeatEveryDays! : REPEAT_LIMITS.minEveryDays);
+  const repeatDaysError = repeatEveryDays !== null && !everyDaysValid ? t.microsite.repeat.errCustomDays : "";
+  const endCountNum = /^\d+$/.test(endCount.trim()) ? Number(endCount.trim()) : NaN;
+  const repeatEndError =
+    !everyDaysValid
+      ? ""
+      : endChoice === "count"
+        ? Number.isInteger(endCountNum) && endCountNum >= REPEAT_LIMITS.minCount && endCountNum <= REPEAT_LIMITS.maxCount
+          ? ""
+          : t.microsite.repeat.errCount
+        : endChoice === "until"
+          ? !endDate
+            ? t.microsite.repeat.errEndDateMissing
+            : endDate < endDateMin
+              ? t.microsite.repeat.errEndDateTooSoon
+              : endDate > endDateMax
+                ? t.microsite.repeat.errEndDateTooFar
+                : ""
+          : "";
+  /** What the booking will send as `repeat`, or null for a single visit (or a rule still being typed). */
+  const repeatRule: RepeatRule | null =
+    repeatOffered && everyDaysValid && !repeatEndError
+      ? {
+          everyDays: repeatEveryDays!,
+          end:
+            endChoice === "count"
+              ? { type: "count", count: endCountNum }
+              : endChoice === "until"
+                ? { type: "until", date: endDate }
+                : { type: "never" },
+        }
+      : null;
+  /** A repeat was asked for but the rule is not complete — Confirm waits rather than booking a single visit. */
+  const repeatIncomplete = repeatOffered && repeatChoice !== "once" && !repeatRule;
+  // Only a multiple of 7 keeps landing on the same weekday; people otherwise expect "every 18 days"
+  // to stay on a Saturday.
+  const weekdayDrifts = repeatChoice === "custom" && everyDaysValid && repeatEveryDays! % 7 !== 0;
+  /** Picking "On [date]" with no date yet pre-fills the date six visits out — the same reach as the "after 6" default. */
+  const chooseUntil = () => {
+    setEndChoice("until");
+    if (endDate) return;
+    const guess = addDaysYmd(bookDate, (everyDaysValid ? repeatEveryDays! : 14) * (Number(DEFAULT_END_COUNT) - 1));
+    setEndDate(guess > endDateMax ? endDateMax : guess);
+  };
+  /** The preview request, serialised: the effect keys on it and the answer is tagged with it. */
+  const previewKey =
+    repeatRule && selectedSlot
+      ? JSON.stringify({
+          serviceIds: cart.length ? cart : undefined,
+          preferredStaffId: member,
+          slotStart: selectedSlot,
+          repeat: repeatRule,
+        })
+      : null;
+  useEffect(() => {
+    if (!previewKey) return;
+    const seq = ++previewSeq.current;
+    // Debounced: typing "21" into the custom box is two rules, and only the last one matters.
+    const timer = setTimeout(() => {
+      publicApi
+        .previewSeries(site.slug, JSON.parse(previewKey))
+        .then((data) => {
+          if (previewSeq.current === seq) setPreview({ key: previewKey, data, error: "" });
+        })
+        .catch((e) => {
+          if (previewSeq.current !== seq) return;
+          // A 400 here carries a customer-readable reason ("…room for at least two visits"); a
+          // network failure does not, and must not stop them booking.
+          setPreview({ key: previewKey, data: null, error: e instanceof ApiError ? e.message : t.microsite.repeat.previewError });
+        });
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [previewKey, site.slug]);
+  const currentPreview = previewKey && preview?.key === previewKey ? preview : null;
+  const previewLoading = !!previewKey && !currentPreview;
+
   /** "Check in instead" only makes sense for today, and only while the doors are actually open. */
   const canOfferWalkIn = !walkInsClosed && bookDate === bookDays[0]?.ymd;
   // Which screens the join/book modal shows, in order — computed per-business so the
@@ -1006,6 +1182,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setSlots([]);
     setSelectedSlot(null);
     setSmsOptIn(false);
+    // Back to "Just this once" on every open: a rhythm left over from the last booking must never
+    // turn the next one into a series the customer did not choose.
+    resetRepeat();
     // Every open starts on today; a date left over from a previous booking would silently send
     // the next customer to last week.
     const openingDate = localYmd(new Date());
@@ -1129,6 +1308,64 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setSelectedSlot(null);
     setBookDate(localYmd(new Date()));
     setCart([]);
+    resetRepeat();
+  };
+
+  // ---- My appointments (docs/customer-my-appointments.md) ----
+  /**
+   * Phone lookups, for the life of this page. CLIENT DECISION 2026-10-05: the phone number alone is
+   * enough to see, move and cancel appointments, so a lookup hands back every booking's key and the
+   * series manage token.
+   *
+   * SECURITY: they stay HERE, in memory — never in localStorage. Written there, they would hand the
+   * next person on a shared browser the previous person's bookings without typing anything. Held
+   * per number so reopening the pop-up (or asking the chat) does not spend another lookup — it is
+   * publicWrite, 20/hour per network. Both start from a number, like Check Waitlist Status, and
+   * show only that number's bookings. The waitlist lookup (Track) is untouched: it still never
+   * returns a ticket key.
+   */
+  const lookupMem = useRef(new Map<string, AppointmentLookup>());
+  /**
+   * Keys of bookings made on this page, so the chat's "Cancel" on the booking it just made works.
+   * Memory only, for the same reason as lookupMem.
+   */
+  const bookedKeys = useRef(new Map<string, string>());
+  const lookupApptsByPhone = async (p: string): Promise<AppointmentLookup> => {
+    const remember = () => {
+      // The number is remembered, like Track does — never anything the lookup returned. Also on a
+      // memory hit: switching back to a number already looked up makes it the one the next open
+      // (and the chat's "Use +91…?") offers.
+      const store = storeRef.current;
+      if (store.lastPhone === p) return;
+      store.lastPhone = p;
+      writeStore(storeKey, store);
+    };
+    const hit = lookupMem.current.get(p);
+    if (hit) {
+      remember();
+      return hit;
+    }
+    const r = await publicApi.lookupAppointments(site.slug, { phone: p });
+    // Normalised once (an older backend sends no `series`) so every reader can rely on both lists.
+    const res: AppointmentLookup = { appointments: r.appointments ?? [], series: r.series ?? [] };
+    lookupMem.current.set(p, res);
+    remember();
+    return res;
+  };
+  /** Drop a booking from every held lookup — it was cancelled, so no list may offer it again. */
+  const dropFromLookups = (id: string) => {
+    for (const [p, r] of lookupMem.current) {
+      lookupMem.current.set(p, { ...r, appointments: r.appointments.filter((a) => a.appointmentId !== id) });
+    }
+  };
+  /** The key that opens a booking: one made on this page, else a held lookup. Never from storage. */
+  const apptKeyFor = (id: string): string | undefined =>
+    bookedKeys.current.get(id) ??
+    [...lookupMem.current.values()].flatMap((r) => r.appointments).find((a) => a.appointmentId === id)?.appointmentKey;
+  const openMyAppts = () => {
+    setMenuOpen(false);
+    setApptsPhone(storeRef.current.lastPhone || "");
+    setApptsOpen(true);
   };
 
   // Booking → waitlist without losing the form. Only offered when the store is open AND the
@@ -1154,10 +1391,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const toggleFaq = (i: number) => setFaqOpen((cur) => (cur === i ? null : i));
   // The help chat's suggested buttons land on the page's own flows — the widget itself never
   // calls a mutating endpoint. "faq" simply scrolls to the Q&A the answer pointed at.
+  // "appts" (a cancel / reschedule question) opens My appointments, which can move as well as cancel.
   const onChatAction = (type: string) => {
     if (type === "join") openQueue();
     else if (type === "book") openBook();
     else if (type === "track") openTrack();
+    else if (type === "appts") openMyAppts();
     else document.getElementById("faq")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
@@ -1267,8 +1506,11 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     holdTicket(tk, v.phone, v.name);
     return tk;
   };
-  /** The single place that books a slot (pop-up + chat). Keeps the key that allows self-cancel. */
-  const submitBook = async (v: VisitInput & { slotStart: string }) => {
+  /**
+   * The single place that books a slot (pop-up + chat). Keeps the key that allows self-cancel.
+   * `repeat` is sent only by the pop-up — the chat books single visits in v1.
+   */
+  const submitBook = async (v: VisitInput & { slotStart: string; repeat?: RepeatRule }) => {
     const b = await publicApi.bookSlot(site.slug, {
       serviceIds: v.serviceIds.length ? v.serviceIds : undefined,
       name: v.name,
@@ -1278,23 +1520,16 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       visitorType: v.visitorType ?? undefined,
       smsOptIn: v.smsOptIn,
       reviewSmsOptIn: v.smsOptIn,
+      ...(v.repeat ? { repeat: v.repeat } : {}),
     });
     const store = storeRef.current;
     store.lastPhone = v.phone;
     store.lastName = v.name;
-    if (b.appointmentKey) {
-      store.appointments = [
-        ...upcomingAppointments(store.appointments).filter((a) => a.id !== b.appointmentId),
-        {
-          id: b.appointmentId,
-          key: b.appointmentKey,
-          phone: v.phone,
-          scheduledStartAt: b.scheduledStartAt,
-          serviceName: b.serviceName,
-          staffName: b.staffName,
-        },
-      ];
-    }
+    // A lookup held for this number no longer lists everything it has — the next one asks afresh.
+    lookupMem.current.delete(v.phone);
+    // Keys stay in page memory (bookedKeys), never in storage: see the Store comment.
+    if (b.series) for (const visit of b.series.visits) bookedKeys.current.set(visit.appointmentId, visit.appointmentKey);
+    else if (b.appointmentKey) bookedKeys.current.set(b.appointmentId, b.appointmentKey);
     writeStore(storeKey, store);
     return b;
   };
@@ -1313,8 +1548,18 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         if (tk.alreadyInQueue) setView("already");
         else setScreen("success");
       } else {
-        const b = await submitBook({ ...visit, slotStart: selectedSlot! });
-        setBooking({ serviceName: b.serviceName, scheduledStartAt: b.scheduledStartAt });
+        const b = await submitBook({ ...visit, slotStart: selectedSlot!, repeat: repeatRule ?? undefined });
+        // Rule dates are handled in order from the first, booked or skipped; anything past that
+        // count is still to come. Unknown (null) means a series that never ends.
+        const total = repeatRule ? ruleTotalVisits(repeatRule, bookDate) : null;
+        const handled = b.series ? b.series.visits.length + b.series.skipped.length : 0;
+        setBooking({
+          serviceName: b.serviceName,
+          staffName: b.staffName,
+          scheduledStartAt: b.scheduledStartAt,
+          series: b.series,
+          moreToCome: total === null || handled < total,
+        });
         setScreen("success");
       }
     } catch (e) {
@@ -1326,7 +1571,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         // the day's fresh times instead of leaving a stale grid on screen.
         setFormError(e.message);
         fetchSlots(cart, bookDate, member);
+      } else if (e instanceof ApiError && e.code === "RECURRING_DISABLED") {
+        // The store switched repeating bookings off after this page loaded. Drop back to a single
+        // visit, so a second Confirm books exactly what the API's message offers.
+        resetRepeat();
+        setFormError(e.message);
       } else {
+        // SERIES_EXISTS (409) and a refused rule (400) land here too: both messages are written
+        // for the customer, so they are shown as the API words them.
         // A booking 429 is a busy network, not the walk-in abuse block — never block the number.
         const msg = (e as Error)?.message ?? t.microsite.join.errGeneric;
         setFormError(msg);
@@ -1397,6 +1649,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     setSlots([]);
     setSelectedSlot(null);
     setFormError("");
+    resetRepeat();
   };
 
   // ---- derived render values ----
@@ -1497,7 +1750,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     held: liveTicketHeld && ticket ? { token: ticket.token, status: ticket.status, inService, canLeave: !!held?.ticketKey } : null,
     lastName: storeRef.current.lastName,
     lastPhone: storeRef.current.lastPhone,
-    savedApptCount: upcomingAppointments(storeRef.current.appointments).length,
     hasPhone: !!phoneFull,
     maxServices: MAX_SERVICES_PER_VISIT,
     isBlocked: isPhoneBlocked,
@@ -1562,53 +1814,34 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     },
     track: async (p) => {
       const r = await trackPhone(p, "");
-      // A phone lookup never returns the ticket key, so a place found this way can be seen but not left.
+      // The WAITLIST phone lookup never returns the ticket key, so a place found this way can be
+      // seen but not left. (The 2026-10-05 "phone alone is enough" decision covers appointments
+      // only — the waitlist stays view-only by phone.)
       return r.found ? { found: true, status: r.status, token: r.token, isYourTurn: r.isYourTurn, canLeave: !!r.socket?.ticketKey } : { found: false };
     },
     leave: leaveHeld,
-    refreshAppts: async () => {
-      const store = storeRef.current;
-      const saved = upcomingAppointments(store.appointments);
-      const views = await Promise.all(
-        saved.map(async (a): Promise<ApptView | null> => {
-          try {
-            return { ...(await publicApi.getAppointment(a.id, a.key)), canCancel: true };
-          } catch (e) {
-            // 404 = the key no longer opens it (deleted); forget it. Anything else is the network —
-            // show what we saved rather than hide a booking the customer knows they made.
-            if (e instanceof ApiError && e.status === 404) return null;
-            return {
-              appointmentId: a.id,
-              serviceName: a.serviceName,
-              staffName: a.staffName,
-              scheduledStartAt: a.scheduledStartAt,
-              status: "confirmed",
-              canCancel: true,
-            };
-          }
-        }),
-      );
-      const live = views.filter((v): v is ApptView => !!v);
-      const keep = new Set(live.map((v) => v.appointmentId));
-      store.appointments = saved.filter((a) => keep.has(a.id));
-      writeStore(storeKey, store);
-      return live.sort((x, y) => Date.parse(x.scheduledStartAt) - Date.parse(y.scheduledStartAt));
-    },
+    // The same lookup — and the same page-memory hold — as My appointments. It carries each
+    // changeable booking's key (client decision 2026-10-05), so a booking made on another device is
+    // as cancellable here as one made on this one. The key stays in lookupMem; the chat state only
+    // learns that there is one.
     lookupAppts: async (p) => {
-      const r = await publicApi.lookupAppointments(site.slug, { phone: p });
-      const store = storeRef.current;
-      store.lastPhone = p;
-      writeStore(storeKey, store);
-      const mine = new Set(upcomingAppointments(store.appointments).map((a) => a.id));
-      return r.appointments.map((a) => ({ ...a, canCancel: mine.has(a.appointmentId) }));
+      const r = await lookupApptsByPhone(p);
+      return r.appointments.map((a) => ({
+        appointmentId: a.appointmentId,
+        serviceName: a.serviceName,
+        staffName: a.staffName,
+        scheduledStartAt: a.scheduledStartAt,
+        status: a.status,
+        repeats: a.repeats === true,
+        canCancel: !!a.appointmentKey,
+      }));
     },
     cancelAppt: async (id) => {
-      const store = storeRef.current;
-      const saved = store.appointments.find((a) => a.id === id);
-      if (!saved) throw new ApiError(404, "NOT_FOUND", t.chat.flow.apptOtherDevice);
-      await publicApi.cancelAppointment(id, saved.key);
-      store.appointments = store.appointments.filter((a) => a.id !== id);
-      writeStore(storeKey, store);
+      const key = apptKeyFor(id);
+      // Unreachable from the engine (it only offers Cancel where canCancel), kept as a guard.
+      if (!key) throw new ApiError(404, "NOT_FOUND", t.chat.flow.apptNotFound);
+      await publicApi.cancelAppointment(id, key);
+      dropFromLookups(id);
     },
   };
   const ticketStatus = ticket?.status ?? null;
@@ -1728,7 +1961,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         ? `${Math.max(0, Math.round((1 - ticket.ahead / initialAhead) * 100))}%`
         : "0%";
 
-  const cantConfirm = !name.trim() || phone.replace(/\D/g, "").length < 4 || (mode === "book" && !selectedSlot);
+  const cantConfirm =
+    !name.trim() || phone.replace(/\D/g, "").length < 4 || (mode === "book" && (!selectedSlot || repeatIncomplete));
+  /** Shown in the summary so the rhythm is restated right above Confirm, not only in the radios. */
+  const summaryRepeat = repeatRule ? format(t.microsite.repeat.summaryRepeats, { rhythm: rhythmLabel(repeatRule.everyDays) }) : null;
 
   // Pre-confirmation summary parts. Booking shows the chosen slot's own label rather than a bare
   // "time selected", so the customer can check the time without scrolling back up to the chips.
@@ -2005,6 +2241,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           <span data-desk="1" style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Button size="sm" variant="outline" onClick={onSaveContact} leadingIcon={<Icon name="user" size={14} />}>{t.microsite.header.saveContact}</Button>
             <Button size="sm" variant="outline" onClick={openTrack}>{t.microsite.header.trackMyTurn}</Button>
+            <Button size="sm" variant="outline" onClick={openMyAppts}>{t.microsite.header.myAppointments}</Button>
           </span>
           <span data-desk="1">
             {/* Closed shops get the booking action here rather than a disabled control: the one
@@ -2037,6 +2274,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
             ))}
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
               <Button fullWidth variant="outline" onClick={() => { setMenuOpen(false); openTrack(); }}>{t.microsite.header.trackMyTurn}</Button>
+              <Button fullWidth variant="outline" onClick={openMyAppts}>{t.microsite.header.myAppointments}</Button>
               <Button fullWidth variant="outline" onClick={() => { setMenuOpen(false); onSaveContact(); }} leadingIcon={<Icon name="user" size={16} />}>{t.microsite.header.saveContact}</Button>
             </div>
           </div>
@@ -2331,7 +2569,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
            Phones only (CSS-gated, not JS) and hidden while the resume pill is showing, so a
            customer already in the queue is not offered a second "Join". On desktop the hero
            CTAs stay in reach; on a phone they scroll away within one swipe. */}
-      {!showResume && !joinOpen && (
+      {!showResume && !joinOpen && !apptsOpen && (
         <div
           className="ttMobileBar"
           style={{
@@ -2403,6 +2641,25 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
           phoneFull={phoneFull}
           storeName={site.name}
           onSaveToPhone={openCardChooser}
+        />
+      )}
+
+      {/* ===== MY APPOINTMENTS ===== */}
+      {apptsOpen && (
+        <MyAppointments
+          storeName={site.name}
+          timezone={site.timezone}
+          staff={liveStaff.map((s) => ({ id: s.id, name: s.name }))}
+          closedWeekdays={closedWeekdays}
+          initialPhone={apptsPhone}
+          lookup={lookupApptsByPhone}
+          peekLookup={(p) => lookupMem.current.get(p)}
+          saveLookup={(p, r) => lookupMem.current.set(p, r)}
+          onBook={() => {
+            setApptsOpen(false);
+            openJoin("book");
+          }}
+          onClose={() => setApptsOpen(false)}
         />
       )}
 
@@ -2650,6 +2907,147 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                               })}
                             </div>
                           )}
+
+                          {/* REPEAT THIS BOOKING? — after a time is picked, before Confirm, so the
+                              preview can judge real dates at that time. "Just this once" is the
+                              default; the SMS box above is untouched (its wording is the A2P one). */}
+                          {repeatOffered && selectedSlot && (
+                            <div style={{ marginBottom: 18 }}>
+                              <fieldset style={fieldsetReset}>
+                                <legend style={fieldLabel}>{t.microsite.repeat.title}</legend>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                  {REPEAT_PRESETS.map((o) => {
+                                    const on = repeatChoice === o.value;
+                                    return (
+                                      <label key={o.value} style={repeatPill(on)}>
+                                        <input type="radio" name="tt-repeat" value={o.value} checked={on} onChange={() => setRepeatChoice(o.value)} style={repeatRadio} />
+                                        {o.label}
+                                      </label>
+                                    );
+                                  })}
+                                  {/* The day count sits inside its own option: typing in it (or
+                                      focusing it) selects Custom, so the number can't be filled in
+                                      while some other rhythm silently stays chosen. */}
+                                  <label style={repeatPill(repeatChoice === "custom")}>
+                                    <input type="radio" name="tt-repeat" value="custom" checked={repeatChoice === "custom"} onChange={() => setRepeatChoice("custom")} style={repeatRadio} />
+                                    {t.microsite.repeat.custom}
+                                    <span style={{ font: "var(--fw-regular) 13px/1.2 var(--font-sans)", color: "var(--text-muted)" }}>{t.microsite.repeat.customEvery}</span>
+                                    <input
+                                      type="number"
+                                      inputMode="numeric"
+                                      min={REPEAT_LIMITS.minEveryDays}
+                                      max={REPEAT_LIMITS.maxEveryDays}
+                                      value={customDays}
+                                      aria-label={t.microsite.repeat.customDaysAria}
+                                      onFocus={() => setRepeatChoice("custom")}
+                                      onChange={(e) => {
+                                        setCustomDays(e.target.value);
+                                        setRepeatChoice("custom");
+                                      }}
+                                      style={{ ...repeatInput, width: 54, textAlign: "center" }}
+                                    />
+                                    <span style={{ font: "var(--fw-regular) 13px/1.2 var(--font-sans)", color: "var(--text-muted)" }}>{t.microsite.repeat.customDays}</span>
+                                  </label>
+                                </div>
+                                {repeatDaysError && <div role="alert" style={repeatErrorText}>{repeatDaysError}</div>}
+                                {weekdayDrifts && <div style={repeatHint}>{format(t.microsite.repeat.weekdayDrift, { n: repeatEveryDays! })}</div>}
+                              </fieldset>
+
+                              {repeatChoice !== "once" && (
+                                <>
+                                  <fieldset style={{ ...fieldsetReset, marginTop: 16 }}>
+                                    <legend style={fieldLabel}>{t.microsite.repeat.stopTitle}</legend>
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                      <label style={repeatPill(endChoice === "count")}>
+                                        <input type="radio" name="tt-repeat-end" value="count" checked={endChoice === "count"} onChange={() => setEndChoice("count")} style={repeatRadio} />
+                                        {t.microsite.repeat.endAfter}
+                                        <input
+                                          type="number"
+                                          inputMode="numeric"
+                                          min={REPEAT_LIMITS.minCount}
+                                          max={REPEAT_LIMITS.maxCount}
+                                          value={endCount}
+                                          aria-label={t.microsite.repeat.endCountAria}
+                                          onFocus={() => setEndChoice("count")}
+                                          onChange={(e) => {
+                                            setEndCount(e.target.value);
+                                            setEndChoice("count");
+                                          }}
+                                          style={{ ...repeatInput, width: 50, textAlign: "center" }}
+                                        />
+                                        {t.microsite.repeat.endAfterVisits}
+                                      </label>
+                                      <label style={repeatPill(endChoice === "until")}>
+                                        <input type="radio" name="tt-repeat-end" value="until" checked={endChoice === "until"} onChange={chooseUntil} style={repeatRadio} />
+                                        {t.microsite.repeat.endOn}
+                                        <input
+                                          type="date"
+                                          min={endDateMin}
+                                          max={endDateMax}
+                                          value={endDate}
+                                          aria-label={t.microsite.repeat.endDateAria}
+                                          onFocus={chooseUntil}
+                                          onChange={(e) => {
+                                            setEndDate(e.target.value);
+                                            setEndChoice("until");
+                                          }}
+                                          style={{ ...repeatInput, width: 142 }}
+                                        />
+                                      </label>
+                                      <label style={repeatPill(endChoice === "never")}>
+                                        <input type="radio" name="tt-repeat-end" value="never" checked={endChoice === "never"} onChange={() => setEndChoice("never")} style={repeatRadio} />
+                                        {t.microsite.repeat.endNever}
+                                      </label>
+                                    </div>
+                                    {repeatEndError && <div role="alert" style={repeatErrorText}>{repeatEndError}</div>}
+                                  </fieldset>
+
+                                  {/* What they are agreeing to, date by date, before they confirm. */}
+                                  {repeatRule && (
+                                    <div style={{ marginTop: 16, padding: "12px 14px", background: "var(--surface-page)", border: "1px solid var(--border-subtle)", borderRadius: "calc(12px * var(--radius-scale, 1))" }}>
+                                      <div style={fieldLabel}>{t.microsite.repeat.previewTitle}</div>
+                                      {previewLoading ? (
+                                        <div aria-live="polite" style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)" }}>{t.microsite.repeat.previewLoading}</div>
+                                      ) : currentPreview?.data ? (
+                                        <>
+                                          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                                            {currentPreview.data.dates.map((d) => {
+                                              const skipped = d.status === "closed" || d.status === "taken" || d.status === "outside_hours";
+                                              return (
+                                                <li key={d.date} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, font: "var(--fw-medium) 13.5px/1.35 var(--font-sans)" }}>
+                                                  {/* `date` is already the store's calendar date, so it is printed as-is
+                                                      rather than converted through the viewer's zone. */}
+                                                  <span style={{ color: d.status === "ok" ? "var(--text-strong)" : "var(--text-muted)", textDecoration: skipped ? "line-through" : undefined }}>
+                                                    {formatYmd(d.date)}
+                                                  </span>
+                                                  {skipped && (
+                                                    <span style={{ flexShrink: 0, font: "var(--fw-medium) 12.5px/1.35 var(--font-sans)", color: d.status === "closed" ? "var(--text-muted)" : "var(--warning-soft-fg)" }}>
+                                                      {d.status === "closed" ? t.microsite.repeat.statusClosed : t.microsite.repeat.statusTaken}
+                                                    </span>
+                                                  )}
+                                                </li>
+                                              );
+                                            })}
+                                          </ul>
+                                          <div style={{ marginTop: 8, font: "var(--fw-semibold) 13px/1.4 var(--font-sans)", color: "var(--text-body)" }}>
+                                            {currentPreview.data.totalVisits == null || !currentPreview.data.lastDate
+                                              ? t.microsite.repeat.andMore
+                                              : format(t.microsite.repeat.totalLine, { count: currentPreview.data.totalVisits, date: formatYmd(currentPreview.data.lastDate) })}
+                                          </div>
+                                          {currentPreview.data.dates.some((d) => d.status === "later") && (
+                                            <div style={repeatHint}>{t.microsite.repeat.laterNote}</div>
+                                          )}
+                                        </>
+                                      ) : currentPreview?.error ? (
+                                        <div style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)" }}>{currentPreview.error}</div>
+                                      ) : null}
+                                      <div style={{ ...repeatHint, marginTop: 10 }}>{t.microsite.repeat.finePrint}</div>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
                         </>
                       )}
 
@@ -2666,6 +3064,12 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                           <span style={{ display: "block", marginTop: 3 }}>
                             {[summaryWhen, summaryProvider].filter(Boolean).join(" · ")}
                           </span>
+                          {mode === "book" && summaryRepeat && (
+                            <span style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, color: "var(--text-strong)" }}>
+                              <Icon name="repeat" size={13} />
+                              {summaryRepeat}
+                            </span>
+                          )}
                         </span>
                         {cartTotalLabel ? (
                           <span style={{ flexShrink: 0, font: "var(--fw-bold) 16px/1.35 var(--font-sans)", color: "var(--text-strong)" }}>{cartTotalLabel}</span>
@@ -2701,7 +3105,9 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       </div>
                       <h3 style={{ font: "var(--fw-extrabold) 22px/1.2 var(--font-sans)", color: "var(--text-strong)", margin: "0 0 6px" }}>
                         {mode === "book"
-                          ? t.microsite.success.booked
+                          ? booking?.series
+                            ? format(t.microsite.repeat.successTitle, { rhythm: rhythmLabel(booking.series.everyDays) })
+                            : t.microsite.success.booked
                           : ticket?.status === "completed"
                             ? t.microsite.success.allDone
                             : ticket && !isActive(ticket.status)
@@ -2712,7 +3118,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       </h3>
                       <p style={{ font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--text-muted)", margin: "0 0 18px" }}>
                         {mode === "book"
-                          ? booking
+                          ? booking?.series
+                            ? // Every date is listed below, so this line names what repeats, not when.
+                              [booking.serviceName || t.microsite.success.yourVisit, booking.staffName].filter(Boolean).join(" · ")
+                            : booking
                             ? format(t.microsite.success.bookingLine, { service: booking.serviceName || t.microsite.success.yourVisit, when: formatInStoreZone(booking.scheduledStartAt, site.timezone, { weekday: "short", hour: "numeric", minute: "2-digit" }) })
                             : t.microsite.success.bookedSub
                           : ticket?.status === "completed"
@@ -2725,6 +3134,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                                   ? t.microsite.success.nextSub
                                   : t.microsite.success.waitSub}
                       </p>
+                      {/* How to get back to it. A one-off booking has no link to keep, and people
+                          don't keep links anyway — My Appointments finds it by phone number on any
+                          device (client decision 2026-10-05). A series says so beside its link. */}
+                      {mode === "book" && booking && !booking.series && (
+                        <p style={{ font: "var(--fw-regular) 12.5px/1.45 var(--font-sans)", color: "var(--text-muted)", margin: "-10px 0 18px" }}>
+                          {t.microsite.success.manageHint}
+                        </p>
+                      )}
 
                       {mode === "queue" && ticket && (
                         <div style={{ border: "2px solid var(--text-strong)", borderRadius: "calc(16px * var(--radius-scale, 1))", padding: 20, marginBottom: 16 }}>
@@ -2745,6 +3162,43 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                           <div style={{ height: 6, background: "var(--surface-sunken)", borderRadius: 999, marginTop: 16, overflow: "hidden" }}>
                             <div style={{ height: "100%", width: progressPct, background: "var(--success)", borderRadius: 999, transition: "width .6s ease" }} />
                           </div>
+                        </div>
+                      )}
+
+                      {mode === "book" && booking?.series && (
+                        <div style={{ textAlign: "left", marginBottom: 16 }}>
+                          <div style={fieldLabel}>{t.microsite.repeat.bookedVisits}</div>
+                          <ul style={{ listStyle: "none", margin: "0 0 4px", padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                            {booking.series.visits.map((v) => (
+                              <li key={v.appointmentId} style={{ display: "flex", alignItems: "center", gap: 8, font: "var(--fw-semibold) 14px/1.35 var(--font-sans)", color: "var(--text-strong)" }}>
+                                <span style={{ color: "var(--success)", display: "flex" }}>
+                                  <Icon name="check" size={15} />
+                                </span>
+                                {formatInStoreZone(v.scheduledStartAt, site.timezone, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                              </li>
+                            ))}
+                          </ul>
+                          {/* Dates inside the first three weeks that could NOT be booked — said
+                              here so nobody turns up for a visit that does not exist. */}
+                          {booking.series.skipped.length > 0 && (
+                            <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                              {booking.series.skipped.map((s) => (
+                                <li key={s.date} style={{ font: "var(--fw-medium) 13px/1.4 var(--font-sans)", color: s.reason === "closed" ? "var(--text-muted)" : "var(--warning-soft-fg)" }}>
+                                  {format(t.microsite.repeat.notBooked, {
+                                    date: formatYmd(s.date),
+                                    reason: s.reason === "closed" ? t.microsite.repeat.reasonClosed : t.microsite.repeat.reasonNotFree,
+                                  })}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {booking.moreToCome && <div style={repeatHint}>{t.microsite.repeat.laterNote}</div>}
+
+                          {/* No link to save here (client, 2026-10-05): customers didn't keep it. They come
+                              back to this page and use My Appointments, which finds the booking by phone
+                              number (docs/customer-my-appointments.md). The confirmation SMS still links
+                              to the manage page. */}
+                          <div style={{ ...repeatHint, marginTop: 12 }}>{t.microsite.repeat.manageHint}</div>
                         </div>
                       )}
 

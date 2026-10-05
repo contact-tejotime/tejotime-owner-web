@@ -143,16 +143,31 @@ A staff login's own seat **overrides** any `staffId` in the query, so the whole-
 one query string away. Walk-ins added by a staff login are forced onto that login's own chair
 (`'auto'` would let the engine seat them in someone else's lane).
 
-### `/appointments` (6)
+### `/appointments` (20)
 
 | Method | Path | Guards |
 |---|---|---|
 | GET | `/` | `perm=appointments:view` |
 | POST | `/` | `perm=appointments:manage` |
+| GET | `/series` | `perm=appointments:view`; `?status=open\|active\|paused\|ended\|cancelled\|all` (default open); staff → own chair |
+| GET | `/series/issues` | `perm=appointments:view`; Needs attention; staff → own chair |
+| POST | `/series/issues/:issueId/resolve` | `perm=appointments:manage` |
+| GET | `/series/:id` | `perm=appointments:view`, `ownRow(appointment_series)` → `{ series, visits, issues, laterDates }` |
+| POST | `/series/:id/pause` · `/resume` · `/cancel` | `perm=appointments:manage`, `ownRow`; resume takes `{ staffId?: uuid \| 'any' }` |
 | GET | `/:id` | `perm=appointments:view`, `ownRow` |
-| POST | `/:id/check-in` | `perm=appointments:manage`, `ownRow` |
+| POST | `/:id/check-in` | `perm=appointments:manage`, `ownRow` — puts the customer on the **booked** stylist when still active, else the soonest seat |
 | POST | `/:id/cancel` | `perm=appointments:manage`, `ownRow` |
-| POST | `/:id/no-show` | `perm=appointments:manage`, `ownRow` |
+| POST | `/:id/skip` | `perm=appointments:manage`, `ownRow` — series visits only (one-off → 400) |
+| GET | `/:id/slots?date&staffId` | `perm=appointments:manage`, `ownRow` — times to move this booking to (today…today+60) |
+| POST | `/:id/reschedule` | `perm=appointments:manage`, `ownRow` — `{slotStart, staffId?}`; any booking; a staff login may not move it to another chair (403) |
+| GET | `/series/:id/slots?date&staffId&fromDate?` | `perm=appointments:manage`, `ownRow(appointment_series)` |
+| POST | `/series/:id/preview-change` · PATCH `/series/:id` | `perm=appointments:manage`, `ownRow` — `{fromDate, slotStart?, staffId?, resolutions?}`; 409 `CHANGE_CONFLICTS` names dates needing a choice |
+| POST | `/series/issues/:issueId/book` | `perm=appointments:manage` — Book another time; seat-scoped in the service |
+| POST | `/:id/no-show` | `perm=appointments:manage`, `ownRow`; 2 in a row pause the visit's series |
+
+The `/series…` routes are registered **before** `/:id` — `:id`'s UUID check would 400 on the word
+"series". The appointment DTO carries `seriesId`, `occurrenceDate`, `cancelReason`. Recurring
+appointments: [docs/recurring-appointments.md](../../docs/recurring-appointments.md).
 
 ### `/customers` (5)
 
@@ -165,7 +180,8 @@ Free plan truncates the list server-side to `FREE_PLAN_CUSTOMER_LIMIT` and retur
 ### `/business` (6)
 
 `GET /` · `GET /qr` (`perm=profile:view`) — `PATCH /` · `PUT /gallery` · `PUT /amenities`
-(`perm=profile:manage`) — `PUT /hours` (`perm=hours:manage`).
+(`perm=profile:manage`) — `PUT /hours` (`perm=hours:manage`). `PATCH /` accepts
+`recurringEnabled` (owner/co-owner only, like the other public-face fields).
 
 ### `/services` (4) and `/staff` (4)
 
@@ -235,8 +251,10 @@ Every visit at the latest rate whose start instant is at or before checkout — 
 Join and book accept optional `smsOptIn` (boolean, default `false`). Missing/false never
 dispatches Twilio; see [docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md).
 | POST | `/businesses/:slug/track` | `publicWrite` — position only: no `socket.ticketKey`, no `customerName` |
-| POST | `/businesses/:slug/appointments/lookup` | `publicWrite` — upcoming bookings for `{phone}`; never returns keys |
+| POST | `/businesses/:slug/appointments/lookup` | `publicWrite` — `{phone}` must start with `+` (else 400); upcoming bookings **with** `appointmentKey` (only where `canChange`) + `series[{seriesId, manageToken, status}]` (active/paused) — client decision 2026-10-05 |
 | GET | `/appointments/:appointmentId` | `publicRead` — needs header `X-Appointment-Key`; wrong/missing key → 404 |
+| GET | `/appointments/:appointmentId/slots` | `publicRead` — `X-Appointment-Key`; `?date&staffId`; `lastDay` = today+20 |
+| POST | `/appointments/:appointmentId/reschedule` | `publicWrite` — body `{key, slotStart, staffId?}`; beyond today+20 / taken → 409 `SLOT_UNAVAILABLE`; started/checked-in → 422 |
 | POST | `/appointments/:appointmentId/cancel` | `publicWrite` — body `{key}`; past/checked-in/cancelled → 422 |
 | POST | `/businesses/:key/chat` | `publicChat` |
 | POST | `/chat` | `publicChat` |
@@ -244,6 +262,23 @@ dispatches Twilio; see [docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md).
 | POST | `/inquiries` | `inquiries` |
 | GET | `/tickets/:ticketId` | `publicRead` |
 | DELETE | `/tickets/:ticketId` | `publicWrite` — needs header `X-Ticket-Key`; missing/wrong → 404 |
+| POST | `/businesses/:slug/series-preview` | `publicRead` (read-only) — `{serviceIds, preferredStaffId, slotStart, repeat}` → the first 6 dates, each `ok\|later\|closed\|taken\|outside_hours` |
+| GET | `/series` | `publicRead` — header `X-Series-Token`; missing/wrong → 404 |
+| POST | `/series/visits/:appointmentId/skip` | `publicWrite` — header `X-Series-Token` |
+| POST | `/series/cancel` | `publicWrite` — header `X-Series-Token`; already cancelled → 422 |
+| GET | `/series/slots?date&staffId&appointmentId?\|fromDate?` | `publicRead` — token; customer range today…today+20 |
+| POST | `/series/visits/:appointmentId/reschedule` | `publicWrite` — token; only the token's series |
+| POST | `/series/preview-change` | `publicRead` — token |
+| POST | `/series/change` | `publicWrite` — token; 409 `CHANGE_CONFLICTS` |
+
+**Recurring appointments.** `POST /businesses/:slug/appointments` takes an optional
+`repeat: { everyDays 7–90, end: {type:'never'} | {type:'count', count 2–26} | {type:'until', date} }`
+and then also answers `series: { seriesId, manageToken, everyDays, startTime, visits[], skipped[] }`.
+409 `SERIES_EXISTS` (one open series per phone per store — checked before anything is written),
+409 `RECURRING_DISABLED` (store switch off), 400 for a rule `lib/recurrence.ts` `ruleProblem`
+refuses. The microsite payload has `recurringEnabled`; lookups carry `repeats`. The manage token is
+the customer's link (`/{phone}/v#token`) — 16 random url-safe chars, header-only, never in a URL a
+server sees. See [docs/recurring-appointments.md](../../docs/recurring-appointments.md).
 
 Leaving a ticket and the `/customer` ticket room authenticate with the HMAC `ticketKey` (returned
 only by the join that created the ticket — never by `/track` or a duplicate join); reading a ticket
@@ -254,9 +289,13 @@ by id (`GET /tickets/:id`) stays open (position only, no personal data).
 hours, future only, within `BOOKING_WINDOW_DAYS` (14). `preferredStaffId` is `'any'` or a UUID
 (malformed → 400). See [docs/customer-chatbot-booking.md](../../docs/customer-chatbot-booking.md).
 
-Booking now returns `appointmentKey`, which is `ticketKey("appt:" + id)`. It is the only thing that
-reads or cancels an appointment publicly, so a phone lookup can show a booking but never cancel
-it. See [docs/customer-chatbot-booking.md](../../docs/customer-chatbot-booking.md) §5.
+Booking returns `appointmentKey`, which is `ticketKey("appt:" + id)`. It is the only thing that
+reads, moves or cancels an appointment publicly.
+- **Since 2026-10-05** the phone lookup returns the key as well (client decision), so the phone
+  number alone manages a booking from any device.
+- **Fences:** only a `+<cc>` number is accepted, keys are given only for bookings that can still
+  change, and no customer details come back.
+- See [docs/customer-my-appointments.md](../../docs/customer-my-appointments.md).
 
 `/chat` is the **marketing landing page's** bot (no business context — it answers about the
 product from a fixed fact sheet), and `/chat/status` just reports the flag so that statically

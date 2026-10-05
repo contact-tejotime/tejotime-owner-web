@@ -58,7 +58,14 @@ export interface Draft {
   sms?: boolean;
 }
 
-/** An appointment as the chat lists it. `canCancel` = this browser holds its key. */
+/**
+ * An appointment as the chat lists it. `canCancel` = the page holds its key: it was booked on this
+ * device, or the phone lookup handed it over. Since the client decision of 2026-10-05
+ * (docs/customer-my-appointments.md) the phone number alone is enough, from any device, so a
+ * booking made elsewhere is as cancellable as one made here. The rule "a phone alone never cancels"
+ * is gone. A row with no key is now only one the API would refuse anyway (it has started), so it
+ * is shown without an action rather than with "call the store".
+ */
 export interface ApptView {
   appointmentId: string;
   serviceName: string | null;
@@ -66,6 +73,13 @@ export interface ApptView {
   scheduledStartAt: string;
   status: string;
   canCancel: boolean;
+  /**
+   * One visit of a repeating booking — the card shows the repeat marker, and the action reads
+   * "Skip this visit": cancelling a series visit skips just that one (the API records it as
+   * skipped), and the rest of the series carries on. The chat itself books single visits in v1
+   * (docs/recurring-appointments.md §11).
+   */
+  repeats?: boolean;
 }
 
 export interface FlowState {
@@ -128,7 +142,6 @@ export type Effect =
   | { type: "book"; draft: Draft }
   | { type: "track"; phone: string }
   | { type: "leave" }
-  | { type: "refreshAppts" }
   | { type: "lookupAppts"; phone: string }
   | { type: "cancelAppt"; id: string };
 
@@ -178,7 +191,6 @@ export interface FlowCtx {
   held: HeldTicket | null;
   lastName: string;
   lastPhone: string;
-  savedApptCount: number;
   hasPhone: boolean;
   maxServices: number;
   now: number;
@@ -607,10 +619,8 @@ function start(kind: FlowKind, ctx: FlowCtx, fresh = false): StepResult {
     return { ...r, out: [{ text: S.leaveFindFirst }, ...r.out] };
   }
 
-  // appts
-  if (ctx.savedApptCount > 0) {
-    return { state: { ...base, step: "apptsList" }, out: [{ text: S.apptsChecking }], effect: { type: "refreshAppts" } };
-  }
+  // appts — number first, like waitlist status ("Use +91 98…?" / a different number), and only that
+  // number's bookings. Nothing is listed from this browser any more (docs/customer-my-appointments.md).
   return prompt({ ...base, step: "apptsPhone" }, ctx);
 }
 
@@ -968,13 +978,14 @@ function onOption(state: FlowState, id: string, value: unknown, ctx: FlowCtx): S
     const appt = state.appts.find((a) => a.appointmentId === apptId);
     if (!appt || !appt.canCancel) return ignore(state);
     const what = [appt.serviceName, ctx.formatWhen(appt.scheduledStartAt)].filter(Boolean).join(", ");
+    // Same endpoint either way; a series visit is worded as the skip it becomes.
     return {
       state: { ...state, kind: "appts", step: "cancelConfirm", pendingAppt: apptId },
       out: [
         {
-          text: format(S.cancelConfirm, { what }),
+          text: format(appt.repeats ? S.skipConfirm : S.cancelConfirm, { what }),
           options: [
-            { id: "cancel:yes", label: S.cancelYes },
+            { id: "cancel:yes", label: appt.repeats ? S.skipYes : S.cancelYes },
             { id: "cancel:no", label: S.cancelNo },
           ],
         },
@@ -1007,14 +1018,19 @@ function back(state: FlowState, ctx: FlowCtx): StepResult {
 
 // ---- effect results ----
 
-function apptOut(appts: ApptView[], ctx: FlowCtx): Out[] {
+/**
+ * One card per appointment, with Cancel (or "Skip this visit" for a series visit) wherever the page
+ * holds the key. There used to be a third branch — booked on another device, "please call the
+ * store" — which the 2026-10-05 decision removed: a phone lookup now carries the keys.
+ */
+function apptOut(appts: ApptView[]): Out[] {
   return appts.map((a) => {
     const cancellable = a.canCancel && (a.status === "confirmed" || a.status === "pending");
     if (cancellable) {
-      return { card: { type: "appointment", appt: a }, options: [{ id: `cancelAppt:${a.appointmentId}`, label: S.cancelThis }] };
-    }
-    if (!a.canCancel && (a.status === "confirmed" || a.status === "pending")) {
-      return { card: { type: "appointment", appt: a }, text: S.apptOtherDevice, options: callOption(ctx) };
+      return {
+        card: { type: "appointment", appt: a },
+        options: [{ id: `cancelAppt:${a.appointmentId}`, label: a.repeats ? S.skipThis : S.cancelThis }],
+      };
     }
     return { card: { type: "appointment", appt: a } };
   });
@@ -1128,7 +1144,7 @@ function onResult(state: FlowState, input: Extract<Input, { kind: "result" }>, c
         state: { ...initialState(), kind: "appts", step: "result", appts: [appt] },
         out: [
           { text: S.booked },
-          ...apptOut([appt], ctx),
+          ...apptOut([appt]),
           { options: [{ id: "start:book", label: S.bookAnother }, { id: "done", label: S.done }] },
         ],
       };
@@ -1202,19 +1218,6 @@ function onResult(state: FlowState, input: Extract<Input, { kind: "result" }>, c
       };
     }
 
-    case "refreshAppts": {
-      const appts = err ? [] : ((data?.appts as ApptView[]) ?? []);
-      if (appts.length === 0) return prompt({ ...state, step: "apptsPhone" }, ctx);
-      return {
-        state: { ...state, kind: "appts", step: "apptsList", appts },
-        out: [
-          { text: S.apptsHere },
-          ...apptOut(appts, ctx),
-          { options: [{ id: "apptsOther", label: S.apptLookupOther }, { id: "start:book", label: S.bookAnother }, { id: "done", label: S.done }] },
-        ],
-      };
-    }
-
     case "lookupAppts": {
       const phone = ctx.maskPhone(e.phone);
       if (err) {
@@ -1237,7 +1240,7 @@ function onResult(state: FlowState, input: Extract<Input, { kind: "result" }>, c
         state: { ...state, kind: "appts", step: "apptsList", appts },
         out: [
           { text: format(S.apptsFound, { phone }) },
-          ...apptOut(appts, ctx),
+          ...apptOut(appts),
           { options: [{ id: "apptsOther", label: S.apptLookupOther }, { id: "done", label: S.done }] },
         ],
       };
@@ -1250,9 +1253,15 @@ function onResult(state: FlowState, input: Extract<Input, { kind: "result" }>, c
           out: [{ text: format(S.cancelError, { message: err.message }), options: [...callOption(ctx), { id: "done", label: S.done }] }],
         };
       }
+      const skippedVisit = !!state.appts.find((a) => a.appointmentId === e.id)?.repeats;
       return {
         state: { ...initialState(), kind: "appts", step: "result" },
-        out: [{ text: S.cancelled, options: [{ id: "start:book", label: S.bookAgain }, { id: "done", label: S.done }] }],
+        out: [
+          {
+            text: skippedVisit ? S.skipped : S.cancelled,
+            options: [{ id: "start:book", label: S.bookAgain }, { id: "done", label: S.done }],
+          },
+        ],
       };
     }
 

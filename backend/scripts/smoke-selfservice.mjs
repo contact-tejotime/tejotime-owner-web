@@ -73,7 +73,9 @@ async function main() {
   const lookup = await call('POST', `/public/businesses/${SLUG}/appointments/lookup`, { body: { phone: PHONE_BOOK } });
   const found = lookup.json.appointments?.find((a) => a.appointmentId === apptId);
   ok(lookup.status === 200 && !!found, 'phone lookup (another device) lists the booking');
-  ok(found && !('appointmentKey' in found), 'phone lookup never returns the key, so it cannot cancel');
+  // Client decision 2026-10-05 (docs/customer-my-appointments.md): the phone alone manages a booking
+  // from any device, so the lookup hands back the same key the booking browser got.
+  ok(found?.appointmentKey === key && found?.canChange === true, 'phone lookup returns the same key, so another device can manage it');
   const nobody = await call('POST', `/public/businesses/${SLUG}/appointments/lookup`, { body: { phone: PHONE_NOBODY } });
   ok(nobody.status === 200 && nobody.json.appointments.length === 0, 'a different number sees nothing');
 

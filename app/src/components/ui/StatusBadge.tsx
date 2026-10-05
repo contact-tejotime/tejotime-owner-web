@@ -34,9 +34,20 @@ const STATUS_MAP: Record<StatusKind, { label: string; tone: Tone }> = {
   confirmed: { label: t.status.confirmed, tone: 'success' },
 };
 
-export function StatusBadge({ status }: { status: StatusKind }) {
+export function StatusBadge({
+  status,
+  label,
+}: {
+  status: StatusKind;
+  /**
+   * Same tone, different words — a skipped series visit is `cancelled` to the API but "Skipped"
+   * to the owner, who would otherwise read it as the customer having called it off.
+   */
+  label?: string;
+}) {
   const theme = useTheme();
-  const meta = STATUS_MAP[status] ?? { label: status, tone: 'neutral' as Tone };
+  const base = STATUS_MAP[status] ?? { label: status, tone: 'neutral' as Tone };
+  const meta = label ? { ...base, label } : base;
   const tonePair = useMemo(() => statusTonePair(meta.tone, theme.colors), [meta.tone, theme.colors]);
   const s = useMemo(() => createStatusBadgeStyles(theme, tonePair), [theme, tonePair]);
   const live = status === 'in-service' || status === 'serving' || status === 'waiting';

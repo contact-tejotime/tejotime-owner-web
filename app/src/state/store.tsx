@@ -6,7 +6,16 @@ import { AppointmentEntry, CalendarAppointmentEntry, Customer, ServiceVM, Staff 
 import { SeatGroupVM, CardVM, flatCards } from '@/lib/queue';
 import type { ServiceFormValues } from '@/components/settings';
 import { AppState as RNAppState } from 'react-native';
-import { api, ApiError, getAccessToken, initSession, refreshSession, setOnAuthFail } from '@/lib/api';
+import {
+  api,
+  ApiError,
+  getAccessToken,
+  initSession,
+  refreshSession,
+  setOnAuthFail,
+  type SeriesDTO,
+  type SeriesIssueDTO,
+} from '@/lib/api';
 import { connectOwner } from '@/lib/socket';
 import { getOnboarded, setOnboarded } from '@/lib/tokenStore';
 import {
@@ -23,6 +32,7 @@ import {
 import { DayHoursVM, toApiHours } from '@/lib/hours';
 import { TAB_ROUTES } from '@/navigation/routes';
 import { showToast } from '@/lib/toast';
+import { setStoreTimeZone } from '@/lib/zoned';
 import { t, format } from '@/i18n';
 import { can, toSessionUser, type ModuleAccess, type SessionUser } from '@/lib/permissions';
 import type { CommissionSummary, ReportQuery, ReportRange as PeriodRange } from '@/lib/commission';
@@ -130,7 +140,20 @@ interface BusinessInfo {
   reviews?: { stars: number; text: string; authorName: string }[];
   gallery?: { id?: string; url: string; alt?: string | null }[];
   hours?: DayHoursVM[];
+  /** Offer "Repeat this booking?" on the store page. Only GET /business carries it (owners). */
+  recurringEnabled?: boolean;
+  /**
+   * The store's IANA zone. From /auth/me and login (every role) as well as GET /business; every
+   * booking time is printed on it (lib/zoned.ts).
+   */
+  timezone?: string;
 }
+
+/** A row action on one booking (Appointments tab, the series sheet). */
+export type ApptAction = 'skip' | 'cancel' | 'noShow' | 'reschedule';
+
+/** Where a booking moves to: a slot's `startAt` from the slots API, and a stylist (or 'any'). */
+export type MoveTarget = { slotStart: string; staffId?: string };
 
 type State = {
   authed: boolean;
@@ -193,6 +216,21 @@ type State = {
   commission: CommissionSummary | null;
   /** The stylist whose visits sheet is open (a Reports card, or "View visits"). */
   commissionVisitsFor: { staffId: string; name: string } | null;
+  /** Regulars: active + paused repeating bookings (docs/recurring-appointments.md). */
+  series: SeriesDTO[];
+  /** False until the first Regulars load lands, so the tab can skeleton instead of "No regulars". */
+  seriesLoaded: boolean;
+  /** Needs attention: series dates the background job could not book. */
+  seriesIssues: SeriesIssueDTO[];
+  /** The repeating booking whose sheet is open. */
+  seriesSheetId: string | null;
+  /**
+   * Bumped whenever something the open series sheet shows may have changed — a socket event, or an
+   * action taken elsewhere. The sheet reads its detail live and refetches on every bump.
+   */
+  seriesRev: number;
+  /** The booking row action in flight, so only that button spins. */
+  apptAction: { id: string; kind: ApptAction } | null;
 };
 
 type Store = State & {
@@ -227,6 +265,19 @@ type Store = State & {
   commitMove: (staffId: string, id: string) => void;
   commitCrossSeatMove: (id: string, toStaffId: string, toIndex: number) => void;
   checkInAppt: (a: AppointmentEntry) => void;
+  /**
+   * Skip (series visit), Cancel (one-off), Mark no-show, or Reschedule (with `move`) one booking.
+   * True when it worked.
+   */
+  actOnAppt: (a: Pick<AppointmentEntry, 'id' | 'seriesId'>, kind: ApptAction, move?: MoveTarget) => Promise<boolean>;
+  /** "Book another time" for a Needs attention date. True when it worked. */
+  bookSeriesIssue: (issueId: string, move: MoveTarget) => Promise<boolean>;
+  openSeries: (id: string) => void;
+  closeSeries: () => void;
+  /** Re-read everything a series change can move: Regulars, Needs attention, the lists, the sheet. */
+  refreshSeriesViews: () => void;
+  resolveSeriesIssue: (issueId: string) => Promise<void>;
+  setRecurringEnabled: (next: boolean) => Promise<void>;
   loadCalendarAppointments: (from: string, to: string) => Promise<void>;
   /** Switch the Reports period; `from`/`to` (store-local days) only for `custom`. */
   setReportQuery: (q: ReportQuery) => void;
@@ -247,6 +298,18 @@ type Store = State & {
 };
 
 const emptyWalkin: WalkIn = { services: [], position: 'end', staffId: 'auto', visitorType: null, error: '' };
+
+/**
+ * Regulars are customers' names and phone numbers, scoped to whoever signed in (a staff login sees
+ * only its chair's). Dropped on sign-out so the next person on this device never sees them.
+ */
+const SIGNED_OUT_SERIES: Pick<State, 'series' | 'seriesLoaded' | 'seriesIssues' | 'seriesSheetId' | 'apptAction'> = {
+  series: [],
+  seriesLoaded: false,
+  seriesIssues: [],
+  seriesSheetId: null,
+  apptAction: null,
+};
 
 const AppStateContext = createContext<Store | null>(null);
 
@@ -371,9 +434,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     reportToday: null,
     commission: null,
     commissionVisitsFor: null,
+    series: [],
+    seriesLoaded: false,
+    seriesIssues: [],
+    seriesSheetId: null,
+    seriesRev: 0,
+    apptAction: null,
   });
 
   const socketRef = useRef<Socket | null>(null);
+  const seriesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoursSeq = useRef(0);
   /** Range currently shown on the calendar screen, so socket events can keep it fresh. */
@@ -449,6 +519,46 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setS((p) => ({ ...p, calendarLoading: false }));
     }
   }, []);
+  /** Re-read the month the Calendar tab is showing, if it has been opened. */
+  const refreshVisibleCalendarRange = useCallback(() => {
+    const range = calendarRangeRef.current;
+    if (range) void loadCalendarAppointments(range.from, range.to);
+  }, [loadCalendarAppointments]);
+  const loadSeries = useCallback(async () => {
+    try {
+      const r = await api.listSeries();
+      setS((p) => ({ ...p, series: r.data ?? [], seriesLoaded: true }));
+    } catch {
+      // Still "loaded": an API from before migration 0036 404s here, and the tab should then say
+      // "No regulars yet" rather than skeleton forever.
+      setS((p) => ({ ...p, seriesLoaded: true }));
+    }
+  }, []);
+  const loadSeriesIssues = useCallback(async () => {
+    try {
+      const r = await api.listSeriesIssues();
+      setS((p) => ({ ...p, seriesIssues: r.data ?? [] }));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  /**
+   * Regulars, Needs attention and the open series sheet, re-read together — debounced.
+   *
+   * The hourly job books visits in bursts, and each one emits `appointment:created` and
+   * `series:updated`. Re-reading per event fired two requests per visit; collapsing a burst into
+   * one read keeps the owner's phone quiet and the ownerRead limiter well clear.
+   */
+  const scheduleSeriesRefresh = useCallback(() => {
+    if (!can(accessRef.current, 'appointments')) return;
+    if (seriesTimer.current) clearTimeout(seriesTimer.current);
+    seriesTimer.current = setTimeout(() => {
+      seriesTimer.current = null;
+      void loadSeries();
+      void loadSeriesIssues();
+      setS((p) => ({ ...p, seriesRev: p.seriesRev + 1 }));
+    }, 300);
+  }, [loadSeries, loadSeriesIssues]);
   const loadCustomers = useCallback(async (search?: string) => {
     try {
       const r = await api.getCustomers(search);
@@ -550,7 +660,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const loadBusiness = useCallback(async () => {
     try {
       const r = await api.getBusiness();
-      setS((p) => ({ ...p, business: mapBusinessDetail(r), plan: r.plan ?? p.plan }));
+      const business = mapBusinessDetail(r);
+      if (business.timezone) setStoreTimeZone(business.timezone);
+      setS((p) => ({ ...p, business, plan: r.plan ?? p.plan }));
       // Adopt the store's Appearance settings so the app matches its own microsite. The
       // normaliser repairs anything malformed and falls back to the legacy theme_color, so a
       // store that has never opened Appearance keeps today's exact TejoTime palette.
@@ -578,11 +690,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       queueish || can(access, 'services') ? loadServices() : Promise.resolve(),
       queueish || can(access, 'staff') ? loadStaff() : Promise.resolve(),
       can(access, 'appointments') ? loadAppointments() : Promise.resolve(),
+      // Regulars and Needs attention live on the Appointments tab, behind the same permission.
+      can(access, 'appointments') ? loadSeries() : Promise.resolve(),
+      can(access, 'appointments') ? loadSeriesIssues() : Promise.resolve(),
       can(access, 'customers') ? loadCustomers() : Promise.resolve(),
       can(access, 'dashboard') || can(access, 'commission') ? loadDashboard() : Promise.resolve(),
       can(access, 'profile') ? loadBusiness() : Promise.resolve(),
     ]);
-  }, [loadQueue, loadServices, loadStaff, loadAppointments, loadCustomers, loadDashboard, loadBusiness]);
+  }, [
+    loadQueue,
+    loadServices,
+    loadStaff,
+    loadAppointments,
+    loadSeries,
+    loadSeriesIssues,
+    loadCustomers,
+    loadDashboard,
+    loadBusiness,
+  ]);
 
   /** First data load after auth — flips `bootstrapping` so screens can show a spinner. */
   const bootstrap = useCallback(async () => {
@@ -644,6 +769,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (connectedBefore) {
         loadQueue();
         loadAppointments();
+        scheduleSeriesRefresh();
       }
       connectedBefore = true;
     });
@@ -651,31 +777,38 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     sock.on('queue:snapshot', (d: any) =>
       setS((p) => ({ ...p, seats: seatsForUser(d.seats, p.session) })),
     );
-    const refreshVisibleCalendarRange = () => {
-      const range = calendarRangeRef.current;
-      if (range) loadCalendarAppointments(range.from, range.to);
-    };
+    // Series visits fire the ordinary appointment events too (including the ones the background
+    // job books), and each can move a regular's "Next:" line — so they refresh Regulars as well.
     sock.on('appointment:created', () => {
       loadAppointments();
       loadDashboard();
       refreshVisibleCalendarRange();
+      scheduleSeriesRefresh();
     });
     sock.on('appointment:checked_in', () => {
       loadAppointments();
       loadDashboard();
       loadQueue();
       refreshVisibleCalendarRange();
+      scheduleSeriesRefresh();
     });
     sock.on('appointment:updated', () => {
       loadAppointments();
       refreshVisibleCalendarRange();
+      scheduleSeriesRefresh();
+    });
+    // Pause / resume / cancel, a Needs attention item handled, the job flagging a date — or a
+    // change of future visits, which re-books the month the Calendar may be showing.
+    sock.on('series:updated', () => {
+      refreshVisibleCalendarRange();
+      scheduleSeriesRefresh();
     });
     sock.on('subscription:updated', (d: any) => {
       setS((p) => ({ ...p, plan: d.plan }));
       loadCustomers();
     });
     sock.on('notification:new', (d: any) => showToast(d?.body ?? t.toast.newNotification, 'info'));
-  }, [loadAppointments, loadDashboard, loadQueue, loadCustomers, loadCalendarAppointments]);
+  }, [loadAppointments, loadDashboard, loadQueue, loadCustomers, refreshVisibleCalendarRange, scheduleSeriesRefresh]);
 
   const teardown = useCallback(() => {
     const sock = socketRef.current;
@@ -683,6 +816,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     sock?.close();
     if (redialTimer.current) clearTimeout(redialTimer.current);
     redialTimer.current = null;
+    if (seriesTimer.current) clearTimeout(seriesTimer.current);
+    seriesTimer.current = null;
   }, []);
 
   // Back in the foreground: iOS and Android suspend a backgrounded app's socket, so re-dial now
@@ -713,8 +848,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       roleRef.current = null;
       reportQueryRef.current = { range: 'today' };
       setThemeConfig(null);
+      setStoreTimeZone(null);
       // Earnings are one person's pay: never leave them on screen for whoever signs in next.
-      setS((p) => ({ ...p, authed: false, authLoading: false, session: null, commission: null, commissionVisitsFor: null }));
+      setS((p) => ({
+        ...p,
+        authed: false,
+        authLoading: false,
+        session: null,
+        commission: null,
+        commissionVisitsFor: null,
+        ...SIGNED_OUT_SERIES,
+      }));
       showToast(t.toast.sessionExpired, 'error');
     });
     (async () => {
@@ -738,6 +882,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
                   slug: me.business.slug,
                   category: me.business.category ?? '',
                   currency: me.business.currency ?? undefined,
+                  timezone: me.business.timezone ?? undefined,
                 }
               : null,
             plan: me.business?.plan ?? 'free',
@@ -747,6 +892,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }));
           accessRef.current = session?.permissions ?? null;
           roleRef.current = session?.role ?? null;
+          // Before bootstrap: every booking it maps is printed on the store's clock.
+          setStoreTimeZone(me.business?.timezone);
           // Every role gets chrome theme from /auth/me — staff often cannot call GET /business.
           setThemeConfig(themeConfigFromBusiness(me.business));
           connectSocket();
@@ -767,6 +914,45 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const store = useMemo<Store>(() => {
+    /**
+     * Skip / Cancel / No-show on one booking. Owner-side changes text nobody (the client's SMS
+     * rule): the screens offer a Call button instead. The row is updated from the API's answer at
+     * once, then the lists are re-read — the Today list only keeps bookings still to arrive.
+     */
+    const runApptAction = async (
+      a: Pick<AppointmentEntry, 'id' | 'seriesId'>,
+      kind: ApptAction,
+      call: () => Promise<unknown>,
+      success: string,
+    ): Promise<boolean> => {
+      patch(() => ({ apptAction: { id: a.id, kind } }));
+      try {
+        const res = await call();
+        const row = res && typeof res === 'object' && 'id' in res ? mapCalendarAppointment(res) : null;
+        setS((p) => ({
+          ...p,
+          apptAction: null,
+          // A moved booking is still to arrive — it may have moved off today, which the re-read
+          // below decides. Skip, cancel and no-show all leave the Today list at once.
+          appts: kind === 'reschedule' ? p.appts : p.appts.filter((x) => x.id !== a.id),
+          calendarAppts: row
+            ? p.calendarAppts.map((x) => (x.id === a.id ? { ...x, ...row } : x))
+            : p.calendarAppts,
+        }));
+        showToast(success, 'success');
+        loadAppointments();
+        refreshVisibleCalendarRange();
+        if (kind !== 'skip' && kind !== 'reschedule') loadDashboard();
+        // A skip, move or no-show changes the series too: its next visit, "Moved", or a pause.
+        if (a.seriesId) scheduleSeriesRefresh();
+        return true;
+      } catch (e) {
+        patch(() => ({ apptAction: null }));
+        showToast((e as ApiError)?.message ?? t.toast.error, 'error');
+        return false;
+      }
+    };
+
     return {
       ...s,
       signIn: async (phone, password, accountType) => {
@@ -792,6 +978,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
                   slug: res.business.slug,
                   category: res.business.category ?? '',
                   currency: res.business.currency ?? undefined,
+                  timezone: res.business.timezone ?? undefined,
                 }
               : null,
             plan: res.business?.plan ?? 'free',
@@ -800,6 +987,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }));
           accessRef.current = session?.permissions ?? null;
           roleRef.current = session?.role ?? null;
+          setStoreTimeZone(res.business?.timezone);
           setThemeConfig(themeConfigFromBusiness(res.business));
           showToast(message, 'success');
           connectSocket();
@@ -827,6 +1015,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         roleRef.current = null;
         reportQueryRef.current = { range: 'today' };
         setThemeConfig(null);
+        setStoreTimeZone(null);
         // Earnings are one person's pay: never leave them on screen for whoever signs in next.
         setS((p) => ({
           ...p,
@@ -835,6 +1024,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           session: null,
           commission: null,
           commissionVisitsFor: null,
+          ...SIGNED_OUT_SERIES,
         }));
         showToast(message, type);
       },
@@ -1043,6 +1233,67 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           showToast((e as ApiError)?.message ?? t.toast.couldNotCheckIn, 'error');
         }
       },
+      actOnAppt: (a, kind, move) => {
+        switch (kind) {
+          case 'skip':
+            return runApptAction(a, kind, () => api.skipAppointment(a.id), t.appointments.visitSkipped);
+          case 'cancel':
+            return runApptAction(a, kind, () => api.cancelAppointment(a.id), t.appointments.bookingCancelled);
+          case 'reschedule':
+            if (!move) return Promise.resolve(false);
+            return runApptAction(
+              a,
+              kind,
+              () => api.rescheduleAppointment(a.id, move.slotStart, move.staffId),
+              t.appointments.visitMoved,
+            );
+          default:
+            return runApptAction(a, kind, () => api.noShowAppointment(a.id), t.toast.markedNoShow);
+        }
+      },
+      bookSeriesIssue: async (issueId, move) => {
+        try {
+          await api.bookSeriesIssue(issueId, move.slotStart, move.staffId);
+          setS((p) => ({ ...p, seriesIssues: p.seriesIssues.filter((i) => i.id !== issueId) }));
+          showToast(t.series.visitBooked, 'success');
+          loadAppointments();
+          refreshVisibleCalendarRange();
+          scheduleSeriesRefresh();
+          return true;
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? t.toast.error, 'error');
+          return false;
+        }
+      },
+      openSeries: (id) => patch(() => ({ seriesSheetId: id })),
+      closeSeries: () => patch(() => ({ seriesSheetId: null })),
+      refreshSeriesViews: () => {
+        loadAppointments();
+        refreshVisibleCalendarRange();
+        scheduleSeriesRefresh();
+      },
+      resolveSeriesIssue: async (issueId) => {
+        try {
+          await api.resolveSeriesIssue(issueId);
+          // Gone at once: the debounced re-read below confirms it and fixes Regulars' count.
+          setS((p) => ({ ...p, seriesIssues: p.seriesIssues.filter((i) => i.id !== issueId) }));
+          showToast(t.series.markedHandled, 'success');
+          scheduleSeriesRefresh();
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? t.toast.error, 'error');
+        }
+      },
+      setRecurringEnabled: async (next) => {
+        const before = s.business?.recurringEnabled;
+        // Optimistic, like the other switches: the request is a single boolean.
+        setS((p) => ({ ...p, business: p.business ? { ...p.business, recurringEnabled: next } : p.business }));
+        try {
+          await api.setRecurringEnabled(next);
+        } catch (e) {
+          setS((p) => ({ ...p, business: p.business ? { ...p.business, recurringEnabled: before } : p.business }));
+          showToast((e as ApiError)?.message ?? t.toast.couldNotSaveSetting, 'error');
+        }
+      },
       saveProfile: async (patch, extras) => {
         try {
           let res: any = await api.updateBusiness(patch);
@@ -1208,7 +1459,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     loadServices,
     loadStaff,
     loadBusiness,
+    loadAppointments,
     loadCalendarAppointments,
+    refreshVisibleCalendarRange,
+    scheduleSeriesRefresh,
     setReportQuery,
     setThemeConfig,
   ]);

@@ -107,6 +107,13 @@ export const ICONS = {
   menuReceipt: '<path d="M6 3H18V19.5L16 21L14 19.5L12 21L10 19.5L8 21L6 19.5V3Z"/><path d="M9 7H15"/><path d="M9 10H15"/><path d="M9 13H12.5"/>',
   refresh:
     '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  /**
+   * A visit that belongs to a repeating booking (docs/recurring-appointments.md). Lucide's
+   * "repeat" — an SVG on purpose, not the 🔁 emoji, which iOS, Android and the web each draw
+   * differently.
+   */
+  repeat:
+    '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
   /** Commission: the rates row in Settings and the commission tile on Reports (as owner-web). */
   percent: '<path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
   /** "Salon keeps" — what is left of the takings after commission. */

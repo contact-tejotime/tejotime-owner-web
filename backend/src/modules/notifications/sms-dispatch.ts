@@ -105,7 +105,21 @@ function storeUrl(phoneFull: string | null | undefined): string {
   return phoneFull ? `${base}/${phoneFull}` : base;
 }
 
-/** Message 1 — sent right after a website booking, only if the appointment-texts box was ticked. */
+/**
+ * "Manage your booking" for a visit of a recurring series: the store page's manage view, with the
+ * series' token after `#` so the browser never sends it to a server (or a log). A one-off booking
+ * keeps the plain store link. Same domain either way — the registered sample's link is a value.
+ */
+export function manageUrl(phoneFull: string | null | undefined, seriesToken: string | null | undefined): string {
+  if (!phoneFull || !seriesToken) return storeUrl(phoneFull);
+  return `${storeUrl(phoneFull)}/v#${seriesToken}`;
+}
+
+/**
+ * Message 1 — sent right after a website booking, only if the appointment-texts box was ticked.
+ * Also sent for each visit the recurring-series job books (docs/recurring-appointments.md §4): it
+ * is the regular's advance notice of their next date, which a 15-minute reminder cannot be.
+ */
 export async function sendBookingConfirmation(businessId: string, appointmentId: string): Promise<void> {
   const a = await one<{
     customer_name: string;
@@ -115,10 +129,13 @@ export async function sendBookingConfirmation(businessId: string, appointmentId:
     name: string;
     timezone: string;
     phone_full: string | null;
+    manage_token: string | null;
   }>(
     `select a.customer_name, a.customer_phone, a.sms_opt_in, a.scheduled_start_at,
-            b.name, b.timezone, b.phone_full
-       from appointment a join business b on b.id = a.business_id
+            b.name, b.timezone, b.phone_full, s.manage_token
+       from appointment a
+       join business b on b.id = a.business_id
+       left join appointment_series s on s.id = a.series_id
       where a.id = $1 and a.business_id = $2`,
     [appointmentId, businessId],
   );
@@ -130,7 +147,7 @@ export async function sendBookingConfirmation(businessId: string, appointmentId:
     optIn: true,
     appointmentId,
     template: SMS_TEMPLATES.bookingConfirmed,
-    body: smsBodyBookingConfirmed(a.customer_name, a.name, date, time, storeUrl(a.phone_full)),
+    body: smsBodyBookingConfirmed(a.customer_name, a.name, date, time, manageUrl(a.phone_full, a.manage_token)),
   });
 }
 

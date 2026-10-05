@@ -19,6 +19,10 @@ export default function AppointmentsLoading() {
           <SkeletonHeader />
           <Skeleton width={44} height={44} radius={10} />
         </div>
+        {/* The Today | Regulars switch, so the list doesn't drop 64px when the page lands. */}
+        <div className="appts-seg" aria-hidden>
+          <Skeleton width="100%" height={40} radius={10} />
+        </div>
         <div className="appts-section-title appts-skel-title">
           <Skeleton width={150} height={18} />
         </div>

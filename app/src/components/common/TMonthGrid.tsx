@@ -148,9 +148,13 @@ const createStyles = ({ colors, radius }: ThemeStyleProps) =>
     weekCell: { flex: 1, textAlign: 'center' },
     grid: { ...styles.flexRow, flexWrap: 'wrap' },
     cell: { width: `${100 / 7}%`, alignItems: 'center', ...styles.mb1 },
+    // Full size where it fits, smaller where it doesn't: the same grid also sits inline in an
+    // appointment row (SlotPickerInline), a column narrower than any sheet, where seven fixed 42s
+    // overlapped their neighbours. `aspectRatio` keeps a shrunk cell round.
     cellInner: {
-      width: CELL_SIZE,
-      height: CELL_SIZE,
+      width: '100%',
+      maxWidth: CELL_SIZE,
+      aspectRatio: 1,
       borderRadius: moderateScale(radius.pill),
       ...styles.itemsCenter,
       ...styles.justifyCenter,

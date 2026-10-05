@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { t, format } from "@/i18n";
+import { Icon } from "@/components/Icon";
 import type { ApptView, Draft, SlotLite } from "./engine";
 
 /**
@@ -272,7 +273,15 @@ export function AppointmentCard({ appt, when }: { appt: ApptView; when: string }
   return (
     <div className={`ttFlowCard${over ? " isOver" : ""}`}>
       <div className="ttFlowTicketTop">
-        <div className="ttFlowCardTitle" style={{ margin: 0 }}>{appt.serviceName || C.summaryBooking}</div>
+        <div className="ttFlowCardTitle" style={{ margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+          {appt.serviceName || C.summaryBooking}
+          {/* An icon from the shared set, not the 🔁 emoji, which renders differently per platform. */}
+          {appt.repeats && (
+            <span role="img" aria-label={t.microsite.repeat.marker} title={t.microsite.repeat.marker} style={{ display: "inline-flex", color: "var(--text-muted)" }}>
+              <Icon name="repeat" size={14} />
+            </span>
+          )}
+        </div>
         <span className={`ttFlowBadge${over ? " isOver" : ""}`}>{statusLabel}</span>
       </div>
       <Row label={C.when} value={when} />

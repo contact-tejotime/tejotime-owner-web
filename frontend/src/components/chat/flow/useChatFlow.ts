@@ -30,7 +30,6 @@ export interface FlowAdapter {
   book: (d: Draft) => Promise<ApptView>;
   track: (phone: string) => Promise<{ found: boolean; status?: string; token?: string; isYourTurn?: boolean }>;
   leave: () => Promise<void>;
-  refreshAppts: () => Promise<ApptView[]>;
   lookupAppts: (phone: string) => Promise<ApptView[]>;
   cancelAppt: (id: string) => Promise<void>;
 }
@@ -134,8 +133,6 @@ export function useChatFlow({
           selfLeaveAt.current = Date.now();
           await a.leave();
           return ok({});
-        case "refreshAppts":
-          return ok({ appts: await a.refreshAppts() });
         case "lookupAppts":
           return ok({ appts: await a.lookupAppts(effect.phone) });
         case "cancelAppt":

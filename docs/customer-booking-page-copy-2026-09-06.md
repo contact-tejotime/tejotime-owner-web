@@ -361,3 +361,97 @@ The repo has **no UI test runner** for any of its four front ends, and `CLAUDE.m
 to add a browser runner speculatively. The backend `openStatus` logic — the part with real
 timezone and week-wrap arithmetic — is covered by the new unit test; the rest needs manual QA, or
 the Playwright tier that §12.3 keeps proposing.
+
+## Repeat this booking (2026-10-03)
+
+Recurring appointments, Phase 1 — full design in [recurring-appointments.md](recurring-appointments.md).
+Strings live in `frontend/src/i18n/en.json` under `microsite.repeat` (booking modal, success
+screen) and `microsite.series` (the manage page).
+
+- **Where:** in the booking modal after a time is picked, only when the store's
+  `recurringEnabled` is on. "Book an Appointment" still means one scheduled visit; the repeat is an
+  option on it, never a separate button.
+- **Defaults that protect the customer:** "Just this once" is pre-selected and reset every time the
+  modal opens; when repeating, "After 6 visits" is pre-selected. Confirm is disabled while a chosen
+  repeat is half-filled (custom days outside 7–90, no end date) — it never silently books a single
+  visit instead.
+- **Honest preview:** "Your visits" lists the first six dates in the store's timezone, marking
+  "Shop closed — skipped" and "Not free — skipped", plus "{n} visits · last on {date}" or "… and
+  more". Fine print: "Same service, stylist and time. If your usual time isn't free, the salon will
+  contact you." — true because the owner is told (Needs attention), and no text is sent.
+- **Custom intervals** that are not whole weeks warn "Every {n} days falls on a different weekday
+  each time."
+- **The SMS consent box and its wording are unchanged** — they are part of the Twilio registration.
+- **After booking:** "You're booked! Repeats every 2 weeks.", the visits booked now, any date that
+  was not ("Not booked: {date} — shop closed / not free"), and "Save your link to skip or cancel
+  visits" with Copy. The link is `/{store phone}/v#{token}`; a store reached without a phone URL
+  shows "To skip or cancel a visit, call {store}." instead.
+- **Manage page** `/{store phone}/v` (`SeriesManage.tsx`, `noindex`): rhythm, end, status banner,
+  upcoming visits with Skip, "Cancel repeating booking", both confirmed inline. A missing or wrong
+  token reads "This link doesn't open a booking…" with Call the salon.
+- The store chat stays single-booking; its appointment cards show a "Repeating booking" marker.
+
+Not verified in a browser end to end: pressing Confirm on a repeating booking, the success screen,
+Copy, and the manage page against a real backend (checked with mocked responses only). The API
+side is covered by `backend/scripts/smoke-recurring.mjs` (39 assertions, run on a throwaway DB).
+
+### Phase 2 — move a visit, change all future visits (2026-10-03)
+
+On the manage page (`SeriesManage.tsx`, strings under `microsite.series.*` and
+`microsite.slotPicker.*`), using a new `SlotPicker.tsx` and `lib/booking-days.ts`. The day strip is
+built from the API's `today`/`lastDay` (today … today+20), never the phone's clock. The booking
+modal itself is unchanged; it only imports the helpers that moved.
+
+- **Reschedule** sits next to Skip on each visit.
+  - It opens the picker inline (day, stylist with the current one marked "(current)", time).
+  - Then it asks "Move this visit to {when}?" with [Move visit] / [Back]; the row then shows "Moved".
+- **"Change all future visits"** opens a panel above Cancel, with From, Stylist, New time (or "Keep current time") and a Preview. The stylist comes before the time because the free times depend on the stylist.
+  - Preview statuses:
+    - "Moved earlier — keeps its time"
+    - "Not free at the new time — pick another time or skip", with [Pick another time] / [Skip this date]
+    - "Skipped"
+    - "Shop closed — skipped"
+    - "Booked about 3 weeks ahead"
+  - "Change visits" stays disabled until every taken date has a choice.
+  - If a date is taken meanwhile: "Some dates are no longer free — pick again".
+- **Wording:** "skip or cancel" became "skip, move or cancel" on the success screen, in the no-link line and in the page description.
+
+Driven end to end in headless Chrome against a throwaway API (390px): book a weekly series → move a visit → change the time with two taken dates (one moved, one skipped) → a third customer takes the chosen time first (409, pick again) → confirm. The walk-through caught one bug, now fixed: the rhythm line's weekday came from the first visit, so a moved first visit turned "Mon" into "Tue".
+
+## My Appointments (2026-10-05)
+
+A **My Appointments** button sits beside **Check Waitlist Status**: in the desktop header, and in the
+mobile menu. It opens a pop-up where a customer sees, moves and cancels their upcoming bookings.
+It starts from the phone number on every device, pre-filled with the last one used, like Check
+Waitlist Status, and lists only that number's bookings. This follows the client's decision that the phone number alone is enough;
+the decision record is [customer-my-appointments.md](customer-my-appointments.md). Title case
+matches the header's other buttons. The store chat's suggestion button and its answer use the same
+words.
+
+Page strings are in `frontend/src/i18n/en.json` under `microsite.myAppts.*`,
+`microsite.header.myAppointments` and `chat.flow.starters.appts` (the chat's starter chip). The
+answer bot's suggestion button and its reply come from the backend (`backend/src/lib/chat-faq.ts`,
+`LABELS.appts`).
+
+| Where | Copy |
+|---|---|
+| Header / mobile menu | My Appointments |
+| Pop-up, phone step | Find your appointments · "Enter the phone number you booked with to see, move or cancel your upcoming appointments." · Show My Appointments |
+| List heading | Upcoming appointments for {phone} (the "Booked on this device" list was removed the same day) |
+| One-off row | Reschedule · Cancel → "Cancel this appointment — {what}?" Yes, cancel it / Keep it |
+| Visit of a repeating booking (no token on this page) | Reschedule · Skip this visit → "Skip this visit — {what}? The rest of your repeating booking stays booked." |
+| Repeating booking | Repeats every 2 weeks · Next: {when} · Manage visits → the manage view inline, with "All my appointments" to go back |
+| Too late | Too late to change online (a booking from earlier today that has started) |
+| Empty | No upcoming appointments for this number · Book an Appointment |
+| 429 | Too many tries for now. Please wait a few minutes and try again. |
+| Booking success | "See you at your appointment. To move or cancel it, tap My Appointments on this page and enter your number." |
+| Repeating booking success | "To skip, move or cancel a visit, tap My Appointments on this page and enter your number." The link box ("Save your link…" + Copy) was **removed** the same day: customers didn't keep the link. |
+| Manage page with a broken link | "…On the booking page, tap My Appointments and enter your number to find it — or call the salon." |
+| Chat answer to "cancel / reschedule my booking" | "You can change or cancel a booking yourself: tap My Appointments on this page and enter the phone number you booked with." + a **My Appointments** button |
+
+**Removed:** the chat's "This was booked on another device, so it can't be changed here. Please call
+the store…" (`chat.flow.apptOtherDevice`). A booking made elsewhere is now cancellable from the chat
+too.
+
+**Not changed:** the SMS wording. It is a registered template, and its "Manage your booking" link
+already lands on this page.

@@ -14,7 +14,7 @@ pop-ups allow without leaving the chat. The chat asks one thing at a time, with 
 | **Book an appointment** | "Book appointment" chip · "book for tomorrow" · a Book suggestion | an appointment card with Cancel |
 | **My waitlist status** | "My waitlist status" chip · "where am I in line" · a Track suggestion | the live ticket card, or "not on today's waitlist" |
 | **Leave the waitlist** | "Leave the waitlist" on a ticket · "leave the queue" | "You've left" plus Rejoin |
-| **My appointments** | "My appointments" chip · "cancel my appointment" | a list of upcoming bookings, each with Cancel when allowed |
+| **My appointments** | "My appointments" chip · "cancel my appointment" | a list of upcoming bookings, each with Cancel (or "Skip this visit" on a repeating one) when allowed — from any device since 2026-10-05 |
 | **Different number** | offered on the ticket, at the phone step, and in status and appointment lookups | the same flow for another number |
 
 ## 1. The rule that makes this safe
@@ -156,17 +156,25 @@ capacity. Still open: a `slots:changed` socket push (the 30-second refresh cover
 
 ## 5. Appointment self-service (new, additive endpoints)
 
-There is no OTP, so **a phone number alone never cancels a booking**. Otherwise anyone who knows
+> **Changed 2026-10-05 — client decision.** The phone number alone now manages a booking: the
+> lookup below returns the keys, so another device can move or cancel. The rule as first written
+> follows for the record; the decision, its accepted risk and what was kept are in
+> [customer-my-appointments.md](customer-my-appointments.md).
+
+There is no OTP, so (as first built) **a phone number alone never cancels a booking**. Otherwise anyone who knows
 someone's number could wipe their appointment.
 
 - `POST /public/businesses/:slug/appointments` now also returns **`appointmentKey`**. It is
   `ticketKey("appt:" + id)`; the prefix stops an appointment key from also working as a ticket key.
-  The booking browser saves it in `tt_microsite_{slug}` under `appointments[]`. Entries are pruned
-  6 hours after the appointment's start.
+  The booking browser used to save it in `tt_microsite_{slug}` under `appointments[]` (pruned 6 hours
+  after the start). **Since 2026-10-05 it saves nothing:** "My appointments" starts from a phone
+  number (the chat asks "Use +91 98…?" or for a different number) and the lookup returns the keys.
+  Old saved lists are cleared on load. See [customer-my-appointments.md](customer-my-appointments.md).
 - `POST /public/businesses/:slug/appointments/lookup {phone}` (`publicWrite`, like `/track`)
-  returns upcoming `pending`/`confirmed` bookings from today onward in the store's timezone. It
-  **never returns keys**. Another device can therefore *see* a booking but cannot cancel it; it is
-  told to call the store.
+  returns upcoming `pending`/`confirmed` bookings from today onward in the store's timezone. As
+  first built it **never returned keys**, so another device could only *see* a booking and was told
+  to call the store. **Since 2026-10-05** it returns each changeable booking's key and the open
+  series' manage token, takes only a `+<cc>` number, and the chat cancels from any device.
 - `GET /public/appointments/:id` with header `X-Appointment-Key` (`publicRead`) reads the live
   status. A missing or wrong key returns **404, not 403**, so a guessed id cannot be confirmed.
   The key goes in a header so it never ends up in request logs.
@@ -233,7 +241,7 @@ see [sms-opt-in-a2p.md](sms-opt-in-a2p.md) before the campaign is resubmitted.
 | 22 | Your turn / 15 min left | chat posts a message | manual |
 | 23 | Status: found / not found / another number | live card (no Leave without the key) / Check in / re-ask | engine + unit + smoke |
 | 24 | Cancel on the same device | cancelled; the time returns to `/slots` | engine + smoke |
-| 25 | Booking made on another device | visible, not cancellable, Call | engine + smoke |
+| 25 | Booking made on another device | cancellable — the lookup returns its key (2026-10-05; was "visible, not cancellable, Call") | engine + smoke |
 | 26 | Cancel a past, checked-in or cancelled booking | 422 with the reason | engine + unit + smoke |
 | 27 | Bad name or phone | re-asked | engine |
 | 28 | "stop", "back", a question mid-flow, typed answers | handled | engine |
