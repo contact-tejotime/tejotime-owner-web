@@ -72,6 +72,26 @@
   gap: 4px;
   min-width: 0;
 }
+/* A labelled control that is not one input — Profile's gallery heading: chips, then the Custom box
+   when chosen. A little more air than a plain field, so the chips do not crowd the box. */
+.sb-field.sb-field--group {
+  gap: 8px;
+}
+/* A field plus what belongs to it underneath (the headline's ideas): closer together than the
+   card's 16px between separate fields, so the ideas read as part of the headline. */
+.sb-field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+/* Tap-to-use suggestions: an "Ideas:" caption, then chips (the Appearance chips' look). */
+.sb-ideas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
 /* Overrides the global `label` (12px muted caps-ish) with the app's bodySm medium textBody. */
 .sb-field .sb-field-label {
   display: block;
@@ -187,7 +207,8 @@
   font-weight: 600;
   line-height: 1.45;
 }
-/* Two fields side by side — the app's highlight number/label pair and the sheet's duration/price. */
+/* Two fields side by side — the service sheet's duration/price. (Profile's highlight number/label
+   pair used it too until that pair was removed on 2026-10-05.) */
 .sb-row2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1275,7 +1296,8 @@
   color: var(--success);
 }
 
-/* Chips (the app's ChipRow): a radiogroup of pills, the chosen one in the brand's soft tint. */
+/* Chips (the app's ChipRow): a radiogroup of pills, the chosen one in the brand's soft tint.
+   Profile borrows them too — the gallery heading picker and the headline's ideas. */
 .sb-ap-chips {
   display: flex;
   flex-wrap: wrap;

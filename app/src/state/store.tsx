@@ -123,8 +123,8 @@ interface BusinessInfo {
   description?: string;
   aboutHeading?: string;
   establishedYear?: number | null;
-  statValue?: string;
-  statLabel?: string;
+  /** '' = the store type's default gallery heading (see lib/store-family). */
+  galleryHeading?: string;
   logoUrl?: string;
   heroImageUrl?: string;
   aboutImageUrl?: string;

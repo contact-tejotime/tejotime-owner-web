@@ -153,7 +153,10 @@ export async function getVCard(slug: string): Promise<string> {
   const name = vcardEscape(b.name ?? '');
   const tel = `${b.country_code ?? ''}${b.phone_number ?? ''}`.replace(/\D/g, '');
   // ADR structured value: PO;ext;street;locality;region;postal;country
-  const adr = `;;${vcardEscape(b.address ?? '')};${vcardEscape(b.area ?? '')};;;`;
+  // Locality is the city: the neighborhood is optional now, and a phone's contacts app expects a
+  // town there, not "Downtown".
+  const locality = b.city || b.area || '';
+  const adr = `;;${vcardEscape(b.address ?? '')};${vcardEscape(locality)};;;`;
   const url = b.phone_full
     ? `${env.PUBLIC_WEB_URL.replace(/\/+$/, '')}/${b.phone_full}`
     : '';
@@ -166,7 +169,7 @@ export async function getVCard(slug: string): Promise<string> {
     `ORG:${name}`,
   ];
   if (tel) lines.push(`TEL;TYPE=CELL:+${tel}`);
-  if (b.address || b.area) lines.push(`ADR;TYPE=WORK:${adr}`);
+  if (b.address || locality) lines.push(`ADR;TYPE=WORK:${adr}`);
   if (url) lines.push(`URL:${url}`);
   lines.push('END:VCARD');
 
@@ -261,8 +264,8 @@ async function buildMicrosite(b: any) {
     name: b.name,
     tagline: b.tagline,
     heroSubtitle: b.hero_subtitle ?? null,
-    statValue: b.stat_value ?? null,
-    statLabel: b.stat_label ?? null,
+    // The owner's gallery heading (0038); null = the page uses its default for this kind of store.
+    galleryHeading: b.gallery_heading ?? null,
     description: b.description,
     aboutHeading: b.about_heading ?? null,
     heroImageUrl: b.hero_image_url ?? null,
@@ -271,6 +274,9 @@ async function buildMicrosite(b: any) {
     faqs: Array.isArray(b.faqs) ? b.faqs : [],
     category: b.category,
     area: b.area,
+    // The page shows the city wherever the neighborhood ("area") is blank — area became optional
+    // on 2026-10-05 (docs/store-setup-review-2026-10-05.md).
+    city: b.city ?? null,
     address: b.address,
     rating: Number(b.rating ?? 0),
     reviewCount: b.review_count,

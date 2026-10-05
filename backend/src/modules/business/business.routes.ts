@@ -38,8 +38,12 @@ const patchSchema = z
     city: z.string().max(80).optional(),
     tagline: z.string().max(160).optional(),
     heroSubtitle: z.string().max(200).optional(),
+    // Removed 2026-10-05 but still ACCEPTED (and ignored by the service): the schema is strict and
+    // installed app builds send both on every save. Drop once those builds are gone.
     statValue: z.string().max(40).optional(),
     statLabel: z.string().max(60).optional(),
+    // The photo gallery's heading on the page; '' clears it back to the store type's default.
+    galleryHeading: z.string().trim().max(40).optional(),
     description: z.string().max(2000).optional(),
     aboutHeading: z.string().max(160).optional(),
     // null / '' clears the year (owner emptied the field).

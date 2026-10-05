@@ -84,7 +84,11 @@ export default async function SettingsPage() {
       cardUrl={qr?.cardUrl ?? null}
       recurringEnabled={recurringEnabled}
       subs={{
-        profile: [business?.name, business?.area].filter(Boolean).join(" · ") || t.settings.businessProfileSub,
+        // The neighborhood is optional now; the store page shows the city in its place, so this
+        // row does the same rather than showing the name alone.
+        profile:
+          [business?.name, business?.area?.trim() || business?.city].filter(Boolean).join(" · ") ||
+          t.settings.businessProfileSub,
         hours: business ? hoursSummary(business.hours ?? []) : t.settings.workingHoursSub,
         services:
           serviceCount === null

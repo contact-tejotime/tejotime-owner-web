@@ -71,8 +71,14 @@ prefix until billing lands — the box is disabled then anyway; the app falls ba
   own price list (`PREMIUM_PLAN_PRICE_INR`), not store money.
 - **The app's pre-login onboarding art** (`onboarding.spendValue: "₹4,850"`,
   `todayRevenue: "₹12,400"`) — illustration shown before any store is known.
-- `DEFAULT_CURRENCY` / the column default stay `INR`; a new store gets USD only when the admin
-  picks it.
+- `DEFAULT_CURRENCY` / the column default stay `INR`. **Since 2026-10-05** (client review row 29)
+  the admin **Create store** form starts a new store in its phone country's currency instead: the
+  phone defaults to +1 US, so the currency defaults to USD.
+  - **Behaviour:** picking +91 India switches it to INR, +44 to GBP, and so on
+    (`admin-panel/src/lib/country-currency.ts`), until the admin picks a currency by hand.
+  - **Never changed automatically:** an existing store (changing it does not convert prices) and a
+    restored draft.
+  - **Check:** `npm run test:country-currency`.
 
 ## Tests
 

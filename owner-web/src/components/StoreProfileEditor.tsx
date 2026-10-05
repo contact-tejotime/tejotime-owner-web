@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { t, format } from "@/i18n";
 import { useState, useTransition } from "react";
 
+import OptionCards, { type OptionCardItem } from "@/components/appearance/OptionCards";
 import { GalleryEditor, type GalleryImage } from "@/components/GalleryEditor";
 import { Icon } from "@/components/Icon";
 import { ImageField } from "@/components/ImageField";
 import { Spinner } from "@/components/Skeleton";
 import { SbField, SbSection } from "@/components/store-settings/ui";
+import { familyFor } from "@/lib/store-family";
 import { showToast } from "@/lib/toast";
 import type { BusinessDetail } from "@/lib/server-api";
 
@@ -46,8 +48,8 @@ type Draft = {
   establishedYear: string;
   aboutHeading: string;
   description: string;
-  statValue: string;
-  statLabel: string;
+  /** '' = the default heading for the store's kind; anything else is shown as written. */
+  galleryHeading: string;
   logoUrl: string;
   heroImageUrl: string;
   aboutImageUrl: string;
@@ -71,8 +73,7 @@ function toDraft(b: BusinessDetail): Draft {
     establishedYear: b.establishedYear != null ? String(b.establishedYear) : "",
     aboutHeading: b.aboutHeading ?? "",
     description: b.description ?? "",
-    statValue: b.statValue ?? "",
-    statLabel: b.statLabel ?? "",
+    galleryHeading: b.galleryHeading ?? "",
     logoUrl: b.logoUrl ?? "",
     heroImageUrl: b.heroImageUrl ?? "",
     aboutImageUrl: b.aboutImageUrl ?? "",
@@ -92,6 +93,24 @@ const SOCIALS: { key: keyof Draft; label: string; placeholder: string }[] = [
   { key: "linkedinUrl", label: t.profile.socials.linkedin, placeholder: "https://linkedin.com/company/yourshop" },
   { key: "yelpUrl", label: t.profile.socials.yelp, placeholder: "https://yelp.com/biz/yourshop" },
 ];
+
+/*
+ * The gallery heading picker: Default, the ready-made headings for this kind of store, Custom…
+ * (docs/store-setup-review-2026-10-05.md — the same options as the admin form and the app).
+ *
+ * `t.galleryHeadings.<family>[0]` is what the store page shows when no heading is set, so it must
+ * stay equal to frontend/src/i18n/en.json `domains.<family>.galleryHeading`; otherwise
+ * "Default — X" promises a heading the page does not show.
+ */
+type HeadingChoice = "default" | "custom" | `h:${string}`;
+
+function headingChoice(value: string, headings: readonly string[], custom: boolean): HeadingChoice {
+  if (custom) return "custom";
+  if (!value.trim()) return "default";
+  // Case-sensitive on purpose: "our work" typed by hand is the owner's own wording, so it stays
+  // under Custom with their text rather than being shown as the preset.
+  return headings.includes(value) ? `h:${value}` : "custom";
+}
 
 export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
   const router = useRouter();
@@ -121,12 +140,43 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
 
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState("");
+  // Inline, under the field, rather than in the alert by the save bar: the headline sits at the
+  // top of a long form, and the error has to be where the owner fixes it.
+  const [taglineError, setTaglineError] = useState("");
+  // Set once the owner picks "Custom…" or types in its box. Without it, typing a ready-made
+  // heading's exact words would snap the picker to that chip and hide the box mid-word.
+  const [customHeading, setCustomHeading] = useState(false);
   const busy = inFlight || isPending;
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setDraft((d) => ({ ...d, [key]: value }));
     setError("");
   };
+
+  // Recomputed from the category as typed, not the saved one, so retyping "Salon" as "Clinic"
+  // changes the offered headings and ideas straight away — the same answer the store page will
+  // give once it is saved (lib/store-family.ts is the page's own matcher).
+  const family = familyFor(draft.category);
+  const headings = t.galleryHeadings[family];
+  const headlineIdeas = t.headlineSuggestions[family];
+  const choice = headingChoice(draft.galleryHeading, headings, customHeading);
+  const headingOptions: OptionCardItem<HeadingChoice>[] = [
+    { value: "default", label: format(t.profile.galleryHeadingDefault, { heading: headings[0] }) },
+    ...headings.map((h): OptionCardItem<HeadingChoice> => ({ value: `h:${h}`, label: h })),
+    { value: "custom", label: t.profile.galleryHeadingCustom },
+  ];
+  // A blank Custom box saves '' — the store page then falls back to the default, so say that here.
+  const shownHeading = draft.galleryHeading.trim() || headings[0];
+
+  function chooseHeading(next: HeadingChoice) {
+    if (next === "custom") {
+      // Keep the current text: picking Custom from a ready-made heading lets the owner tweak it.
+      setCustomHeading(true);
+      return;
+    }
+    setCustomHeading(false);
+    set("galleryHeading", next === "default" ? "" : next.slice(2));
+  }
 
   const listsNow = listsSnapshot(payments, amenities, gallery, faqs, reviews);
   const listsDirty = listsNow !== savedLists;
@@ -135,6 +185,17 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
   async function save() {
     if (!draft.name.trim()) {
       setError(t.profile.errName);
+      return;
+    }
+    // The headline is required (client review, 2026-10-05): a blank one left the page with an empty
+    // top heading. The API silently ignores a blank tagline instead of refusing it (older app builds
+    // send whatever the field holds), so without this check the save would report success and keep
+    // the old headline.
+    if (!draft.tagline.trim()) {
+      setError("");
+      setTaglineError(t.profile.errTagline);
+      // Focusing scrolls it into view: the Save bar is at the bottom of a long form.
+      document.getElementById("sp-tagline")?.focus();
       return;
     }
     // Same bounds as the app: a typo like "20144" is caught here, naming the field, instead of
@@ -167,8 +228,10 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
           address: draft.address.trim(),
           aboutHeading: draft.aboutHeading.trim(),
           description: draft.description.trim(),
-          statValue: draft.statValue.trim(),
-          statLabel: draft.statLabel.trim(),
+          // '' clears it back to the store type's default. Owner-only on the API (staff logins get
+          // a 403 for it), which is safe here: this editor is only rendered for owner / co-owner,
+          // like the About and social fields beside it; staff get BusinessProfileForm.
+          galleryHeading: draft.galleryHeading.trim(),
           // Empty clears the year; a number sets it.
           establishedYear: yearNum,
           // Always send image fields — '' is how you CLEAR them (same as socials).
@@ -255,14 +318,38 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
             placeholder={t.profile.categoryPlaceholder}
           />
         </SbField>
-        <SbField id="sp-tagline" label={t.profile.tagline}>
-          <input
-            id="sp-tagline"
-            value={draft.tagline}
-            onChange={(e) => set("tagline", e.target.value)}
-            placeholder={t.profile.taglinePlaceholder}
-          />
-        </SbField>
+        <div className="sb-field-stack">
+          <SbField id="sp-tagline" label={t.profile.tagline} hint={t.profile.taglineHint} error={taglineError}>
+            <input
+              id="sp-tagline"
+              value={draft.tagline}
+              aria-invalid={taglineError ? true : undefined}
+              onChange={(e) => {
+                set("tagline", e.target.value);
+                setTaglineError("");
+              }}
+            />
+          </SbField>
+          {/* Actions, not a choice: a tap REPLACES the text, and the owner can edit it from there. */}
+          <div className="sb-ideas" role="group" aria-labelledby="sp-tagline-ideas">
+            <span className="sb-caption" id="sp-tagline-ideas">
+              {t.profile.taglineIdeas}
+            </span>
+            {headlineIdeas.map((idea) => (
+              <button
+                key={idea}
+                type="button"
+                className="sb-ap-chip"
+                onClick={() => {
+                  set("tagline", idea);
+                  setTaglineError("");
+                }}
+              >
+                {idea}
+              </button>
+            ))}
+          </div>
+        </div>
         <SbField id="sp-heroSubtitle" label={t.profile.heroSubtitle} hint={t.profile.heroSubtitleHint}>
           <input
             id="sp-heroSubtitle"
@@ -276,8 +363,13 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
         <SbField id="sp-address" label={t.profile.address}>
           <input id="sp-address" value={draft.address} onChange={(e) => set("address", e.target.value)} />
         </SbField>
-        <SbField id="sp-area" label={t.profile.area}>
-          <input id="sp-area" value={draft.area} onChange={(e) => set("area", e.target.value)} />
+        <SbField id="sp-area" label={t.profile.area} hint={t.profile.areaHint}>
+          <input
+            id="sp-area"
+            value={draft.area}
+            onChange={(e) => set("area", e.target.value)}
+            placeholder={t.profile.areaPlaceholder}
+          />
         </SbField>
         <SbField id="sp-city" label={t.profile.city}>
           <input id="sp-city" value={draft.city} onChange={(e) => set("city", e.target.value)} />
@@ -305,24 +397,6 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
             onChange={(e) => set("description", e.target.value)}
           />
         </SbField>
-        <div className="sb-row2">
-          <SbField id="sp-statValue" label={t.profile.statValue}>
-            <input
-              id="sp-statValue"
-              value={draft.statValue}
-              onChange={(e) => set("statValue", e.target.value)}
-              placeholder={t.profile.statValuePlaceholder}
-            />
-          </SbField>
-          <SbField id="sp-statLabel" label={t.profile.statLabel}>
-            <input
-              id="sp-statLabel"
-              value={draft.statLabel}
-              onChange={(e) => set("statLabel", e.target.value)}
-              placeholder={t.profile.statLabelPlaceholder}
-            />
-          </SbField>
-        </div>
         <SbField id="sp-year" label={t.profile.establishedYear}>
           <input
             id="sp-year"
@@ -353,6 +427,7 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
           assetType="about"
           value={draft.aboutImageUrl}
           onChange={(url) => set("aboutImageUrl", url)}
+          hint={t.profile.aboutImageHint}
         />
       </SbSection>
 
@@ -387,14 +462,50 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
         </SbField>
       </SbSection>
 
+      {/*
+        The heading lives beside the photos it names, but it is a profile column (gallery_heading),
+        so it rides the same PATCH /business as the rest of the profile. The photos themselves go to
+        PUT /business/gallery right after; both are behind the one Save button, as the gallery
+        already was — there is no separate gallery save to wire it to.
+      */}
       <SbSection title={t.profile.secPhotos} hint={t.profile.photosHint}>
-        <GalleryEditor
-          images={gallery}
-          onChange={(g) => {
-            setGallery(g);
-            setError("");
-          }}
-        />
+        <div className="sb-field sb-field--group">
+          <span className="sb-field-label" id="sp-galleryHeading-label">
+            {t.profile.galleryHeading}
+          </span>
+          <OptionCards
+            labelledBy="sp-galleryHeading-label"
+            value={choice}
+            options={headingOptions}
+            onChange={chooseHeading}
+          />
+          {choice === "custom" ? (
+            <SbField id="sp-galleryHeading">
+              <input
+                id="sp-galleryHeading"
+                value={draft.galleryHeading}
+                maxLength={40}
+                aria-labelledby="sp-galleryHeading-label"
+                placeholder={t.profile.galleryHeadingCustomPlaceholder}
+                onChange={(e) => {
+                  setCustomHeading(true);
+                  set("galleryHeading", e.target.value);
+                }}
+              />
+            </SbField>
+          ) : null}
+          <p className="sb-field-hint">{t.profile.galleryHeadingHint}</p>
+        </div>
+        <div className="sb-block">
+          <p className="sb-block-title">{format(t.profile.photosFor, { heading: shownHeading })}</p>
+          <GalleryEditor
+            images={gallery}
+            onChange={(g) => {
+              setGallery(g);
+              setError("");
+            }}
+          />
+        </div>
       </SbSection>
 
       <SbSection title={t.profile.secOffer}>

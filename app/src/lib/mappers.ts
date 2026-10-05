@@ -146,8 +146,8 @@ export function mapBusinessDetail(r: any) {
     description: r.description ?? '',
     aboutHeading: r.aboutHeading ?? '',
     establishedYear: r.establishedYear != null ? Number(r.establishedYear) : null,
-    statValue: r.statValue ?? '',
-    statLabel: r.statLabel ?? '',
+    // '' (the API sends null or '') = the store type's default heading on the page.
+    galleryHeading: r.galleryHeading ?? '',
     logoUrl: r.logoUrl ?? '',
     heroImageUrl: r.heroImageUrl ?? '',
     aboutImageUrl: r.aboutImageUrl ?? '',

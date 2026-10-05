@@ -9,7 +9,10 @@ They are **ordinary tenants**: visible and editable in the admin panel, bookable
 check-in, and an owner login that works on owner-web, iOS and Android. **Nothing a customer or
 prospect sees calls them a demo, and nothing may.** Only the admin panel labels them, so staff can
 tell them from real stores (see "In the admin panel").
-`/demo-store` (Sharp Cuts (Demo), Mumbai) is a separate thing and is unchanged.
+`/demo-store` (Sharp Cuts (Demo)) is a separate thing, seeded by `backend/db/seed-demo.ts`. Since
+2026-10-05 it is a US store too: Naples FL, +1 239-555-0110, USD, Eastern time, with reviews labelled
+as samples ([store-setup-review-2026-10-05.md](store-setup-review-2026-10-05.md) §29). Its phone sits
+outside the nine's 555-0101…0109.
 
 ## How a click becomes a store
 
@@ -26,7 +29,8 @@ old /barbershops and /industries/barbershops  ──308──►  /barber   (per
   phones only. Nothing on the page changes. Without it, search engines would list made-up US
   shops, addresses and reviews as real businesses, and members of the public could find and book
   them.
-- `/demo-store` and every other store are unaffected.
+- `/demo-store` and every other store are unaffected by this guard (`/demo-store` is a separate,
+  seeded example — see the top of this file).
 
 ## Where it lives
 

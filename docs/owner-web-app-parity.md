@@ -85,6 +85,23 @@ targets that element.
   both surfaces the switches are session-only.
 - **Chat button** sits above the bottom nav and support strip up to 1024px. At 22px it covered the
   Settings tab.
+- **Store profile — the client's setup review (2026-10-05,
+  [store-setup-review-2026-10-05.md](store-setup-review-2026-10-05.md)), the same on both:**
+  - **Headline:** "Headline on your page" with an **Ideas:** row of chips for the store type; a tap
+    replaces the text. A blank headline is refused inline. The app also toasts it, because the
+    field is far above its Save button.
+  - **Neighborhood:** "Neighborhood shown on your page (optional)".
+  - **About photo:** "About section photo (optional)" with a hint.
+  - **Photos section, top:** a **Gallery heading** radio-chip group — Default for the store type,
+    the ready-made headings, Custom… (40 characters). Then **"Photos for: {heading}"** directly above
+    the photo grid.
+    - Once Custom is picked it stays picked while the owner types.
+    - The heading saves with the profile's Save.
+    - Only the owner form shows it. Staff get the separate name-and-address form, so they never
+      send the owner-only field.
+  - **Removed on both:** the highlight number and caption.
+  - **Store type:** both use `familyFor` (`src/lib/store-family.ts`, synced by `npm run
+    sync:family`).
 
 ## Deliberately different on the web
 

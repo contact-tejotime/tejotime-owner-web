@@ -238,8 +238,8 @@ Every visit at the latest rate whose start instant is at or before checkout — 
 
 | Method | Path | Bucket |
 |---|---|---|
-| GET | `/businesses/:slug` | `publicRead` |
-| GET | `/businesses/:slug/vcard` | `publicRead` |
+| GET | `/businesses/:slug` | `publicRead` — microsite DTO. Since 2026-10-05: `+city` (the page shows it when `area` is blank), `+galleryHeading` (null = default for the store type), `−statValue/statLabel` |
+| GET | `/businesses/:slug/vcard` | `publicRead` — locality is the city |
 | GET | `/businesses/by-phone/:phone` | `publicRead` |
 | GET | `/businesses/by-phone/:phone/review-link` | `publicRead` — `{url}` or 404; `no-store`. Read by the review-SMS short link `www.tejotime.com/<phone>/r` |
 | GET | `/businesses/:slug/availability` | `publicRead` |
@@ -361,6 +361,16 @@ stores where `business.created_by_admin_id` matches. **Employee denial on a stor
 `GET /media/*` — unversioned, unauthenticated, 302-redirects to a freshly signed S3 GET.
 
 ---
+
+> **Store setup review (2026-10-05, [docs/store-setup-review-2026-10-05.md](../../docs/store-setup-review-2026-10-05.md)).**
+> - **Admin create/update** (`/admin/businesses`):
+>   - `area` is optional;
+>   - new `galleryHeading` (≤40 characters; `''` clears it; written only when sent);
+>   - `tagline` is still required.
+> - **Owner `PATCH /business`:** `galleryHeading` is an owner-only field (a staff login gets 403),
+>   and a blank `tagline` is ignored.
+> - **Both:** `statValue` / `statLabel` are still **accepted and ignored** (strict schemas; old app
+>   builds send them) and are no longer returned.
 
 ## 4. Image upload flow
 

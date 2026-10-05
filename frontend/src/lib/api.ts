@@ -83,15 +83,21 @@ export interface Microsite {
   category: string;
   tagline: string | null;
   heroSubtitle: string | null;
-  statValue: string | null;
-  statLabel: string | null;
+  /**
+   * The owner's heading for the photo gallery (2026-10-05). null = the default for this kind of
+   * store (components/microsite/domains.ts). Optional: an older backend omits it.
+   */
+  galleryHeading?: string | null;
   description: string | null;
   aboutHeading: string | null;
   heroImageUrl: string | null;
   aboutImageUrl: string | null;
   logoUrl: string | null;
   faqs: { q: string; a: string }[];
+  /** "Neighborhood shown on your page" — optional since 2026-10-05; `city` stands in when blank. */
   area: string | null;
+  /** Optional: an older backend omits it, and a blank neighborhood then shows nothing. */
+  city?: string | null;
   address: string | null;
   rating: number;
   reviewCount: number;

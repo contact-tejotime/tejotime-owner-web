@@ -80,13 +80,16 @@ export interface StoreForm {
   city: string;
   tagline: string;
   heroSubtitle: string;
-  statValue: string;
-  statLabel: string;
   description: string;
   aboutHeading: string;
   heroImageUrl: string;
   aboutImageUrl: string;
   logoUrl: string;
+  /**
+   * The heading above the microsite's photo gallery. "" = the default for the store's type (the
+   * first of `t.galleryHeadings[familyFor(category)]`), so the page keeps following the category.
+   */
+  galleryHeading: string;
   establishedYear: string;
   rating: string;
   reviewCount: string;
@@ -179,14 +182,13 @@ export const EMPTY_FORM: StoreForm = {
   city: "",
   tagline: "",
   heroSubtitle: "",
-  statValue: "",
-  statLabel: "",
   description: "",
   aboutHeading: "",
   isActive: true,
   heroImageUrl: "",
   aboutImageUrl: "",
   logoUrl: "",
+  galleryHeading: "",
   establishedYear: "",
   rating: "",
   reviewCount: "",
@@ -236,13 +238,13 @@ export interface StoreDetail {
   city: string;
   tagline: string;
   heroSubtitle: string;
-  statValue: string;
-  statLabel: string;
   description: string;
   aboutHeading: string;
   heroImageUrl: string;
   aboutImageUrl: string;
   logoUrl: string;
+  /** "" or null when unset (= the default for the store's type). Optional: a backend older than migration 0038. */
+  galleryHeading?: string | null;
   establishedYear: string;
   rating: string;
   reviewCount: string;
@@ -307,13 +309,12 @@ export function fromDetail(d: StoreDetail): StoreForm {
     city: d.city,
     tagline: d.tagline,
     heroSubtitle: d.heroSubtitle,
-    statValue: d.statValue,
-    statLabel: d.statLabel,
     description: d.description,
     aboutHeading: d.aboutHeading,
     heroImageUrl: d.heroImageUrl,
     aboutImageUrl: d.aboutImageUrl,
     logoUrl: d.logoUrl,
+    galleryHeading: d.galleryHeading ?? "",
     establishedYear: d.establishedYear,
     rating: d.rating,
     reviewCount: d.reviewCount,
@@ -450,13 +451,14 @@ export function toPayload(f: StoreForm, includeOwner: boolean) {
     city: f.city.trim() || undefined,
     tagline: f.tagline.trim() || undefined,
     heroSubtitle: f.heroSubtitle.trim() || undefined,
-    statValue: f.statValue.trim() || undefined,
-    statLabel: f.statLabel.trim() || undefined,
     description: f.description.trim() || undefined,
     aboutHeading: f.aboutHeading.trim() || undefined,
     heroImageUrl: f.heroImageUrl.trim() || undefined,
     aboutImageUrl: f.aboutImageUrl.trim() || undefined,
     logoUrl: f.logoUrl.trim() || undefined,
+    // Always sent, "" included: the backend writes it only when present, and "" is how "Default for
+    // your store type" clears a heading chosen earlier. `undefined` would leave the old one standing.
+    galleryHeading: f.galleryHeading.trim(),
     establishedYear: num(f.establishedYear),
     rating: num(f.rating),
     reviewCount: num(f.reviewCount),

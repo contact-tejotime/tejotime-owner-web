@@ -77,13 +77,20 @@ const timeStr = z
 const storeFieldsSchema = z.object({
   name: z.string().trim().min(1).max(120),
   category: z.string().trim().min(1, 'Category is required').max(80),
-  area: z.string().trim().min(1, 'Area is required').max(120),
+  // "Neighborhood shown on your page". Optional since 2026-10-05: the page shows the city when it
+  // is blank (docs/store-setup-review-2026-10-05.md).
+  area: z.string().trim().max(120).optional(),
   address: z.string().trim().min(1, 'Address is required').max(300),
   city: z.string().trim().min(1, 'City is required').max(80),
   tagline: z.string().trim().min(1, 'Tagline is required').max(160),
   heroSubtitle: z.string().max(200).optional(),
+  // The "highlight number / caption" were removed on 2026-10-05: saved but never shown on the page.
+  // Still ACCEPTED (and ignored) because the schema is strict and admin builds already open in a
+  // browser still send them; rejecting them would make every store save fail. Drop later.
   statValue: z.string().max(40).optional(),
   statLabel: z.string().max(60).optional(),
+  /** The photo gallery's heading on the page; '' clears it back to the store type's default. */
+  galleryHeading: z.string().trim().max(40).optional(),
   description: z.string().trim().min(1, 'Description is required').max(2000),
   aboutHeading: z.string().trim().min(1, 'About heading is required').max(160),
   heroImageUrl: z.string().url().max(500).optional(),

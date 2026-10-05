@@ -455,3 +455,22 @@ too.
 
 **Not changed:** the SMS wording. It is a registered template, and its "Manage your booking" link
 already lands on this page.
+
+## Store setup review (2026-10-05)
+
+From the client's review ([store-setup-review-2026-10-05.md](store-setup-review-2026-10-05.md)), on
+this page:
+
+- **Gallery heading:**
+  - The photo section's heading is the owner's choice when they set one: a ready-made heading for
+    the store type, or their own text.
+  - Otherwise it is the store type's default, as before: "See our recent work", "Our facility",
+    "From our kitchen", "Inside the gym", "Our Work".
+- **Neighborhood → city:** wherever the neighborhood used to show — the line under the headline,
+  the "Serving {area}" card, the scrolling strip, the Visit section and map — the **city** shows
+  when the owner left the neighborhood blank.
+- **Headline:** an empty stored headline shows the store's name instead of an empty heading.
+- **Sample reviews on /demo-store:** the example store's reviews are made up, so the section's
+  eyebrow reads **"Sample reviews"** (not "Customer Reviews") and each card carries a **"Sample"**
+  tag. Real stores are unchanged. The store itself is now a US example: Naples FL, $ prices,
+  Card / Apple Pay / Cash.

@@ -22,7 +22,9 @@ to have at least one of each. That constant no longer exists.
 
 Still required, unchanged: a service that *is* priced needs a positive amount (`fixed`) or a floor
 and ceiling (`range`); a service always needs a name and a duration; a store still needs its
-identity fields (name, category, area, address, city, tagline, description, about heading, phone).
+identity fields (name, category, address, city, tagline, description, about heading, phone). The
+neighborhood ("area") became optional on 2026-10-05: the page shows the city when it is blank
+([store-setup-review-2026-10-05.md](store-setup-review-2026-10-05.md)).
 
 ## Public page — `/{phone}`
 

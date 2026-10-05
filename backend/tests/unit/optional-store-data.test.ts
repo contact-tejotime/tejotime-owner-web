@@ -183,11 +183,13 @@ describe('optional store data', { timeout: 30_000 }, () => {
   });
 
   describe('a store can be provisioned with no services, no staff and no pictures (admin API)', () => {
-    /** The fields the API genuinely requires — nothing about services, staff or images. */
+    /**
+     * The fields the API genuinely requires — nothing about services, staff or images, and no
+     * neighborhood ("area"), optional since the client review of 2026-10-05.
+     */
     const minimalStore = () => ({
       name: 'Curv Beauty',
       category: 'Salon & Barber', // was the strictest category: needed one service AND one stylist
-      area: 'Downtown',
       address: '1 Main St',
       city: 'Naples',
       tagline: 'Hair and beauty',
@@ -214,6 +216,48 @@ describe('optional store data', { timeout: 30_000 }, () => {
       expect(stored.heroImageUrl).toBeUndefined();
       expect(stored.logoUrl).toBeUndefined();
       expect(stored.gallery).toEqual([]);
+    });
+
+    it('needs no neighborhood: the page shows the city instead (client review, point 30)', async () => {
+      createBusiness.mockResolvedValue({ id: 'b-new' });
+      const res = await request(await app())
+        .post(ADMIN_BUSINESSES)
+        .set('authorization', `Bearer ${await adminToken()}`)
+        .send(minimalStore());
+      expect(res.status).toBe(201);
+      expect(createBusiness.mock.calls[0]![0].area).toBeUndefined();
+    });
+
+    it('still takes the removed highlight fields from an old admin build, rather than failing the save', async () => {
+      createBusiness.mockResolvedValue({ id: 'b-new' });
+      const res = await request(await app())
+        .post(ADMIN_BUSINESSES)
+        .set('authorization', `Bearer ${await adminToken()}`)
+        .send({ ...minimalStore(), statValue: '30k+', statLabel: 'haircuts done' });
+      expect(res.status).toBe(201);
+    });
+
+    it('takes a gallery heading of up to 40 characters, or "" to clear it, and refuses a longer one', async () => {
+      createBusiness.mockResolvedValue({ id: 'b-new' });
+      const send = async (galleryHeading: string) =>
+        request(await app())
+          .post(ADMIN_BUSINESSES)
+          .set('authorization', `Bearer ${await adminToken()}`)
+          .send({ ...minimalStore(), galleryHeading });
+      expect((await send('Inside the shop')).status).toBe(201);
+      expect((await send('')).status).toBe(201);
+      expect((await send('x'.repeat(41))).status).toBe(400);
+      expect(createBusiness.mock.calls[0]![0].galleryHeading).toBe('Inside the shop');
+    });
+
+    it('still requires the headline (tagline)', async () => {
+      const { tagline: _t, ...noHeadline } = minimalStore();
+      const res = await request(await app())
+        .post(ADMIN_BUSINESSES)
+        .set('authorization', `Bearer ${await adminToken()}`)
+        .send(noHeadline);
+      expect(res.status).toBe(400);
+      expect(createBusiness).not.toHaveBeenCalled();
     });
 
     it('takes a valid timezone, an empty one (= automatic), and refuses an unknown one', async () => {
