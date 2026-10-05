@@ -12,8 +12,11 @@ export type BusinessProfilePatch = {
   establishedYear?: number | null;
   aboutHeading?: string;
   description?: string;
-  statValue?: string;
-  statLabel?: string;
+  /**
+   * The photo gallery's heading on the page; '' clears it back to the store type's default.
+   * Owner-only on the API (a staff login sending it is refused), like aboutHeading.
+   */
+  galleryHeading?: string;
   logoUrl?: string;
   heroImageUrl?: string;
   aboutImageUrl?: string;

@@ -10,10 +10,12 @@
  *
  * The rules under test: a draft never carries the owner's password, and whatever blob comes back
  * from the server — written by an older build, hand-edited, or half-empty — turns into a form the
- * controlled inputs and the `.map` calls can render without crashing.
+ * controlled inputs and the `.map` calls can render without crashing. Also pinned: what `toPayload`
+ * sends for the setup-review fields (docs/store-setup-review-2026-10-05.md), since a draft becomes a
+ * store through it.
  */
 import assert from "node:assert/strict";
-import { DAY_LABELS, EMPTY_FORM, draftData, draftToForm, type StoreForm } from "../types";
+import { DAY_LABELS, EMPTY_FORM, draftData, draftToForm, toPayload, type StoreForm } from "../types";
 
 let n = 0;
 const check = (name: string, fn: () => void) => {
@@ -115,6 +117,26 @@ check("a corrupt theme is repaired, and themeColor stays in lockstep with theme.
   const back = draftToForm({ themeColor: "#123456", theme: { preset: "not-a-preset", brand: "nope" } } as never);
   assert.match(back.theme.brand, /^#[0-9A-Fa-f]{6}$/);
   assert.equal(back.themeColor, back.theme.brand);
+});
+
+check("a draft saved with the removed highlight fields loads without them; galleryHeading round-trips", () => {
+  const old = draftToForm({ name: "Old store", statValue: "30k+", statLabel: "haircuts done" } as never);
+  assert.equal("statValue" in old, false);
+  assert.equal("statLabel" in old, false);
+  assert.equal(old.galleryHeading, "");
+  const back = draftToForm(JSON.parse(JSON.stringify(draftData({ ...EMPTY_FORM, galleryHeading: "Inside the shop" }))));
+  assert.equal(back.galleryHeading, "Inside the shop");
+});
+
+check("toPayload always sends galleryHeading (\"\" clears it), never the highlight fields; a blank neighborhood is omitted", () => {
+  // The backend writes the heading only when it is sent, so leaving it out would keep a heading the
+  // admin just switched back to "Default for your store type".
+  const blank = toPayload({ ...EMPTY_FORM, name: "x", galleryHeading: "   " }, false);
+  assert.equal(blank.galleryHeading, "");
+  assert.equal(toPayload({ ...EMPTY_FORM, galleryHeading: " Our classes " }, false).galleryHeading, "Our classes");
+  assert.equal("statValue" in blank, false);
+  assert.equal("statLabel" in blank, false);
+  assert.equal(blank.area, undefined);
 });
 
 console.log(`\n${n} draft checks passed`);

@@ -731,16 +731,19 @@ export function ReviewsBlock({
   rating,
   reviewCount,
   avatarColors,
+  sample = false,
 }: {
   reviews: { stars: number; text: string; authorName: string }[];
   rating: number;
   reviewCount: number;
   avatarColors: string[];
+  /** Made-up reviews (the /demo-store example): labelled so nobody reads them as real customers'. */
+  sample?: boolean;
 }) {
   return (
     <>
       <SectionHead
-        eyebrow={t.microsite.sections.reviewsEyebrow}
+        eyebrow={sample ? t.microsite.sections.reviewsSampleEyebrow : t.microsite.sections.reviewsEyebrow}
         title={t.microsite.sections.reviewsTitle}
         trailing={
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -821,9 +824,27 @@ export function ReviewsBlock({
                     style={{
                       font: "var(--fw-bold) 14.5px/1.2 var(--font-sans)",
                       color: "var(--text-strong)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
                     }}
                   >
                     {r.authorName}
+                    {sample && (
+                      <span
+                        style={{
+                          font: "var(--fw-semibold) 11px/1 var(--font-sans)",
+                          letterSpacing: ".04em",
+                          textTransform: "uppercase",
+                          color: "var(--text-muted)",
+                          background: "var(--surface-sunken)",
+                          borderRadius: 999,
+                          padding: "4px 8px",
+                        }}
+                      >
+                        {t.microsite.sections.reviewSampleTag}
+                      </span>
+                    )}
                   </div>
                   <div
                     style={{

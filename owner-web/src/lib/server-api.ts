@@ -588,8 +588,11 @@ export interface BusinessDetail {
   phoneNumber: string | null;
   tagline: string | null;
   heroSubtitle: string | null;
-  statValue: string | null;
-  statLabel: string | null;
+  /**
+   * The heading above the photo gallery on the store page (migration 0038). '' or null = the
+   * default for the store's kind (lib/store-family.ts → the first of `t.galleryHeadings.<family>`).
+   */
+  galleryHeading: string | null;
   description: string | null;
   aboutHeading: string | null;
   logoUrl: string | null;

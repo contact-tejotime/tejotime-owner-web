@@ -34,7 +34,8 @@ StoreImportReview (checkbox per field) ──► applyImport() ──► form st
 
 ## What is filled — and what deliberately is not
 
-Filled: name, category, tagline, hero subtitle, address, area, city, phone, about heading,
+Filled: name, category, tagline (the "Headline on your page"), hero subtitle, address, area (the
+optional "Neighborhood shown on your page", since 2026-10-05), city, phone, about heading,
 description, established year, the five social links, weekly hours, services (with fixed / range /
 "no price" pricing), team members, FAQs, amenities, payment methods.
 
@@ -58,6 +59,10 @@ The **first** fetch into a still-empty **create** form applies everything at onc
 "Empty" is `isPristineCreate` (`lib/store-import.ts`): no typed name / category / tagline /
 description / address / area / city and no real service or staff row (the blank placeholder rows and
 the default hours do not count), **and** no earlier fetch was applied to this form (a `hasImported` ref).
+Picking a category pre-fills the headline with the store type's first suggestion (2026-10-05). That
+self-filled headline is never counted as typed data: `runImport` blanks it before `isPristineCreate`
+and the review items see the form, so the page's own headline shows as a ticked fill. The picked
+category itself still counts as typed data, as before.
 The fill is **silent**: no "Filled in N items" banner and no warnings box, whether the page gave 2
 fields or 15 — the admin just sees the form filled and presses Save when ready. (Only "nothing
 found" is said, since a fetch that visibly does nothing reads as a broken button; a blank duration
