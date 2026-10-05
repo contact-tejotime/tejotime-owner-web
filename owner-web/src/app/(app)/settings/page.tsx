@@ -69,6 +69,9 @@ export default async function SettingsPage() {
   // Active only: the app counts `/services?active=true` and `/staff?active=true`.
   const serviceCount = services ? services.data.filter((s) => s.isActive).length : null;
   const seatCount = staff ? staff.data.filter((s) => s.isActive).length : null;
+  // "Repeating bookings". An API older than migration 0036 sends no flag, and a failed read sends
+  // nothing: either way the row is left out rather than drawn in a state nobody saved.
+  const recurringEnabled = typeof business?.recurringEnabled === "boolean" ? business.recurringEnabled : null;
 
   return (
     <SettingsScreen
@@ -79,6 +82,7 @@ export default async function SettingsPage() {
       userName={me.user.name?.trim() || null}
       storeMode={me.business.theme?.mode ?? "light"}
       cardUrl={qr?.cardUrl ?? null}
+      recurringEnabled={recurringEnabled}
       subs={{
         profile: [business?.name, business?.area].filter(Boolean).join(" · ") || t.settings.businessProfileSub,
         hours: business ? hoursSummary(business.hours ?? []) : t.settings.workingHoursSub,

@@ -1,0 +1,584 @@
+/*
+ * Recurring appointments — the owner's series surfaces (docs/recurring-appointments.md §2):
+ *
+ *   .srs-repeat     the repeat mark beside a series visit's name (Appointments, Calendar)
+ *   .srs-attn*      the Needs attention card at the top of Appointments → Today
+ *   .srs-*          the series sheet (inside BottomSheet's .bs-panel), plus the Call link and the
+ *                   quiet text button both of the above use
+ *
+ * Imported by the components that render these classes (RepeatMark, NeedsAttentionCard,
+ * SeriesSheet), so any screen that shows one gets its styles. The Regulars list itself belongs to
+ * the Appointments screen and lives in appointments.css (.appts-reg*).
+ *
+ * Colours are the store theme's tokens only, so dark mode needs nothing extra; sizes follow the
+ * app's (bodyMd 15 / bodySm 13 / caption 12, radius md 10 / lg 14). Widths: phone <=640 ·
+ * tablet 641–1024 · desktop >=1025.
+ */
+
+/* ============================================================== repeat mark */
+
+/* A trailing glyph inside the name's text (see RepeatMark), in the brand colour as on the app.
+   `vertical-align` centres the 14px box on the 15px / 1.5 name line instead of the baseline. */
+.srs-repeat {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  vertical-align: -2px;
+  color: var(--primary);
+}
+
+/* ============================================================== shared controls */
+
+/* Call — a `tel:` link. Nothing about a series is texted to the customer, so it is everywhere. */
+.srs-call {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-card, #fff);
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.srs-call:active {
+  background: var(--surface-sunken);
+}
+@media (hover: hover) {
+  .srs-call:hover {
+    background: var(--surface-sunken);
+  }
+}
+
+/* The app's ghost TButton (sm): Mark handled, Skip. */
+.srs-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 10px);
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.srs-ghost-btn:hover:not(:disabled) {
+  background: var(--surface-hover, var(--surface-sunken));
+}
+.srs-ghost-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.srs-call:focus-visible,
+.srs-ghost-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ============================================================== Needs attention */
+
+.srs-attn {
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 14px);
+  background: var(--warning-soft, #fffbeb);
+}
+@media (min-width: 1025px) {
+  /* The booking grid's cap, so the card lines up with the lists under it. */
+  .srs-attn {
+    max-width: 1440px;
+  }
+}
+.srs-attn-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.srs-attn-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--warning-soft-fg, var(--warning));
+}
+.srs-attn-head-text {
+  min-width: 0;
+}
+.srs-attn-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-strong);
+}
+.srs-attn-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-body);
+}
+.srs-attn-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 641px) {
+  /* The booking list's column floor, so a desk sees several items side by side. */
+  .srs-attn-list {
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  }
+}
+/* Wraps: at 320px the buttons drop under the details instead of squeezing the name. */
+.srs-attn-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-card, #fff);
+}
+.srs-attn-body {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.srs-attn-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.srs-attn-when {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-body);
+}
+.srs-attn-reason {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--warning-soft-fg, var(--warning));
+}
+/* Wraps: with Book another time beside Call and Mark handled (Phase 2) the three are ~10px wider
+   than an item on a 390px phone, and "Mark handled" ran into the item's border. */
+.srs-attn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* ============================================================== series sheet */
+
+/* The panel is BottomSheet's (.bs-panel, `srs-sheet` added): its 560px tablet cap and centred
+   desktop dialog are the walk-in sheet's, so the two read as one family. */
+.srs-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-bottom: 14px;
+}
+.srs-head-text {
+  flex: 1;
+  min-width: 0;
+}
+.srs-title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  line-height: 1.3;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.srs-phone {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+/* Only the body scrolls; the header and the actions stay put. The 4px inset keeps focus rings
+   from being clipped by the scroll box (the walk-in sheet does the same). */
+.srs-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 -4px;
+  padding: 0 4px 4px;
+  overflow-y: auto;
+}
+.srs-loading {
+  display: grid;
+  gap: 12px;
+  padding: 4px 0 16px;
+}
+
+/* Paused / Ended / Cancelled — the app's StatusBadge shape. Active says nothing. */
+.srs-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.srs-state.tone-paused {
+  background: var(--warning-soft, #fffbeb);
+  color: var(--warning-soft-fg, var(--warning));
+}
+.srs-state-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+/* The rule, as label / value rows in one card. */
+.srs-facts {
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-card, #fff);
+}
+.srs-fact {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+}
+.srs-fact + .srs-fact {
+  border-top: 1px solid var(--border-subtle);
+}
+.srs-fact dt {
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.srs-fact dd {
+  min-width: 0;
+  margin: 0;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.srs-section {
+  margin-top: 18px;
+}
+.srs-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+}
+.srs-section-title-warn {
+  color: var(--warning-soft-fg, var(--warning));
+}
+
+/* Visits and Needs attention items: one bordered list, hairlines between rows. */
+.srs-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-card, #fff);
+}
+.srs-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 6px 8px 6px 14px;
+}
+.srs-row + .srs-row {
+  border-top: 1px solid var(--border-subtle);
+}
+.srs-row-body {
+  flex: 1;
+  min-width: 0;
+}
+.srs-row-when {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+}
+.srs-row-note {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.srs-muted {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.srs-later {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* Actions, pinned under the scroll box. Full-width and stacked, as the app's sheets are. */
+.srs-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+/* Cancel series is destructive but is not the sheet's main action, so it is an outline button in
+   the error colour, not a solid red block. Three classes to outrank `.ss-btn.outline` whichever
+   stylesheet loads last. */
+.srs-footer .ss-btn.srs-btn-danger {
+  color: var(--error);
+}
+.srs-pick-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+}
+/* Stylist chips. Capped and scrolling: a big store's team must not push Back off the screen. */
+.srs-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+.srs-pick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--surface-card, #fff);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.srs-pick-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.srs-pick-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.srs-pick-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ============================================================== reschedule (Phase 2) */
+
+/* A row's text that opens its regular's series sheet (OpenSeriesArea). The row keeps its look;
+   only the pointer and the keyboard ring say it is a control. */
+.srs-open {
+  cursor: pointer;
+  border-radius: 6px;
+  -webkit-tap-highlight-color: transparent;
+}
+.srs-open:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Sheet rows whose actions are two buttons: they drop under the date on a narrow phone rather
+   than squeezing it. */
+.srs-row-wrap {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+/* The date keeps the width of "Mon 12 Oct, 11:00 AM": beside Reschedule + Skip on a 390px phone it
+   broke as "Mon 5 Oct, 3:00 / PM" (headless Chrome, 2026-10-03). Below that width the buttons
+   drop under it instead. */
+.srs-row-wrap > .srs-row-body {
+  flex: 1 1 170px;
+}
+.rs-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* The picker: Day, Time, Stylist. Labels are the walk-in sheet's (.wk-label); spacing here. */
+.rs .rs-label {
+  margin-top: 16px;
+}
+.rs .rs-label:first-child {
+  margin-top: 0;
+}
+/* 16px on a phone so iOS does not zoom into the field; the store theme's surfaces in dark mode. */
+.rs-date {
+  width: 100%;
+  max-width: 260px;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--surface-card, #fff);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 16px;
+  color-scheme: light dark;
+}
+.rs-date:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+@media (min-width: 641px) {
+  .rs-date {
+    font-size: 15px;
+  }
+}
+/* Loading / closed / no free times. */
+.rs-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+/* The time chips: as many per line as fit (4 on a phone), every chip the same width. */
+.rs-slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 8px;
+}
+.rs-slots > .rs-state,
+.rs-slots > .ss-error {
+  grid-column: 1 / -1;
+}
+.rs-slot {
+  min-height: 40px;
+  padding: 0 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--surface-card, #fff);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+/* "Keep current time" and the From dates are words, not times: they span two columns. */
+.rs-slot-wide {
+  grid-column: span 2;
+}
+.rs-slot:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.rs-slot[aria-pressed="true"],
+.rs-slot[aria-checked="true"] {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg, var(--primary));
+}
+.rs-slot:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.rs-slot:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Change future visits: the preview list. Scrolled to on arrival, clear of the scroll box's top. */
+.rs-preview {
+  scroll-margin-top: 8px;
+}
+.rs-preview-row.is-taken {
+  background: var(--warning-soft, #fffbeb);
+}
+.srs-row-note.rs-note-warn {
+  color: var(--warning-soft-fg, var(--warning));
+  font-weight: 600;
+}
+.srs-row-note.rs-note-chosen {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--success-soft-fg, var(--success));
+  font-weight: 600;
+}
+/* "Pick another time" opens its chips under the date, full width. */
+.rs-inline-pick {
+  flex-basis: 100%;
+  padding: 8px 0 6px;
+}
+/* "The customer won't get a text — let them know." */
+.rs-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}

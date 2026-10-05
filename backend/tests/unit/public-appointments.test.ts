@@ -6,9 +6,14 @@ import request from 'supertest';
  * Appointment self-service (store chat + microsite) through the real router, validator and error
  * handler, with the pool and the owner emitter stubbed. No database, no server.
  *
- * What this pins is the trust model: a phone lookup can SEE upcoming bookings but never gets a key,
- * and read/cancel need the key the booking browser was handed — a wrong key is indistinguishable
- * from a missing row (404), and a booking that is past or already checked in cannot be cancelled.
+ * What this pins is the trust model:
+ *  - Read and cancel need the appointment key. A wrong key is indistinguishable from a missing row
+ *    (404). A booking that is past or already checked in cannot be cancelled.
+ *  - The phone lookup returns that key and the series manage token. This is a client decision
+ *    (2026-10-05, docs/customer-my-appointments.md), so the phone alone manages bookings from any
+ *    device. It is fenced: only a full +<country code> number is accepted, keys are given only for
+ *    bookings that can still change, the series must be open and at this store, and nothing else
+ *    about the customer comes back.
  */
 
 const APPT_ID = '6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b';
@@ -113,33 +118,88 @@ describe('public appointment self-service', { timeout: 30_000 }, () => {
   describe('POST /businesses/:slug/appointments/lookup', () => {
     const path = '/api/v1/public/businesses/sharp-cuts/appointments/lookup';
 
-    it('lists upcoming bookings for the phone, scoped to the store, with no keys', async () => {
+    it('returns the keys and series token for the phone, so the phone alone manages them (client decision)', async () => {
       h.one.mockResolvedValueOnce(business);
-      h.many.mockResolvedValueOnce([row()]);
+      h.many
+        .mockResolvedValueOnce([row()])
+        .mockResolvedValueOnce([{ id: 'series-1', manage_token: 'TokenTokenToken1', status: 'active' }]);
       const res = await request(await app()).post(path).send({ phone: '+91 98765 43210' });
       expect(res.status).toBe(200);
       expect(res.body.appointments).toEqual([
         {
           appointmentId: APPT_ID,
           serviceName: 'Haircut',
+          staffId: 'st-1',
           staffName: 'Lisa',
           scheduledStartAt: '2099-01-01T10:00:00.000Z',
           status: 'confirmed',
+          // Not part of a recurring series (0036) — the row fixture has no series_id.
+          repeats: false,
+          seriesId: null,
+          rescheduledAt: null,
+          canChange: true,
+          appointmentKey: await keyFor(APPT_ID),
         },
       ]);
-      expect(JSON.stringify(res.body)).not.toContain('Key');
+      expect(res.body.series).toEqual([{ seriesId: 'series-1', manageToken: 'TokenTokenToken1', status: 'active' }]);
       const [sql, params] = h.many.mock.calls[0];
       expect(sql).toContain("a.status in ('pending', 'confirmed')");
       expect(params[0]).toBe('b-1');
       expect(params[1]).toBe('+919876543210');
     });
 
-    it('a number with no bookings gets an empty list', async () => {
+    it('only an open series of THIS store, for THIS phone, hands out its token', async () => {
       h.one.mockResolvedValueOnce(business);
-      h.many.mockResolvedValueOnce([]);
+      h.many.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      await request(await app()).post(path).send({ phone: '+919876543210' });
+      const [sql, params] = h.many.mock.calls[1];
+      expect(sql).toContain('from appointment_series');
+      expect(sql).toContain('business_id = $1');
+      expect(sql).toContain('customer_phone = $2');
+      // Keys can't be revoked, so a cancelled or ended series never gets its token handed out again.
+      expect(sql).toContain("status in ('active', 'paused')");
+      expect(params).toEqual(['b-1', '+919876543210']);
+    });
+
+    it('a booking from earlier today is listed but gets no key — there is nothing left to change', async () => {
+      h.one.mockResolvedValueOnce(business);
+      const earlier = new Date(Date.now() - 60_000).toISOString();
+      h.many.mockResolvedValueOnce([row({ scheduled_start_at: earlier })]).mockResolvedValueOnce([]);
+      const res = await request(await app()).post(path).send({ phone: '+919876543210' });
+      expect(res.status).toBe(200);
+      expect(res.body.appointments[0].canChange).toBe(false);
+      expect(res.body.appointments[0]).not.toHaveProperty('appointmentKey');
+    });
+
+    it('returns nothing else about the customer — no name, phone, visitor type or notes', async () => {
+      h.one.mockResolvedValueOnce(business);
+      h.many
+        .mockResolvedValueOnce([row({ visitor_type: 'patient', notes: 'allergic to latex' })])
+        .mockResolvedValueOnce([]);
+      const res = await request(await app()).post(path).send({ phone: '+919876543210' });
+      const body = JSON.stringify(res.body);
+      for (const leak of ['Riya', '9876543210', 'patient', 'latex', 'customerName', 'visitorType']) {
+        expect(body).not.toContain(leak);
+      }
+    });
+
+    it('a number with no bookings gets empty lists', async () => {
+      h.one.mockResolvedValueOnce(business);
+      h.many.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
       const res = await request(await app()).post(path).send({ phone: '+919000000000' });
       expect(res.status).toBe(200);
-      expect(res.body.appointments).toEqual([]);
+      expect(res.body).toEqual({ appointments: [], series: [] });
+    });
+
+    it('a bare number without its country code → 400, never guessed as +1', async () => {
+      // normalizePhone reads a bare 10-digit number as +1 (US). An Indian "9876543210" must not open
+      // a stranger's +1 bookings now that the answer carries the keys that cancel them.
+      for (const phone of ['9876543210', '919876543210', '+12345', '+91 98765 4321O']) {
+        const res = await request(await app()).post(path).send({ phone });
+        expect(res.status, phone).toBe(400);
+      }
+      expect(h.one).not.toHaveBeenCalled();
+      expect(h.many).not.toHaveBeenCalled();
     });
 
     it('unknown store → 404; bad body → 400', async () => {

@@ -47,14 +47,20 @@ export type AppointmentEntry = {
   status: StatusKind;
   staffId?: string | null;
   visitorType?: 'mr' | 'patient' | null;
+  /** The raw start instant. Row actions decide "upcoming" vs "time has passed" from it. */
+  startAt: string;
+  /** Set when the visit belongs to a repeating booking — draws the repeat icon. */
+  seriesId: string | null;
+  /** `skipped` turns a cancelled series visit's badge into "Skipped". */
+  cancelReason: 'skipped' | 'cancelled' | 'superseded' | null;
+  /** Moved by hand to another time — labelled "Moved", and left alone by "Change future visits". */
+  moved: boolean;
 };
 
-/** Appointment view-model for the calendar screen — keeps the raw start
- *  timestamp plus a local `YYYY-MM-DD` key so appointments can be grouped
- *  by calendar day. */
+/** Appointment view-model for the calendar screen — adds a local `YYYY-MM-DD` key so
+ *  appointments can be grouped by calendar day. */
 export type CalendarAppointmentEntry = AppointmentEntry & {
   dateKey: string;
-  startAt: string;
 };
 
 export type Customer = {

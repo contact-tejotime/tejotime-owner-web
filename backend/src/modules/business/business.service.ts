@@ -46,6 +46,8 @@ function businessDTO(b: any, hours: any[], amenities: any[], gallery: any[], pla
     // these through the same engine so the app and the store's microsite match.
     theme: b.theme ?? null,
     themeColor: b.theme_color ?? null,
+    // "Let customers book repeating appointments" (0036). On unless the owner turned it off.
+    recurringEnabled: b.recurring_enabled !== false,
     plan,
     hours: hours.map((h) => ({
       dayOfWeek: h.day_of_week,
@@ -113,6 +115,8 @@ const OWNER_ONLY_COLUMNS: Record<string, string> = {
   linkedinUrl: 'linkedin_url',
   yelpUrl: 'yelp_url',
   googleReviewUrl: 'google_review_url',
+  // How the store takes bookings is the owner's call, not a staff member's with profile access.
+  recurringEnabled: 'recurring_enabled',
 };
 
 /** Keys handled specially rather than by a straight column map. */

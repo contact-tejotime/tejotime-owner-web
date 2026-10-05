@@ -32,7 +32,7 @@ import {
 
 export { FAQ_MIN_SCORE, normalize, type Faq, type FaqMatch };
 
-export type ChatActionType = 'track' | 'book' | 'join' | 'call' | 'faq';
+export type ChatActionType = 'track' | 'book' | 'join' | 'call' | 'faq' | 'appts';
 export interface ChatAction {
   type: ChatActionType;
   label: string;
@@ -146,8 +146,8 @@ const INTENT_PRIORITY: Intent[] = [
   'walkin',
   'track',
   'waitlist',
-  // Before `book`: "cancel my booking" is about cancelling, and the page says nothing about
-  // that — so it must reach an FAQ or the honest fallback, never the how-to-book blurb.
+  // Before `book`: "cancel my booking" is about cancelling, so it must reach an FAQ or the My
+  // appointments pointer, never the how-to-book blurb.
   'cancel',
   'book',
   'price',
@@ -271,8 +271,12 @@ export function factsReply(intent: Intent, tokens: string[], facts: StoreFacts):
       return `${hits.length ? '' : 'Our team: '}${joinList(names)}. You can pick a team member when you join the waitlist or book.`;
     }
 
-    // Policies the page does not state. An FAQ may have covered them; otherwise, honestly, no.
+    // Changing or cancelling a booking is something the page itself does: My appointments takes a
+    // phone number. (A refund question never gets here — see answerLocally.)
     case 'cancel':
+      return 'You can change or cancel a booking yourself: tap My Appointments on this page and enter the phone number you booked with.';
+
+    // Policies the page does not state. An FAQ may have covered them; otherwise, honestly, no.
     case 'kids':
     case 'parking':
       return null;
@@ -289,6 +293,7 @@ const LABELS: Record<ChatActionType, string> = {
   track: 'Check Waitlist Status',
   call: 'Call us',
   faq: 'See FAQs',
+  appts: 'My Appointments',
 };
 
 function action(type: ChatActionType): ChatAction {
@@ -317,8 +322,10 @@ export function actionsFor(intent: Intent | null, facts: StoreFacts): ChatAction
       list = [action('track')];
       break;
     case 'book':
-    case 'cancel':
       list = [action('book')];
+      break;
+    case 'cancel':
+      list = compact(action('appts'), call);
       break;
     case 'hours':
       list = canJoin ? [action('join'), action('book')] : [action('book')];
@@ -383,6 +390,9 @@ export function answerLocally(message: string, facts: StoreFacts): LocalAnswer {
   }
 
   const intent = detectIntent(tokens, facts);
+  // Refund words share the cancel concept (so an FAQ about either matches both), but a refund is a
+  // policy the page doesn't state — the honest fallback, not the My appointments pointer.
+  if (intent === 'cancel' && /\brefund/.test(norm)) return fallback(facts);
   if (intent) {
     const reply = factsReply(intent, tokens, facts);
     if (reply) return { reply, mode: 'facts', suggestedActions: actionsFor(intent, facts), score: 0, intent };
@@ -402,7 +412,7 @@ export function answerLocally(message: string, facts: StoreFacts): LocalAnswer {
 export function buildSystemPrompt(facts: StoreFacts): string {
   const lines: string[] = [
     `You are the help assistant on the online booking page of "${facts.name}"${facts.category ? ` (${facts.category})` : ''}.`,
-    'Answer only from the STORE INFO below. If the information is not there, say you do not have it and point the customer to the buttons on this page: Join the Waitlist (walk in now), Book an Appointment (a fixed time), Check Waitlist Status, or Call.',
+    'Answer only from the STORE INFO below. If the information is not there, say you do not have it and point the customer to the buttons on this page: Join the Waitlist (walk in now), Book an Appointment (a fixed time), Check Waitlist Status, My Appointments (see, move or cancel a booking with the phone number), or Call.',
     'Never invent or guess prices, hours, services, team members, offers, discounts or policies. Never claim to have booked, joined, cancelled or changed anything — you cannot take actions; only the buttons on the page can.',
     'Reply in plain text (no markdown, no bullet symbols), in the language the customer writes in, in at most 80 words. Be warm and brief.',
     '',

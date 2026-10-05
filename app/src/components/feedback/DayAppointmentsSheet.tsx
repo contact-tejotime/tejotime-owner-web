@@ -13,6 +13,14 @@ import { useAppState } from '@/state/store';
 import { useTheme } from '@/theme/ThemeProvider';
 
 
+/**
+ * The series sheet is a second modal, and iOS will not present one over another (see
+ * CommissionEditSheet). So a series visit tapped here closes this sheet first and opens the series
+ * sheet once TSheet's exit (OUT_MS, 190ms) has landed and its Modal has unmounted. Android would
+ * stack the two, but one path for both keeps them behaving alike.
+ */
+const SERIES_AFTER_CLOSE_MS = 320;
+
 /** Parse a local `YYYY-MM-DD` key back into a Date without any UTC shift. */
 function parseDateKey(key: string): Date {
   const [y, m, d] = key.split('-').map(Number);
@@ -28,6 +36,11 @@ export function DayAppointmentsSheet() {
 
   const dateKey = store.dayApptsDate;
   const open = !!dateKey;
+
+  const openSeries = (seriesId: string) => {
+    store.closeDayAppts();
+    setTimeout(() => store.openSeries(seriesId), SERIES_AFTER_CLOSE_MS);
+  };
 
   const staffById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -62,6 +75,7 @@ export function DayAppointmentsSheet() {
                     staffName={a.staffId ? staffById[a.staffId] : undefined}
                     checkInLoading={store.checkInId === a.id}
                     onCheckIn={store.checkInAppt}
+                    onOpenSeries={openSeries}
                   />
                 ))}
               </View>

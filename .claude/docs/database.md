@@ -49,14 +49,15 @@ written to be **idempotent / re-runnable**.
 | 0032 | `review_sms_opt_in.sql` | separate consent for the post-visit review SMS (per-visit flag + first-consent stamp on `customer`), see [docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md) |
 | 0033 | `business_timezone_from_phone.sql` | backfills `business.timezone` from the dial code for stores still on the IST default |
 | 0034 | `staff_commission.sql` | `staff_commission_rate` (dated pay rates) + the **`visit_commission` view** — the schema's first view. See below and [docs/staff-commission.md](../../docs/staff-commission.md). |
+| 0036 | `recurring_appointments.sql` | `appointment_series`, `appointment_series_service`, `appointment_series_issue`; `appointment.series_id / series_version / occurrence_date / cancel_reason`; `business.recurring_enabled` (default true). See below and [docs/recurring-appointments.md](../../docs/recurring-appointments.md). |
+| 0037 | `recurring_edit.sql` | `appointment.rescheduled_at` (a visit moved by hand — kept through a "change all future visits"), `appointment_series.anchor_index` (rule dates before the re-anchored first date, so `end_count` keeps its original total), and `admin_appointment_stats` re-created to ignore superseded rows. |
 
 > **`0016` is duplicated** across two independent files. Ordering relies on the filename sort, which
 > is deterministic. **Use a strictly increasing prefix from 0025 onward.**
 >
-> Note `0023_eta_2_sms.sql`: it is recorded in `schema_migrations` on the deployed databases
-> (it added `queue_entry.notified_eta_2_at` / `notified_two_away_at`) but the **file exists in no
-> branch of this repo**. A fresh database therefore cannot be rebuilt from `db/migrations/`
-> alone. Recover and commit that file.
+> Note `0023_eta_2_sms.sql` (adds `queue_entry.notified_eta_2_at` / `notified_two_away_at`): this
+> used to warn that the file was missing from the repo. It is present now — on 2026-10-03 a fresh
+> local database was built from `db/migrations/` alone (0001–0036) and passed `smoke-rest.mjs`.
 
 Migrations are **manual in deploy** — nothing runs them automatically. See `deployment.md`.
 
@@ -204,6 +205,32 @@ survive the service row being edited or deleted.
 `id`, `business_id`, `customer_id`, `customer_name`, `customer_phone`, `service_id`,
 `service_name`, `staff_id`, `scheduled_start_at`, `scheduled_end_at`, `status`, `source`,
 `queue_entry_id` (FK added after `queue_entry` exists), `notes`, `visitor_type`, `sms_opt_in` (0027, default false).
+0036 adds `series_id` (→ `appointment_series`, on delete set null), `series_version`,
+`occurrence_date` `date` (the rule date — it does not move when one visit is rescheduled) and
+`cancel_reason` (`skipped` / `cancelled` / `superseded`, null on a one-off; `superseded` = replaced by
+a "change all future visits" — nobody cancelled it, so every list and count hides it), and 0037's
+`rescheduled_at`. Partial unique index
+`uq_appointment_series_occurrence (series_id, series_version, occurrence_date) where series_id is
+not null` — a skipped visit keeps its row, so the series job can never book that date again.
+
+### `appointment_series` — recurring appointments (0036)
+
+The repeat **rule**, not the visits: `customer_*`, `staff_id` + `staff_locked` (a stylist WAS
+chosen — so a deleted stylist is flagged, not read as "any"), `visitor_type`, `start_time` `time`
+(store-local), `anchor_date` `date`, `interval_days` (7–90), `end_type` `never|count|until` +
+`end_count` (2–26) / `end_date`, `status` `active|paused|ended|cancelled` (text + check, not an
+enum), `pause_reason` `owner|stylist_unavailable|no_shows`, `version`, `generated_through` `date`
+(the job's cursor: the last rule date handled), `sms_opt_in`, `review_sms_opt_in` (copied onto every
+visit), `source` (`appointment_source`), `manage_token` (unique, 16 url-safe chars — the
+customer's link credential). Partial unique `uq_appointment_series_open_phone (business_id,
+customer_phone) where status in ('active','paused')`: one open series per phone per store.
+`appointment_series_service (series_id, service_id on delete set null, name, position)` holds only
+the service ids; names/durations/prices are copied when each visit is booked.
+`appointment_series_issue` is the owner's Needs attention list: dates the job could not book
+(`reason` `outside_hours|stylist_unavailable|slot_taken|service_missing`), unique per
+`(series_id, series_version, occurrence_date)`, closed by `resolved_at` / `resolution`.
+Select the `date`/`time` columns as text (`series.service.ts` `SERIES_COLS`) for the same reason
+as `visit_commission` below.
 
 ### `visit` — completed-service ledger
 

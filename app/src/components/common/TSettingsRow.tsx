@@ -16,6 +16,7 @@ export function TSettingsRow({
   trailing,
   destructive = false,
   showBorder = true,
+  subLines = 2,
 }: {
   icon: IconName;
   label: string;
@@ -24,6 +25,8 @@ export function TSettingsRow({
   trailing?: React.ReactNode;
   destructive?: boolean;
   showBorder?: boolean;
+  /** Lines before the subtitle truncates. A row that explains a setting needs more than a summary. */
+  subLines?: number;
 }) {
   const theme = useTheme();
   const s = useMemo(() => createTSettingsRowStyles(theme), [theme]);
@@ -45,7 +48,7 @@ export function TSettingsRow({
             {label}
           </TText>
           {sub ? (
-            <TText variant="caption" color="textMuted" numberOfLines={2} style={s.sub}>
+            <TText variant="caption" color="textMuted" numberOfLines={subLines} style={s.sub}>
               {sub}
             </TText>
           ) : null}

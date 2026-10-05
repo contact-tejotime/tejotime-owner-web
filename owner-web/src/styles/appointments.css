@@ -210,6 +210,12 @@
   background: var(--error-soft, var(--red-50));
   color: var(--error-soft-fg, var(--red-700));
 }
+/* Skip (a series visit still ahead) borrows the no-show button's box, so the row keeps its shape,
+   but not its red hover: skipping one visit of a regular is routine, not a strike against them. */
+.appt-item-skip:hover:not(:disabled) {
+  background: var(--surface-hover, var(--surface-sunken));
+  color: var(--text-strong);
+}
 .appt-item-checkin:disabled,
 .appt-item-noshow:disabled {
   opacity: 0.5;
@@ -260,6 +266,11 @@
   background: var(--error-soft, var(--red-50));
   color: var(--error-soft-fg, var(--red-700));
 }
+/* A paused repeating booking (Regulars): it has stopped booking until someone acts. */
+.appt-status.tone-warning {
+  background: var(--warning-soft, #fffbeb);
+  color: var(--warning-soft-fg, #b45309);
+}
 
 /* ---- Badge size sm: the Hospital MR / Patient tag beside the name ---- */
 .appt-badge {
@@ -289,9 +300,10 @@
   text-align: center;
 }
 /* `fill`: take the height left under the header and centre in it, nudged up a little (the app's
-   56px bottom padding) because dead centre above a tab bar reads as low. */
+   56px bottom padding) because dead centre above a tab bar reads as low. 344 = the 280 this was
+   tuned to plus the Today | Regulars switch (40px + 8 padding + 16 margin), which sits above it. */
 .appts-empty-fill {
-  min-height: max(240px, calc(100dvh - 280px));
+  min-height: max(240px, calc(100dvh - 344px));
   padding-bottom: 56px;
 }
 .appts-empty-compact {
@@ -335,10 +347,123 @@
 @media (min-width: 1025px) {
   /* No bottom nav to clear beside the sidebar, but the desktop "Need help?" footer (~68px) and
      `.page-app`'s 80px foot sit below it. At 100dvh - 240 the empty page overflowed a 900px-tall
-     window by ~40px and scrolled the footer off; - 300 keeps the whole page on screen. */
+     window by ~40px and scrolled the footer off; - 300 keeps the whole page on screen. Plus 64
+     for the Today | Regulars switch above it. */
   .appts-empty-fill {
-    min-height: max(280px, calc(100dvh - 300px));
+    min-height: max(280px, calc(100dvh - 364px));
   }
+}
+
+/* ---- "Today" | "Regulars": the app's segmented control, drawn as links (?view=regulars) ---- */
+.appts-seg {
+  display: flex;
+  gap: 4px;
+  max-width: 420px;
+  margin: 0 0 16px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--surface-sunken, var(--gray-100));
+}
+.appts-seg-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.appts-seg-btn[aria-current="page"] {
+  background: var(--surface-card, #fff);
+  color: var(--primary);
+  box-shadow: var(--shadow-xs);
+}
+@media (hover: hover) {
+  .appts-seg-btn:not([aria-current="page"]):hover {
+    color: var(--text-strong);
+  }
+}
+.appts-seg-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* ---- Regulars: one repeating booking per row; the whole card opens the series sheet ---- */
+.appts-reg {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px 12px 12px 16px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--surface-card, #fff);
+  border: 1px solid var(--border-subtle);
+  /* The store's colour down the left edge, like a booking row; greyed while the series is not
+     booking (paused, ended), so the active ones read first. */
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.appts-reg.is-muted {
+  border-left-color: var(--border-default);
+}
+.appts-reg:active {
+  background: var(--surface-hover, var(--surface-sunken));
+}
+@media (hover: hover) {
+  .appts-reg:hover {
+    background: var(--surface-hover, var(--surface-sunken));
+  }
+}
+.appts-reg:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.appts-reg-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* Wraps, like a booking row's: the badges drop under a long name rather than squeeze it. */
+.appts-reg-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+}
+.appts-reg-name {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.appts-reg-line {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.appts-reg-chev {
+  flex-shrink: 0;
+  color: var(--text-subtle, var(--text-muted));
 }
 
 /* ---- TAppointmentRowSkeleton (loading.tsx) ---- */

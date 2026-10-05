@@ -5,6 +5,7 @@ import { mapHours } from '@/lib/hours';
 import { AppointmentEntry, CalendarAppointmentEntry, Customer, ServiceColorToken, ServicePriceType, ServiceVM, Staff } from '@/data/sample';
 import { StatusKind } from '@/components/ui/StatusBadge';
 import { t, format } from '@/i18n';
+import { storeDayKey, storeTimeLabel } from '@/lib/zoned';
 
 export interface Money {
   amount: number;
@@ -176,12 +177,18 @@ export function mapBusinessDetail(r: any) {
         }))
       : [],
     hours: mapHours(r.hours ?? []),
+    // Undefined when the API does not send it (one from before migration 0036): Settings then hides
+    // the switch rather than offering one whose save the API would refuse. Same as owner-web.
+    recurringEnabled: typeof r.recurringEnabled === 'boolean' ? r.recurringEnabled : undefined,
+    // IANA zone the store keeps its hours in — every booking time is printed on it (lib/zoned.ts).
+    timezone: typeof r.timezone === 'string' && r.timezone ? r.timezone : undefined,
   };
 }
 
+/** The booking's time on the STORE's clock (lib/zoned.ts), not the phone's. */
 function fmtTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return storeTimeLabel(iso);
   } catch {
     return '';
   }
@@ -198,23 +205,29 @@ export function mapAppointment(a: any): AppointmentEntry {
     status: toStatusKind(a.status),
     staffId: a.staffId ?? null,
     visitorType: a.visitorType ?? null,
+    startAt: a.scheduledStartAt,
+    // `?? null`: an API from before migration 0036 sends neither field.
+    seriesId: a.seriesId ?? null,
+    cancelReason: a.cancelReason ?? null,
+    // Moved by hand (migration 0037) — labelled "Moved".
+    moved: !!a.rescheduledAt,
   };
 }
 
-/** Local `YYYY-MM-DD` key for grouping appointments onto calendar day cells. */
+/**
+ * The STORE-local `YYYY-MM-DD` of an appointment instant, for grouping bookings onto calendar day
+ * cells. The phone's clock put a 10 PM booking on the next day for an owner whose phone was in a
+ * zone ahead of the store's. Grid cells themselves are calendar dates, not instants — they use
+ * `dayKeyOf` (lib/date-grid), never this.
+ */
 export function toDateKey(value: string | Date): string {
-  const d = typeof value === 'string' ? new Date(value) : value;
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return storeDayKey(value);
 }
 
 export function mapCalendarAppointment(a: any): CalendarAppointmentEntry {
   return {
     ...mapAppointment(a),
     dateKey: toDateKey(a.scheduledStartAt),
-    startAt: a.scheduledStartAt,
   };
 }
 

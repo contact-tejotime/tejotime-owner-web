@@ -31,7 +31,11 @@ export default function Settings() {
   const role = store.session?.role ?? null;
   const showBusiness =
     can(access, 'profile') || can(access, 'hours') || can(access, 'services') || can(access, 'staff');
-  const showBookings = can(access, 'notifications') || can(access, 'profile');
+  // The repeating-bookings switch is owner / co-owner only — the API's PATCH /business refuses
+  // everyone else — and only once GET /business has said where it stands. Before that (or from
+  // an API without the flag) there is nothing honest to show, so it is hidden, as on owner-web.
+  const showRecurring = isOwnerRole(role) && typeof biz?.recurringEnabled === 'boolean';
+  const showBookings = can(access, 'notifications') || can(access, 'profile') || showRecurring;
   const storeLabel = biz?.name ?? t.common.brand;
   // No name on the session → drop the clause rather than fall back. The old fallback was the demo
   // tenant's handle ('sharpcuts'), so a real owner could be told they were signed in as someone else.
@@ -49,6 +53,7 @@ export default function Settings() {
   const bookingRows = [
     can(access, 'profile') ? 'qr' : null,
     can(access, 'notifications') ? 'notifications' : null,
+    showRecurring ? 'recurring' : null,
   ].filter(Boolean) as string[];
   const lastBooking = bookingRows[bookingRows.length - 1];
 
@@ -161,6 +166,23 @@ export default function Settings() {
                   sub={notificationsSub}
                   onPress={goTo('notifications')}
                   showBorder={lastBooking !== 'notifications'}
+                />
+              ) : null}
+              {/* "Repeat this booking?" on the store page (docs/recurring-appointments.md). Saves on
+                  flip; a failed save flips back with an error toast, and success says nothing. */}
+              {showRecurring ? (
+                <TSettingsRow
+                  icon="repeat"
+                  label={t.series.settingLabel}
+                  sub={t.series.settingSub}
+                  subLines={4}
+                  trailing={
+                    <TSwitch
+                      checked={biz?.recurringEnabled === true}
+                      onChange={(next) => void store.setRecurringEnabled(next)}
+                    />
+                  }
+                  showBorder={lastBooking !== 'recurring'}
                 />
               ) : null}
             </View>

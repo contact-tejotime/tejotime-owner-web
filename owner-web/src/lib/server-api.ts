@@ -271,7 +271,148 @@ export interface AppointmentRow {
   /** Hospital stores only: who the visitor is. The API always sent it; the calendar now shows it
    *  as the app's MR / Patient badge. Optional so an older cached payload still type-checks. */
   visitorType?: "mr" | "patient" | null;
+  /**
+   * Recurring appointments (migration 0036, backend `apptDTO`). `seriesId` is null on a one-off
+   * booking and draws the repeat icon; `occurrenceDate` is the rule date the visit was booked for
+   * (store-local "YYYY-MM-DD", unchanged if the visit ever moves). Optional, like `visitorType`, so
+   * a response from an API older than 0036 still type-checks and simply reads as "not repeating".
+   */
+  seriesId?: string | null;
+  occurrenceDate?: string | null;
+  /**
+   * Why a `cancelled` visit was cancelled. `skipped` is one series visit skipped (by the owner or
+   * the customer's link) — the rows say "Skipped", not "Cancelled", for it.
+   */
+  cancelReason?: AppointmentCancelReason | null;
+  /**
+   * When the visit was moved by hand (migration 0037; Phase 2). Rows say "Moved", and a later
+   * "change all future visits" leaves the visit at this time. Optional: older API.
+   */
+  rescheduledAt?: string | null;
 }
+
+export type AppointmentCancelReason = "skipped" | "cancelled" | "superseded";
+
+/* Recurring appointments — backend/src/modules/appointments/series.service.ts (`seriesDTO`,
+   `issueDTO`, `getSeries`). Hand-mirrored like everything else in this file: no compiler between. */
+
+export type SeriesStatus = "active" | "paused" | "ended" | "cancelled";
+
+/** Why a series is paused. Null while it is not paused. */
+export type SeriesPauseReason = "owner" | "stylist_unavailable" | "no_shows";
+
+export type SeriesEnd =
+  | { type: "never" }
+  | { type: "count"; count: number }
+  | { type: "until"; date: string };
+
+export interface SeriesRow {
+  id: string;
+  customerId: string | null;
+  customerName: string;
+  customerPhone: string | null;
+  /** Null = any stylist — or, with `staffLocked`, a stylist who has since left. */
+  staffId: string | null;
+  staffName: string | null;
+  /** True when the customer chose a stylist. With `staffId` null it means that stylist has gone. */
+  staffLocked: boolean;
+  /** Every service of the visit, joined the way the owner screens show them ("Haircut + Shave"). */
+  serviceName: string | null;
+  visitorType: "mr" | "patient" | null;
+  /** Store-local time of day, "HH:mm". Never an instant: 10:00 must stay 10:00 across DST. */
+  startTime: string;
+  /** Store-local date of the first visit under the current rule, "YYYY-MM-DD". */
+  anchorDate: string;
+  everyDays: number;
+  end: SeriesEnd;
+  /** The last rule date, or null for a series that never ends. */
+  lastDate: string | null;
+  totalVisits: number | null;
+  status: SeriesStatus;
+  pauseReason: SeriesPauseReason | null;
+  source: string;
+  /** The next pending/confirmed visit still ahead, as a UTC instant. */
+  nextVisitAt: string | null;
+  /** Unresolved Needs attention items for this series. */
+  openIssues: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SeriesIssueReason = "outside_hours" | "stylist_unavailable" | "slot_taken" | "service_missing";
+
+/** A series date the background job could not book — the owner's Needs attention list. */
+export interface SeriesIssue {
+  id: string;
+  seriesId: string;
+  customerName: string;
+  customerPhone: string | null;
+  staffId: string | null;
+  staffName: string | null;
+  serviceName: string | null;
+  occurrenceDate: string;
+  scheduledStartAt: string;
+  reason: SeriesIssueReason;
+  createdAt: string;
+}
+
+/** `GET /appointments/series/:id`, and the reply to pause / resume / cancel. */
+export interface SeriesDetail {
+  series: SeriesRow;
+  /** The most recent 30 visits, oldest first. */
+  visits: AppointmentRow[];
+  issues: SeriesIssue[];
+  /** Rule dates not booked yet (the job books each about three weeks ahead). Active series only. */
+  laterDates: string[];
+  /** The server's clock when it answered — what "upcoming" is measured against. */
+  now: string;
+  /**
+   * The rule dates "Change future visits" may start from (store-local "YYYY-MM-DD"): today up to
+   * the first date the job has not booked yet. Empty unless the series is active. Phase 2.
+   */
+  changeFromDates?: string[];
+  /** The store's today, "YYYY-MM-DD". Phase 2. */
+  today?: string;
+}
+
+/* Rescheduling — recurring appointments Phase 2 (backend reschedule.service.ts, series.service.ts).
+   Times always travel as a slot's `startAt` instant from a slots endpoint: no client works out a
+   store-local day or instant on its own clock. */
+
+/** One bookable time. `label` is already worded on the store's clock ("2:00 PM"). */
+export interface SlotOption {
+  startAt: string;
+  label: string;
+}
+
+/** `GET …/slots?date` — the times on `date`, plus the allowed range as store-local days. */
+export interface SlotsResponse {
+  date: string;
+  slots: SlotOption[];
+  today: string;
+  lastDay: string;
+}
+
+/**
+ * A date's fate under "change all future visits": `ok` takes the new time; `taken` must be given
+ * another time or skipped before the change can go ahead; `kept` was moved by hand and keeps its
+ * time; `skipped` was already skipped; `closed` falls on a closed day; `later` is past the
+ * horizon and booked by the job later.
+ */
+export type ChangeDateStatus = "ok" | "taken" | "kept" | "skipped" | "closed" | "later";
+
+export interface ChangePreview {
+  fromDate: string;
+  /** The new store-local "HH:mm". */
+  startTime: string;
+  staffId: string | null;
+  dates: { date: string; startAt: string; status: ChangeDateStatus }[];
+  /** The `taken` dates — each needs a resolution. */
+  conflicts: string[];
+}
+
+/** What the owner chose for a `taken` date. */
+export type ChangeResolution = { date: string; slotStart: string } | { date: string; skip: true };
 
 export interface CustomerRow {
   id: string;
@@ -468,6 +609,11 @@ export interface BusinessDetail {
   timezone: string;
   currency: string;
   plan: string;
+  /**
+   * Whether the store page offers "Repeat this booking?" (docs/recurring-appointments.md). The API
+   * defaults it on; optional so a response from an API older than migration 0036 still type-checks.
+   */
+  recurringEnabled?: boolean;
   hours: { dayOfWeek: number; opensAt: string | null; closesAt: string | null; isClosed: boolean }[];
   amenities: string[];
   faqs: { q: string; a: string }[];
@@ -532,6 +678,17 @@ export const getCommissionRates = () => getFresh<CommissionRates>("/commission/r
  */
 export const getAppointmentsFresh = (query = "") =>
   getFresh<{ data: AppointmentRow[] }>(`/appointments${query}`);
+
+/**
+ * The Regulars list (`open` = active + paused, the API's default). Uncached for the same reason as
+ * getAppointmentsFresh: the API narrows it to a staff login's own chair (`scopeStaffId`), and a
+ * business + path cache key would hand one login's regulars to another.
+ */
+export const getSeriesList = (status: "open" | "active" | "paused" | "ended" | "cancelled" | "all" = "open") =>
+  getFresh<{ data: SeriesRow[] }>(`/appointments/series?status=${status}`);
+
+/** Needs attention — series dates the job could not book. Chair-scoped for staff, so uncached too. */
+export const getSeriesIssues = () => getFresh<{ data: SeriesIssue[] }>("/appointments/series/issues");
 
 export const getAppointments = (query = "") =>
   get<{ data: AppointmentRow[] }>(

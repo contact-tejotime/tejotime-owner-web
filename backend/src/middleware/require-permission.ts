@@ -94,7 +94,7 @@ export function requireSuperOwner(req: Request, _res: Response, next: NextFuncti
  *
  * The table name is a literal from a closed union — it is never request data.
  */
-export function requireOwnRow(table: 'queue_entry' | 'appointment') {
+export function requireOwnRow(table: 'queue_entry' | 'appointment' | 'appointment_series') {
   return (req: Request, _res: Response, next: NextFunction): void => {
     const principal = req.principal;
     if (!principal) return next(Errors.unauthenticated());

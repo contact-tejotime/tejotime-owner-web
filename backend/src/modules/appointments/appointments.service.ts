@@ -8,26 +8,12 @@ import { emitToOwners } from '../../realtime/emitters';
 import { loadQueueContext } from '../queue/queue.context';
 import { broadcastQueue, getEntryDetail } from '../queue/queue.service';
 import { findOrCreateCustomer } from '../customers/customer.repo';
+import { apptDTO } from './appointment.dto';
+import { noteNoShow } from './series.service';
 
-// Exported so the public self-service cancel (public.service.ts) sends owners the exact same
+// Re-exported so the public self-service cancel (public.service.ts) sends owners the exact same
 // `appointment:updated` payload an owner-side cancel does.
-export function apptDTO(a: any) {
-  return {
-    id: a.id,
-    customerName: a.customer_name,
-    customerPhone: a.customer_phone,
-    serviceId: a.service_id,
-    serviceName: a.service_name,
-    staffId: a.staff_id,
-    scheduledStartAt: a.scheduled_start_at,
-    scheduledEndAt: a.scheduled_end_at,
-    status: a.status,
-    source: a.source,
-    queueEntryId: a.queue_entry_id,
-    notes: a.notes,
-    visitorType: a.visitor_type ?? null,
-  };
-}
+export { apptDTO };
 
 export async function listAppointments(
   businessId: string,
@@ -35,7 +21,9 @@ export async function listAppointments(
 ) {
   const tz = opts.tz;
   // An explicit status filter, a from/to range, or the business day window — never more than one.
-  const where = ['business_id = $1'];
+  // Visits a "change all future visits" replaced are never shown: nobody cancelled them, and the
+  // day's list would otherwise fill with phantom cancellations.
+  const where = ['business_id = $1', `cancel_reason is distinct from 'superseded'`];
   const params: unknown[] = [businessId];
   // Own-chair scoping for staff logins. Set by the route from the token, never from the query.
   if (opts.staffId) {
@@ -111,9 +99,18 @@ export async function createAppointment(
 }
 
 export async function checkIn(businessId: string, appointmentId: string) {
-  // Resolve the soonest seat using the live queue engine, then hand to the RPC.
   const ctx = await loadQueueContext(businessId);
-  const staffId = soonestSeat(ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
+  // The stylist the customer booked, while they are still an active stylist here; otherwise the
+  // soonest seat from the live queue engine. Check-in used to ignore the booking and always take
+  // the soonest seat, so a regular who books Lisa every fortnight was put in whichever chair was
+  // lightest. Unknown id → 404 from the RPC below, so a missing row is not decided here.
+  const booked = await one<{ staff_id: string | null }>(
+    'select staff_id from appointment where id = $1 and business_id = $2',
+    [appointmentId, businessId],
+  );
+  const bookedStaff =
+    booked?.staff_id && ctx.staffRows.some((s) => s.id === booked.staff_id) ? booked.staff_id : null;
+  const staffId = bookedStaff ?? soonestSeat(ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
   const result = await callRpc<{ appointment_id: string; entry: { id: string; token: string } }>(
     'appointment_check_in',
     { p_business_id: businessId, p_appointment_id: appointmentId, p_staff_id: staffId },
@@ -148,13 +145,17 @@ export async function checkIn(businessId: string, appointmentId: string) {
 }
 
 export async function setStatus(businessId: string, appointmentId: string, status: 'cancelled' | 'no_show') {
+  // A cancelled series visit is marked so reports can tell it from a customer's skip; a one-off
+  // booking keeps a null reason, as before.
   const data = await one(
-    `update appointment set status = $1, updated_at = $2
+    `update appointment set status = $1, updated_at = $2,
+            cancel_reason = case when $1 = 'cancelled' and series_id is not null then 'cancelled' else cancel_reason end
       where id = $3 and business_id = $4
       returning *`,
     [status, new Date().toISOString(), appointmentId, businessId],
   );
   if (!data) throw Errors.notFound('Appointment not found');
   emitToOwners(businessId, 'appointment:updated', { appointment: apptDTO(data) });
+  if (status === 'no_show') await noteNoShow(businessId, data);
   return apptDTO(data);
 }

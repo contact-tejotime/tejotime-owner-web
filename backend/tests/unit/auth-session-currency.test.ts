@@ -33,6 +33,8 @@ const BUSINESS_ROW: Record<string, unknown> = {
   slug: 'a-one',
   category: 'Restaurant',
   currency: 'USD',
+  // Recurring Phase 2: the Expo app shows appointment times on the store's clock from this.
+  timezone: 'America/Chicago',
   theme: null,
   themeColor: null,
 };
@@ -123,5 +125,21 @@ describe('session carries the store currency', { timeout: 30_000 }, () => {
 
     expect(res.status).toBe(200);
     expect(res.body.business.currency).toBe('USD');
+  });
+
+  it("carries the store's timezone, for any role — the app formats appointment times with it", async () => {
+    one.mockImplementation(async (sql: string) => {
+      if (/from app_user/.test(sql)) {
+        return { id: 'u1', name: 'Lisa', role: 'staff', dark_mode: false, staff_id: 'st1', is_super_owner: false };
+      }
+      if (/from business/.test(sql)) return selected(sql, BUSINESS_ROW);
+      return null;
+    });
+    const res = await request(await app())
+      .get('/api/v1/auth/me')
+      .set('authorization', `Bearer ${await token('staff')}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.business.timezone).toBe('America/Chicago');
   });
 });

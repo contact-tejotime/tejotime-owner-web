@@ -159,8 +159,15 @@ observability/     health.ts (/healthz liveness, /readyz db-readiness)
   a frontend route that 302s to it — see [docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)), vCard `.vcf`,
   availability, staff availability, bookable slots, join queue, book slot, track by phone,
   ticket read/leave (leave needs the `X-Ticket-Key` the join returned; `/track` never returns it),
-  **appointment self-service** (lookup by phone; read/cancel only with the
-  `appointmentKey` the booking browser was handed — a phone alone never cancels), inquiry submission, cookie-consent logging (`POST /consent` — see
+  **appointment self-service** — "My appointments": read / move (today…today+20) / cancel with
+  the `appointmentKey`, which the booking response returns **and the phone lookup now returns**
+  (number first, like Check Waitlist Status; the browser saves no bookings or keys).
+  The client decided on 2026-10-05 that the phone number alone manages bookings from any device;
+  the lookup takes only a `+<cc>` number and stays on `publicWrite`
+  ([docs/customer-my-appointments.md](docs/customer-my-appointments.md)). **Recurring series**: a
+  `repeat` rule on the booking, a dates preview, and skip / move one visit / change all future
+  visits / cancel with the series' manage token in `X-Series-Token`, which the lookup also returns
+  ([docs/recurring-appointments.md](docs/recurring-appointments.md)). inquiry submission, cookie-consent logging (`POST /consent` — see
   [docs/cookie-consent-v1.md](docs/cookie-consent-v1.md)), and the read-only **help chat** — per-store
   (`POST /businesses/:key/chat`) and for the marketing site (`POST /chat`, `GET /chat/status`).
   See [docs/customer-chatbot-v1.md](docs/customer-chatbot-v1.md). The store chat can also **act** —
@@ -203,7 +210,10 @@ ledger), `subscription`, `payment`, `notification`, `otp_verification`, `auth_se
 parked Create store forms, private per admin, see [docs/admin-store-drafts.md](docs/admin-store-drafts.md)),
 `staff_commission_rate` (0034, instant starts in 0035) and the **`visit_commission` view**, the schema's
 first view: every visit at the latest rate whose start instant is at or before checkout, computed when read
-(see [docs/staff-commission.md](docs/staff-commission.md)).
+(see [docs/staff-commission.md](docs/staff-commission.md)), and `appointment_series` +
+`appointment_series_service` + `appointment_series_issue` (0036 — recurring appointments; every
+visit stays an ordinary `appointment` row carrying `series_id`, see §7; 0037 adds
+`appointment.rescheduled_at` and `appointment_series.anchor_index` for moving and changing visits).
 
 Notable constraints and conventions:
 - UUID PKs (`gen_random_uuid()`); `pgcrypto` + `pg_trgm` extensions.
@@ -385,6 +395,34 @@ review consent can be split back out if a carrier objects to the bundling. All s
 returns `meta.lockedCount`. The **server** truncates; client blur is cosmetic only. Reads use
 `getLivePlan()` (a DB lookup) rather than the token's `plan` claim, so an upgrade applies
 immediately without waiting for a refresh.
+
+**Recurring appointments** ([docs/recurring-appointments.md](docs/recurring-appointments.md), 0036)
+— a customer books once with `repeat: { everyDays, end }`. `appointment_series` stores the **rule**;
+every real visit is an ordinary `appointment` row with `series_id`, so check-in, the reminder, slot
+capacity and self-service need nothing new. Only visits inside the **horizon** exist:
+`recurringSweep` (`series.service.ts`, hourly + once at startup) books each rule date once it is
+within **today + `BOOKING_WINDOW_DAYS` + 6** (today+20) — 7 days before the public window
+(today+13) can show that date, which is what keeps a regular's slot safe. **Never write the horizon
+as a literal**; it must move with the window (`lib/recurrence.ts`). Dates are judged by the same
+`isBookable` as public booking (`judgeDate`, with the series window) under the same `appt:` lock: a
+clash goes to the owner's Needs attention list (`appointment_series_issue`), a closed weekday is
+skipped silently, a departed stylist pauses the series. The unique
+`(series_id, series_version, occurrence_date)` index is what stops a skipped date being re-booked.
+Rule dates are store-local calendar dates + a store-local `start_time`, never a UTC step (daylight
+saving). SMS: only the three registered texts — each visit the job books gets the ordinary
+confirmation (its link is the manage page `/{phone}/v#token`); nothing for skip/cancel/pause. Free
+on every plan; the owner can switch it off (`business.recurring_enabled`). Check-in now puts a
+booked customer on the stylist they booked (it used to take the soonest seat).
+**Phase 2 (0037):**
+- **Moving one visit:** `reschedule.service.ts`; owners today+60, customers today+20, and customers only their own series.
+- **Changing all future visits:** time and/or stylist, never the interval.
+- **"Book another time"** on a Needs attention item.
+- **Every edit** runs the same `isBookable` with two extras: the moved visits don't block themselves (`excludeIds`), and regulars' not-yet-booked dates count as taken (`project`).
+- **A change** supersedes the booked visits from its date on (`cancel_reason='superseded'`) and re-anchors the rule (`version+1`, `anchor_index`).
+  - It keeps visits moved by hand.
+  - It refuses with 409 `CHANGE_CONFLICTS` until every date the new time doesn't fit has a choice (another time, or skip).
+  - **Superseded rows must stay hidden from every list.**
+- **The job** never books a date that already has a live row of the series, in any version.
 
 **Customer microsite rules** (see `docs/customer-booking-page-copy-2026-09-06.md`) — two invariants
 the public booking page depends on. **"Book an Appointment" always means a scheduled visit and
@@ -633,7 +671,7 @@ Checklist for any owner-facing change:
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **35 vitest files, 416 tests** (2026-10-02), run with `npm test` in `backend/`
+- `backend/tests/unit/` — **38 vitest files, 482 tests** (2026-10-05), run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
   Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
   `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
@@ -658,6 +696,10 @@ Checklist for any owner-facing change:
   `backend/scripts/smoke-selfservice.mjs` covers customer self-service (book → key → view → cancel,
   check in → duplicate → track → leave). It is separate from smoke-rest because the two together
   would exceed `publicWrite`'s 20/hour, so run it against a freshly started API.
+  `backend/scripts/smoke-my-appointments.mjs` (same fresh-API rule; 11 public writes) proves the
+  2026-10-05 "My appointments" decision: a device holding only the phone number moves and cancels a
+  one-off and manages a series, while another number, a bare number and a wrong key get nothing
+  ([docs/customer-my-appointments.md](docs/customer-my-appointments.md)).
   `backend/scripts/smoke-booking-guards.mjs` pins the server-side booking rule (one booking when two
   customers confirm together; overlap / past / closed / out-of-hours / beyond-window → 409
   `SLOT_UNAVAILABLE`; foreign or malformed stylist → 400) — same fresh-API rule.
@@ -669,6 +711,12 @@ Checklist for any owner-facing change:
   the dated-rate rule against the real `visit_commission` view, which no API can reach because it
   refuses past-dated rates) and `smoke-commission.mjs` (running API + seeded throwaway DB;
   re-runnable — it makes its own chair and staff login). See [docs/staff-commission.md](docs/staff-commission.md).
+  Recurring appointments have a pair as well: `smoke-recurring-sweep.ts` (run with `npx tsx`; a
+  **migrated** throwaway DB; drives the hourly job through 2030 with an injected clock, then deletes
+  its own store; refuses the database `backend/.env` points at and forces SMS off) and
+  `smoke-recurring.mjs` (running API + seeded throwaway DB; spends 8 public writes), and for Phase 2
+  `smoke-recurring-edit.mjs` (same setup; ~10 public writes — fresh API) plus the Phase 2 half of
+  `smoke-recurring-sweep.ts`. See [docs/recurring-appointments.md](docs/recurring-appointments.md) §16.
 - `docs/qa-report-2026-07-10.md` — a manual QA record.
 
 **There is no E2E framework.** No Playwright, Cypress, Detox, Maestro, Puppeteer, WebdriverIO,

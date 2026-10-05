@@ -54,7 +54,12 @@ export function BottomSheet({
    */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onEscape();
+      if (e.key !== "Escape") return;
+      // Marked as handled so a sheet-like panel UNDER this one (the Calendar's day sheet, which
+      // listens on window — after this document listener) can tell the key was already used and
+      // stay open. Escape has no default action of its own to lose.
+      e.preventDefault();
+      onEscape();
     };
     document.addEventListener("keydown", onKey);
     const previous = document.body.style.overflow;
