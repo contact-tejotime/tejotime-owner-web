@@ -4,6 +4,7 @@ import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { broadcastQueue } from '../modules/queue/queue.service';
 import { appointmentReminderSweep } from '../modules/notifications/sms-dispatch';
+import { recurringSweep } from '../modules/appointments/series.service';
 
 /**
  * In-process scheduled jobs (single instance). Swap for BullMQ + Redis workers
@@ -92,5 +93,14 @@ export function startScheduler(): void {
   cron.schedule('10 0 * * *', () => {
     purgeSessions().catch((err) => logger.error({ err }, 'purgeSessions failed'));
   });
-  logger.info('Scheduler started (eta-notify-sweep, appointment-reminder, stale-cleanup, otp-purge, session-purge)');
+  // Hourly, and once at startup: book each recurring series' next visits (up to today+20). It is
+  // idempotent, so running it more often than "daily" costs nothing and means a run lost to a
+  // deploy is made up within the hour. The 7-day margin (lib/recurrence.ts) absorbs longer gaps.
+  cron.schedule('7 * * * *', () => {
+    recurringSweep().catch((err) => logger.error({ err }, 'recurringSweep failed'));
+  });
+  recurringSweep().catch((err) => logger.error({ err }, 'recurringSweep (startup) failed'));
+  logger.info(
+    'Scheduler started (eta-notify-sweep, appointment-reminder, stale-cleanup, otp-purge, session-purge, recurring-sweep)',
+  );
 }

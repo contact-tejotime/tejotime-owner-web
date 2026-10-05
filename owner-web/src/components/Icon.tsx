@@ -103,6 +103,24 @@ export const ICONS: Record<string, string> = {
   /** "Salon keeps" — what is left of the takings after commission. */
   wallet:
     '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+  /**
+   * A repeating booking (Lucide `repeat`): on every series visit, the Regulars rows and the
+   * Settings switch. An icon rather than the 🔁 emoji, which renders differently on iOS, Android
+   * and each desktop OS (docs/recurring-appointments.md §2).
+   */
+  repeat:
+    '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+  /** Skip one visit of a repeating booking (Lucide `skip-forward`). */
+  skipForward: '<path d="m5 4 10 8-10 8z"/><path d="M19 5v14"/>',
+  /**
+   * Cancel a one-off booking that is still ahead (Lucide `calendar-x`). Not the plain `x`: that is
+   * the no-show shortcut on the same rows, and the two must not read as one action.
+   */
+  calendarX:
+    '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m14 14-4 4M10 14l4 4"/>',
+  /** Reschedule — move a booking to another day or time (Lucide `calendar-clock`). */
+  calendarClock:
+    '<path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4M8 2v4M3 10h5"/><path d="M17.5 17.5 16 16.3V14"/><circle cx="16" cy="16" r="6"/>',
 };
 
 export type IconName = keyof typeof ICONS;

@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-10-02 · branch `feat-jay`.
+**Last updated:** 2026-10-05 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,117 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### My Appointments — manage a booking with the phone number (2026-10-05)
+
+**Client decision:** the phone number alone now views, moves and cancels a customer's appointments,
+and fully manages their repeating booking, from any device. This reverses "a phone alone never
+cancels". Customers weren't keeping the manage link. Decision record, accepted risk and what was
+kept: [docs/customer-my-appointments.md](../../docs/customer-my-appointments.md).
+
+- **Backend:** the phone lookup returns each changeable booking's `appointmentKey` and the open
+  series' `manageToken`, and takes only a `+<cc>` number (400 otherwise). New endpoints
+  `GET /public/appointments/:id/slots` and `POST …/reschedule` move a booking up to today+20.
+  The chat bot's cancel/reschedule answer points at My Appointments (action `appts`). No migration.
+- **Customer site:** a My Appointments button in the header and the mobile menu opens a new pop-up
+  (`components/microsite/MyAppointments.tsx`). Repeating bookings open the manage view inline
+  (`SeriesPanel`). The store chat cancels bookings made on other devices.
+  **Lookup results stay in page memory, never in localStorage** (shared browsers).
+- **Owner surfaces:** no change. Owner web and the app already show every booking and receive
+  `appointment:updated` / `series:updated`.
+- **Verified here:**
+  - Backend: `npx vitest run` 38 files / 482 tests; tsc and eslint clean (`tsc` still reports the
+    2 old errors in `tests/unit/store-drafts.test.ts`).
+  - Frontend: tsc, `npm run lint` and `npm run build` clean; `test:chat-flow` 167/167.
+  - Smokes, local throwaway DB re-seeded, each script on a freshly started API:
+    `smoke-my-appointments.mjs` 23/23 (new), `smoke-selfservice.mjs` 25/25 (flipped: the lookup now
+    returns the key), `smoke-recurring.mjs` 39/39, `smoke-recurring-edit.mjs` 32/32,
+    `smoke-rest.mjs` 149/149, `smoke-booking-guards.mjs` 14/14, `smoke-recurring-sweep.ts` 50/50.
+  - Headless-Chrome walk-through, 29/29 steps, at 390 px and 1280 px:
+    - device A books;
+    - device B, holding only the phone number, reschedules and cancels the one-off, skips a series
+      visit inline, and cancels from the chat;
+    - after a reload no key or token is in storage;
+    - device A lists without typing.
+- **Test harness fix:** `smoke-recurring-edit.mjs` now looks up free times with John instead of
+  assuming "slot + n days". A throwaway DB that keeps earlier runs' bookings had made those 409 and
+  then crash.
+- **Same day, two follow-ups (client):**
+  - the repeating-booking success screen no longer shows the manage link;
+  - My Appointments and the chat start from the phone number, like Check Waitlist Status, and show
+    only that number's bookings. The earlier "booked on this device" list showed every number booked
+    from one browser. The page now saves no bookings, keys or tokens, and clears old saved records
+    on load. Verified: frontend tsc, lint and build clean; `test:chat-flow` 171/171; headless-Chrome
+    walk-through 20/20. In that run one browser books with two numbers; each number lists only its
+    own bookings; the chat asks for the number first; nothing is saved; an old record is cleared.
+    The walk-through also caught a gap, now fixed: switching back to a number already looked up
+    didn't make it the "last number", so the chat offered the wrong one.
+- **Not done:** no device pass is needed (no app change). The owner-typed bare 10-digit phone
+  stored as `+1…` stays a known limit; such bookings aren't found by `+91…`.
+
+### Recurring appointments — Phase 2 (2026-10-03)
+
+Reschedule one visit (owners: any booking up to today+60; customers: their own series visits up to
+today+20), change all future visits (time and/or stylist; a date the new time doesn't fit needs
+"another time" or "skip" before anything is written — 409 `CHANGE_CONFLICTS`), "Book another time" on
+Needs attention, and the Phase 1 leftovers (open the series sheet from a row, calendar repeat marker,
+store-clock times in the app). Migration **0037**. Owner-created bookings/series are out of scope.
+Design + decisions: [docs/recurring-appointments.md](../../docs/recurring-appointments.md) §0b.
+
+- **Deploy:** 0037 before the backend.
+- **Verified here (backend):** `npx vitest run` 38 files / 470 tests (new `series-edit.test.ts` 11,
+  Phase 2 additions to `recurrence.test.ts` and `auth-session-currency.test.ts`); tsc + eslint clean.
+  Local throwaway Postgres: 0037 applied and re-applied; `smoke-recurring-sweep.ts` 50/50 (Phase 2
+  half: skip survives a change, moved visit kept, taken date needs a choice with nothing written,
+  count still ends at its total, Book another time, two race checks); fresh API on :8090:
+  `smoke-recurring-edit.mjs` 31/31, `smoke-recurring.mjs` 39/39, `smoke-rest.mjs` 149/149,
+  `smoke-booking-guards.mjs` 14/14, `smoke-selfservice.mjs` 25/25.
+- **Verified here (clients):** frontend and owner-web tsc + lint + build clean; app tsc + lint
+  clean; `test:chat-flow` 158/158. Headless-Chrome walk-throughs on the throwaway API: customer
+  (move a visit, change with two taken dates — one re-timed, one skipped — a 409 and a re-pick) and
+  owner-web (row Reschedule, series-sheet Reschedule, Change future visits with conflicts and a 409,
+  Book another time, open-sheet-from-row, calendar marker, 1280px). Bugs found and fixed: the customer
+  rhythm line took its weekday from a moved first visit; owner-web Escape closed two sheets, a stale
+  slot list after a 409, an off-screen preview, a squeezed date column; backend preview called a
+  booked date past the horizon "later" (regression test added, failed first).
+- **Not done:** iOS + Android device pass (Hermes `Intl` with `timeZone` especially), dark mode, the
+  owner-web Needs-attention wrap fix (CSS, not re-checked), staff-login flows in a browser.
+
+### Recurring appointments — Phase 1 (2026-10-03)
+
+The client's requirement: a customer books once and the visit repeats (every week / 2 / 3 / 4 weeks
+/ every N days; until cancelled, after X visits, or until a date). Migration **0036**; the series
+stores the rule, a job books each next visit about three weeks ahead (today+20, 7 days before the
+public window can show the date). Customer: repeat option + preview on the booking page, a manage
+page from a token link (skip one visit, cancel the series). Owner (web + app): repeat icon,
+Regulars, series sheet (pause / resume / cancel / skip), Needs attention, store switch. Check-in
+now honours the booked stylist. Plan, decisions and what changed from it:
+[docs/recurring-appointments.md](../../docs/recurring-appointments.md).
+
+- **Deploy:** 0036 before the backend (the pipeline runs migrations first). The job starts on boot.
+- **Verified here (backend):** `npx tsc --noEmit` (only the 2 pre-existing `store-drafts.test.ts`
+  errors), eslint on every changed file, `npx vitest run` — 37 files / 451 tests, including the
+  new `recurrence.test.ts` (18) and `public-series.test.ts` (13). On a **local throwaway Postgres
+  18** (`tejotime_smoke` on localhost — not preprod): all migrations incl. 0036 applied, 0036
+  re-applied cleanly (idempotent), `smoke-recurring-sweep.ts` 23/23, and against a fresh API on
+  :8090 `smoke-recurring.mjs` 39/39, `smoke-rest.mjs` 149/149, `smoke-booking-guards.mjs` 14/14,
+  `smoke-selfservice.mjs` 25/25.
+- **Bug the real-DB smoke caught (fixed, with a regression unit test that failed first):** a
+  series was marked `ended` the moment its last visit was *booked*. "Weekly × 3" books all three at
+  once, so it vanished from Regulars, could not be paused, and the same phone could open a second
+  series. It now ends the day after its last visit.
+- **Verified here (clients):** `frontend`, `owner-web` — `tsc --noEmit`, lint and `next build`
+  clean; `app` — `tsc --noEmit` and `expo lint` clean; `npm run test:chat-flow` 158/158. Driven in
+  headless Chrome against the throwaway API (390px, plus 1280px for owner-web): the booking
+  modal's repeat section → Confirm → success screen + Copy link → second series on the same phone
+  refused → manage page Skip / Cancel / wrong token; owner-web login → Needs attention (Mark
+  handled) → Regulars → series sheet Skip / Pause / Resume / Cancel → Calendar repeat icon →
+  Settings switch round-trip. Two layout bugs found and fixed (manage-page button overflow at
+  390px; owner-web repeat icon wrapping series rows onto an extra line).
+- **Not done:** no device pass on iOS / Android (the app was type-checked and linted only); dark
+  mode not checked on any surface.
+- **Phase 2 (not built):** reschedule one visit, change all future visits, owner-created series
+  (needs an owner "New appointment" screen, which does not exist).
 
 ### Staff commission % (2026-10-02)
 

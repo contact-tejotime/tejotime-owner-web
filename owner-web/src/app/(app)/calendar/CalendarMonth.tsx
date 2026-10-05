@@ -14,6 +14,8 @@ import {
 import { t, format } from "@/i18n";
 
 import { Icon } from "@/components/Icon";
+import { OpenSeriesArea } from "@/components/series/BookingSheets";
+import { RepeatMark } from "@/components/series/RepeatMark";
 import { showToast } from "@/lib/toast";
 
 /** One day on the 6×7 grid. Every string is formatted on the server, in the store's zone. */
@@ -23,6 +25,8 @@ export interface CalendarCell {
   inMonth: boolean;
   isToday: boolean;
   count: number;
+  /** A regular's visit (still booked) falls on this day — the grid draws the repeat mark. */
+  hasSeries: boolean;
   /** "Thursday, 24 September" — the day sheet's title. */
   title: string;
   /** The title plus the booking count, for the day button's accessible name. */
@@ -36,7 +40,17 @@ export interface CalendarItem {
   name: string;
   /** "Haircut · John" — the service, then the chair when there is one. */
   serviceLine: string;
+  /**
+   * The badge's key: the backend status, except a skipped series visit, which arrives as
+   * `cancelled` with `cancelReason: "skipped"` and is shown as "skipped" (lib/series.ts).
+   */
   status: string;
+  /** A visit of a repeating booking — draws the repeat icon beside the name. */
+  repeating: boolean;
+  /** Its series: tapping the row's text opens the regular's series sheet. */
+  seriesId: string | null;
+  /** Moved by hand (Phase 2) — the "Moved" badge. */
+  moved: boolean;
   visitorType: "mr" | "patient" | null;
   /** Still waiting to arrive AND this login may manage appointments. */
   canCheckIn: boolean;
@@ -66,6 +80,7 @@ const STATUS_TONE: Record<string, string> = {
   completed: "success",
   cancelled: "neutral",
   no_show: "error",
+  skipped: "neutral",
 };
 const STATUS_LABEL: Record<string, string> = t.calendar.status;
 
@@ -137,7 +152,11 @@ export function CalendarMonth({
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      // A series sheet opened from the day list sits above this one and hears the same Escape
+      // first (BottomSheet listens on document, this on window) — it marks the key as handled, and
+      // the day sheet stays open under it. A flag read from React state could not do this: React
+      // re-renders between the two listeners, so the sheet already reads as closed here.
+      if (e.key === "Escape" && !e.defaultPrevented) close();
     };
     window.addEventListener("keydown", onKey);
     // preventScroll, as BottomSheet does: iOS Safari scrolls the page to a focused fixed panel.
@@ -234,6 +253,8 @@ export function CalendarMonth({
                 <span className="calx-num">{cell.day}</span>
                 <span className="calx-dot-slot" aria-hidden>
                   {cell.count > 0 ? <span className="calx-dot" /> : null}
+                  {/* A regular's visit that day: the same repeat glyph as its row, very small. */}
+                  {cell.hasSeries ? <Icon name="repeat" size={9} strokeWidth={2.6} className="calx-cell-repeat" /> : null}
                 </span>
               </button>
             );
@@ -267,17 +288,15 @@ export function CalendarMonth({
                   <li key={item.id} className="calx-appt">
                     <span className="calx-appt-time">{item.time}</span>
                     <div className="calx-appt-card">
-                      <div className="calx-appt-body">
-                        <div className="calx-appt-name-row">
-                          <span className="calx-appt-name">{item.name}</span>
-                          {item.visitorType ? (
-                            <span className={`calx-badge tone-${item.visitorType === "mr" ? "info" : "secondary"}`}>
-                              {item.visitorType === "mr" ? t.calendar.visitorMr : t.calendar.visitorPatient}
-                            </span>
-                          ) : null}
+                      {item.seriesId ? (
+                        <OpenSeriesArea seriesId={item.seriesId} name={item.name} className="calx-appt-body">
+                          <ItemText item={item} />
+                        </OpenSeriesArea>
+                      ) : (
+                        <div className="calx-appt-body">
+                          <ItemText item={item} />
                         </div>
-                        <div className="calx-appt-service">{item.serviceLine}</div>
-                      </div>
+                      )}
                       {item.canCheckIn ? (
                         <button
                           type="button"
@@ -303,5 +322,26 @@ export function CalendarMonth({
         </section>
       </div>
     </div>
+  );
+}
+
+/** A day-list row's name line (repeat mark, MR / Patient, Moved) and its service line. */
+function ItemText({ item }: { item: CalendarItem }) {
+  return (
+    <>
+      <div className="calx-appt-name-row">
+        <span className="calx-appt-name">
+          {item.name}
+          {item.repeating ? <RepeatMark /> : null}
+        </span>
+        {item.visitorType ? (
+          <span className={`calx-badge tone-${item.visitorType === "mr" ? "info" : "secondary"}`}>
+            {item.visitorType === "mr" ? t.calendar.visitorMr : t.calendar.visitorPatient}
+          </span>
+        ) : null}
+        {item.moved ? <span className="calx-badge tone-info">{t.reschedule.moved}</span> : null}
+      </div>
+      <div className="calx-appt-service">{item.serviceLine}</div>
+    </>
   );
 }

@@ -4,10 +4,13 @@ import { asyncHandler } from '../../http/async-handler';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import * as pub from './public.service';
+import * as series from '../appointments/series.service';
 import { chatWithPlatform, chatWithStore } from './chat.service';
 import { countryFromHeaders, recordConsent } from './consent.service';
 import { MAX_SERVICES_PER_VISIT } from '../../config/constants';
 import { env } from '../../config/env';
+import { SERIES_LIMITS } from '../../lib/recurrence';
+import { changeSchema, moveSchema, publicSeriesSlotsQuery, slotsQuery } from '../appointments/series.schemas';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -43,14 +46,68 @@ const joinSchema = z
   })
   .strict();
 
-const bookSchema = joinSchema.extend({ slotStart: z.string().datetime() }).strict();
+/**
+ * "Repeat this booking?" — every N days, until an end (docs/recurring-appointments.md). The bounds
+ * here are the shape; `ruleProblem` re-checks them with the dates in hand (an "until" that leaves
+ * no second visit, an end more than a year out).
+ */
+const repeatSchema = z
+  .object({
+    everyDays: z.number().int().min(SERIES_LIMITS.minEveryDays).max(SERIES_LIMITS.maxEveryDays),
+    end: z.discriminatedUnion('type', [
+      z.object({ type: z.literal('never') }).strict(),
+      z.object({ type: z.literal('count'), count: z.number().int().min(SERIES_LIMITS.minCount).max(SERIES_LIMITS.maxCount) }).strict(),
+      z.object({ type: z.literal('until'), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict(),
+    ]),
+  })
+  .strict();
+
+const bookSchema = joinSchema.extend({ slotStart: z.string().datetime(), repeat: repeatSchema.optional() }).strict();
+
+const seriesPreviewSchema = z
+  .object({
+    ...serviceSelection,
+    preferredStaffId: z.union([z.literal('any'), z.string().uuid()]).optional(),
+    slotStart: z.string().datetime(),
+    repeat: repeatSchema,
+  })
+  .strict();
+
+/**
+ * The series manage token (16 url-safe chars) rides in a header, never the URL, so it stays out of
+ * request logs — the customer's link carries it after `#`, which a browser never sends either.
+ * Anything malformed cannot match, so it is dropped here and answered as "not found".
+ */
+const SERIES_TOKEN_RE = /^[A-Za-z0-9_-]{16}$/;
+const seriesToken = (raw: string | undefined) => (raw && SERIES_TOKEN_RE.test(raw) ? raw : undefined);
 
 const trackSchema = z.object({ phone: z.string().trim().min(4).max(20) }).strict();
+
+/**
+ * My appointments lookup — a full international number only (a leading +, 8–15 digits).
+ * normalizePhone reads a bare 10-digit number as +1 (US). That was harmless while the lookup only
+ * showed bookings. Now it returns the keys that move and cancel them, so an Indian "9876543210"
+ * must not open a stranger's +1 9876543210 bookings. The booking page always sends +<cc><number>.
+ */
+const lookupSchema = z
+  .object({
+    phone: z
+      .string()
+      .trim()
+      .max(24)
+      .refine((v) => /^\+[\d\s().-]+$/.test(v) && /^\d{8,15}$/.test(v.replace(/\D/g, '')), {
+        message: 'Enter the number with its country code',
+      }),
+  })
+  .strict();
 
 const appointmentParam = z.object({ appointmentId: z.string().uuid() });
 // The key is 24 hex chars (a truncated HMAC); anything else cannot verify, so reject it at the edge.
 const appointmentKeyField = z.string().regex(/^[0-9a-f]{24}$/);
+const appointmentKeyHeader = (raw: string | undefined) =>
+  raw && appointmentKeyField.safeParse(raw).success ? raw : undefined;
 const cancelAppointmentSchema = z.object({ key: appointmentKeyField }).strict();
+const rescheduleAppointmentSchema = moveSchema.extend({ key: appointmentKeyField }).strict();
 
 const inquirySchema = z
   .object({
@@ -227,6 +284,17 @@ publicRouter.post(
   }),
 );
 
+// What a repeat rule would book — the dates the customer sees before confirming. Read-only, so
+// the read limiter, even though the rule travels in a body.
+publicRouter.post(
+  '/businesses/:slug/series-preview',
+  limiters.publicRead,
+  validate({ params: slugParam, body: seriesPreviewSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await pub.previewSeries(req.params.slug, req.body));
+  }),
+);
+
 // Track my turn: resolve the caller's active ticket for today from their phone number.
 // Verified by the demo OTP on the client (see plan); revisit auth when real OTP ships.
 publicRouter.post(
@@ -238,14 +306,14 @@ publicRouter.post(
   }),
 );
 
-// My appointments: upcoming bookings for a phone at this store. Same trust level as /track (phone
-// → your own bookings), and it never returns appointment keys, so it can show a booking made on
-// another device but cannot be used to cancel it. publicWrite, like /track, because it is a
-// phone-number lookup and must not be cheap to enumerate.
+// My appointments: upcoming bookings for a phone at this store, WITH the keys and series token that
+// move and cancel them. Client decision, 2026-10-05 (docs/customer-my-appointments.md): the phone
+// alone is enough, from any device. publicWrite, like /track, because it is a phone-number lookup
+// and must not be cheap to enumerate.
 publicRouter.post(
   '/businesses/:slug/appointments/lookup',
   limiters.publicWrite,
-  validate({ params: slugParam, body: trackSchema }),
+  validate({ params: slugParam, body: lookupSchema }),
   asyncHandler(async (req, res) => {
     res.json(await pub.lookupAppointments(req.params.slug, req.body));
   }),
@@ -334,17 +402,42 @@ publicRouter.delete(
   }),
 );
 
-// Appointment self-service, keyed by the appointmentKey the booking response handed the booking
-// browser. The key travels in a header on the read, not the query string, so it never lands in
-// request logs; a missing or wrong key is a 404 (not 403) so ids cannot be probed.
+// Appointment self-service, keyed by the appointmentKey. The booking response hands it to the
+// booking browser, and the phone lookup above hands it to any device. On a read the key travels in a
+// header, not the query string, so it never lands in request logs. A missing or wrong key is a 404
+// (not 403), so ids cannot be probed.
 publicRouter.get(
   '/appointments/:appointmentId',
   limiters.publicRead,
   validate({ params: appointmentParam }),
   asyncHandler(async (req, res) => {
-    const raw = req.get('x-appointment-key');
-    const key = raw && appointmentKeyField.safeParse(raw).success ? raw : undefined;
-    res.json(await pub.getPublicAppointment(req.params.appointmentId, key));
+    res.json(await pub.getPublicAppointment(req.params.appointmentId, appointmentKeyHeader(req.get('x-appointment-key'))));
+  }),
+);
+
+// Moving a booking — a one-off, or one visit of a series — to a free time today … today+20, the
+// same range as the series manage page.
+publicRouter.get(
+  '/appointments/:appointmentId/slots',
+  limiters.publicRead,
+  validate({ params: appointmentParam, query: slotsQuery }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await pub.publicAppointmentSlots(
+        req.params.appointmentId,
+        appointmentKeyHeader(req.get('x-appointment-key')),
+        req.query as any,
+      ),
+    );
+  }),
+);
+
+publicRouter.post(
+  '/appointments/:appointmentId/reschedule',
+  limiters.publicWrite,
+  validate({ params: appointmentParam, body: rescheduleAppointmentSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await pub.reschedulePublicAppointment(req.params.appointmentId, req.body));
   }),
 );
 
@@ -354,5 +447,74 @@ publicRouter.post(
   validate({ params: appointmentParam, body: cancelAppointmentSchema }),
   asyncHandler(async (req, res) => {
     res.json(await pub.cancelPublicAppointment(req.params.appointmentId, req.body.key));
+  }),
+);
+
+// Recurring series self-service, keyed by the manage token (X-Series-Token). The token comes from
+// the booking screen, the confirmation SMS, or the My appointments phone lookup (client decision,
+// 2026-10-05). A missing or wrong token is a 404, so tokens cannot be probed.
+publicRouter.get(
+  '/series',
+  limiters.publicRead,
+  asyncHandler(async (req, res) => {
+    res.json(await series.getSeriesByToken(seriesToken(req.get('x-series-token'))));
+  }),
+);
+
+publicRouter.post(
+  '/series/visits/:appointmentId/skip',
+  limiters.publicWrite,
+  validate({ params: appointmentParam }),
+  asyncHandler(async (req, res) => {
+    res.json(await series.skipVisitByToken(seriesToken(req.get('x-series-token')), req.params.appointmentId));
+  }),
+);
+
+publicRouter.post(
+  '/series/cancel',
+  limiters.publicWrite,
+  asyncHandler(async (req, res) => {
+    res.json(await series.cancelSeriesByToken(seriesToken(req.get('x-series-token'))));
+  }),
+);
+
+// Phase 2 — move one visit, change all future visits (same token rule). The customer's range is
+// today … today+20, the job's horizon, where every series date is already booked.
+publicRouter.get(
+  '/series/slots',
+  limiters.publicRead,
+  validate({ query: publicSeriesSlotsQuery }),
+  asyncHandler(async (req, res) => {
+    res.json(await series.seriesSlotsByToken(seriesToken(req.get('x-series-token')), req.query as any));
+  }),
+);
+
+publicRouter.post(
+  '/series/visits/:appointmentId/reschedule',
+  limiters.publicWrite,
+  validate({ params: appointmentParam, body: moveSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await series.rescheduleVisitByToken(seriesToken(req.get('x-series-token')), req.params.appointmentId, req.body),
+    );
+  }),
+);
+
+// Read-only, so the read limiter, though the request travels in a body.
+publicRouter.post(
+  '/series/preview-change',
+  limiters.publicRead,
+  validate({ body: changeSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await series.previewChangeByToken(seriesToken(req.get('x-series-token')), req.body));
+  }),
+);
+
+publicRouter.post(
+  '/series/change',
+  limiters.publicWrite,
+  validate({ body: changeSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await series.changeSeriesByToken(seriesToken(req.get('x-series-token')), req.body));
   }),
 );

@@ -143,6 +143,74 @@ function BookingQrRow({ cardUrl, storeName }: { cardUrl: string; storeName: stri
   );
 }
 
+/**
+ * "Repeating bookings" — whether the store page offers "Repeat this booking?"
+ * (docs/recurring-appointments.md §6). Saved the moment it is flipped, like the app's switches,
+ * through the same PATCH /business the profile editor saves with; the API takes the key from an
+ * owner or co-owner only, so the row is shown to nobody else.
+ *
+ * Optimistic: the switch moves at once and moves back, with the API's reason as a toast, if the
+ * save fails. Turning it off stops NEW repeating bookings only — series already running carry on,
+ * and are managed from Appointments → Regulars.
+ */
+function RecurringRow({ initial }: { initial: boolean }) {
+  const router = useRouter();
+  const [on, setOn] = useState(initial);
+  const [saving, setSaving] = useState(false);
+
+  async function toggle() {
+    const next = !on;
+    setOn(next);
+    setSaving(true);
+    try {
+      const res = await fetch("/api/business", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ recurringEnabled: next }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setOn(!next);
+        showToast(json?.error?.message ?? t.mutation.generic, "error");
+        return;
+      }
+      // The route revalidates the cached GET /business, so the next render reads the saved value.
+      router.refresh();
+    } catch {
+      setOn(!next);
+      showToast(t.mutation.networkError, "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="st-row">
+      <RowContent
+        icon="repeat"
+        label={t.settings.recurring}
+        sub={t.settings.recurringSub}
+        trailing={
+          <button
+            type="button"
+            role="switch"
+            className={`st-switch${on ? " is-on" : ""}`}
+            aria-checked={on}
+            aria-label={t.settings.recurring}
+            aria-busy={saving || undefined}
+            disabled={saving}
+            onClick={toggle}
+          >
+            <span className="st-switch-track">
+              <span className="st-switch-knob" />
+            </span>
+          </button>
+        }
+      />
+    </div>
+  );
+}
+
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="st-group">
@@ -178,6 +246,7 @@ export function SettingsScreen({
   userName,
   storeMode,
   cardUrl,
+  recurringEnabled,
   subs,
 }: {
   role: UserRole;
@@ -189,6 +258,11 @@ export function SettingsScreen({
   storeMode: StoreMode;
   /** The booking card URL for the QR, from the profile-gated `/business/qr`. */
   cardUrl: string | null;
+  /**
+   * The store's "Repeating bookings" switch, from `GET /business`. Null when that read was not
+   * made or failed — the row is then left out rather than drawn in a state nobody saved.
+   */
+  recurringEnabled: boolean | null;
   /** Live row subtitles, resolved on the server (see page.tsx). */
   subs: { profile: string; hours: string; services: string; staff: string };
 }) {
@@ -202,7 +276,9 @@ export function SettingsScreen({
   // The app gates the QR row on `profile`; here it also needs the card URL that read returns,
   // since there is nothing to encode without it.
   const showQr = can(access, "profile") && !!cardUrl;
-  const showBookings = showQr || can(access, "notifications");
+  // Owner roles only, as the API decides (business.service OWNER_ONLY_COLUMNS).
+  const showRecurring = owner && recurringEnabled !== null;
+  const showBookings = showQr || can(access, "notifications") || showRecurring;
 
   async function onSignOut() {
     setSigningOut(true);
@@ -293,6 +369,7 @@ export function SettingsScreen({
         {showBookings ? (
           <Group title={t.settings.groupBookings}>
             {showQr && cardUrl ? <BookingQrRow cardUrl={cardUrl} storeName={storeName} /> : null}
+            {showRecurring && recurringEnabled !== null ? <RecurringRow initial={recurringEnabled} /> : null}
             {can(access, "notifications") ? (
               <SettingsRow
                 href="/settings/notifications"

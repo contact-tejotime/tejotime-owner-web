@@ -92,6 +92,8 @@ const patchSchema = z
       .partial()
       .optional(),
     timezone: z.string().max(64).refine(isValidTimezone, 'Unknown timezone').optional(),
+    // Offer "Repeat this booking?" on the store page (docs/recurring-appointments.md).
+    recurringEnabled: z.boolean().optional(),
   })
   .strict();
 

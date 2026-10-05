@@ -209,8 +209,17 @@ describe('answerLocally', () => {
   });
 
   it('a policy the page does not state is a fallback, not a guess', () => {
-    expect(answerLocally('can I cancel my booking', facts({ faqs: [] })).mode).toBe('fallback');
+    expect(answerLocally('do you give refunds if I cancel', facts({ faqs: [] })).mode).toBe('fallback');
     expect(answerLocally('do you cut kids hair', facts({ faqs: [] })).mode).toBe('fallback');
+  });
+
+  it('changing or cancelling a booking points at My appointments, which the page does itself', () => {
+    for (const q of ['can I cancel my booking', 'how do I reschedule my appointment']) {
+      const a = answerLocally(q, facts({ faqs: [] }));
+      expect(a.mode, q).toBe('facts');
+      expect(a.reply, q).toContain('My Appointments');
+      expect(a.suggestedActions[0], q).toEqual({ type: 'appts', label: 'My Appointments' });
+    }
   });
 });
 

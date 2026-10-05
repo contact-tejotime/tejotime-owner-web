@@ -4,7 +4,7 @@ TejoTime sends **exactly three** customer texts, all behind **one** website cons
 
 | # | Message | Sent when | Carrier category |
 |---|---|---|---|
-| 1 | Booking confirmation | right after a website booking | Customer care |
+| 1 | Booking confirmation | right after a website booking — and, for a repeating booking, each time the series job books the next visit (about 3 weeks ahead) | Customer care |
 | 2 | 15-minute reminder | 15 min before a booked appointment (scheduler, every minute) | Customer care |
 | 3 | Thank-you + Google review link | after the visit is checked out | **Marketing** |
 
@@ -80,7 +80,7 @@ Defaults are **false**.
 |---|---|
 | Message bodies (**= campaign samples**) + reminder window | `backend/src/lib/sms-copy.ts` |
 | Send gate, notification row, the three senders, reminder sweep | `backend/src/modules/notifications/sms-dispatch.ts` |
-| Confirmation trigger | `public.service.ts` `bookSlot` |
+| Confirmation trigger | `public.service.ts` `bookSlot`; for recurring visits the job books, `series.service.ts` `afterGeneration` |
 | Reminder trigger | `jobs/scheduler.ts` (every minute; one-shot claim on `reminder_sent_at`) |
 | Review trigger | `queue.service.ts` `checkout` (one-shot claim on `thank_you_sent_at`) |
 | Consent box | `frontend/src/components/microsite/MicrositeClient.tsx`, string `microsite.join.consentOptIn` |
@@ -135,9 +135,24 @@ design; Advanced Opt-Out still honours STOP/HELP replies to any message. Bodies 
 em dash or curly quotes). The greeting uses the customer's first name; a store with no address
 drops the `Address:` tail. Dates and times are in the store's own timezone.
 
-> **"Manage your booking" link** opens the store's booking page — there is not yet a page where a
-> customer can view or cancel one booking. Either build one or reword to "View details" (and the
-> sample with it) before submitting, if a reviewer is likely to click it.
+> **"Manage your booking" link** opens the store's booking page for a one-off booking. Since
+> 2026-10-05 that page has a **My appointments** button: type the phone number to see, move or
+> cancel the booking ([customer-my-appointments.md](customer-my-appointments.md)). So the link's
+> wording is now true. A reviewer who clicks it lands one tap away from managing the booking.
+> No new text was added for a move or a cancel.
+>
+> **Recurring appointments (2026-10-03, [recurring-appointments.md](recurring-appointments.md)).**
+> For a visit of a repeating booking the same link opens the series' manage page,
+> `https://www.tejotime.com/{store-phone}/v#{token}` (skip a visit, cancel the series) — same
+> domain, longer path. Two consequences: that body is **two SMS segments** (~175 characters; a
+> one-off stays ~155), and each visit the job books later gets this confirmation, so a regular
+> receives it once per visit. That is still "up to 3 messages per visit", but consider saying
+> "including each visit of a repeating booking" in `message_flow` when the campaign is next
+> resubmitted. Nothing is texted for a skip, a cancellation, a pause, or a visit the job could not
+> book — those go to the owner's Needs attention list. Phase 2 adds no text either: moving a visit,
+changing all future visits and "Book another time" send nothing; a moved visit's 15-minute reminder
+is re-armed for its new time (or marked sent if the new time is already inside the 15 minutes, so it
+never fires at once with the wrong wording).
 
 ## Pre-submit checklist
 

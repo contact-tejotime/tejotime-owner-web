@@ -224,6 +224,50 @@ store form can set that current percent too (blank = no rate; clearing a started
 Rounded per visit; totals are the sum of the lines. "Today" comes only from the server. All plans.
 Full rules, API and screens: [docs/staff-commission.md](../../docs/staff-commission.md).
 
+## 5b. Recurring appointments
+
+A customer books once and the visit repeats every N days (7–90) until never / after X visits /
+a date. `appointment_series` holds the **rule**; each visit is an ordinary `appointment` with
+`series_id`. Pure date logic in `lib/recurrence.ts`, everything else in
+`modules/appointments/series.service.ts`.
+
+- **Rolling creation.** Only dates inside the horizon exist. `recurringSweep` runs hourly (and at
+  startup) and books every rule date after the cursor (`generated_through`) up to
+  **today + BOOKING_WINDOW_DAYS + 6** (today+20). Public booking only reaches today+13, so every
+  series visit exists 7 days before anyone else can see its date. The horizon is derived from the
+  window — never hard-code 20.
+- **One rule for "bookable".** `judgeDate` runs the same `isBookable` as public booking, with the
+  series window, under the same `appt:{businessId}` advisory lock. Verdicts: `ok` → book;
+  `closed`/`past` → skip silently; `taken`/`outside_hours`/`service_missing` → at booking, report to
+  the customer; in the job, a Needs attention row (`appointment_series_issue`); `stylist_unavailable`
+  → flag **and pause** the series (every later date would fail too).
+- **At booking** (`startSeriesForBooking`, inside `bookSlot`'s transaction) every date already in
+  the horizon is booked at once. Only the first visit is texted.
+- **Skip** cancels one visit with `cancel_reason='skipped'`; its row stays, and the unique
+  `(series_id, series_version, occurrence_date)` index means it is never re-booked.
+- **No-shows.** Two owner-marked no-shows in a row pause the series (`noteNoShow`); "not checked
+  in" never counts.
+- **Customer access** is the series' random `manage_token` (`X-Series-Token`). It is delivered on
+  the booking response (not saved in the browser since 2026-10-05), in the confirmation SMS link `/{phone}/v#token`, and, since 2026-10-05 (client
+  decision), by the "My appointments" phone lookup for an active or paused series. So the phone
+  number alone manages a series ([docs/customer-my-appointments.md](../../docs/customer-my-appointments.md)).
+- **SMS** — only the three registered texts: each visit the job books gets the ordinary
+  confirmation; nothing for skip / cancel / pause / couldn't book.
+- **Check-in** now puts the customer on the stylist they booked while that stylist is active, else
+  the soonest seat (`appointments.service.ts` `checkIn`).
+- Free on all plans; the owner can switch it off (`business.recurring_enabled`, enforced by the API).
+
+- **Phase 2 (0037):**
+  - **Move one visit:** `reschedule.service.ts`, in place, `rescheduled_at` set. Owners today…today+60; customers today…today+20, own series only.
+  - **Change all future visits:** time/stylist only. Supersede, re-anchor (`version+1`, `anchor_index`), resolutions, then generation — one transaction.
+    - Visits moved by hand are kept.
+    - A date the new time doesn't fit needs "another time" or "skip", or the change answers 409 `CHANGE_CONFLICTS` having written nothing.
+  - **Book another time** on a Needs attention item.
+  - **Edits pass `excludeIds` and `project` to `slotInputFor`**: a regular's not-yet-booked dates count as taken.
+  - **Generation skips dates with a live row in any version.**
+
+Full plan, decisions and phases: [docs/recurring-appointments.md](../../docs/recurring-appointments.md).
+
 ## 6. Plan gating
 
 Free plan truncates the customer list to `FREE_PLAN_CUSTOMER_LIMIT` (default **2**) and returns

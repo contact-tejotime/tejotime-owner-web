@@ -6,8 +6,8 @@ import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { t } from '@/i18n';
 // Shared with the date pickers (TMonthGrid) — the same 6-week, Sunday-first month.
-import { buildGrid } from '@/lib/date-grid';
-import { toDateKey } from '@/lib/mappers';
+import { buildGrid, dayKeyOf, monthOfKey } from '@/lib/date-grid';
+import { storeTodayKey } from '@/lib/zoned';
 import { useAppState } from '@/state/store';
 import { styles } from '@/styles';
 import { moderateScale } from '@/styles/scale';
@@ -19,33 +19,42 @@ export default function Calendar() {
   const store = useAppState();
   const s = useMemo(() => createCalendarStyles(theme), [theme]);
 
-  const today = useMemo(() => new Date(), []);
-  const [visibleYear, setVisibleYear] = useState(today.getFullYear());
-  const [visibleMonth, setVisibleMonth] = useState(today.getMonth());
-  const [selectedDate, setSelectedDate] = useState(today);
+  /**
+   * Today on the STORE's calendar (lib/zoned.ts), not the phone's: bookings are grouped onto days
+   * by their store-local date, so "today" has to be the same calendar. Grid cells are calendar
+   * dates, not instants, and are keyed by their own parts (`dayKeyOf`) — never through a timezone.
+   * Computed once per visit to the tab; the zone arrives with /auth/me, before this can mount.
+   */
+  const [todayKey] = useState(() => storeTodayKey());
+  const [visibleYear, setVisibleYear] = useState(() => monthOfKey(todayKey).year);
+  const [visibleMonth, setVisibleMonth] = useState(() => monthOfKey(todayKey).month);
+  const [selectedKey, setSelectedKey] = useState(todayKey);
 
   const selectDay = (cell: Date) => {
-    setSelectedDate(cell);
-    store.openDayAppts(toDateKey(cell));
+    const key = dayKeyOf(cell);
+    setSelectedKey(key);
+    store.openDayAppts(key);
   };
 
   const grid = useMemo(() => buildGrid(visibleYear, visibleMonth), [visibleYear, visibleMonth]);
 
   useEffect(() => {
-    store.loadCalendarAppointments(toDateKey(grid[0]), toDateKey(grid[grid.length - 1]));
+    store.loadCalendarAppointments(dayKeyOf(grid[0]), dayKeyOf(grid[grid.length - 1]));
     // Re-fetch only when the visible month changes — `store.loadCalendarAppointments`
     // is stable but including it would re-run this on every store update.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleYear, visibleMonth]);
 
-  const bookedDays = useMemo(() => {
-    const set = new Set<string>();
-    store.calendarAppts.forEach((a) => set.add(a.dateKey));
-    return set;
+  /** Days with any booking, and the days with a visit of a repeating booking among them. */
+  const { bookedDays, seriesDays } = useMemo(() => {
+    const booked = new Set<string>();
+    const series = new Set<string>();
+    store.calendarAppts.forEach((a) => {
+      booked.add(a.dateKey);
+      if (a.seriesId && a.cancelReason !== 'skipped' && a.status !== 'cancelled') series.add(a.dateKey);
+    });
+    return { bookedDays: booked, seriesDays: series };
   }, [store.calendarAppts]);
-
-  const selectedKey = toDateKey(selectedDate);
-  const todayKey = toDateKey(today);
 
   const goToMonth = (delta: number) => {
     const next = new Date(visibleYear, visibleMonth + delta, 1);
@@ -82,11 +91,12 @@ export default function Calendar() {
 
         <View style={[s.grid, store.calendarLoading && s.gridLoading]}>
           {grid.map((cell) => {
-            const key = toDateKey(cell);
+            const key = dayKeyOf(cell);
             const inMonth = cell.getMonth() === visibleMonth;
             const isSelected = key === selectedKey;
             const isToday = key === todayKey;
             const hasAppts = bookedDays.has(key);
+            const hasSeries = seriesDays.has(key);
             return (
               <Pressable key={key} onPress={() => selectDay(cell)} style={s.cell}>
                 <View style={[s.cellInner, isSelected && s.cellSelected, !isSelected && isToday && s.cellToday]}>
@@ -98,7 +108,17 @@ export default function Calendar() {
                     {cell.getDate()}
                   </TText>
                 </View>
-                <View style={s.dotSlot}>{hasAppts && <View style={s.dot} />}</View>
+                {/* A repeating booking's visit marks its day with the repeat glyph instead of
+                    the plain dot — the same icon as on its row. */}
+                <View style={s.dotSlot}>
+                  {hasSeries ? (
+                    <View accessible accessibilityLabel={t.series.repeating}>
+                      <Icon name="repeat" size={9} strokeWidth={2.5} color={theme.colors.primary} />
+                    </View>
+                  ) : hasAppts ? (
+                    <View style={s.dot} />
+                  ) : null}
+                </View>
               </Pressable>
             );
           })}
@@ -128,7 +148,8 @@ const createCalendarStyles = ({ colors, radius }: ThemeStyleProps) =>
     cellSelected: { backgroundColor: colors.primary },
     cellToday: { borderWidth: moderateScale(1), borderColor: colors.primary },
     cellTextSelected: { color: colors.textOnBrand },
-    dotSlot: { height: moderateScale(6), ...styles.itemsCenter, ...styles.justifyCenter, ...styles.mt1 },
+    // Tall enough for the repeat glyph (9) as well as the dot (4), so marked days don't jump.
+    dotSlot: { height: moderateScale(10), ...styles.itemsCenter, ...styles.justifyCenter, ...styles.mt1 },
     dot: {
       width: moderateScale(4),
       height: moderateScale(4),

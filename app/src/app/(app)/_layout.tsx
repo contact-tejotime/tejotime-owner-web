@@ -9,6 +9,7 @@ import { CommissionVisitsSheet } from '@/components/feedback/CommissionVisitsShe
 import { DayAppointmentsSheet } from '@/components/feedback/DayAppointmentsSheet';
 import { DetailPanel } from '@/components/feedback/DetailPanel';
 import { QRSheet } from '@/components/feedback/QRSheet';
+import { SeriesSheet } from '@/components/feedback/SeriesSheet';
 import { useAppState } from '@/state/store';
 import { useTheme } from '@/theme/ThemeProvider';
 import { styles } from '@/styles';
@@ -33,6 +34,7 @@ export default function AppLayout() {
       <QRSheet />
       <DetailPanel />
       <DayAppointmentsSheet />
+      <SeriesSheet />
       <CommissionVisitsSheet />
     </View>
   );

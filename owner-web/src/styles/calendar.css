@@ -166,6 +166,15 @@
   border-radius: 999px;
   background: var(--primary);
 }
+/* A regular's visit that day (recurring appointments): the repeat glyph beside the booking dot,
+   inside the same 6px-tall slot so a marked day is no taller than any other. Overflows the slot
+   vertically by design — the slot's height is what keeps the grid rows even. */
+.calx-dot-slot {
+  gap: 3px;
+}
+.calx-cell-repeat {
+  color: var(--primary);
+}
 
 /* --------------------------------------------------------------- the day */
 

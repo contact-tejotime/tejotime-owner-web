@@ -5,6 +5,34 @@ import { assertSameOrigin, BACKEND, REQUEST_TIMEOUT_MS, unreachable } from "./ht
 import { revalidateTags } from "./server-api";
 import { getAccessToken } from "./session";
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * For routes that splice a path parameter into the backend path. `encodeURIComponent` does not
+ * stop a `..` segment, which `fetch` would then normalise into a different backend path; every id
+ * the API takes is a UUID, so anything else is refused here instead of being forwarded.
+ */
+export function isUuid(value: string): boolean {
+  return UUID.test(value);
+}
+
+/**
+ * A slots route's query string, rebuilt from an allow-list rather than passed through, so a GET
+ * route cannot be used to send the backend parameters it was never meant to take. `date` and
+ * `fromDate` must be "YYYY-MM-DD"; `staffId` a UUID or "any".
+ */
+export function slotsQuery(req: NextRequest, keys: ("date" | "staffId" | "fromDate")[]): string | null {
+  const out = new URLSearchParams();
+  for (const key of keys) {
+    const value = req.nextUrl.searchParams.get(key);
+    if (value === null || value === "") continue;
+    const ok = key === "staffId" ? value === "any" || isUuid(value) : /^\d{4}-\d{2}-\d{2}$/.test(value);
+    if (!ok) return null;
+    out.set(key, value);
+  }
+  return out.toString();
+}
+
 /**
  * Shared body for every mutation route handler.
  *

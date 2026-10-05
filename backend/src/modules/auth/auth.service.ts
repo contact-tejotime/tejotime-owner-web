@@ -24,9 +24,10 @@ async function businessSummary(businessId: string) {
   // so owner-web and the Expo app can theme chrome / gate extras for staff as well as owners —
   // without requiring `profile` permission. `currency` travels for the same reason: the price
   // prefixes and the checkout amount box need the store's symbol, and without it both clients
-  // fell back to a hardcoded ₹ on a store set to USD.
+  // fell back to a hardcoded ₹ on a store set to USD. `timezone` likewise: the Expo app shows
+  // appointment times on the STORE's clock, and GET /business (which has it) is profile-gated.
   return one(
-    `select id, name, slug, category, currency, theme, theme_color as "themeColor"
+    `select id, name, slug, category, currency, theme, theme_color as "themeColor", timezone
        from business where id = $1`,
     [businessId],
   );

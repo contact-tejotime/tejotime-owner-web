@@ -5,8 +5,10 @@ import { t, plural } from "@/i18n";
 
 import { AppPageHeader } from "@/components/AppPageHeader";
 import { LiveRefresh } from "@/components/LiveRefresh";
+import { BookingSheetsHost } from "@/components/series/BookingSheets";
 import { ScopeNotice } from "@/components/ScopeNotice";
 import { can, NO_ACCESS } from "@/lib/roles";
+import { closedWeekdays, visitStatusKey, type PickerContext } from "@/lib/series";
 import { getAppointmentsFresh, getBusiness, getMe, getStaff } from "@/lib/server-api";
 
 import { CalendarMonth, type CalendarCell, type CalendarItem } from "./CalendarMonth";
@@ -130,6 +132,17 @@ export default async function CalendarPage({
   // stays here and sees the booking turn "Checked in" instead.
   const afterCheckInHref = can(access, "dashboard") || can(access, "queue") ? "/dashboard" : null;
 
+  // The series sheet's pickers. A staff login moves bookings only on its own chair (API: 403).
+  const staffScoped = me.user.role === "staff";
+  const picker: PickerContext = {
+    zone,
+    staff: (staff?.data ?? [])
+      .filter((s) => s.isActive && (!staffScoped || s.id === me.user.staffId))
+      .map((s) => ({ id: s.id, name: s.name, colorToken: s.colorToken })),
+    allowAny: !staffScoped,
+    closedDays: closedWeekdays(business?.hours),
+  };
+
   const timeFmt = new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" });
 
   const sorted = [...(res?.data ?? [])].sort((a, b) => a.scheduledStartAt.localeCompare(b.scheduledStartAt));
@@ -149,7 +162,10 @@ export default async function CalendarPage({
       time: timeFmt.format(start),
       name: a.customerName,
       serviceLine: staffName ? `${service} · ${staffName}` : service,
-      status: a.status,
+      status: visitStatusKey(a),
+      repeating: !!a.seriesId,
+      seriesId: a.seriesId ?? null,
+      moved: !!a.rescheduledAt && a.status !== "cancelled",
       visitorType: a.visitorType ?? null,
       canCheckIn: eligible && canCheckIn,
     });
@@ -174,12 +190,16 @@ export default async function CalendarPage({
     const key = utcKey(d);
     const title = labelFor(d);
     const count = itemsByDay[key]?.length ?? 0;
+    // The month grid marks days that hold a regular's visit (Phase 1 leftover). Skipped and
+    // cancelled ones do not count: nobody is coming.
+    const hasSeries = (itemsByDay[key] ?? []).some((i) => i.repeating && i.status !== "cancelled" && i.status !== "skipped");
     return {
       key,
       day: d.getUTCDate(),
       inMonth: d.getUTCMonth() === month,
       isToday: key === todayKey,
       count,
+      hasSeries,
       title,
       label: count
         ? plural(count, t.calendar.dayBookingsOne, t.calendar.dayBookings, { date: title })
@@ -211,15 +231,18 @@ export default async function CalendarPage({
         subtitle={plural(inMonthCount, t.calendar.bookingsOne, t.calendar.bookings)}
       />
 
+      {/* `series:updated`: a change of future visits, a pause or a resume moves this month too. */}
       <LiveRefresh
-        events={["appointment:created", "appointment:updated", "appointment:checked_in"]}
+        events={["appointment:created", "appointment:updated", "appointment:checked_in", "series:updated"]}
         pollOnly={me.user.role === "staff"}
       />
 
       <ScopeNotice me={me} context={t.calendar.scopeContext} />
 
       {/* Keyed by month: a new month starts from its own default day with the sheet shut, the
-          same as the app, which re-runs its fetch and keeps nothing from the last month. */}
+          same as the app, which re-runs its fetch and keeps nothing from the last month. The host
+          lets a series visit in the day list open its regular's series sheet. */}
+      <BookingSheetsHost picker={picker} canManage={canCheckIn}>
       <CalendarMonth
         key={ym}
         ym={ym}
@@ -233,6 +256,7 @@ export default async function CalendarPage({
         initialOpen={requested !== null}
         afterCheckInHref={afterCheckInHref}
       />
+      </BookingSheetsHost>
     </div>
   );
 }
