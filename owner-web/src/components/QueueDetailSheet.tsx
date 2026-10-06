@@ -3,10 +3,19 @@
 import { useEffect, useEffectEvent, useId, useRef, useState, type ReactNode } from "react";
 import { t, format } from "@/i18n";
 
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Icon } from "@/components/Icon";
 import { UNASSIGNED_GROUP_ID } from "@/components/LiveQueueCard";
 import { OverlayPortal } from "@/components/OverlayPortal";
 import { Skeleton, Spinner } from "@/components/Skeleton";
+import {
+  boxAfterExtrasChange,
+  boxIsTotal,
+  chargePaise,
+  initialBox,
+  isExtraOn,
+  parseRupees,
+} from "@/lib/checkout-amount";
 import { currencySymbol } from "@/lib/currencies";
 import { formatMoney, formatServicePrice } from "@/lib/format";
 import { extrasForCategory } from "@/lib/service-extras";
@@ -37,9 +46,16 @@ import "@/styles/shell-sheets.css";
  * Why the amount is here at all: `visit.amount_paise` feeds customer lifetime spend and every
  * revenue KPI, and it used to be written from the BOOKED service alone, so a customer who came for
  * a beard trim and also had a haircut was banked at the beard-trim price.
+ *
+ * The box is the whole bill for a fixed-price service, and only the booked service's price for an
+ * unpriced or range one — the add-ons are added on top and shown as "Total to charge". The add-on
+ * chips are a toggle: a plain one asks what was charged for it, a highlighted one comes off. Both
+ * rules live in lib/checkout-amount.ts, shared with the app; see docs/checkout-add-ons.md.
  */
 
 interface Billing {
+  /** The booked service on its own (the card's label carries every add-on too). Null: none. */
+  serviceName: string | null;
   serviceAmount: Money;
   /** The booked service's pricing mode — see backend/src/domain/money.ts `servicePricing`. */
   servicePriceType: ServicePriceType;
@@ -106,10 +122,17 @@ export function QueueDetailSheet({
   const [error, setError] = useState("");
   /** Rupees as typed. A string so the field can be empty mid-edit. */
   const [amount, setAmount] = useState("");
+  /** The add-on whose price is being asked for. The popup unmounts when this clears, so every
+   *  open starts with an empty field. */
+  const [pricePrompt, setPricePrompt] = useState<{ label: string; minutes: number } | null>(null);
   const addOns = extrasForCategory(category);
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
-  const onEscape = useEffectEvent(() => onClose());
+  // While the price popup is up, Escape is the popup's (it closes itself); closing the whole
+  // customer sheet from under it would throw the typed price away with it.
+  const onEscape = useEffectEvent(() => {
+    if (!pricePrompt) onClose();
+  });
 
   const entryId = card.id;
   const inService = card.status === "in_service";
@@ -148,9 +171,9 @@ export function QueueDetailSheet({
         }
         setBilling(json as Billing);
         // Pre-fill with what the shop would charge today, so the common case is one tap. A
-        // range-priced service has no such figure and deliberately starts empty — the whole
-        // point of the mode is that someone has to look at the customer and decide.
-        setAmount(json.suggestedAmount ? rupees(json.suggestedAmount.amount) : "");
+        // range-priced or unpriced service has no such figure and deliberately starts empty — the
+        // whole point of the mode is that someone has to look at the customer and decide.
+        setAmount(initialBox(json as Billing));
       } catch {
         if (alive) setError(t.detail.networkError);
       }
@@ -193,50 +216,60 @@ export function QueueDetailSheet({
   }
 
   /**
-   * Record an add-on and move the amount by exactly its price.
+   * Put an add-on on (`extend`, with the price typed into the popup) or take one off
+   * (`remove-extra`), then move the box by exactly its price.
    *
-   * The delta is taken from the server's recomputed suggestion rather than re-syncing the whole
-   * box to it — otherwise adding a shave would silently discard an amount the user had already
-   * typed by hand, which is the one thing they are here to do.
+   * The box moves by the change in the add-ons' total rather than re-syncing to the server's new
+   * suggestion — otherwise adding a shave would silently discard an amount the user had already
+   * typed by hand, which is the one thing they are here to do. A box holding only an unpriced
+   * service's price is left alone; the total under it moves instead (lib/checkout-amount.ts).
    */
-  async function addExtra(label: string, minutes: number) {
-    const before = billing?.suggestedAmount?.amount ?? null;
-    const ok = await send("extend", `/api/queue/${entryId}/extend`, { label, minutes });
-    if (!ok) return;
+  async function changeExtras(action: "extend" | "remove-extra", body: unknown) {
+    const before = billing;
+    const ok = await send("extend", `/api/queue/${entryId}/${action}`, body);
+    if (!ok || !before) return;
     onChanged();
     const res = await fetch(`/api/queue/${entryId}`, { cache: "no-store" });
     if (!res.ok) return;
     const next = (await res.json()) as Billing;
     setBilling(next);
-    // With no suggestion on either side (a range-priced service) there is no delta to apply —
-    // the add-on's own price is still shown in the breakdown below, so the person typing can
-    // see it and decide. Nudging a hand-typed figure by a number we did not derive would be
-    // worse than leaving it alone.
-    if (before == null || next.suggestedAmount == null) return;
-    const delta = (next.suggestedAmount.amount - before) / 100;
-    setAmount((prev) => {
-      const current = Number(prev);
-      return Number.isFinite(current) && prev.trim() !== ""
-        ? String(current + delta)
-        : rupees(next.suggestedAmount!.amount);
-    });
+    setAmount((prev) => boxAfterExtrasChange(prev, before, next));
+  }
+
+  /** A highlighted chip comes off at once; a plain one first asks what it cost. */
+  function onChip(label: string, minutes: number) {
+    if (billing && isExtraOn(billing.extras, label)) {
+      void changeExtras("remove-extra", { label });
+    } else {
+      setPricePrompt({ label, minutes });
+    }
+  }
+
+  function onAddOnPrice(value: string) {
+    const prompt = pricePrompt;
+    setPricePrompt(null);
+    if (!prompt) return;
+    void changeExtras("extend", { label: prompt.label, minutes: prompt.minutes, pricePaise: parseRupees(value) });
   }
 
   async function onComplete() {
-    // Empty is never a valid bill. It reads as "not decided yet", which for a range-priced
-    // service is the state this box exists to get out of — and the API rejects it anyway.
-    if (amount.trim() === "") {
-      setError(billing?.amountRequired ? t.detail.amountRequired : t.detail.errAmount);
+    // Empty is never a valid bill. It reads as "not decided yet", which for a range-priced or
+    // unpriced service is the state this box exists to get out of — and the API rejects it too.
+    const paise = billing ? chargePaise(amount, billing) : null;
+    if (paise === null) {
+      setError(
+        amount.trim() !== "" || !billing
+          ? t.detail.errAmount
+          : !boxIsTotal(billing) && billing.serviceName
+            ? format(t.detail.servicePriceRequired, { service: billing.serviceName })
+            : billing.amountRequired
+              ? t.detail.amountRequired
+              : t.detail.errAmount,
+      );
       return;
     }
-    const value = Number(amount);
-    if (!Number.isFinite(value) || value < 0) {
-      setError(t.detail.errAmount);
-      return;
-    }
-    // Rupees in the box, paise on the wire — money crosses the API as an integer minor unit,
-    // and Math.round keeps 249.99 from arriving as 24998.999999999996.
-    await act("checkout", { amountPaise: Math.round(value * 100) });
+    // Paise on the wire — money crosses the API as an integer minor unit.
+    await act("checkout", { amountPaise: paise });
   }
 
   // Real chairs only: the seatless "Any"/"Waiting" group is not a seat the API can reassign to.
@@ -246,6 +279,12 @@ export function QueueDetailSheet({
   // offering the move, beats a red error after the click — the app disables it the same way.
   const seatBusy = waiting && !!seatGroup?.serving;
   const source = card.online ? t.queue.online : t.queue.walkIn;
+
+  // Is the box the whole bill, or only the booked service's price with the add-ons on top?
+  const totalMode = billing ? boxIsTotal(billing) : true;
+  const serviceName = billing?.serviceName ?? null;
+  const basePaise = totalMode ? null : parseRupees(amount);
+  const totalPaise = billing && !totalMode ? chargePaise(amount, billing) : null;
 
   /**
    * Only what the card behind this screen does NOT already show — its price, its exact place in
@@ -366,7 +405,8 @@ export function QueueDetailSheet({
                     quoted is what they need to see while filling it in. */}
                 <p className="dp-hint">
                   {billing?.servicePriceType === "range" && billing.serviceMaxAmount
-                    ? format(t.detail.amountHintRange, {
+                    ? format(serviceName ? t.detail.amountHintRangeBase : t.detail.amountHintRange, {
+                        service: serviceName ?? "",
                         range: formatServicePrice({
                           price: billing.serviceAmount,
                           priceType: "range",
@@ -374,7 +414,9 @@ export function QueueDetailSheet({
                         }),
                       })
                     : billing?.servicePriceType === "unset"
-                      ? t.detail.amountHintUnpriced
+                      ? serviceName
+                        ? format(t.detail.amountHintUnpricedBase, { service: serviceName })
+                        : t.detail.amountHintUnpriced
                       : t.detail.amountHint}
                 </p>
 
@@ -397,7 +439,12 @@ export function QueueDetailSheet({
                     // Editable only once the suggestion has landed, so a fast typist cannot have
                     // their figure overwritten by the response arriving a moment later.
                     disabled={!billing}
-                    aria-label={t.detail.amount}
+                    // In the service-price mode the box is that one service's price — say so in
+                    // the empty box itself, not only in the hint above it.
+                    placeholder={!totalMode && serviceName ? format(t.detail.servicePrice, { service: serviceName }) : undefined}
+                    aria-label={
+                      !totalMode && serviceName ? format(t.detail.servicePrice, { service: serviceName }) : t.detail.amount
+                    }
                   />
                   {!billing && !error ? <Spinner size={16} /> : null}
                 </div>
@@ -406,47 +453,75 @@ export function QueueDetailSheet({
                     same glance as the click that caused it. */}
                 {addOns.length > 0 ? (
                   <div className="dp-chips">
-                    {addOns.map((a) => (
-                      <button
-                        key={a.label}
-                        type="button"
-                        className="dp-chip"
-                        disabled={busy || !billing}
-                        onClick={() => addExtra(a.label, a.minutes)}
-                        aria-label={format(t.detail.addExtra, { label: a.label, minutes: a.minutes })}
-                      >
-                        <Icon name={a.icon} size={16} />
-                        <span>{a.label}</span>
-                        <span className="dp-chip-mins">{format(t.detail.extendMins, { mins: a.minutes })}</span>
-                      </button>
-                    ))}
+                    {addOns.map((a) => {
+                      // On = already on this visit, whether added here or booked with it.
+                      const on = !!billing && isExtraOn(billing.extras, a.label);
+                      return (
+                        <button
+                          key={a.label}
+                          type="button"
+                          className={on ? "dp-chip is-selected" : "dp-chip"}
+                          aria-pressed={on}
+                          disabled={busy || !billing}
+                          onClick={() => onChip(a.label, a.minutes)}
+                          aria-label={format(on ? t.detail.removeExtra : t.detail.addExtra, {
+                            label: a.label,
+                            minutes: a.minutes,
+                          })}
+                        >
+                          <Icon name={on ? "check" : a.icon} size={16} />
+                          <span>{a.label}</span>
+                          <span className="dp-chip-mins">{format(t.detail.extendMins, { mins: a.minutes })}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : null}
 
                 {billing ? (
                   <ul className="dp-breakdown">
-                    <li>
-                      <span>{card.service || t.detail.service}</span>
-                      <span>
-                        {formatServicePrice({
-                          price: billing.serviceAmount,
-                          priceType: billing.servicePriceType,
-                          priceMax: billing.serviceMaxAmount,
-                        })}
-                      </span>
-                    </li>
+                    {/* The booked service on its own line — by its own name, since the add-ons
+                        are itemised below it. An entry with no service has no such line. */}
+                    {serviceName ? (
+                      <li>
+                        <span>{serviceName}</span>
+                        <span>
+                          {totalMode
+                            ? formatServicePrice({
+                                price: billing.serviceAmount,
+                                priceType: billing.servicePriceType,
+                                priceMax: billing.serviceMaxAmount,
+                              })
+                            : basePaise !== null
+                              ? formatMoney({ ...billing.serviceAmount, amount: basePaise })
+                              : t.detail.enterPrice}
+                        </span>
+                      </li>
+                    ) : null}
                     {billing.extras.map((x) => (
                       <li key={x.id}>
                         <span>{format(t.detail.extraLine, { label: x.label, minutes: x.minutes })}</span>
                         <span>{formatMoney({ ...billing.extrasAmount, amount: x.pricePaise })}</span>
                       </li>
                     ))}
-                    {/* No suggested total for a range: printing one would be the derived figure
-                        this mode exists to stop anybody reaching for. */}
-                    {billing.suggestedAmount ? (
+                    {/* A fixed price: the server's suggestion, which the box already holds. */}
+                    {totalMode && billing.suggestedAmount ? (
                       <li className="total">
                         <span>{t.detail.suggested}</span>
                         <span>{formatMoney(billing.suggestedAmount)}</span>
+                      </li>
+                    ) : null}
+                    {/* Unpriced or range: the service's price as typed plus the add-ons — what
+                        Complete will charge. A dash until the service is priced, so the add-ons
+                        alone are never shown as the bill. */}
+                    {!totalMode && (serviceName || billing.extras.length > 0) ? (
+                      <li className="grand">
+                        <span>{t.detail.totalToCharge}</span>
+                        <span>
+                          {totalPaise !== null
+                            ? formatMoney({ ...billing.serviceAmount, amount: totalPaise })
+                            : t.common.dash}
+                        </span>
                       </li>
                     ) : null}
                   </ul>
@@ -512,11 +587,25 @@ export function QueueDetailSheet({
           </div>
         </div>
       </div>
+      {/* The add-on price popup: always empty, so the price on the visit is the one somebody
+          typed for this customer, not a platform-wide default (docs/checkout-add-ons.md). */}
+      {pricePrompt && billing ? (
+        <ConfirmDialog
+          key={pricePrompt.label}
+          open
+          title={format(t.detail.addOnPriceTitle, { label: pricePrompt.label })}
+          body={format(t.detail.addOnPriceBody, { minutes: pricePrompt.minutes })}
+          confirmLabel={t.detail.addOnPriceConfirm}
+          input={{
+            label: t.detail.addOnPriceLabel,
+            prefix: currencySymbol(billing.serviceAmount.currency),
+            inputMode: "decimal",
+            validate: (value) => (parseRupees(value) === null ? t.detail.addOnPriceInvalid : null),
+          }}
+          onConfirm={onAddOnPrice}
+          onCancel={() => setPricePrompt(null)}
+        />
+      ) : null}
     </OverlayPortal>
   );
-}
-
-/** Paise → a plain rupee string for the input. Whole rupees; nobody types paise at a counter. */
-function rupees(paise: number): string {
-  return String(Math.round(paise / 100));
 }

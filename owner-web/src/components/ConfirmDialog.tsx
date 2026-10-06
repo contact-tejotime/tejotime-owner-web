@@ -37,7 +37,11 @@ export function ConfirmDialog({
   confirmLabel = t.confirm.confirm,
   cancelLabel = t.confirm.cancel,
   destructive = false,
-  /** Present a text field and hand its value to onConfirm. Used for setting a password. */
+  /**
+   * Present a text field and hand its value to onConfirm. Used for setting a password, and for
+   * the price of a checkout add-on (`prefix` = the store's currency symbol, `inputMode` brings up
+   * a phone's number pad, `validate` returns the message to show instead of confirming).
+   */
   input,
   busy = false,
   onConfirm,
@@ -49,7 +53,15 @@ export function ConfirmDialog({
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
-  input?: { label: string; hint?: string; type?: "text" | "password"; minLength?: number };
+  input?: {
+    label: string;
+    hint?: string;
+    type?: "text" | "password";
+    minLength?: number;
+    prefix?: string;
+    inputMode?: "decimal";
+    validate?: (value: string) => string | null;
+  };
   busy?: boolean;
   onConfirm: (value: string) => void;
   onCancel: () => void;
@@ -75,6 +87,11 @@ export function ConfirmDialog({
       setError(format(t.confirm.minLength, { count: input.minLength }));
       return;
     }
+    const invalid = input?.validate?.(value);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
     onConfirm(value);
   }
 
@@ -96,20 +113,28 @@ export function ConfirmDialog({
           {input ? (
             <div className="cfm-field">
               <label htmlFor={inputId}>{input.label}</label>
-              <input
-                id={inputId}
-                className="cfm-input"
-                type={input.type ?? "text"}
-                value={value}
-                autoFocus
-                onChange={(e) => {
-                  setValue(e.target.value);
-                  setError("");
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") confirm();
-                }}
-              />
+              <div className={input.prefix ? "cfm-input-wrap" : undefined}>
+                {input.prefix ? (
+                  <span className="cfm-prefix" aria-hidden>
+                    {input.prefix}
+                  </span>
+                ) : null}
+                <input
+                  id={inputId}
+                  className="cfm-input"
+                  type={input.type ?? "text"}
+                  inputMode={input.inputMode}
+                  value={value}
+                  autoFocus
+                  onChange={(e) => {
+                    setValue(e.target.value);
+                    setError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") confirm();
+                  }}
+                />
+              </div>
               {input.hint ? <p className="cfm-hint">{input.hint}</p> : null}
             </div>
           ) : null}

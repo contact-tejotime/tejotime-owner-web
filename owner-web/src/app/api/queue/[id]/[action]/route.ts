@@ -10,7 +10,7 @@ import { TAGS } from "@/lib/server-api";
  * `action` is checked against an allow-list rather than passed through — otherwise this route
  * would proxy arbitrary paths under /queue/:id/ with the caller's token.
  */
-const ACTIONS = new Set(["start", "checkout", "no-show", "reassign", "extend", "move"]);
+const ACTIONS = new Set(["start", "checkout", "no-show", "reassign", "extend", "remove-extra", "move"]);
 
 export async function POST(
   req: NextRequest,

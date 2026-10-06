@@ -258,7 +258,13 @@ type Store = State & {
   checkout: (id: string, amountPaise?: number | null) => void;
   noShow: (id: string) => void;
   reassign: (id: string, staffId: string) => void;
-  extendService: (id: string, label: string, mins: number) => void;
+  /**
+   * Put an add-on on an in-service visit at the price the owner typed (paise). Resolves once the
+   * API has answered — the checkout sheet re-reads the bill after it, so it must not race it.
+   */
+  extendService: (id: string, label: string, mins: number, pricePaise: number) => Promise<boolean>;
+  /** Take an add-on back off (a tap on a highlighted chip). Resolves once the API has answered. */
+  removeExtra: (id: string, label: string) => Promise<boolean>;
   setDragId: (id: string | null) => void;
   moveWithinSeat: (staffId: string, id: string, toIndex: number) => void;
   moveCardToSeat: (fromStaffId: string, toStaffId: string, id: string, toIndex: number) => void;
@@ -1168,15 +1174,30 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           showToast((e as ApiError)?.message ?? t.toast.error, 'error');
         }
       },
-      extendService: async (id, label, mins) => {
+      extendService: async (id, label, mins, pricePaise) => {
         patch(() => ({ detailBusy: true, detailAction: 'extend' }));
         try {
-          const res: any = await api.extend(id, label, mins);
+          const res: any = await api.extend(id, label, mins, pricePaise);
           setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session), detailBusy: false, detailAction: null }));
           showToast(format(t.toast.extendAdded, { mins, label }), 'success');
+          return true;
         } catch (e) {
           patch(() => ({ detailBusy: false, detailAction: null }));
           showToast((e as ApiError)?.message ?? t.toast.error, 'error');
+          return false;
+        }
+      },
+      removeExtra: async (id, label) => {
+        patch(() => ({ detailBusy: true, detailAction: 'extend' }));
+        try {
+          const res: any = await api.removeExtra(id, label);
+          setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session), detailBusy: false, detailAction: null }));
+          showToast(format(t.toast.extendRemoved, { label }), 'success');
+          return true;
+        } catch (e) {
+          patch(() => ({ detailBusy: false, detailAction: null }));
+          showToast((e as ApiError)?.message ?? t.toast.error, 'error');
+          return false;
         }
       },
       setDragId: (id) => patch(() => ({ dragId: id })),

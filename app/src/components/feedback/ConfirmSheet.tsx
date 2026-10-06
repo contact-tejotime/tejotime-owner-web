@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardTypeOptions, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { TButton, TKeyboardScreen, TText } from '@/components/common';
 import { t } from '@/i18n';
@@ -18,6 +18,11 @@ import { useTheme } from '@/theme/ThemeProvider';
  *
  * `Alert.alert` works on both, but it is OS chrome: it cannot be styled, it does not match the
  * portal's version of the same dialog, and it cannot validate what is typed.
+ *
+ * `presentation="overlay"` draws the same card as an absolute layer instead of its own Modal, for
+ * a prompt opened INSIDE another Modal — iOS will not present a second Modal over an open one, so
+ * a Modal-based prompt there never appears (the checkout sheet's add-on price, DetailPanel). The
+ * caller then mounts it per opening (`key`), since an overlay that stays mounted keeps its text.
  */
 export function ConfirmSheet({
   visible,
@@ -25,9 +30,14 @@ export function ConfirmSheet({
   body,
   confirmLabel,
   destructive = false,
-  /** Show a text field and hand its value to onConfirm. Used for setting a password. */
+  /**
+   * Show a text field and hand its value to onConfirm. Used for setting a password, and for an
+   * add-on's price (`prefix` = the store's currency symbol, `validate` returns the message to show
+   * instead of confirming).
+   */
   input,
   busy = false,
+  presentation = 'modal',
   onConfirm,
   onCancel,
 }: {
@@ -36,8 +46,16 @@ export function ConfirmSheet({
   body?: string;
   confirmLabel: string;
   destructive?: boolean;
-  input?: { label: string; hint?: string; minLength?: number };
+  input?: {
+    label: string;
+    hint?: string;
+    minLength?: number;
+    prefix?: string;
+    keyboardType?: KeyboardTypeOptions;
+    validate?: (value: string) => string | null;
+  };
   busy?: boolean;
+  presentation?: 'modal' | 'overlay';
   onConfirm: (value: string) => void;
   onCancel: () => void;
 }) {
@@ -51,15 +69,35 @@ export function ConfirmSheet({
       setError(t.password.tooShort);
       return;
     }
+    const invalid = input?.validate?.(value);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
     onConfirm(value);
   };
 
-  return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onCancel}>
-      {/* The prompt variant (Team -> reset password) centres a card that is ~300pt tall. iOS
-          floats the keyboard over it, which buried Confirm and Cancel; Android's resize mode
-          re-centred them. Avoid the keyboard so the buttons stay on screen on both. */}
-      <TKeyboardScreen isScrollView={false}>
+  const field = input ? (
+    <TextInput
+      maxFontSizeMultiplier={MAX_FONT_SCALE}
+      style={input.prefix ? s.prefixedInput : s.input}
+      value={value}
+      onChangeText={(v) => {
+        setValue(v);
+        setError('');
+      }}
+      keyboardType={input.keyboardType}
+      onSubmitEditing={confirm}
+      autoFocus
+      accessibilityLabel={input.label}
+    />
+  ) : null;
+
+  const content = (
+    /* The prompt variant (Team -> reset password) centres a card that is ~300pt tall. iOS
+       floats the keyboard over it, which buried Confirm and Cancel; Android's resize mode
+       re-centred them. Avoid the keyboard so the buttons stay on screen on both. */
+    <TKeyboardScreen isScrollView={false}>
       <Pressable style={s.backdrop} onPress={onCancel}>
         {/* Swallow taps inside the card so only the backdrop dismisses. */}
         <Pressable style={s.card} onPress={() => {}}>
@@ -77,17 +115,16 @@ export function ConfirmSheet({
               <TText variant="caption" color="textBody" weight="semibold">
                 {input.label}
               </TText>
-              <TextInput
-                maxFontSizeMultiplier={MAX_FONT_SCALE}
-                style={s.input}
-                value={value}
-                onChangeText={(v) => {
-                  setValue(v);
-                  setError('');
-                }}
-                autoFocus
-                accessibilityLabel={input.label}
-              />
+              {input.prefix ? (
+                <View style={s.prefixRow}>
+                  <TText variant="bodyMd" color="textMuted" weight="bold">
+                    {input.prefix}
+                  </TText>
+                  {field}
+                </View>
+              ) : (
+                field
+              )}
               {input.hint ? (
                 <TText variant="caption" color="textMuted" style={styles.mt1}>
                   {input.hint}
@@ -116,7 +153,16 @@ export function ConfirmSheet({
           </View>
         </Pressable>
       </Pressable>
-      </TKeyboardScreen>
+    </TKeyboardScreen>
+  );
+
+  if (presentation === 'overlay') {
+    return visible ? <View style={StyleSheet.absoluteFill}>{content}</View> : null;
+  }
+
+  return (
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onCancel}>
+      {content}
     </Modal>
   );
 }
@@ -144,6 +190,24 @@ const createStyles = ({ colors, radius }: ThemeStyleProps) =>
       borderWidth: moderateScale(1),
       borderColor: colors.borderDefault,
       borderRadius: moderateScale(radius.md),
+      color: colors.textStrong,
+      fontSize: moderateScale(15),
+    },
+    // A field with a prefix (the add-on price's currency symbol): the row draws the box, the
+    // input inside it is bare.
+    prefixRow: {
+      ...styles.flexRow,
+      ...styles.itemsCenter,
+      gap: moderateScale(6),
+      marginTop: moderateScale(6),
+      paddingHorizontal: moderateScale(12),
+      borderWidth: moderateScale(1),
+      borderColor: colors.borderDefault,
+      borderRadius: moderateScale(radius.md),
+    },
+    prefixedInput: {
+      ...styles.flex,
+      paddingVertical: moderateScale(10),
       color: colors.textStrong,
       fontSize: moderateScale(15),
     },

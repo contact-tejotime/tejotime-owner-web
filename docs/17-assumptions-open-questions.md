@@ -27,7 +27,7 @@ Legend — **Impact:** 🔴 blocks/changes data model or core flow · 🟡 affec
 | # | UI evidence | Ambiguity → Assumption | Impact | Decision |
 |---|---|---|---|---|
 | Q7 | `store.extendService` bumps **every** `waiting` entry's `wait` by `mins` (all seats, not just the affected seat) | Assumed this is a mock simplification; real ETA should recompute per-seat. | 🔴 | Should extending one seat's service affect other seats' waits? (Almost certainly per-seat only.) |
-| Q8 | Add-ons (Shave/Beard trim/Hair wash/Hair color) add **minutes** but no **price** (`DetailPanel.tsx` EXTRAS) | Assumed each add-on has a price that adds to the bill/revenue. | 🔴 | Are add-ons priced? Are they first-class services or a fixed catalog? |
+| Q8 | Add-ons (Shave/Beard trim/Hair wash/Hair color) add **minutes** but no **price** (`DetailPanel.tsx` EXTRAS) | Assumed each add-on has a price that adds to the bill/revenue. | ✅ | **Resolved 2026-10-06:** a fixed catalog of chips (per store type); the owner types each add-on's price when adding it, and it adds to the bill. See [checkout-add-ons.md](./checkout-add-ons.md). |
 | Q9 | Token `"A-24"` (`sharp-cuts` step 3) | Assumed `{prefix}-{daily sequence}`, reset daily, global per business. | 🟡 | Exact token scheme: single letter vs rotating (A/B/C), per-seat vs global, resets when? |
 | Q10 | `checkout` auto-promotes next; `noShow` does **not** | Assumed no-show of the *in-service* customer should also promote next; no-show of a *waiting* customer just removes them. | 🟡 | Should marking the in-service person no-show auto-start the next? |
 | Q11 | `startService` in mock has no "seat already busy" guard | Assumed one in-service per seat (invariant); starting a 2nd → `409`. | 🟡 | Can a seat serve two simultaneously? (Assumed no.) |

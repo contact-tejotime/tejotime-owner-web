@@ -52,6 +52,7 @@ written to be **idempotent / re-runnable**.
 | 0036 | `recurring_appointments.sql` | `appointment_series`, `appointment_series_service`, `appointment_series_issue`; `appointment.series_id / series_version / occurrence_date / cancel_reason`; `business.recurring_enabled` (default true). See below and [docs/recurring-appointments.md](../../docs/recurring-appointments.md). |
 | 0037 | `recurring_edit.sql` | `appointment.rescheduled_at` (a visit moved by hand — kept through a "change all future visits"), `appointment_series.anchor_index` (rule dates before the re-anchored first date, so `end_count` keeps its original total), and `admin_appointment_stats` re-created to ignore superseded rows. |
 | 0038 | `business_gallery_heading.sql` | `business.gallery_heading` — the owner's heading for the page's photo gallery; NULL = the default for the store type ([docs/store-setup-review-2026-10-05.md](../../docs/store-setup-review-2026-10-05.md)) |
+| 0039 | `checkout_addons.sql` | `queue_extend` (same signature) raises `TEJO:ALREADY_ADDED` for a label already on the visit — one add-on label per visit; new `queue_remove_extra(biz, entry, label)` deletes those rows, takes their minutes off `extra_minutes` and their ` + Label` off `service_name` (never the first segment) ([docs/checkout-add-ons.md](../../docs/checkout-add-ons.md)) |
 
 > **`0016` is duplicated** across two independent files. Ordering relies on the filename sort, which
 > is deterministic. **Use a strictly increasing prefix from 0025 onward.**
@@ -199,7 +200,10 @@ survive the service row being edited or deleted.
 
 ### `queue_entry_extra` — service add-ons
 
-`id`, `queue_entry_id` (cascade), `label`, `minutes`, `price_paise`.
+`id`, `queue_entry_id` (cascade), `label`, `minutes`, `price_paise`. One row per label
+(case-insensitive) per entry is the rule since 0039. `queue_extend` refuses a repeat, and
+`queue_attach_services` already skipped a label present in `service_name`. No index enforces it,
+because rows from before 0039 can hold duplicates; `queue_remove_extra` removes them all.
 
 ### `appointment`
 

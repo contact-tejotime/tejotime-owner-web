@@ -326,6 +326,8 @@ export const api = {
   /** One entry's detail, including the price breakdown the checkout sheet pre-fills from. */
   getQueueEntry: (id: string) =>
     raw<{
+      /** The booked service on its own — `service` on the card carries every add-on too. */
+      serviceName: string | null;
       serviceAmount: { amount: number; currency: string };
       servicePriceType: 'fixed' | 'range' | 'unset';
       serviceMaxAmount: { amount: number; currency: string } | null;
@@ -341,7 +343,11 @@ export const api = {
     }>('GET', `/queue/${id}`),
   noShow: (id: string) => raw('POST', `/queue/${id}/no-show`),
   reassign: (id: string, staffId: string) => raw('POST', `/queue/${id}/reassign`, { staffId }),
-  extend: (id: string, label: string, minutes: number) => raw('POST', `/queue/${id}/extend`, { label, minutes }),
+  /** Put an add-on on the visit at the price the owner typed (paise). */
+  extend: (id: string, label: string, minutes: number, pricePaise: number) =>
+    raw('POST', `/queue/${id}/extend`, { label, minutes, pricePaise }),
+  /** Take an add-on back off — a tap on a highlighted chip. */
+  removeExtra: (id: string, label: string) => raw('POST', `/queue/${id}/remove-extra`, { label }),
   move: (id: string, toIndex: number) => raw('POST', `/queue/${id}/move`, { toIndex }),
   cancel: (id: string) => raw('DELETE', `/queue/${id}`),
 

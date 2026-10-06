@@ -130,14 +130,22 @@ the API.
 | POST | `/:id/no-show` | `perm=queue:manage`, `ownRow` |
 | POST | `/:id/reassign` | `perm=queue:manage`, `ownRow` |
 | POST | `/:id/extend` | `perm=queue:manage`, `ownRow` |
+| POST | `/:id/remove-extra` | `perm=queue:manage`, `ownRow` |
 | POST | `/:id/move` | `perm=queue:manage`, `ownRow` |
 | DELETE | `/:id` | `perm=queue:manage`, `ownRow` |
 
-`GET /:id` returns the checkout sheet's billing: `serviceAmount`, `servicePriceType`,
+`GET /:id` returns the checkout sheet's billing: `serviceName` (the booked service on its own;
+the card's `service` carries every add-on), `serviceAmount`, `servicePriceType`,
 `serviceMaxAmount`, `extrasAmount`, `extras[]`, `amountRequired`, and `suggestedAmount` — which
 is **null** whenever `amountRequired` is true (a range-priced or unpriced service). `POST
 /:id/checkout` then requires `amountPaise` for those and answers **422 `AMOUNT_REQUIRED`**
 without it; a fixed-price service still checks out on an empty body. See `business-logic.md`.
+
+`POST /:id/extend` takes `{ label, minutes, pricePaise? }`. The owner's `pricePaise` wins; it is
+optional only for app builds already in the field, which get the `SERVICE_EXTRAS` default. A label
+already on the visit (any case) → **409 `ALREADY_ADDED`** (0039). `POST /:id/remove-extra`
+`{ label }` takes an add-on back off (404 if none has that label, 422 if not in service). See
+[docs/checkout-add-ons.md](../../docs/checkout-add-ons.md).
 
 A staff login's own seat **overrides** any `staffId` in the query, so the whole-shop view is not
 one query string away. Walk-ins added by a staff login are forced onto that login's own chair

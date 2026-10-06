@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-10-05 · branch `feat-jay`.
+**Last updated:** 2026-10-06 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,38 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Checkout: amount to charge + add-on chips (2026-10-06)
+
+Two bugs the client reported on the Customer sheet, fixed on owner-web, the app and the backend
+([docs/checkout-add-ons.md](../../docs/checkout-add-ons.md)):
+- **No total for an unpriced service.** The box now asks for that service's price, and "Total to
+  charge" (box + add-ons) is what gets sent.
+- **Add-on chips.**
+  - A plain chip asks for its price in a popup (always empty).
+  - A highlighted chip comes off (`POST /queue/:id/remove-extra`).
+  - The same add-on can't go on twice (migration **0039**, 409 `ALREADY_ADDED`).
+
+Shared arithmetic: `lib/checkout-amount.ts` in owner-web and the app.
+
+- **Deploy:** 0039 before the backend. Old app builds keep working: no price means the catalog
+  price, and a second tap now gets a 409 toast instead of a second charge.
+- **Verified here:**
+  - Backend: `npm test` 41 files / 521 tests (new `queue-addons.test.ts`, 10).
+  - Root: `npm run test:checkout` 74/74.
+  - Local throwaway DB (`tejotime_smoke_addons`, migrated + seeded): `smoke-checkout-addons.mjs`
+    54/54. Against a copy of the pre-change backend it fails 23 of 54, including an old build's
+    second tap being charged twice.
+  - Static checks: owner-web tsc + lint + `next build` clean; app tsc + lint clean.
+  - owner-web in headless Chrome against that API, at 390px and 1280px:
+    - The Hair wash chip is lit from the booking.
+    - Blow-dry → popup → empty Add refused → ₹80 → lit.
+    - Hair cut ₹200 → Total ₹380, and removing it gives ₹300.
+    - Complete banked ₹380.
+    - No console errors.
+- **Not verified:** the app on an iOS or Android device or simulator. There is none on this
+  Windows machine, and both platforms still need a look (§11.1). The popup is an overlay inside
+  `DetailPanel`'s Modal, specifically so iOS shows it.
 
 ### Store setup review — client points 14, 23, 29, 30, 34, 35 (2026-10-05)
 
