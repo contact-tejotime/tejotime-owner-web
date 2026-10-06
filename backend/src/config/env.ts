@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { z } from 'zod';
+import { DEFAULT_SMS_COUNTRY_CODES, parseCountryCodes } from '../lib/sms-country';
 
 /**
  * Central, validated environment configuration. Fails fast on boot if a
@@ -61,12 +62,26 @@ const schema = z.object({
   EMAIL_ENABLED: boolish(false),
 
   /**
-   * Twilio SMS for queue alerts (join, ~15 min, ~2 min, your turn).
+   * Twilio SMS for the three customer texts (docs/sms-opt-in-a2p.md).
    * When SMS_ENABLED=true and these are set, smsSender POSTs to Twilio Messages.
    */
   TWILIO_ACCOUNT_SID: z.string().default(''),
   TWILIO_AUTH_TOKEN: z.string().default(''),
   TWILIO_FROM: z.string().default(''),
+  /**
+   * The Messaging Service the A2P campaign is linked to (MG…). When set, texts are sent with
+   * MessagingServiceSid instead of From — Twilio's recommended way for 10DLC: Twilio picks the
+   * sender from the service's Sender Pool and applies the service's settings (Advanced Opt-Out).
+   * TWILIO_FROM is then unused. Blank keeps the old From-number path. The campaign's number must
+   * still be in that Sender Pool, or the service has nothing to send from.
+   */
+  TWILIO_MESSAGING_SERVICE_SID: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || /^MG[0-9a-f]{32}$/i.test(v), {
+      message: 'a Messaging Service SID (MG followed by 32 hex characters), or blank',
+    })
+    .default(''),
   /** Optional override: when set, ALL alert sends go here (never message real customers in test). */
   TWILIO_TEST_TO: z.string().default(''),
   /**
@@ -74,6 +89,18 @@ const schema = z.object({
    * Twilio's predefined template ids as Body instead of the real copy (still stored in DB).
    */
   TWILIO_TRIAL_MODE: boolish(false),
+  /**
+   * Calling codes that may receive a text, comma-separated ("1", "1,91"). Checked against the
+   * number that actually receives it, so TWILIO_TEST_TO counts. Unset or blank means "1": the A2P
+   * campaign covers US numbers only (lib/sms-country.ts). Blank is folded in here because a bare
+   * `VAR=` arrives as '' and would skip a plain .default().
+   */
+  TWILIO_ALLOWED_COUNTRY_CODES: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() !== '' ? v : DEFAULT_SMS_COUNTRY_CODES.join(',')),
+    z.string().refine((v) => parseCountryCodes(v) !== null, {
+      message: 'comma-separated country calling codes, e.g. 1 or 1,91',
+    }),
+  ),
 
   /**
    * Customer microsite chatbot (docs/customer-chatbot-v1.md). OFF by default: the widget is
@@ -125,5 +152,9 @@ export const env = parsed.data;
 export const corsOrigins = env.CORS_ALLOWED_ORIGINS.split(',')
   .map((s) => s.trim())
   .filter(Boolean);
+
+/** Validated above, so the parse cannot fail here; the fallback only satisfies the type. */
+export const smsAllowedCountryCodes: readonly string[] =
+  parseCountryCodes(env.TWILIO_ALLOWED_COUNTRY_CODES) ?? DEFAULT_SMS_COUNTRY_CODES;
 
 export const isProd = env.NODE_ENV === 'production';

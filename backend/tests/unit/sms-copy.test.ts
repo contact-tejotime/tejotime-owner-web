@@ -9,8 +9,8 @@ import {
   smsDateTime,
 } from '../../src/lib/sms-copy';
 
-// These strings ARE the Twilio A2P campaign samples (docs/sms-opt-in-a2p.md). If one of these
-// expectations has to change, the registered campaign samples must change with it.
+// These strings ARE the approved Twilio A2P campaign samples (docs/sms-opt-in-a2p.md). If one of
+// these expectations has to change, the registered campaign samples must change with it.
 describe('sms-copy', () => {
   const shop = '5th Avenue Barber & Shave Shop';
 
@@ -22,18 +22,31 @@ describe('sms-copy', () => {
     });
   });
 
-  it('renders the three registered bodies word for word', () => {
+  // Approved 2026-10-06. The approved samples put a "." straight after each link; the bodies
+  // deliberately do not (see the next test), which is the only difference.
+  it('renders the three approved bodies word for word', () => {
     expect(
       smsBodyBookingConfirmed('Alexander', shop, 'Sep 26', '1:11 PM', 'https://www.tejotime.com/12393160008'),
     ).toBe(
-      '5th Avenue Barber & Shave Shop: Hi Alexander, your appointment is confirmed for Sep 26 at 1:11 PM. Manage your booking: https://www.tejotime.com/12393160008 Reply STOP to opt out.',
+      'TejoTime: Hi Alexander, your appointment at 5th Avenue Barber & Shave Shop is confirmed for Sep 26 at 1:11 PM. Manage your booking: https://www.tejotime.com/12393160008 Reply STOP to opt out.',
     );
     expect(smsBodyReminder('Alexander', shop, '1011 5th Ave N, Naples, FL 34102')).toBe(
-      '5th Avenue Barber & Shave Shop: Hi Alexander, your appointment starts in 15 minutes. Please head over now. Address: 1011 5th Ave N, Naples, FL 34102',
+      'TejoTime: Hi Alexander, your appointment at 5th Avenue Barber & Shave Shop starts in 15 minutes. Please head over now. Address: 1011 5th Ave N, Naples, FL 34102',
     );
-    expect(smsBodyReview('Alexander', shop, 'https://g.page/r/abc/review')).toBe(
-      '5th Avenue Barber & Shave Shop: Thanks for visiting, Alexander! Please leave us a Google review: https://g.page/r/abc/review Reply STOP to opt out.',
+    expect(smsBodyReview('Alexander', shop, 'https://www.tejotime.com/12393160008/r')).toBe(
+      'TejoTime: Thanks for visiting 5th Avenue Barber & Shave Shop, Alexander! Please leave us a Google review: https://www.tejotime.com/12393160008/r Reply STOP to opt out.',
     );
+  });
+
+  it('always opens with the registered brand "TejoTime:", whatever the store is called', () => {
+    for (const body of [
+      smsBodyBookingConfirmed('A', shop, 'd', 't', 'l'),
+      smsBodyReminder('A', shop, 'addr'),
+      smsBodyReview('A', shop, 'l'),
+      smsBodyReminder('A', '  ', null),
+    ]) {
+      expect(body.startsWith('TejoTime: ')).toBe(true);
+    }
   });
 
   it('never puts punctuation straight after a link (handsets fold it into the URL)', () => {
@@ -61,11 +74,22 @@ describe('sms-copy', () => {
 
   it('greets by first name, and falls back when name or store is blank', () => {
     expect(smsBodyReminder('Alexander Hamilton', 'S', null)).toContain('Hi Alexander,');
-    expect(smsBodyReminder('  ', '  ', null)).toMatch(/^TejoTime: Hi there,/);
+    // A blank store name drops "at <store>" rather than printing "at  starts".
+    expect(smsBodyReminder('  ', '  ', null)).toBe(
+      'TejoTime: Hi there, your appointment starts in 15 minutes. Please head over now.',
+    );
+    expect(smsBodyBookingConfirmed('A', ' ', 'Sep 1', '9:00 AM', 'l')).toBe(
+      'TejoTime: Hi A, your appointment is confirmed for Sep 1 at 9:00 AM. Manage your booking: l Reply STOP to opt out.',
+    );
+    expect(smsBodyReview('A', '', 'l')).toBe(
+      'TejoTime: Thanks for visiting, A! Please leave us a Google review: l Reply STOP to opt out.',
+    );
   });
 
   it('drops the "Address:" tail when the store has no address', () => {
-    expect(smsBodyReminder('A', 'S', null)).toBe('S: Hi A, your appointment starts in 15 minutes. Please head over now.');
+    expect(smsBodyReminder('A', 'S', null)).toBe(
+      'TejoTime: Hi A, your appointment at S starts in 15 minutes. Please head over now.',
+    );
     expect(smsBodyReminder('A', 'S', '   ')).not.toContain('Address:');
   });
 

@@ -568,7 +568,10 @@ Tunables: `JWT_ACCESS_TTL` 900, `JWT_REFRESH_TTL` 2592000, `JWT_ADMIN_TTL` 43200
 `BOOKING_SLOT_MINUTES` 30, `DATABASE_POOL_MAX` 10, `S3_UPLOAD_URL_TTL` 600,
 `S3_DOWNLOAD_URL_TTL` 3600, `CORS_ALLOWED_ORIGINS` (comma-separated; empty ⇒ allow all).
 
-Feature flags (all default **false**): `OTP_ENABLED`, `PAYMENTS_ENABLED`, `SMS_ENABLED`,
+Feature flags (all default **false**): `OTP_ENABLED`, `PAYMENTS_ENABLED`, `SMS_ENABLED` (+
+`TWILIO_ALLOWED_COUNTRY_CODES`, default `1` — only those calling codes are ever texted; the A2P
+campaign covers US only; and `TWILIO_MESSAGING_SERVICE_SID` — when set, texts go through the
+campaign's Messaging Service instead of `TWILIO_FROM`; see [docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)),
 `EMAIL_ENABLED`, `CHATBOT_ENABLED` (+ `CHATBOT_PROVIDER` `none|gemini|groq|openai`,
 `CHATBOT_API_KEY`, `CHATBOT_MODEL` — server-side only; no key needed for the FAQ-only mode),
 `AUTOFILL_ENABLED` (+ `AUTOFILL_API_KEY` — a Groq key, `AUTOFILL_MODEL`, `AUTOFILL_TIMEOUT_MS`; admin

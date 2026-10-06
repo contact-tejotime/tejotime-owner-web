@@ -90,7 +90,8 @@ export async function recordSmsNotification(input: SmsNotificationInput): Promis
         result.id ? 'sent' : 'failed',
         result.id,
         result.id ? new Date().toISOString() : null,
-        result.id ? null : 'SMS send failed or deferred',
+        // A refusal of ours (e.g. 'country_not_allowed') is named so the row says why.
+        result.id ? null : (result.error ?? 'SMS send failed or deferred'),
         row.id,
       ],
     );
