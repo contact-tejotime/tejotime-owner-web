@@ -744,6 +744,9 @@
     "addOnPriceLabel": "Price",
     "addOnPriceConfirm": "Add",
     "addOnPriceInvalid": "Enter a price — 0 if it's free.",
+    "priceRequiredHint": "Enter the price for {services} to complete.",
+    "servicePriceAria": "{service} price",
+    "totalToCharge": "Total to charge",
     "removeExtra": "Remove {label}"
   },
   "walkin": {

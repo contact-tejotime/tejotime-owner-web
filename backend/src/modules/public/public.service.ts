@@ -412,9 +412,13 @@ async function resolveServices(
   return ids.map((id) => rows.find((r) => r.id === id)!);
 }
 
-/** The extras payload `queue_attach_services` takes: everything after the primary service. */
-const extraServicesPayload = (svcs: { name: string; duration_minutes: number; price_paise: number }[]) =>
-  svcs.slice(1).map((s) => ({ name: s.name, minutes: s.duration_minutes, price: s.price_paise }));
+/**
+ * The extras payload `queue_attach_services` takes: everything after the primary service.
+ * `serviceId` lets each row remember an unpriced service's price type (0040), so the owner is
+ * asked its price at checkout even though the customer did not pick it first.
+ */
+const extraServicesPayload = (svcs: { id: string; name: string; duration_minutes: number; price_paise: number }[]) =>
+  svcs.slice(1).map((s) => ({ name: s.name, minutes: s.duration_minutes, price: s.price_paise, serviceId: s.id }));
 
 export async function getSlots(slug: string, date: string, serviceIds?: string[], staffId?: string) {
   const b = await resolveBusiness(slug);

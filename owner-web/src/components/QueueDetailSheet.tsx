@@ -8,7 +8,18 @@ import { Icon } from "@/components/Icon";
 import { UNASSIGNED_GROUP_ID } from "@/components/LiveQueueCard";
 import { OverlayPortal } from "@/components/OverlayPortal";
 import { Skeleton, Spinner } from "@/components/Skeleton";
-import { boxAfterExtrasChange, initialBox, isExtraOn, parseRupees } from "@/lib/checkout-amount";
+import {
+  boxAfterExtrasChange,
+  boxAfterPriceChange,
+  canComplete,
+  initialBox,
+  isExtraOn,
+  missingLabels,
+  parseRupees,
+  requiredItems,
+  SERVICE_KEY,
+  suggestionDiffers,
+} from "@/lib/checkout-amount";
 import { currencySymbol } from "@/lib/currencies";
 import { formatMoney, formatServicePrice } from "@/lib/format";
 import { extrasForCategory } from "@/lib/service-extras";
@@ -24,10 +35,14 @@ import "@/styles/shell-sheets.css";
  *   waiting     → the facts card (position, seat, service, price, est. wait, source, visitor
  *                 type), then Move to another seat · Start service · Mark no-show
  *   in service  → one muted line (seat · service · source), then the amount, the add-ons, the
- *                 breakdown · Complete & start next · Mark no-show
+ *                 bill · Complete & start next · Mark no-show
  *
  * ONE screen, not a wizard. An in-service customer's amount, add-ons and complete button are one
  * decision: you are looking at the person in the chair working out what to charge them.
+ *
+ * ONE scroll, too: everything but the buttons scrolls together, and only the actions are pinned.
+ * The amount block used to live in the pinned footer, which on a laptop squeezed the customer's
+ * name into a ~60px strip with its own scrollbar above a footer that filled the dialog.
  *
  * Laid out by width: on a phone it is the app's full-screen page (back chevron, pinned footer); on
  * a tablet or desktop the same blocks sit in a centred dialog with a close button.
@@ -40,11 +55,12 @@ import "@/styles/shell-sheets.css";
  * revenue KPI, and it used to be written from the BOOKED service alone, so a customer who came for
  * a beard trim and also had a haircut was banked at the beard-trim price.
  *
- * The box is always the whole bill. For a service with no price it starts at the add-ons' total,
- * and the owner adds what the service cost. The add-on chips are a toggle: a plain one asks what
- * was charged for it and that price goes into the box; a highlighted one comes off and its price
- * comes back out. Both rules live in lib/checkout-amount.ts, shared with the app; see
- * docs/checkout-add-ons.md.
+ * The box is always the whole bill. A service with no price gets its own required price field in
+ * its bill row; whatever is typed there is added into the box, and Complete stays disabled until
+ * every such field is filled. The add-on chips are a toggle: a plain one asks what was charged for
+ * it and that price goes into the box; a highlighted one comes off and its price comes back out.
+ * The bill ends with "Total to charge", which is the box. All of it lives in
+ * lib/checkout-amount.ts, shared with the app; see docs/checkout-add-ons.md.
  */
 
 interface Billing {
@@ -57,13 +73,15 @@ interface Billing {
   serviceMaxAmount: Money | null;
   extrasAmount: Money;
   /**
-   * What to pre-fill. NULL for a range-priced or unpriced service: there is no honest figure
-   * to seed the box with, and seeding the floor is exactly how a band's minimum gets banked as
-   * the day's takings. The API refuses a checkout with no amount for these too.
+   * What to pre-fill. NULL for a range-priced or unpriced service (or one with an unpriced
+   * service among its add-ons): there is no honest figure to seed the box with, and seeding the
+   * floor is exactly how a band's minimum gets banked as the day's takings. The API refuses a
+   * checkout with no amount for these too.
    */
   suggestedAmount: Money | null;
   amountRequired: boolean;
-  extras: { id: string; label: string; minutes: number; pricePaise: number }[];
+  /** `priceRequired`: a booked service with no price, stored at a placeholder 0 (0040). */
+  extras: { id: string; label: string; minutes: number; pricePaise: number; priceRequired?: boolean }[];
 }
 
 type Action = "start" | "checkout" | "no-show" | "reassign" | "extend";
@@ -116,12 +134,22 @@ export function QueueDetailSheet({
   const [error, setError] = useState("");
   /** Rupees as typed. A string so the field can be empty mid-edit. */
   const [amount, setAmount] = useState("");
+  /** Prices typed into the required rows (a no-price service), by row key. Rupees as typed. */
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  /** Required rows the owner has left at least once — only those turn red when still empty. */
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   /** The add-on whose price is being asked for. The popup unmounts when this clears, so every
    *  open starts with an empty field. */
   const [pricePrompt, setPricePrompt] = useState<{ label: string; minutes: number } | null>(null);
+  /** Content is scrolled under the pinned footer: give the footer an edge so that reads. */
+  const [raised, setRaised] = useState(false);
   const addOns = extrasForCategory(category);
   const titleId = useId();
+  const fieldId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const requiredRefs = useRef<Record<string, HTMLInputElement | null>>({});
   // While the price popup is up, Escape is the popup's (it closes itself); closing the whole
   // customer sheet from under it would throw the typed price away with it.
   const onEscape = useEffectEvent(() => {
@@ -152,6 +180,17 @@ export function QueueDetailSheet({
     };
   }, []);
 
+  // A sentinel at the very end of the scrolling body: while it is out of view, there is more
+  // above the pinned buttons, and the footer shows a raised edge.
+  useEffect(() => {
+    const root = scrollRef.current;
+    const end = endRef.current;
+    if (!root || !end || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setRaised(!entry.isIntersecting), { root });
+    observer.observe(end);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -164,9 +203,8 @@ export function QueueDetailSheet({
           return;
         }
         setBilling(json as Billing);
-        // Pre-fill with what the shop would charge today, so the common case is one tap. A
-        // range-priced or unpriced service has no such figure and deliberately starts empty — the
-        // whole point of the mode is that someone has to look at the customer and decide.
+        // Pre-fill with everything on the bill that already has a price, so the common case is
+        // one tap. What has no price is asked for in its own row instead.
         setAmount(initialBox(json as Billing));
       } catch {
         if (alive) setError(t.detail.networkError);
@@ -215,7 +253,9 @@ export function QueueDetailSheet({
    *
    * The box moves by the change in the add-ons' total rather than re-syncing to the server's new
    * suggestion — otherwise adding a shave would silently discard an amount the user had already
-   * typed by hand, which is the one thing they are here to do (lib/checkout-amount.ts).
+   * typed by hand, which is the one thing they are here to do (lib/checkout-amount.ts). A
+   * required row that went with it (a booked no-price service whose chip was tapped off) takes
+   * its typed price out of the box too.
    */
   async function changeExtras(action: "extend" | "remove-extra", body: unknown) {
     const before = billing;
@@ -225,8 +265,16 @@ export function QueueDetailSheet({
     const res = await fetch(`/api/queue/${entryId}`, { cache: "no-store" });
     if (!res.ok) return;
     const next = (await res.json()) as Billing;
+    const keep = new Set(requiredItems(next).map((item) => item.key));
+    const kept: Record<string, string> = {};
+    let dropped = 0;
+    for (const [key, value] of Object.entries(typed)) {
+      if (keep.has(key)) kept[key] = value;
+      else dropped += parseRupees(value) ?? 0;
+    }
     setBilling(next);
-    setAmount((prev) => boxAfterExtrasChange(prev, before, next));
+    setTyped(kept);
+    setAmount((prev) => boxAfterExtrasChange(prev, before, next, kept, dropped));
   }
 
   /** A highlighted chip comes off at once; a plain one first asks what it cost. */
@@ -245,16 +293,34 @@ export function QueueDetailSheet({
     void changeExtras("extend", { label: prompt.label, minutes: prompt.minutes, pricePaise: parseRupees(value) });
   }
 
+  /** A required row's price changed: the box moves by the difference. */
+  function onRequiredPrice(key: string, value: string) {
+    if (!billing) return;
+    const from = typed[key] ?? "";
+    const next = { ...typed, [key]: value };
+    setTyped(next);
+    setAmount((prev) => boxAfterPriceChange(prev, billing, from, value, next));
+  }
+
+  /** The helper line under the bill: bring the first unpriced row into view and into focus. */
+  function focusFirstMissing() {
+    if (!billing) return;
+    const first = requiredItems(billing).find((item) => parseRupees(typed[item.key] ?? "") === null);
+    const input = first ? requiredRefs.current[first.key] : null;
+    if (!input) return;
+    input.scrollIntoView({ block: "center", behavior: "smooth" });
+    input.focus({ preventScroll: true });
+  }
+
   async function onComplete() {
-    // Empty is never a valid bill. It reads as "not decided yet", which for a range-priced or
-    // unpriced service is the state this box exists to get out of — and the API rejects it too.
-    const paise = parseRupees(amount);
-    if (paise === null) {
-      setError(amount.trim() === "" && billing?.amountRequired ? t.detail.amountRequired : t.detail.errAmount);
+    // The button is disabled until this holds; checked again so Enter or a stale render cannot
+    // send a bill that is empty, unreadable, or missing a service's price.
+    if (!billing || !canComplete(amount, billing, typed)) {
+      setError(t.detail.errAmount);
       return;
     }
     // Paise on the wire — money crosses the API as an integer minor unit.
-    await act("checkout", { amountPaise: paise });
+    await act("checkout", { amountPaise: parseRupees(amount) });
   }
 
   // Real chairs only: the seatless "Any"/"Waiting" group is not a seat the API can reassign to.
@@ -266,6 +332,53 @@ export function QueueDetailSheet({
   const source = card.online ? t.queue.online : t.queue.walkIn;
 
   const serviceName = billing?.serviceName ?? null;
+  const symbol = billing ? currencySymbol(billing.serviceAmount.currency) : "";
+  const missing = billing ? missingLabels(billing, typed) : [];
+  const ready = !!billing && canComplete(amount, billing, typed);
+  const totalPaise = parseRupees(amount);
+
+  /**
+   * One bill row whose price has to be typed: the service's name with a required marker, and a
+   * compact price field. It turns red only once the owner has left it empty, not on first open.
+   */
+  function requiredRow(key: string, label: string, display: string = label): ReactNode {
+    const value = typed[key] ?? "";
+    const invalid = !!touched[key] && parseRupees(value) === null;
+    const id = `${fieldId}-${key}`;
+    return (
+      <li key={key} className="dp-req-row">
+        <label htmlFor={id} className="dp-req-label">
+          {display}
+          <span className="dp-req-star" aria-hidden>
+            *
+          </span>
+        </label>
+        <span className={invalid ? "dp-req-field is-invalid" : "dp-req-field"}>
+          <span className="dp-req-prefix" aria-hidden>
+            {symbol}
+          </span>
+          <input
+            ref={(el) => {
+              requiredRefs.current[key] = el;
+            }}
+            id={id}
+            className="dp-req-input"
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            value={value}
+            onChange={(e) => onRequiredPrice(key, e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onBlur={() => setTouched((prev) => ({ ...prev, [key]: true }))}
+            disabled={busy}
+            aria-required
+            aria-invalid={invalid}
+            aria-label={format(t.detail.servicePriceAria, { service: label })}
+          />
+        </span>
+      </li>
+    );
+  }
 
   /**
    * Only what the card behind this screen does NOT already show — its price, its exact place in
@@ -322,16 +435,22 @@ export function QueueDetailSheet({
         >
           <header className="dp-top">
             <button type="button" className="dp-close" onClick={onClose} aria-label={t.detail.close}>
-              {/* A back chevron on the phone's full-screen page, an × on the dialog. */}
-              <Icon name="chevronLeft" size={22} className="dp-icon-back" />
-              <Icon name="x" size={20} className="dp-icon-x" />
+              {/* A back chevron on the phone's full-screen page, an × on the dialog. The classes sit
+                  on wrappers: Icon's own inline `display: block` beat a class on the svg, so both
+                  icons used to show at every width. */}
+              <span className="dp-icon-back">
+                <Icon name="chevronLeft" size={22} />
+              </span>
+              <span className="dp-icon-x">
+                <Icon name="x" size={20} />
+              </span>
             </button>
             <h2 id={titleId} className="dp-title">
               {t.detail.customer}
             </h2>
           </header>
 
-          <div className="dp-scroll">
+          <div ref={scrollRef} className={inService ? "dp-scroll has-checkout" : "dp-scroll"}>
             <div className="dp-hero">
               <span className="dp-avatar" aria-hidden>
                 {card.initials}
@@ -343,10 +462,10 @@ export function QueueDetailSheet({
               </span>
             </div>
 
-            {/* The facts card only while they are waiting. Once they are in the chair the footer
-                owns the screen — amount, add-ons, breakdown, two buttons — and it already prints
-                the service and the price, so a facts card would just push the amount box under
-                the fold. That state keeps one muted line. */}
+            {/* The facts card only while they are waiting. Once they are in the chair the
+                checkout below owns the screen — amount, add-ons, bill — and it already prints
+                the service and the price, so a facts card would just push the amount box down.
+                That state keeps one muted line. */}
             {inService ? (
               <p className="dp-line">{[card.seatName, card.service, source].filter(Boolean).join(" · ")}</p>
             ) : (
@@ -369,21 +488,12 @@ export function QueueDetailSheet({
                 ))}
               </div>
             )}
-          </div>
-
-          <div className="dp-footer">
-            {error ? (
-              <p className="ss-error" role="alert">
-                {error}
-              </p>
-            ) : null}
 
             {inService ? (
-              <>
+              <section className="dp-checkout" aria-label={t.detail.amount}>
                 <p className="dp-label">{t.detail.amount}</p>
                 {/* The hint changes with the mode: a fixed service's box is already right and
-                    only needs correcting; a range's is empty, and the band the customer was
-                    quoted is what they need to see while filling it in. */}
+                    only needs correcting; a range's band is what the customer was quoted. */}
                 <p className="dp-hint">
                   {billing?.servicePriceType === "range" && billing.serviceMaxAmount
                     ? format(t.detail.amountHintRange, {
@@ -403,7 +513,7 @@ export function QueueDetailSheet({
                       Blank until billing lands — the box is disabled until then anyway, and a
                       guessed ₹ is exactly what a USD store used to see here. */}
                   <span className="dp-amount-prefix" aria-hidden>
-                    {billing ? currencySymbol(billing.serviceAmount.currency) : ""}
+                    {symbol}
                   </span>
                   <input
                     className="dp-amount-input"
@@ -454,34 +564,50 @@ export function QueueDetailSheet({
                 {billing ? (
                   <ul className="dp-breakdown">
                     {/* The booked service on its own line — by its own name, since the add-ons
-                        are itemised below it. An entry with no service has no such line. */}
+                        are itemised below it. With no price, the line is where it gets one. */}
                     {serviceName ? (
-                      <li>
-                        <span>{serviceName}</span>
-                        <span>
-                          {formatServicePrice({
-                            price: billing.serviceAmount,
-                            priceType: billing.servicePriceType,
-                            priceMax: billing.serviceMaxAmount,
-                          })}
-                        </span>
-                      </li>
+                      billing.servicePriceType === "unset" ? (
+                        requiredRow(SERVICE_KEY, serviceName)
+                      ) : (
+                        <li>
+                          <span>{serviceName}</span>
+                          <span>
+                            {formatServicePrice({
+                              price: billing.serviceAmount,
+                              priceType: billing.servicePriceType,
+                              priceMax: billing.serviceMaxAmount,
+                            })}
+                          </span>
+                        </li>
+                      )
                     ) : null}
-                    {billing.extras.map((x) => (
-                      <li key={x.id}>
-                        <span>{format(t.detail.extraLine, { label: x.label, minutes: x.minutes })}</span>
-                        <span>{formatMoney({ ...billing.extrasAmount, amount: x.pricePaise })}</span>
-                      </li>
-                    ))}
-                    {/* No suggested total for a range or an unpriced service: printing one would be
-                        the derived figure those modes exist to stop anybody reaching for. The box
-                        itself already holds the add-ons for them. */}
-                    {billing.suggestedAmount ? (
+                    {billing.extras.map((x) =>
+                      x.priceRequired ? (
+                        requiredRow(x.id, x.label, format(t.detail.extraLine, { label: x.label, minutes: x.minutes }))
+                      ) : (
+                        <li key={x.id}>
+                          <span>{format(t.detail.extraLine, { label: x.label, minutes: x.minutes })}</span>
+                          <span>{formatMoney({ ...billing.extrasAmount, amount: x.pricePaise })}</span>
+                        </li>
+                      ),
+                    )}
+                    {/* The server's figure, only once the box no longer matches it (a corrected
+                        fixed price) — otherwise it would just repeat the total below. */}
+                    {suggestionDiffers(amount, billing) && billing.suggestedAmount ? (
                       <li className="total">
                         <span>{t.detail.suggested}</span>
                         <span>{formatMoney(billing.suggestedAmount)}</span>
                       </li>
                     ) : null}
+                    {/* The box, live: exactly what Complete will charge. */}
+                    <li className="grand">
+                      <span>{t.detail.totalToCharge}</span>
+                      <span>
+                        {totalPaise !== null
+                          ? formatMoney({ ...billing.serviceAmount, amount: totalPaise })
+                          : t.common.dash}
+                      </span>
+                    </li>
                   </ul>
                 ) : error ? null : (
                   // Roughly the height of the real breakdown, so nothing jumps when it lands.
@@ -490,9 +616,34 @@ export function QueueDetailSheet({
                     <Skeleton height={12} width="45%" />
                   </div>
                 )}
+              </section>
+            ) : null}
+            <div ref={endRef} className="dp-scroll-end" aria-hidden />
+          </div>
 
+          <div className={raised ? "dp-footer is-raised" : "dp-footer"}>
+            {error ? (
+              <p className="ss-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+
+            {inService ? (
+              <>
+                {/* Why Complete is disabled, and a way straight to the fix. */}
+                {missing.length > 0 ? (
+                  <button type="button" className="dp-req-hint" onClick={focusFirstMissing}>
+                    <Icon name="alertTriangle" size={16} />
+                    <span>{format(t.detail.priceRequiredHint, { services: missing.join(", ") })}</span>
+                  </button>
+                ) : null}
                 {/* Red, matching the board's End — it is the same action. */}
-                <button type="button" className="ss-btn danger lg block" onClick={onComplete} disabled={busy}>
+                <button
+                  type="button"
+                  className="ss-btn danger lg block"
+                  onClick={onComplete}
+                  disabled={busy || !ready}
+                >
                   {running === "checkout" ? <Spinner size={16} /> : null}
                   {t.detail.completeAndNext}
                 </button>

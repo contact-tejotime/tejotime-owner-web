@@ -339,7 +339,8 @@ export const api = {
        */
       suggestedAmount: { amount: number; currency: string } | null;
       amountRequired: boolean;
-      extras: { id: string; label: string; minutes: number; pricePaise: number }[];
+      /** `priceRequired`: a booked service with no price, stored at a placeholder 0 (0040). */
+      extras: { id: string; label: string; minutes: number; pricePaise: number; priceRequired?: boolean }[];
     }>('GET', `/queue/${id}`),
   noShow: (id: string) => raw('POST', `/queue/${id}/no-show`),
   reassign: (id: string, staffId: string) => raw('POST', `/queue/${id}/reassign`, { staffId }),
