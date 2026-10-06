@@ -8,14 +8,7 @@ import { Icon } from "@/components/Icon";
 import { UNASSIGNED_GROUP_ID } from "@/components/LiveQueueCard";
 import { OverlayPortal } from "@/components/OverlayPortal";
 import { Skeleton, Spinner } from "@/components/Skeleton";
-import {
-  boxAfterExtrasChange,
-  boxIsTotal,
-  chargePaise,
-  initialBox,
-  isExtraOn,
-  parseRupees,
-} from "@/lib/checkout-amount";
+import { boxAfterExtrasChange, initialBox, isExtraOn, parseRupees } from "@/lib/checkout-amount";
 import { currencySymbol } from "@/lib/currencies";
 import { formatMoney, formatServicePrice } from "@/lib/format";
 import { extrasForCategory } from "@/lib/service-extras";
@@ -47,10 +40,11 @@ import "@/styles/shell-sheets.css";
  * revenue KPI, and it used to be written from the BOOKED service alone, so a customer who came for
  * a beard trim and also had a haircut was banked at the beard-trim price.
  *
- * The box is the whole bill for a fixed-price service, and only the booked service's price for an
- * unpriced or range one — the add-ons are added on top and shown as "Total to charge". The add-on
- * chips are a toggle: a plain one asks what was charged for it, a highlighted one comes off. Both
- * rules live in lib/checkout-amount.ts, shared with the app; see docs/checkout-add-ons.md.
+ * The box is always the whole bill. For a service with no price it starts at the add-ons' total,
+ * and the owner adds what the service cost. The add-on chips are a toggle: a plain one asks what
+ * was charged for it and that price goes into the box; a highlighted one comes off and its price
+ * comes back out. Both rules live in lib/checkout-amount.ts, shared with the app; see
+ * docs/checkout-add-ons.md.
  */
 
 interface Billing {
@@ -221,8 +215,7 @@ export function QueueDetailSheet({
    *
    * The box moves by the change in the add-ons' total rather than re-syncing to the server's new
    * suggestion — otherwise adding a shave would silently discard an amount the user had already
-   * typed by hand, which is the one thing they are here to do. A box holding only an unpriced
-   * service's price is left alone; the total under it moves instead (lib/checkout-amount.ts).
+   * typed by hand, which is the one thing they are here to do (lib/checkout-amount.ts).
    */
   async function changeExtras(action: "extend" | "remove-extra", body: unknown) {
     const before = billing;
@@ -255,17 +248,9 @@ export function QueueDetailSheet({
   async function onComplete() {
     // Empty is never a valid bill. It reads as "not decided yet", which for a range-priced or
     // unpriced service is the state this box exists to get out of — and the API rejects it too.
-    const paise = billing ? chargePaise(amount, billing) : null;
+    const paise = parseRupees(amount);
     if (paise === null) {
-      setError(
-        amount.trim() !== "" || !billing
-          ? t.detail.errAmount
-          : !boxIsTotal(billing) && billing.serviceName
-            ? format(t.detail.servicePriceRequired, { service: billing.serviceName })
-            : billing.amountRequired
-              ? t.detail.amountRequired
-              : t.detail.errAmount,
-      );
+      setError(amount.trim() === "" && billing?.amountRequired ? t.detail.amountRequired : t.detail.errAmount);
       return;
     }
     // Paise on the wire — money crosses the API as an integer minor unit.
@@ -280,11 +265,7 @@ export function QueueDetailSheet({
   const seatBusy = waiting && !!seatGroup?.serving;
   const source = card.online ? t.queue.online : t.queue.walkIn;
 
-  // Is the box the whole bill, or only the booked service's price with the add-ons on top?
-  const totalMode = billing ? boxIsTotal(billing) : true;
   const serviceName = billing?.serviceName ?? null;
-  const basePaise = totalMode ? null : parseRupees(amount);
-  const totalPaise = billing && !totalMode ? chargePaise(amount, billing) : null;
 
   /**
    * Only what the card behind this screen does NOT already show — its price, its exact place in
@@ -405,8 +386,7 @@ export function QueueDetailSheet({
                     quoted is what they need to see while filling it in. */}
                 <p className="dp-hint">
                   {billing?.servicePriceType === "range" && billing.serviceMaxAmount
-                    ? format(serviceName ? t.detail.amountHintRangeBase : t.detail.amountHintRange, {
-                        service: serviceName ?? "",
+                    ? format(t.detail.amountHintRange, {
                         range: formatServicePrice({
                           price: billing.serviceAmount,
                           priceType: "range",
@@ -414,9 +394,7 @@ export function QueueDetailSheet({
                         }),
                       })
                     : billing?.servicePriceType === "unset"
-                      ? serviceName
-                        ? format(t.detail.amountHintUnpricedBase, { service: serviceName })
-                        : t.detail.amountHintUnpriced
+                      ? t.detail.amountHintUnpriced
                       : t.detail.amountHint}
                 </p>
 
@@ -439,12 +417,7 @@ export function QueueDetailSheet({
                     // Editable only once the suggestion has landed, so a fast typist cannot have
                     // their figure overwritten by the response arriving a moment later.
                     disabled={!billing}
-                    // In the service-price mode the box is that one service's price — say so in
-                    // the empty box itself, not only in the hint above it.
-                    placeholder={!totalMode && serviceName ? format(t.detail.servicePrice, { service: serviceName }) : undefined}
-                    aria-label={
-                      !totalMode && serviceName ? format(t.detail.servicePrice, { service: serviceName }) : t.detail.amount
-                    }
+                    aria-label={t.detail.amount}
                   />
                   {!billing && !error ? <Spinner size={16} /> : null}
                 </div>
@@ -486,15 +459,11 @@ export function QueueDetailSheet({
                       <li>
                         <span>{serviceName}</span>
                         <span>
-                          {totalMode
-                            ? formatServicePrice({
-                                price: billing.serviceAmount,
-                                priceType: billing.servicePriceType,
-                                priceMax: billing.serviceMaxAmount,
-                              })
-                            : basePaise !== null
-                              ? formatMoney({ ...billing.serviceAmount, amount: basePaise })
-                              : t.detail.enterPrice}
+                          {formatServicePrice({
+                            price: billing.serviceAmount,
+                            priceType: billing.servicePriceType,
+                            priceMax: billing.serviceMaxAmount,
+                          })}
                         </span>
                       </li>
                     ) : null}
@@ -504,24 +473,13 @@ export function QueueDetailSheet({
                         <span>{formatMoney({ ...billing.extrasAmount, amount: x.pricePaise })}</span>
                       </li>
                     ))}
-                    {/* A fixed price: the server's suggestion, which the box already holds. */}
-                    {totalMode && billing.suggestedAmount ? (
+                    {/* No suggested total for a range or an unpriced service: printing one would be
+                        the derived figure those modes exist to stop anybody reaching for. The box
+                        itself already holds the add-ons for them. */}
+                    {billing.suggestedAmount ? (
                       <li className="total">
                         <span>{t.detail.suggested}</span>
                         <span>{formatMoney(billing.suggestedAmount)}</span>
-                      </li>
-                    ) : null}
-                    {/* Unpriced or range: the service's price as typed plus the add-ons — what
-                        Complete will charge. A dash until the service is priced, so the add-ons
-                        alone are never shown as the bill. */}
-                    {!totalMode && (serviceName || billing.extras.length > 0) ? (
-                      <li className="grand">
-                        <span>{t.detail.totalToCharge}</span>
-                        <span>
-                          {totalPaise !== null
-                            ? formatMoney({ ...billing.serviceAmount, amount: totalPaise })
-                            : t.common.dash}
-                        </span>
                       </li>
                     ) : null}
                   </ul>

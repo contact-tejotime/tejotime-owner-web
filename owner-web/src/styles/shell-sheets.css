@@ -1110,16 +1110,6 @@
   font-weight: 600;
   color: var(--text-body);
 }
-/* "Total to charge" for a service with no fixed price: the sum that Complete will bank, so it
-   reads as the answer rather than another line item. */
-.dp-breakdown li.grand {
-  margin-top: 2px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-subtle);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-strong);
-}
 .dp-breakdown-loading {
   display: grid;
   gap: 7px;
