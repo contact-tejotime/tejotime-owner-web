@@ -13,6 +13,10 @@ these three. Walk-ins (Check in) therefore get **no** texts except the review re
 The ticket socket events (`ticket:ready`, `ticket:eta_15`, `ticket:eta_2`) are unchanged and no
 longer send SMS.
 
+> **Status (2026-10-06): campaign APPROVED.** Sending is switched on per environment with
+> `SMS_ENABLED=true`, `TWILIO_TRIAL_MODE=false` and a blank `TWILIO_TEST_TO` (see
+> [Going live](#going-live) below). The bodies were changed the same day to the approved wording.
+
 Do **not** submit the Twilio campaign until this is live on `www.tejotime.com`. Reviewers open
 the real store URL. Keep `SMS_ENABLED=false` until the campaign is **Approved**. The $15
 vetting fee is not refunded on rejection. If rejected, **edit and resubmit the same campaign**
@@ -122,18 +126,94 @@ domain — the same domain as the opt-in page. The SMS carries `{PUBLIC_WEB_URL}
 
 > End users opt in on a business's public booking page at https://www.tejotime.com/{store-phone} when they book an appointment or check in. They enter name and mobile number, then may check one optional, unchecked-by-default box: "I agree to receive appointment texts from {Business} via TejoTime, including booking confirmations, reminders, and a review request after my visit. Up to 3 messages per visit. Msg & data rates may apply. Reply STOP to opt out, HELP for help. Consent is not required to book." The messages are a booking confirmation, a reminder 15 minutes before the appointment, and one text after the visit asking the customer to leave the business a Google review. Checking the box is not required to book or check in; we do not text numbers that did not check it. Privacy: https://www.tejotime.com/privacy Terms: https://www.tejotime.com/terms
 
-**Sample messages** — must match production `sms-copy.ts` word for word (pinned by
-`tests/unit/sms-copy.test.ts`). Note there is **no punctuation straight after a link**: some
-handsets fold a trailing `.` into the URL and open a 404.
+**Approved samples (2026-10-06)** — as registered on the campaign:
 
-1. `5th Avenue Barber & Shave Shop: Hi Alexander, your appointment is confirmed for Sep 26 at 1:11 PM. Manage your booking: https://www.tejotime.com/12393160008 Reply STOP to opt out.`
-2. `5th Avenue Barber & Shave Shop: Hi Alexander, your appointment starts in 15 minutes. Please head over now. Address: 1011 5th Ave N, Naples, FL 34102`
-3. `5th Avenue Barber & Shave Shop: Thanks for visiting, Alexander! Please leave us a Google review: https://www.tejotime.com/12393160008/r Reply STOP to opt out.`
+1. `TejoTime: Hi [Name], your appointment at [Business Name] is confirmed for [Date] at [Time]. Manage your booking: https://www.tejotime.com/[business-id]. Reply STOP to opt out.`
+2. `TejoTime: Hi [Name], your appointment at [Business Name] starts in 15 minutes. Please head over now. Address: [Business Address]`
+3. `TejoTime: Thanks for visiting [Business Name], [Name]! Please leave us a Google review: https://www.tejotime.com/[business-id]/r. Reply STOP to opt out.`
 
+**What production sends** — `sms-copy.ts`, pinned word for word by `tests/unit/sms-copy.test.ts`:
+
+1. `TejoTime: Hi Alexander, your appointment at 5th Avenue Barber & Shave Shop is confirmed for Sep 26 at 1:11 PM. Manage your booking: https://www.tejotime.com/12393160008 Reply STOP to opt out.`
+2. `TejoTime: Hi Alexander, your appointment at 5th Avenue Barber & Shave Shop starts in 15 minutes. Please head over now. Address: 1011 5th Ave N, Naples, FL 34102`
+3. `TejoTime: Thanks for visiting 5th Avenue Barber & Shave Shop, Alexander! Please leave us a Google review: https://www.tejotime.com/12393160008/r Reply STOP to opt out.`
+
+Two deliberate differences from the approved samples, both decided 2026-10-06:
+
+- **No `.` straight after a link.** The samples have `…/[business-id]. Reply STOP`; the bodies
+  send `…/12393160008 Reply STOP`. Some handsets fold a trailing `.` into the URL, and
+  `/12393160008.` or `/r.` opens a broken page. Wording is otherwise identical.
+- **`[business-id]` is the store's phone (`phone_full`)**, because that is the booking page's
+  real path on `www.tejotime.com`.
+
+Every text opens with the registered brand `TejoTime:`, and the store is named inside the
+sentence; a store with a blank name drops "at [Business Name]" rather than printing "at  is".
 STOP appears in message 1 (the first a booking produces) and message 3 (the only one a walk-in gets). The reminder carries none by
 design; Advanced Opt-Out still honours STOP/HELP replies to any message. Bodies stay GSM-7 (no
 em dash or curly quotes). The greeting uses the customer's first name; a store with no address
 drops the `Address:` tail. Dates and times are in the store's own timezone.
+
+**Segments (cost).** The approved wording is longer than the earlier copy. The confirmation is
+always **2 segments** (171 characters for "Sharp Cuts", 191 for "5th Avenue Barber & Shave Shop";
+more for a recurring visit's longer `/v#token` link). The reminder and review request are 1
+segment for a short store name and can tip into 2 for a long name or address.
+
+### Going live
+
+The backend reads these at boot, so restart it after changing any of them:
+
+| Variable | Local test | Production |
+|---|---|---|
+| `SMS_ENABLED` | `true` | `true` |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` | account values | account values |
+| `TWILIO_MESSAGING_SERVICE_SID` | the campaign's Messaging Service (`MG…`) | same |
+| `TWILIO_FROM` | the campaign's 10DLC number — only used when the service SID is blank | same |
+| `TWILIO_TRIAL_MODE` | `false` — `true` sends Twilio's placeholder ids, not this copy | `false` |
+| `TWILIO_TEST_TO` | **your own number** — every send goes there | **blank** |
+| `TWILIO_ALLOWED_COUNTRY_CODES` | `1`, or `1,91` with a +91 test number | `1` |
+| `PUBLIC_WEB_URL` | as is (links point at it) | `https://www.tejotime.com` |
+
+`backend/.env` points at the **live preprod database**, and the reminder sweep runs every minute
+in any backend that has SMS on. So a local backend with SMS on and a blank `TWILIO_TEST_TO` would
+text real preprod customers (those in an allowed country). Keep `TWILIO_TEST_TO` set for every
+local run, or `SMS_ENABLED=false` when you are not testing.
+
+**Sender: the Messaging Service (2026-10-06).** With `TWILIO_MESSAGING_SERVICE_SID` set, every
+text is sent with `MessagingServiceSid` and no `From`, which is Twilio's recommended way for 10DLC:
+Twilio picks the sender from the service's **Sender Pool** and applies the service's settings,
+including Advanced Opt-Out. Blank falls back to `From=TWILIO_FROM`. A malformed value (not `MG` +
+32 hex) stops the backend at boot. The campaign's number (**+1 239 666 7772**) must be in that
+service's Sender Pool, or the service has no number to send from. In the Twilio console's number
+inventory, a number in a service shows the service under Active Configuration, not "Set up".
+
+### Allowed countries — `TWILIO_ALLOWED_COUNTRY_CODES` (2026-10-06)
+
+The campaign covers **US (+1) numbers only**, so the backend refuses to text any other country
+unless it is listed. The value is a comma-separated list of calling codes: `1` (the default), or
+`1,91,44` to add India and the UK, with no code change, just an env change and a restart.
+
+- **Unset or blank means `1`.** A typo (`US`, `1;91`, `1234`) stops the backend at boot, like
+  any other bad setting.
+- **The number that receives the text is checked**, so when `TWILIO_TEST_TO` is set it is the
+  test number, not the customer. A +91 test phone needs `1,91`.
+- **A number without a leading `+` is refused**: its country cannot be known. `normalizePhone`
+  gives every number it accepts a `+`.
+- **`1` is the whole North American plan.** US, Canada and most of the Caribbean share +1, and a
+  calling code cannot tell them apart.
+- **A refused text** shows `failed` with error `country_not_allowed` on its `notification` row,
+  and `SMS skipped: country not allowed` in the log. Twilio is never called.
+- The check lives in `smsSender` (`integrations/sms.ts`), the one place Twilio is called, with the
+  rule in `lib/sms-country.ts` (`tests/unit/sms-country.test.ts`, `tests/unit/sms.test.ts`).
+
+Listing another country only lets the backend try. That text goes out as international SMS,
+outside the 10DLC campaign: it needs the country in Twilio's Geo Permissions (error 21408
+otherwise), and India additionally filters traffic from senders without DLT registration, so a
++91 test number proves the code path and credentials but not 10DLC delivery.
+
+Check a send in the backend log (`Twilio SMS sent` with the message sid, or `Twilio SMS send
+failed` with Twilio's `code`) and in the `notification` row (`sent` / `failed`). Common codes:
+30034 — the sending number is not in the campaign's Messaging Service; 21610 — the
+recipient replied STOP; 21408 — that country is not enabled in Geo Permissions.
 
 > **"Manage your booking" link** opens the store's booking page for a one-off booking. Since
 > 2026-10-05 that page has a **My appointments** button: type the phone number to see, move or
@@ -144,8 +224,8 @@ drops the `Address:` tail. Dates and times are in the store's own timezone.
 > **Recurring appointments (2026-10-03, [recurring-appointments.md](recurring-appointments.md)).**
 > For a visit of a repeating booking the same link opens the series' manage page,
 > `https://www.tejotime.com/{store-phone}/v#{token}` (skip a visit, cancel the series) — same
-> domain, longer path. Two consequences: that body is **two SMS segments** (~175 characters; a
-> one-off stays ~155), and each visit the job books later gets this confirmation, so a regular
+> domain, longer path. Two consequences: that body is **two SMS segments** (since the 2026-10-06
+> approved wording every confirmation is, see Segments above), and each visit the job books later gets this confirmation, so a regular
 > receives it once per visit. That is still "up to 3 messages per visit", but consider saying
 > "including each visit of a repeating booking" in `message_flow` when the campaign is next
 > resubmitted. Nothing is texted for a skip, a cancellation, a pause, or a visit the job could not

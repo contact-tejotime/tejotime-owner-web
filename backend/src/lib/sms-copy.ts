@@ -16,7 +16,9 @@ dayjs.extend(timezone);
  * the Messaging Service still honours STOP/HELP replies to any message.
  *
  * Never put punctuation straight after a URL: some handsets fold a trailing "." into the link and
- * open a 404. Keep bodies GSM-7: one em dash or curly quote flips the whole text to UCS-2.
+ * open a 404. The approved samples DO have "link. Reply STOP"; the bodies drop that one "." on
+ * purpose (decided 2026-10-06). Keep bodies GSM-7: one em dash or curly quote flips the whole text
+ * to UCS-2.
  */
 
 export const SMS_TEMPLATES = {
@@ -28,11 +30,20 @@ export const SMS_TEMPLATES = {
 /** How long before the appointment the reminder goes out. Fixed — it is in the registered copy. */
 export const REMINDER_LEAD_MINUTES = 15;
 
-function brand(businessName: string): string {
-  return businessName.trim() || 'TejoTime';
+/**
+ * Every text opens with the registered brand, never the store's name: the approved samples
+ * (2026-10-06) read "TejoTime: …" and name the store inside the sentence, so the reviewer can tie
+ * the sender to the brand on the campaign.
+ */
+const BRAND = 'TejoTime';
+
+/** " at Sharp Cuts", or nothing for a blank name, so a body never reads "at  is confirmed". */
+function atStore(businessName: string): string {
+  const name = businessName.trim();
+  return name ? ` at ${name}` : '';
 }
 
-/** First word only ("Hi Alexander", not the full name) — keeps the body inside one segment. */
+/** First word only ("Hi Alexander", not the full name) — keeps the body as short as it can be. */
 function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || 'there';
 }
@@ -50,18 +61,20 @@ export function smsBodyBookingConfirmed(
   time: string,
   link: string,
 ): string {
-  return `${brand(businessName)}: Hi ${firstName(customerName)}, your appointment is confirmed for ${date} at ${time}. Manage your booking: ${link} Reply STOP to opt out.`;
+  return `${BRAND}: Hi ${firstName(customerName)}, your appointment${atStore(businessName)} is confirmed for ${date} at ${time}. Manage your booking: ${link} Reply STOP to opt out.`;
 }
 
 export function smsBodyReminder(customerName: string, businessName: string, address: string | null | undefined): string {
-  const base = `${brand(businessName)}: Hi ${firstName(customerName)}, your appointment starts in ${REMINDER_LEAD_MINUTES} minutes. Please head over now.`;
+  const base = `${BRAND}: Hi ${firstName(customerName)}, your appointment${atStore(businessName)} starts in ${REMINDER_LEAD_MINUTES} minutes. Please head over now.`;
   const where = (address ?? '').trim();
   // No dangling "Address:" for a store that never entered one.
   return where ? `${base} Address: ${where}` : base;
 }
 
 export function smsBodyReview(customerName: string, businessName: string, reviewUrl: string): string {
-  return `${brand(businessName)}: Thanks for visiting, ${firstName(customerName)}! Please leave us a Google review: ${reviewUrl} Reply STOP to opt out.`;
+  const store = businessName.trim();
+  const visited = store ? `Thanks for visiting ${store}, ` : 'Thanks for visiting, ';
+  return `${BRAND}: ${visited}${firstName(customerName)}! Please leave us a Google review: ${reviewUrl} Reply STOP to opt out.`;
 }
 
 /**
