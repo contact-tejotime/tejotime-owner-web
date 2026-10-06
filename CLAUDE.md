@@ -396,14 +396,18 @@ the app (`npm run test:checkout`).
 per ticket, for **online live-queue joins only** (not walk-ins, not checked-in appointments),
 when `0 < waitMinutes <= ETA_NOTIFY_MINUTES`. Idempotency via a **conditional claim** on
 `notified_eta_15_at` (only one concurrent caller wins). `notified_turn_at` does the same for
-"it's your turn". A walk-in bumping the ETA back up never re-sends. These are now **socket
-events only** — they no longer send SMS.
+"it's your turn". A walk-in bumping the ETA back up never re-sends. These are socket events; the
+one text riding on them is the check-in "starts in 15 minutes" (below), sent with the ~15-minute
+claim only when the customer joined with more than 15 minutes to wait (`queue_entry.join_wait_minutes`,
+0041).
 
 **Customer SMS** ([docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)) — exactly three texts, which
 **are** the registered Twilio A2P campaign samples (`lib/sms-copy.ts`, pinned word for word by
 `sms-copy.test.ts` — change the campaign with them): booking confirmation (on website booking),
 15-minute reminder (scheduler sweep, one-shot claim on `appointment.reminder_sent_at`), and a
-post-checkout Google review request (one-shot on `queue_entry.thank_you_sent_at`, only if
+post-checkout Google review request. **Check in sends the same texts** (2026-10-06): the
+confirmation with the waitlist's estimated time, and the 15-minute text only for a join with more
+than 15 minutes to wait — see the doc's "Check in" section and `smoke-checkin-sms.mjs`. The review request is sent (one-shot on `queue_entry.thank_you_sent_at`, only if
 `business.google_review_url` is set). **One** unticked website box on Book and Check in ("…including
 booking confirmations, reminders, and a review request after my visit. Up to 3 messages per
 visit…") sets both backend flags, `sms_opt_in` and `review_sms_opt_in`, which stay separate so the
@@ -741,6 +745,11 @@ Checklist for any owner-facing change:
   `backend/scripts/smoke-booking-guards.mjs` pins the server-side booking rule (one booking when two
   customers confirm together; overlap / past / closed / out-of-hours / beyond-window → 409
   `SLOT_UNAVAILABLE`; foreign or malformed stylist → 400) — same fresh-API rule.
+  `backend/scripts/smoke-checkin-sms.mjs` proves the Check in texts: confirmation, the 15-minute
+  text only after a > 15-minute join, nothing for an unticked box or a repeat check-in. It needs a
+  running API with `SMS_ENABLED=false` + a seeded throwaway DB that it also **reads**
+  (`SMOKE_DATABASE_URL`; refuses `backend/.env`'s), because a text is only visible as a
+  `notification` row ([docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)).
   `backend/scripts/smoke-demo-stores.mjs` is the other odd one out: it needs **no seed** and runs
   against a deployed environment (`SMOKE_BASE_URL`, optional `SMOKE_WEB_URL`) after
   `provision-demo-stores.mjs` has created the nine homepage industry stores through the admin API.

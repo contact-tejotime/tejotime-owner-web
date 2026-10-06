@@ -4,14 +4,14 @@ TejoTime sends **exactly three** customer texts, all behind **one** website cons
 
 | # | Message | Sent when | Carrier category |
 |---|---|---|---|
-| 1 | Booking confirmation | right after a website booking — and, for a repeating booking, each time the series job books the next visit (about 3 weeks ahead) | Customer care |
-| 2 | 15-minute reminder | 15 min before a booked appointment (scheduler, every minute) | Customer care |
-| 3 | Thank-you + Google review link | after the visit is checked out | **Marketing** |
+| 1 | Booking confirmation | right after a website booking — and, for a repeating booking, each time the series job books the next visit (about 3 weeks ahead). **Also** right after a website **Check in** (since 2026-10-06) | Customer care |
+| 2 | 15-minute reminder | 15 min before a booked appointment (scheduler, every minute). **Also** for a Check in that joined with **more than 15 minutes** to wait, once its wait drops to 15 or less | Customer care |
+| 3 | Thank-you + Google review link | after the visit is checked out — booked or checked in | **Marketing** |
 
-The old waitlist set (joined / ~15 min / ~2 min / your turn) was **retired** and replaced by
-these three. Walk-ins (Check in) therefore get **no** texts except the review request.
-The ticket socket events (`ticket:ready`, `ticket:eta_15`, `ticket:eta_2`) are unchanged and no
-longer send SMS.
+The old waitlist set (joined / ~15 min / ~2 min / your turn) was **retired**. Since 2026-10-06
+Check in sends the same three approved texts as a booking (see [Check in](#check-in-2026-10-06)
+below), not the old set. The ticket socket events (`ticket:ready`, `ticket:eta_15`,
+`ticket:eta_2`) are unchanged; only the ~15-minute one also triggers a text.
 
 > **Status (2026-10-06): campaign APPROVED.** Sending is switched on per environment with
 > `SMS_ENABLED=true`, `TWILIO_TRIAL_MODE=false` and a blank `TWILIO_TEST_TO` (see
@@ -84,8 +84,8 @@ Defaults are **false**.
 |---|---|
 | Message bodies (**= campaign samples**) + reminder window | `backend/src/lib/sms-copy.ts` |
 | Send gate, notification row, the three senders, reminder sweep | `backend/src/modules/notifications/sms-dispatch.ts` |
-| Confirmation trigger | `public.service.ts` `bookSlot`; for recurring visits the job books, `series.service.ts` `afterGeneration` |
-| Reminder trigger | `jobs/scheduler.ts` (every minute; one-shot claim on `reminder_sent_at`) |
+| Confirmation trigger | `public.service.ts` `bookSlot`; for recurring visits the job books, `series.service.ts` `afterGeneration`; for Check in, `public.service.ts` `joinQueue` → `sendCheckInConfirmation` |
+| Reminder trigger | `jobs/scheduler.ts` (every minute; one-shot claim on `reminder_sent_at`); for Check in, `queue.service.ts` `processTicketBroadcasts` → `sendWaitlistReminder` (one-shot claim on `notified_eta_15_at`) |
 | Review trigger | `queue.service.ts` `checkout` (one-shot claim on `thank_you_sent_at`) |
 | Consent box | `frontend/src/components/microsite/MicrositeClient.tsx`, string `microsite.join.consentOptIn` |
 | Review link field | owner-web `StoreProfileEditor`, app `OwnerStoreProfileForm`, admin `StoreForm` |
@@ -110,6 +110,36 @@ domain — the same domain as the opt-in page. The SMS carries `{PUBLIC_WEB_URL}
 - Only redirects to `https://` — the value is owner-saved and validated, never from the request,
   so this is not an open redirect.
 - A store with no phone number has no short link; its review text falls back to the raw URL.
+
+## Check in (2026-10-06)
+
+Client request: a website **Check in** (walk-in waitlist) with the box ticked gets the same approved
+texts as a booking. No new wording and no new template ids. A check-in text's `notification` row
+carries `queue_entry_id` instead of `appointment_id`.
+
+| Text | Check in rule |
+|---|---|
+| 1. Confirmation | Right after the check-in, **even with no wait**. A walk-in has no booked time, so the approved wording carries the waitlist's **estimate**: now + the estimated wait, on the store's clock (with no wait, simply now). The link is the store page, where Check Waitlist Status finds the place by phone. |
+| 2. "starts in 15 minutes" | Only if the customer **joined with more than 15 minutes to wait**. Sent once, when their wait drops into 1–15 minutes. Joining with 15 or less ("Almost your turn", no wait) never gets it: it would arrive straight after the confirmation saying nothing new. A wait that falls straight to 0 (the chair freed up) never passes through the window, so no text. |
+| 3. Review request | Unchanged. It always applied to Check in: after checkout, if the store has a Google review link. |
+
+How it works:
+
+- **The wait at check-in is stored.** `joinQueue` stores the estimated wait in
+  `queue_entry.join_wait_minutes` (migration **0041**), and only when the box is ticked. Null
+  everywhere else (owner walk-ins, appointment check-ins, unticked boxes, older rows), so none of
+  those are ever texted. It is written **before** the join's own broadcast, because that broadcast
+  can already take the 15-minute claim for a short wait.
+- **Text 2 rides on the existing one-shot claim** `notified_eta_15_at`, in `queue.service.ts`
+  `processTicketBroadcasts`. That runs after every queue change and every minute
+  (`etaNotifySweep`), and it sends only if `isWaitlistReminderEligible(join_wait_minutes)` — wait
+  at join > 15. The send is not awaited, so a Twilio round-trip never slows an owner's checkout.
+- **A repeat check-in from the same number** ("You're already on the waitlist") returns the
+  existing place before any of this, so it is never texted twice.
+- **Every existing gate still applies:** the box, a prior STOP, `TWILIO_ALLOWED_COUNTRY_CODES` and
+  `SMS_ENABLED`.
+- **Up to 3 messages per visit** still holds: confirmation, at most one 15-minute text, and one
+  review request.
 
 ## Campaign paste (after production deploy)
 
@@ -266,6 +296,22 @@ never fires at once with the wrong wording).
 - `public-sms-consent.test.ts` — the two consent flags reach the service separately (the page
   currently sends both from one box), default false when omitted, non-boolean or unknown keys → 400.
 - `sms-opt-in.test.ts`, `sms.test.ts` — the send gate and the Twilio seam.
+- `checkin-sms.test.ts` — the two Check in senders (pool and Twilio stubbed): approved wording with
+  the estimated time on the store clock, still sent with no wait, nothing for an unticked box,
+  linked to the queue entry. `sms-copy.test.ts` pins `isWaitlistReminderEligible` (15 → no, 16 → yes).
+
+`backend/scripts/smoke-checkin-sms.mjs` is the Check in end-to-end test. It needs a running API
+with `SMS_ENABLED=false` and a seeded throwaway DB, which it also reads via `SMOKE_DATABASE_URL`;
+it refuses `backend/.env`'s database. Over real HTTP it proves:
+
+- a long-wait check-in → one confirmation, then exactly one 15-minute text once the visit ahead
+  leaves, and never a second;
+- the same number again → "already on the waitlist", no second confirmation;
+- an unticked box → nothing;
+- no wait → a confirmation only;
+- a short wait (1–15) → a confirmation only, though the 15-minute claim was taken at check-in.
+
+It backdates one started visit's `started_at` — the clock is the one thing HTTP cannot move.
 
 `backend/scripts/smoke-rest.mjs` (block "SMS CONSENT + GOOGLE REVIEW LINK") books with both
 flags, walks in with the review flag, and round-trips / refuses / clears the owner's review link,
