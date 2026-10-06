@@ -48,6 +48,7 @@ selector behind a screen prefix so it cannot leak. `globals.css` keeps only shar
 | Hours, Team, Notifications, Password | `settings/hours|team|notifications|password.tsx` | `settings/hours|team|notifications/`, `HoursEditor`, `TeamManager`, `ChangePasswordForm`, `SettingsSubpageShell` | `settings-a.css` (`.sa-*`) |
 | Profile, Appearance, Services, Staff | `settings/profile|appearance|services|staff.tsx`, `components/settings/*` | `settings/profile|appearance|services|staff/`, `components/store-settings/*`, `components/appearance/*` | `settings-b.css` (`.sb-*`) |
 | Chrome and sheets | `(tabs)/_layout.tsx`, `THeader`, `TSheet`, `DetailPanel`, `AddWalkInSheet`, `QRSheet`, `ConfirmSheet`, `QueueCard` | `BottomNav`, `AppPageHeader`, `PageHeader`, `BottomSheet`, `OverlayPortal`, `QueueDetailSheet`, `WalkInSheet`, `StoreBookingQr`, `ConfirmDialog` | `shell-sheets.css` |
+| Checkout: amount to charge, add-on chips ([checkout-add-ons.md](./checkout-add-ons.md)) | `feedback/DetailPanel.tsx`, `feedback/ConfirmSheet.tsx` (`presentation="overlay"`), `lib/checkout-amount.ts`, `state/store.tsx` (`extendService`, `removeExtra`) | `QueueDetailSheet.tsx`, `ConfirmDialog.tsx` (`prefix`/`inputMode`/`validate`), `lib/checkout-amount.ts`, BFF `api/queue/[id]/[action]` (`remove-extra`) | `shell-sheets.css` (`.dp-chip.is-selected`, `.cfm-input-wrap`) |
 
 ## Rules every overlay must follow
 
@@ -139,6 +140,12 @@ Kept because a browser is not an App Store build, or because removing them would
   open sheet, and without a native module, which would need a new build. Both take their limits
   (the store's today) from the API, and both copies of `lib/commission.ts` are kept in step by
   `npm run test:commission`.
+- **Checkout add-on price popup (2026-10-06):** same wording, rules and arithmetic (the two
+  `lib/checkout-amount.ts` copies, checked by `npm run test:checkout`). The web shows a
+  `ConfirmDialog` over the sheet; the app draws `ConfirmSheet` as an overlay **inside**
+  `DetailPanel`'s Modal, because iOS will not present a second Modal over it. Escape (web) and
+  Android back close the popup first. Only the web has no toast when an add-on goes on or off — it
+  never had one for add-ons; the app keeps its "+10 min · Shave added" / "Shave removed".
 - **No pull-to-refresh:** `LiveRefresh` (socket for owners, polling for staff) keeps pages current.
 - **Sheets animate in only**; the app also animates them out.
 

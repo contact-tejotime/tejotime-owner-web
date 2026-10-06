@@ -696,7 +696,14 @@
     "extendMins": "+{mins}m",
     "price": "Price",
     "priceOnRequest": "Price on request",
-    "estWait": "Est. wait"
+    "estWait": "Est. wait",
+    "addOnPriceTitle": "Add {label}",
+    "addOnPriceBody": "+{minutes} min. Enter what you charge for it.",
+    "addOnPriceLabel": "Price",
+    "addOnPriceConfirm": "Add",
+    "addOnPriceInvalid": "Enter a price — 0 if it's free.",
+    "removeExtra": "Remove {label}",
+    "addExtra": "Add {label}, +{minutes} minutes"
   },
   "qr": {
     "contactTitle": "{name} — booking QR",
@@ -839,6 +846,7 @@
     "movedTo": "Moved to {name}",
     "moved": "Moved",
     "extendAdded": "+{mins} min · {label} added",
+    "extendRemoved": "{label} removed",
     "addedToQueueName": "{name} added to queue",
     "couldNotCheckIn": "Could not check in",
     "profileSaved": "Profile saved",

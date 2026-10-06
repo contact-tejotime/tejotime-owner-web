@@ -376,6 +376,15 @@ under-reporting of `visit.amount_paise` that 0020 exists to prevent. `domain/mon
 is the one resolver; `GET /queue/:id` returns `amountRequired` with a **null** `suggestedAmount` so
 the checkout sheet has nothing dishonest to pre-fill.
 
+**Checkout amount and add-on chips** ([docs/checkout-add-ons.md](docs/checkout-add-ons.md), 0039) —
+the sheet's "Amount to charge" box is **always the whole bill**: the server's suggestion for a fixed
+service, the add-ons' total for a range/unset one (the owner adds the service's price by hand — the
+client rejected a separate "service price" box). Add-on chips are a toggle: a plain chip asks for its
+price (`extend` with `pricePaise`) and it goes into the box, a highlighted one comes off
+(`POST /queue/:id/remove-extra`); `queue_extend` refuses a label already on the visit
+(`TEJO:ALREADY_ADDED` → 409). The arithmetic is `lib/checkout-amount.ts`, hand-kept in owner-web and
+the app (`npm run test:checkout`).
+
 **ETA-15 alert** (`lib/eta-notify.ts` + `queue.service.ts` `processTicketBroadcasts`) — one-shot
 per ticket, for **online live-queue joins only** (not walk-ins, not checked-in appointments),
 when `0 < waitMinutes <= ETA_NOTIFY_MINUTES`. Idempotency via a **conditional claim** on
@@ -568,7 +577,10 @@ Tunables: `JWT_ACCESS_TTL` 900, `JWT_REFRESH_TTL` 2592000, `JWT_ADMIN_TTL` 43200
 `BOOKING_SLOT_MINUTES` 30, `DATABASE_POOL_MAX` 10, `S3_UPLOAD_URL_TTL` 600,
 `S3_DOWNLOAD_URL_TTL` 3600, `CORS_ALLOWED_ORIGINS` (comma-separated; empty ⇒ allow all).
 
-Feature flags (all default **false**): `OTP_ENABLED`, `PAYMENTS_ENABLED`, `SMS_ENABLED`,
+Feature flags (all default **false**): `OTP_ENABLED`, `PAYMENTS_ENABLED`, `SMS_ENABLED` (+
+`TWILIO_ALLOWED_COUNTRY_CODES`, default `1` — only those calling codes are ever texted; the A2P
+campaign covers US only; and `TWILIO_MESSAGING_SERVICE_SID` — when set, texts go through the
+campaign's Messaging Service instead of `TWILIO_FROM`; see [docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)),
 `EMAIL_ENABLED`, `CHATBOT_ENABLED` (+ `CHATBOT_PROVIDER` `none|gemini|groq|openai`,
 `CHATBOT_API_KEY`, `CHATBOT_MODEL` — server-side only; no key needed for the FAQ-only mode),
 `AUTOFILL_ENABLED` (+ `AUTOFILL_API_KEY` — a Groq key, `AUTOFILL_MODEL`, `AUTOFILL_TIMEOUT_MS`; admin
@@ -614,6 +626,8 @@ scenario matrix — keep that file free of React and `@/` imports so it stays ru
 And `npm run test:commission` — runs the app's and owner-web's hand-kept copies of
 `lib/commission.ts` (rate parsing/printing, store-day labels) through one case table so they cannot
 drift, plus `app/src/lib/date-grid.ts`. Both files must stay import-free.
+And `npm run test:checkout` — the same for the two copies of `lib/checkout-amount.ts`, the checkout
+sheet's amount-box arithmetic ([docs/checkout-add-ons.md](docs/checkout-add-ons.md)); import-free too.
 
 > These checks are **not wired into CI**. Run them manually after touching the theme engine, the
 > cropper, a theme axis, or the mobile breakpoints.
@@ -675,7 +689,7 @@ Checklist for any owner-facing change:
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **39 vitest files, 495 tests** (2026-10-05), run with `npm test` in `backend/`
+- `backend/tests/unit/` — **41 vitest files, 521 tests** (2026-10-06), run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
   Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
   `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
@@ -708,6 +722,10 @@ Checklist for any owner-facing change:
   blank headline ignored, old clients' `statValue` accepted, city in the page payload, and a store
   created with no neighborhood. Its admin half needs `SMOKE_ADMIN_TOKEN` or the admin login pair,
   and is otherwise skipped ([docs/store-setup-review-2026-10-05.md](docs/store-setup-review-2026-10-05.md)).
+  `backend/scripts/smoke-checkout-addons.mjs` (running API + seeded throwaway DB; one login;
+  re-runnable — its own chair and services) covers the checkout add-ons: typed price, 409 on a
+  repeat, `remove-extra`, and unpriced/range visits banking service price + add-ons
+  ([docs/checkout-add-ons.md](docs/checkout-add-ons.md)).
   `backend/scripts/smoke-booking-guards.mjs` pins the server-side booking rule (one booking when two
   customers confirm together; overlap / past / closed / out-of-hours / beyond-window → 409
   `SLOT_UNAVAILABLE`; foreign or malformed stylist → 400) — same fresh-API rule.

@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-10-05 · branch `feat-jay`.
+**Last updated:** 2026-10-06 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,42 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Checkout: amount to charge + add-on chips (2026-10-06)
+
+Two bugs the client reported on the Customer sheet, fixed on owner-web, the app and the backend
+([docs/checkout-add-ons.md](../../docs/checkout-add-ons.md)):
+- **No total for an unpriced service.** "Amount to charge" is the whole bill and starts at the
+  add-ons' total. The owner adds the service's price, and each chip's price goes into the box.
+  - A first cut used a "Hair cut price" box plus a "Total to charge" row.
+  - The client rejected it on preprod the same day (round 2: the old single box).
+- **Add-on chips.**
+  - A plain chip asks for its price in a popup (always empty).
+  - A highlighted chip comes off (`POST /queue/:id/remove-extra`).
+  - The same add-on can't go on twice (migration **0039**, 409 `ALREADY_ADDED`).
+
+Shared arithmetic: `lib/checkout-amount.ts` in owner-web and the app.
+
+- **Deploy:** 0039 before the backend. Old app builds keep working: no price means the catalog
+  price, and a second tap now gets a 409 toast instead of a second charge.
+- **Verified here:**
+  - Backend: `npm test` 41 files / 521 tests (new `queue-addons.test.ts`, 10).
+  - Root: `npm run test:checkout` 66/66 after round 2. The client's case (unpriced + ₹145 of
+    add-ons starts at 145) fails against the round-1 copies.
+  - Local throwaway DB (`tejotime_smoke_addons`, migrated + seeded): `smoke-checkout-addons.mjs`
+    54/54. Against a copy of the pre-change backend it fails 23 of 54, including an old build's
+    second tap being charged twice.
+  - Static checks: owner-web tsc + lint + `next build` clean; app tsc + lint clean.
+  - owner-web in headless Chrome against that API (round 2), at 390px (12/12) and 1280px (13/13):
+    - The box opens at ₹100 (booked Hair wash), with the old hint, no placeholder and no Total
+      row.
+    - Beard trim ₹45 → ₹145, Blow-dry ₹80 → ₹225.
+    - Typed 425; Blow-dry off → ₹345.
+    - Complete banked ₹345.
+    - No console errors.
+- **Not verified:** the app on an iOS or Android device or simulator. There is none on this
+  Windows machine, and both platforms still need a look (§11.1). The popup is an overlay inside
+  `DetailPanel`'s Modal, specifically so iOS shows it.
 
 ### Store setup review — client points 14, 23, 29, 30, 34, 35 (2026-10-05)
 

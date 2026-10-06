@@ -738,7 +738,13 @@
     "seatBusy": "{seat} is already serving {name}. Complete that service first, or move this customer to another seat.",
     "seatBusyFallback": "This seat",
     "someone": "someone",
-    "extendMins": "+{mins}m"
+    "extendMins": "+{mins}m",
+    "addOnPriceTitle": "Add {label}",
+    "addOnPriceBody": "+{minutes} min. Enter what you charge for it.",
+    "addOnPriceLabel": "Price",
+    "addOnPriceConfirm": "Add",
+    "addOnPriceInvalid": "Enter a price — 0 if it's free.",
+    "removeExtra": "Remove {label}"
   },
   "walkin": {
     "errAdd": "Could not add to the queue.",
