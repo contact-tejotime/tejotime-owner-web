@@ -19,29 +19,41 @@ serving queue card, with "Amount to charge", the add-on chips and "Complete & st
 
 ## How the sheet works now
 
-### The amount box means one of two things
+### "Amount to charge" is the whole bill
 
-| Booked service | The box holds | Starts at | When an add-on goes on or off | Complete charges |
-|---|---|---|---|---|
-| `fixed` price | the **whole bill** | the server's suggestion (service + add-ons) | moves by the add-on's price; a hand-typed correction survives | the box |
-| `unset` (no price) or `range` | the **booked service's price only** | empty: someone has to decide | unchanged; the **Total to charge** row moves | box + add-ons |
+The box always holds the **whole bill**, and Complete & start next charges exactly what it holds.
 
-- **Wording in the `unset`/`range` mode:**
-  - The hint names the service: "Hair cut has no price set. Enter its price — add-ons are added
-    for you."
-  - The range variant quotes the band.
-  - The empty box's placeholder reads "Hair cut price".
+| Booked service | The box starts at | When an add-on goes on or off |
+|---|---|---|
+| `fixed` price | the server's suggestion (service + add-ons) | moves by the add-on's price |
+| `unset` (no price) or `range` | the add-ons' total (₹100 + ₹45 → ₹145); empty if there are none | moves by the add-on's price |
+| no service at all | empty until it has an add-on, then the add-ons' total | moves by the add-on's price |
+
+- **The owner adds the service's own price by hand.** For a Hair cut with no price, add ₹200 to
+  ₹145 and type 345.
+  - An add-on put on or taken off afterwards still moves the box by its price, so the typed figure
+    is never thrown away.
+  - Taking the last add-on off an unpriced visit empties the box rather than leaving ₹0 ready to
+    bank.
+- **Hints:** the old ones.
+  - Unpriced: "This service has no price set. Enter what was actually charged."
+  - Range: quotes the band.
+  - Fixed: "Pre-filled from the booked service…".
+- **The box:** no placeholder.
 - **The breakdown:**
-  - The booked service sits on its own line (by its own name, via the new `serviceName`).
-  - Then each add-on, with its price.
-  - Then **Total to charge**. It shows a dash until the service is priced, so the add-ons alone
-    are never presented as the bill.
-- **Complete with an empty box** is refused with "Enter the price for Hair cut before
-  completing." The API's `AMOUNT_REQUIRED` rule is unchanged underneath.
-- **An entry with no service at all:**
-  - It reports `unset` until it has an add-on, then `fixed` with service = 0 (`billingFor`).
-  - The box therefore flips meaning, and moves by the add-on's price on either side of the flip.
-    That is right: with no add-ons, "the service's price" and "the whole bill" are the same number.
+  - The booked service on its own line, by its own name (`serviceName`), showing its price, its
+    band or "No price".
+  - Then each add-on with its price.
+  - Then "Suggested", for a fixed service only.
+  - There is no separate total row; the box is the total.
+- **An empty box at Complete** is refused with the old "Enter the final amount before completing."
+  The API's `AMOUNT_REQUIRED` rule is unchanged underneath.
+
+**Why it is not a separate "service price" box.** The first version on 2026-10-06 did that: a box
+for the Hair cut's own price (placeholder "Hair cut price") plus a "Total to charge" row under it.
+The client tried it on preprod the same day and asked for the old single box, holding the total,
+with each add-on's price added into it. The trade-off is accepted: an owner who forgets to add the
+haircut banks only the add-ons.
 
 All of this arithmetic is in **`lib/checkout-amount.ts`**. owner-web and the app each keep a
 copy, and the copies must stay identical. Keep the file import-free.
@@ -111,7 +123,7 @@ service + Σ add-ons.
 
 | What | Command | Needs |
 |---|---|---|
-| Box arithmetic, both copies (the bug-1 regression; neither owner surface has a UI runner) | `npm run test:checkout` (repo root) | nothing |
+| Box arithmetic, both copies (the bug-1 regression — unpriced + ₹145 of add-ons starts at 145; neither owner surface has a UI runner) | `npm run test:checkout` (repo root) | nothing |
 | Router boundary: price passthrough, legacy body, 400s, 409 mapping, `remove-extra` guards | `cd backend && npx vitest run tests/unit/queue-addons.test.ts` | nothing |
 | End to end against real plpgsql | `node backend/scripts/smoke-checkout-addons.mjs` | running API + seeded **throwaway** DB (one login) |
 
@@ -122,7 +134,7 @@ The smoke script covers:
 - Remove takes the row, its minutes and its name segment, never the booked service.
 - An unknown label gives 404, and a waiting customer gives 422.
 - A multi-service extra comes off.
-- Unpriced and range visits bank service price + add-ons.
+- Unpriced and range visits bank the amount sent (service price + add-ons, as the box holds it).
 
 ## Not done
 

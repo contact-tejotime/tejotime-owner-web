@@ -10,14 +10,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useResponsive } from '@/hooks/useResponsive';
 import { t, format } from '@/i18n';
 import { api } from '@/lib/api';
-import {
-  boxAfterExtrasChange,
-  boxIsTotal,
-  chargePaise,
-  initialBox,
-  isExtraOn,
-  parseRupees,
-} from '@/lib/checkout-amount';
+import { boxAfterExtrasChange, initialBox, isExtraOn, parseRupees } from '@/lib/checkout-amount';
 import { currencySymbol } from '@/lib/currencies';
 import { flatCards } from '@/lib/queue';
 import { formatMoney } from '@/lib/mappers';
@@ -68,6 +61,21 @@ function priceLabel(billing: Billing | null): string {
   return formatMoney(billing.suggestedAmount ?? billing.serviceAmount);
 }
 
+/**
+ * The booked service's own price for the breakdown row: the fixed amount, the band, or "No price".
+ * Unlike `priceLabel`, never the suggested total — the add-ons are itemised on the rows below it.
+ */
+function servicePriceText(billing: Billing): string {
+  if (billing.servicePriceType === 'range' && billing.serviceMaxAmount) {
+    return format(t.serviceSheet.rangeLabel, {
+      min: formatMoney(billing.serviceAmount),
+      max: formatMoney(billing.serviceMaxAmount),
+    });
+  }
+  if (billing.servicePriceType === 'unset') return t.serviceSheet.unpriced;
+  return formatMoney(billing.serviceAmount);
+}
+
 export function DetailPanel() {
   const theme = useTheme();
   // Still needed for the seat chips in the 'move to another seat' row.
@@ -102,10 +110,10 @@ export function DetailPanel() {
    * haircut was banked at the beard-trim price. Completing now passes through this step, which
    * pre-fills the derived total and lets it be corrected before it reaches the ledger.
    *
-   * The box is the whole bill for a fixed-price service, and only the booked service's price for
-   * an unpriced or range one — the add-ons are added on top and shown as "Total to charge". The
-   * add-on chips are a toggle: a plain one asks what was charged for it, a highlighted one comes
-   * off. Both rules live in lib/checkout-amount.ts, shared with owner-web
+   * The box is always the whole bill. For a service with no price it starts at the add-ons' total,
+   * and the owner adds what the service cost. The add-on chips are a toggle: a plain one asks what
+   * was charged for it and that price goes into the box; a highlighted one comes off and its price
+   * comes back out. Both rules live in lib/checkout-amount.ts, shared with owner-web
    * (docs/checkout-add-ons.md).
    */
   const [billing, setBilling] = useState<Billing | null>(null);
@@ -133,8 +141,8 @@ export function DetailPanel() {
         const b = await api.getQueueEntry(cardId);
         if (!alive) return;
         setBilling(b);
-        // A range-priced or unpriced service deliberately starts empty — the whole point of the
-        // mode is that someone has to look at the customer and decide what to charge.
+        // The server's suggestion; for a range-priced or unpriced service, which has none, the
+        // add-ons' total — someone still has to add what the service itself cost.
         setAmount(initialBox(b));
       } catch {
         if (alive) setBilling(null);
@@ -158,8 +166,7 @@ export function DetailPanel() {
    *
    * The box moves by the change in the add-ons' total rather than re-syncing to the server's new
    * suggestion — otherwise adding a shave would silently discard an amount already typed by hand,
-   * which is the one thing this screen exists to let you do. A box holding only an unpriced
-   * service's price is left alone; the total under it moves instead (lib/checkout-amount.ts).
+   * which is the one thing this screen exists to let you do (lib/checkout-amount.ts).
    *
    * The store call is awaited before the bill is re-read. It used not to be, so the read raced
    * the write and often came back with the old total.
@@ -197,16 +204,10 @@ export function DetailPanel() {
   const onConfirm = () => {
     // Empty is never a valid bill. It reads as "not decided yet", which for a range-priced or
     // unpriced service is the state this box exists to get out of — and the API rejects it too.
-    const paise = billing ? chargePaise(amount, billing) : null;
+    const paise = parseRupees(amount);
     if (paise === null) {
       showToast(
-        amount.trim() !== '' || !billing
-          ? t.detail.amountInvalid
-          : !boxIsTotal(billing) && billing.serviceName
-            ? format(t.detail.servicePriceRequired, { service: billing.serviceName })
-            : billing.amountRequired
-              ? t.detail.amountRequired
-              : t.detail.amountInvalid,
+        amount.trim() === '' && billing?.amountRequired ? t.detail.amountRequired : t.detail.amountInvalid,
         'error',
       );
       return;
@@ -215,11 +216,7 @@ export function DetailPanel() {
     store.checkout(card!.id, paise);
   };
 
-  // Is the box the whole bill, or only the booked service's price with the add-ons on top?
-  const totalMode = billing ? boxIsTotal(billing) : true;
   const serviceName = billing?.serviceName ?? null;
-  const basePaise = totalMode ? null : parseRupees(amount);
-  const totalPaise = billing && !totalMode ? chargePaise(amount, billing) : null;
   const currency = billing?.serviceAmount.currency ?? store.business?.currency;
 
   /**
@@ -410,17 +407,14 @@ export function DetailPanel() {
                       quoted is what they need to see while filling it in. */}
                   <TText variant="caption" color="textMuted">
                     {billing?.servicePriceType === 'range' && billing.serviceMaxAmount
-                      ? format(serviceName ? t.detail.amountHintRangeBase : t.detail.amountHintRange, {
-                          service: serviceName ?? '',
+                      ? format(t.detail.amountHintRange, {
                           range: format(t.serviceSheet.rangeLabel, {
                             min: formatMoney(billing.serviceAmount),
                             max: formatMoney(billing.serviceMaxAmount),
                           }),
                         })
                       : billing?.servicePriceType === 'unset'
-                        ? serviceName
-                          ? format(t.detail.amountHintUnpricedBase, { service: serviceName })
-                          : t.detail.amountHintUnpriced
+                        ? t.detail.amountHintUnpriced
                         : t.detail.amountHint}
                   </TText>
                   <View style={s.amountRow}>
@@ -437,17 +431,7 @@ export function DetailPanel() {
                       onChangeText={setAmount}
                       keyboardType="numeric"
                       selectTextOnFocus
-                      // In the service-price mode the box is that one service's price — say so in
-                      // the empty box itself, not only in the hint above it.
-                      placeholder={
-                        !totalMode && serviceName ? format(t.detail.servicePrice, { service: serviceName }) : undefined
-                      }
-                      placeholderTextColor={theme.colors.textSubtle}
-                      accessibilityLabel={
-                        !totalMode && serviceName
-                          ? format(t.detail.servicePrice, { service: serviceName })
-                          : t.detail.amountTitle
-                      }
+                      accessibilityLabel={t.detail.amountTitle}
                     />
                   </View>
 
@@ -493,11 +477,7 @@ export function DetailPanel() {
                             {serviceName}
                           </TText>
                           <TText variant="caption" color="textMuted">
-                            {totalMode
-                              ? formatMoney(billing.serviceAmount)
-                              : basePaise !== null
-                                ? formatMoney({ amount: basePaise, currency: billing.serviceAmount.currency })
-                                : t.detail.enterPrice}
+                            {servicePriceText(billing)}
                           </TText>
                         </View>
                       ) : null}
@@ -513,29 +493,16 @@ export function DetailPanel() {
                           </TText>
                         </View>
                       ))}
-                      {/* A fixed price: the server's suggestion, which the box already holds. */}
-                      {totalMode && billing.suggestedAmount ? (
+                      {/* No suggested total for a range or an unpriced service: printing one would
+                          be the derived figure those modes exist to stop anybody reaching for. The
+                          box itself already holds the add-ons for them. */}
+                      {billing.suggestedAmount ? (
                         <View style={s.breakdownRow}>
                           <TText variant="caption" color="textBody" weight="semibold">
                             {t.detail.amountSuggested}
                           </TText>
                           <TText variant="caption" color="textBody" weight="semibold">
                             {formatMoney(billing.suggestedAmount)}
-                          </TText>
-                        </View>
-                      ) : null}
-                      {/* Unpriced or range: the service's price as typed plus the add-ons — what
-                          Complete will charge. A dash until the service is priced, so the
-                          add-ons alone are never shown as the bill. */}
-                      {!totalMode && (serviceName || billing.extras.length > 0) ? (
-                        <View style={[s.breakdownRow, s.grandRow]}>
-                          <TText variant="bodySm" color="textStrong" weight="bold">
-                            {t.detail.totalToCharge}
-                          </TText>
-                          <TText variant="bodySm" color="textStrong" weight="bold">
-                            {totalPaise !== null
-                              ? formatMoney({ amount: totalPaise, currency: billing.serviceAmount.currency })
-                              : t.common.dash}
                           </TText>
                         </View>
                       ) : null}
@@ -616,13 +583,6 @@ const createDetailPanelStyles = ({ colors, radius }: ThemeStyleProps) => {
     breakdown: { gap: moderateScale(6) },
     breakdownRow: { ...styles.flexRow, ...styles.justifyBetween, gap: moderateScale(12) },
     breakdownLabel: { ...styles.flex },
-    // "Total to charge": the sum Complete will bank, so it reads as the answer, not a line item.
-    grandRow: {
-      paddingTop: moderateScale(8),
-      marginTop: moderateScale(2),
-      borderTopWidth: StyleSheet.hairlineWidth * 2,
-      borderTopColor: colors.borderSubtle,
-    },
     safe: { ...styles.flex },
     topBar: {
       ...styles.flexRow,

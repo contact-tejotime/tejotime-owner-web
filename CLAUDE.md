@@ -377,9 +377,10 @@ is the one resolver; `GET /queue/:id` returns `amountRequired` with a **null** `
 the checkout sheet has nothing dishonest to pre-fill.
 
 **Checkout amount and add-on chips** ([docs/checkout-add-ons.md](docs/checkout-add-ons.md), 0039) —
-for a fixed service the sheet's box is the whole bill; for a range/unset one it is **only that
-service's price** and "Total to charge" = box + add-ons is what gets sent. Add-on chips are a
-toggle: a plain chip asks for its price (`extend` with `pricePaise`), a highlighted one comes off
+the sheet's "Amount to charge" box is **always the whole bill**: the server's suggestion for a fixed
+service, the add-ons' total for a range/unset one (the owner adds the service's price by hand — the
+client rejected a separate "service price" box). Add-on chips are a toggle: a plain chip asks for its
+price (`extend` with `pricePaise`) and it goes into the box, a highlighted one comes off
 (`POST /queue/:id/remove-extra`); `queue_extend` refuses a label already on the visit
 (`TEJO:ALREADY_ADDED` → 409). The arithmetic is `lib/checkout-amount.ts`, hand-kept in owner-web and
 the app (`npm run test:checkout`).
@@ -626,7 +627,7 @@ And `npm run test:commission` — runs the app's and owner-web's hand-kept copie
 `lib/commission.ts` (rate parsing/printing, store-day labels) through one case table so they cannot
 drift, plus `app/src/lib/date-grid.ts`. Both files must stay import-free.
 And `npm run test:checkout` — the same for the two copies of `lib/checkout-amount.ts`, the checkout
-sheet's box/total arithmetic ([docs/checkout-add-ons.md](docs/checkout-add-ons.md)); import-free too.
+sheet's amount-box arithmetic ([docs/checkout-add-ons.md](docs/checkout-add-ons.md)); import-free too.
 
 > These checks are **not wired into CI**. Run them manually after touching the theme engine, the
 > cropper, a theme axis, or the mobile breakpoints.
