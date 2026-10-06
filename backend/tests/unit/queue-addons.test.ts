@@ -153,6 +153,14 @@ describe('checkout add-ons (queue API)', { timeout: 30_000 }, () => {
       expect(removeExtra).toHaveBeenCalledTimes(1);
     });
 
+    it('names AMOUNT_REQUIRED for any visit, not only a range (0040 raises it for an unpriced extra)', async () => {
+      const { mapPgError } = await import('../../src/middleware/error-handler');
+      const err = mapPgError('TEJO:AMOUNT_REQUIRED');
+      expect(err?.httpStatus).toBe(422);
+      expect(err?.code).toBe('AMOUNT_REQUIRED');
+      expect(err?.message).toBe('Enter the final amount for this visit');
+    });
+
     it('maps the plpgsql refusals: unknown add-on 404, customer not in the chair 422', async () => {
       removeExtra.mockRejectedValueOnce(new Error('TEJO:NOT_FOUND'));
       const missing = await post(REMOVE, { label: 'Shave' }, await token());

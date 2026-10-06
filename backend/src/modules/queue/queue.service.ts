@@ -97,6 +97,7 @@ async function billingFor(businessId: string, entryId: string) {
     service_price_type: string | null;
     service_name: string | null;
     extras_paise: string;
+    unpriced_extras: number;
     currency: string;
   }>(
     `select coalesce(sv.price_paise, 0)                                    as service_paise,
@@ -106,6 +107,9 @@ async function billingFor(businessId: string, entryId: string) {
             coalesce((select sum(x.price_paise)
                         from queue_entry_extra x
                        where x.queue_entry_id = q.id), 0)                  as extras_paise,
+            (select count(*)::int
+               from queue_entry_extra x
+              where x.queue_entry_id = q.id and x.price_type = 'unset')    as unpriced_extras,
             b.currency
        from queue_entry q
        join business b on b.id = q.business_id
@@ -132,7 +136,9 @@ async function billingFor(businessId: string, entryId: string) {
         currency,
       )
     : null;
-  const amountRequired = noPriceBasis || (pricing?.amountRequired ?? false);
+  // A no-price service the customer picked SECOND is an extra stored at 0 (0040). Its price is
+  // as unknown as an unpriced primary's, so it blocks a derived total the same way.
+  const amountRequired = noPriceBasis || (pricing?.amountRequired ?? false) || (row?.unpriced_extras ?? 0) > 0;
   return {
     // The booked service on its own. `queue_entry.service_name` carries every add-on too
     // ("Hair cut + Hair wash + Blow-dry"), so a sheet that asks for the price of an unpriced
@@ -157,13 +163,24 @@ async function billingFor(businessId: string, entryId: string) {
   };
 }
 
-/** The add-ons already recorded against an entry, so the checkout sheet can itemise them. */
+/**
+ * The add-ons already recorded against an entry, so the checkout sheet can itemise them.
+ *
+ * `priceRequired`: the row is a booked service with no price (0040). Its `pricePaise` is a
+ * placeholder 0, and the sheet asks for the real figure in that row before it lets anyone complete.
+ */
 async function extrasFor(entryId: string) {
-  const rows = await many<{ id: string; label: string; minutes: number; price_paise: number }>(
-    'select id, label, minutes, price_paise from queue_entry_extra where queue_entry_id = $1 order by created_at',
+  const rows = await many<{ id: string; label: string; minutes: number; price_paise: number; price_type: string | null }>(
+    'select id, label, minutes, price_paise, price_type from queue_entry_extra where queue_entry_id = $1 order by created_at',
     [entryId],
   );
-  return rows.map((r) => ({ id: r.id, label: r.label, minutes: r.minutes, pricePaise: r.price_paise }));
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.label,
+    minutes: r.minutes,
+    pricePaise: r.price_paise,
+    priceRequired: r.price_type === 'unset',
+  }));
 }
 
 export async function getEntryDetail(businessId: string, entryId: string) {
@@ -408,7 +425,14 @@ export async function addWalkIn(businessId: string, input: AddWalkInInput) {
       p_business_id: businessId,
       p_entry_id: result.id,
       p_services: JSON.stringify(
-        picked.slice(1).map((sv) => ({ name: sv.name, minutes: sv.duration_minutes, price: sv.price_paise })),
+        // `serviceId` lets the row remember an unpriced service's price type (0040), so checkout
+        // asks for its price even though it was not the first pick.
+        picked.slice(1).map((sv) => ({
+          name: sv.name,
+          minutes: sv.duration_minutes,
+          price: sv.price_paise,
+          serviceId: sv.id,
+        })),
       ),
     });
   }

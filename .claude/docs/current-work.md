@@ -21,29 +21,47 @@ Two bugs the client reported on the Customer sheet, fixed on owner-web, the app 
   - A plain chip asks for its price in a popup (always empty).
   - A highlighted chip comes off (`POST /queue/:id/remove-extra`).
   - The same add-on can't go on twice (migration **0039**, 409 `ALREADY_ADDED`).
+- **Round 3: a no-price service must be priced.**
+  - Its bill row becomes a required field, and what is typed goes into the box.
+  - Complete stays disabled until it is filled; a line above it says why, and tapping it focuses
+    the field.
+  - This applies even when the service was picked second (migration **0040**,
+    `queue_entry_extra.price_type`; `queue_checkout` refuses to derive). Range is not prompted.
+  - The bill ends with "Total to charge".
+  - The whole sheet scrolls, with only the buttons pinned.
+  - The web top bar no longer shows both the chevron and the ×.
 
 Shared arithmetic: `lib/checkout-amount.ts` in owner-web and the app.
 
-- **Deploy:** 0039 before the backend. Old app builds keep working: no price means the catalog
-  price, and a second tap now gets a 409 toast instead of a second charge.
+- **Deploy:** 0039 and 0040 before the backend. Old app builds keep working:
+  - no price means the catalog price;
+  - a second tap gets a 409 toast instead of a second charge;
+  - a visit with a no-price service picked second now needs a typed amount (their box starts
+    empty).
 - **Verified here:**
-  - Backend: `npm test` 41 files / 521 tests (new `queue-addons.test.ts`, 10).
-  - Root: `npm run test:checkout` 66/66 after round 2. The client's case (unpriced + ₹145 of
-    add-ons starts at 145) fails against the round-1 copies.
-  - Local throwaway DB (`tejotime_smoke_addons`, migrated + seeded): `smoke-checkout-addons.mjs`
-    54/54. Against a copy of the pre-change backend it fails 23 of 54, including an old build's
-    second tap being charged twice.
+  - Backend: `npm test` 41 files / 522 tests (`queue-addons.test.ts`, 11).
+  - Root: `npm run test:checkout` 114/114 (round 3).
+  - Local throwaway DB (`tejotime_smoke_addons`, 0040 applied, and re-applied to prove it
+    idempotent): `smoke-checkout-addons.mjs` 84/84.
+    - Against the pre-0040 backend: 66/84. All 18 failures are the new cases, including the empty
+      checkout banking ₹100 for wash + haircut.
+    - Rounds 1–2 had their own failing-first runs.
   - Static checks: owner-web tsc + lint + `next build` clean; app tsc + lint clean.
-  - owner-web in headless Chrome against that API (round 2), at 390px (12/12) and 1280px (13/13):
-    - The box opens at ₹100 (booked Hair wash), with the old hint, no placeholder and no Total
-      row.
-    - Beard trim ₹45 → ₹145, Blow-dry ₹80 → ₹225.
-    - Typed 425; Blow-dry off → ₹345.
-    - Complete banked ₹345.
+  - owner-web in headless Chrome against that API (round 3), 30/30 at 390px (Hair cut picked
+    first) and 30/30 at 1280px (picked second):
+    - Complete is disabled with the helper; the helper focuses the field.
+    - ₹300 → ₹500 on typing; cleared → ₹300, disabled, red after blur.
+    - A hand-edited ₹450, then a chip off → ₹250.
+    - The total line equals the box throughout.
+    - The header is not squashed; the footer edge appears and goes with scrolling; the buttons stay
+      pinned.
+    - Complete banked ₹250.
     - No console errors.
 - **Not verified:** the app on an iOS or Android device or simulator. There is none on this
-  Windows machine, and both platforms still need a look (§11.1). The popup is an overlay inside
-  `DetailPanel`'s Modal, specifically so iOS shows it.
+  Windows machine, and both platforms still need a look (§11.1), especially:
+  - the keyboard over the required field;
+  - the footer's raised edge (iOS shadow vs Android elevation);
+  - the popup, which is an overlay inside `DetailPanel`'s Modal so that iOS shows it.
 
 ### Store setup review — client points 14, 23, 29, 30, 34, 35 (2026-10-05)
 

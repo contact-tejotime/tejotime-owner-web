@@ -135,7 +135,8 @@ the API.
 | DELETE | `/:id` | `perm=queue:manage`, `ownRow` |
 
 `GET /:id` returns the checkout sheet's billing: `serviceName` (the booked service on its own;
-the card's `service` carries every add-on), `serviceAmount`, `servicePriceType`,
+the card's `service` carries every add-on), `extras[].priceRequired` (0040: a booked no-price service
+stored at a placeholder 0 — it also forces `amountRequired`), `serviceAmount`, `servicePriceType`,
 `serviceMaxAmount`, `extrasAmount`, `extras[]`, `amountRequired`, and `suggestedAmount` — which
 is **null** whenever `amountRequired` is true (a range-priced or unpriced service). `POST
 /:id/checkout` then requires `amountPaise` for those and answers **422 `AMOUNT_REQUIRED`**

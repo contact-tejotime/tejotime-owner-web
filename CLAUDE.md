@@ -217,6 +217,9 @@ visit stays an ordinary `appointment` row carrying `series_id`, see §7; 0037 ad
 0038 adds `business.gallery_heading`: the owner-chosen heading for the page's photo gallery
 ([docs/store-setup-review-2026-10-05.md](docs/store-setup-review-2026-10-05.md); that review also made
 the neighborhood optional, kept the headline required, and retired `stat_value`/`stat_label`).
+0039/0040 are the checkout add-ons ([docs/checkout-add-ons.md](docs/checkout-add-ons.md)):
+- 0039: one row per add-on label per visit, plus `queue_remove_extra`.
+- 0040: `queue_entry_extra.price_type`, so a no-price service picked second still has to be priced.
 
 Notable constraints and conventions:
 - UUID PKs (`gen_random_uuid()`); `pgcrypto` + `pg_trgm` extensions.
@@ -376,10 +379,14 @@ under-reporting of `visit.amount_paise` that 0020 exists to prevent. `domain/mon
 is the one resolver; `GET /queue/:id` returns `amountRequired` with a **null** `suggestedAmount` so
 the checkout sheet has nothing dishonest to pre-fill.
 
-**Checkout amount and add-on chips** ([docs/checkout-add-ons.md](docs/checkout-add-ons.md), 0039) —
-the sheet's "Amount to charge" box is **always the whole bill**: the server's suggestion for a fixed
-service, the add-ons' total for a range/unset one (the owner adds the service's price by hand — the
-client rejected a separate "service price" box). Add-on chips are a toggle: a plain chip asks for its
+**Checkout amount and add-on chips** ([docs/checkout-add-ons.md](docs/checkout-add-ons.md), 0039,
+0040) — the sheet's "Amount to charge" box is **always the whole bill** and starts at everything that
+has a price. A service with **no price** (`unset`), picked first or later, gets a **required price
+field in its bill row**: what is typed goes into the box, and Complete stays disabled until every
+such field is filled. A no-price service picked later is an extra flagged `priceRequired`
+(`queue_entry_extra.price_type`, 0040), and `queue_checkout` refuses to derive a total for it.
+Range services are not prompted (the client's call). The bill ends with "Total to charge" (= the
+box). The whole sheet scrolls; only the buttons are pinned. Add-on chips are a toggle: a plain chip asks for its
 price (`extend` with `pricePaise`) and it goes into the box, a highlighted one comes off
 (`POST /queue/:id/remove-extra`); `queue_extend` refuses a label already on the visit
 (`TEJO:ALREADY_ADDED` → 409). The arithmetic is `lib/checkout-amount.ts`, hand-kept in owner-web and
@@ -689,7 +696,7 @@ Checklist for any owner-facing change:
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **41 vitest files, 521 tests** (2026-10-06), run with `npm test` in `backend/`
+- `backend/tests/unit/` — **41 vitest files, 522 tests** (2026-10-06), run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
   Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
   `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
@@ -722,10 +729,15 @@ Checklist for any owner-facing change:
   blank headline ignored, old clients' `statValue` accepted, city in the page payload, and a store
   created with no neighborhood. Its admin half needs `SMOKE_ADMIN_TOKEN` or the admin login pair,
   and is otherwise skipped ([docs/store-setup-review-2026-10-05.md](docs/store-setup-review-2026-10-05.md)).
-  `backend/scripts/smoke-checkout-addons.mjs` (running API + seeded throwaway DB; one login;
-  re-runnable — its own chair and services) covers the checkout add-ons: typed price, 409 on a
-  repeat, `remove-extra`, and unpriced/range visits banking service price + add-ons
-  ([docs/checkout-add-ons.md](docs/checkout-add-ons.md)).
+  `backend/scripts/smoke-checkout-addons.mjs` covers the checkout add-ons
+  ([docs/checkout-add-ons.md](docs/checkout-add-ons.md)):
+  - typed price, 409 on a repeat, `remove-extra`, and unpriced/range visits banking service price +
+    add-ons;
+  - (0040) a no-price service picked second being flagged and blocking an empty checkout, on the
+    walk-in, waitlist-join and check-in paths.
+
+  It needs a running API and a seeded throwaway DB. It spends one login and two public writes, and
+  it is re-runnable, because it makes its own chair and services.
   `backend/scripts/smoke-booking-guards.mjs` pins the server-side booking rule (one booking when two
   customers confirm together; overlap / past / closed / out-of-hours / beyond-window → 409
   `SLOT_UNAVAILABLE`; foreign or malformed stylist → 400) — same fresh-API rule.

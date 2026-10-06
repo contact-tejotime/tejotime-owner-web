@@ -97,9 +97,14 @@ is true — there is no honest figure to pre-fill, and pre-filling the floor is 
 list, the public microsite and the checkout sheet cannot disagree about what a price means.
 
 **The checkout sheet's box** (both owner surfaces, `lib/checkout-amount.ts`, 2026-10-06) is always
-the whole bill and is sent as `amountPaise`: it starts at the suggestion for a fixed service and at
-the add-ons' total for a range/unset one (the owner adds the service's price), and moves by an
-add-on's price as it goes on or off. Add-on chips are a toggle — a plain chip
+the whole bill and is sent as `amountPaise`.
+- It starts at everything that has a price, and moves by each change: an add-on's price, or a
+  typed service price.
+- A no-price (`unset`) service, picked first or later, gets a **required price field** in its bill
+  row, and Complete stays disabled until it is filled. A later-picked one is an extra flagged
+  `priceRequired`, via `queue_entry_extra.price_type` (0040).
+- `queue_checkout` refuses to derive a total for such a visit (`TEJO:AMOUNT_REQUIRED`).
+- Range services are not prompted. Add-on chips are a toggle — a plain chip
 asks for its price (always empty), a highlighted one comes off (`remove-extra`) — and one add-on
 label per visit is enforced by `queue_extend` (0039, `TEJO:ALREADY_ADDED`). Full rules:
 [docs/checkout-add-ons.md](../../docs/checkout-add-ons.md).
