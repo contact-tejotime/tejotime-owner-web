@@ -41,13 +41,20 @@ export const extendSchema = z
   .object({
     label: z.string().min(1).max(40),
     minutes: z.coerce.number().int().min(1).max(240),
+    // What the owner says they charged for it, typed into the chip's price popup. Optional only
+    // for the app builds already in the field, which send no price and still get the catalog
+    // default; every current client sends it. Paise, like checkout's amountPaise.
+    pricePaise: z.coerce.number().int().min(0).max(100_000_000).optional(),
   })
   .strict()
   .transform((v) => {
     // Snap to a known add-on's minutes when the label matches the catalog.
     const known = SERVICE_EXTRAS.find((e) => e.label.toLowerCase() === v.label.toLowerCase());
-    return known ? { label: known.label, minutes: known.minutes } : v;
+    return known ? { ...v, label: known.label, minutes: known.minutes } : v;
   });
+
+/** Take an add-on back off: a tap on a chip that is already highlighted (0039). */
+export const removeExtraSchema = z.object({ label: z.string().trim().min(1).max(40) }).strict();
 
 export const moveSchema = z.object({ toIndex: z.coerce.number().int().min(0) }).strict();
 

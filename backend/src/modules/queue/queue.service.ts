@@ -95,12 +95,14 @@ async function billingFor(businessId: string, entryId: string) {
     service_paise: string;
     service_max_paise: string | null;
     service_price_type: string | null;
+    service_name: string | null;
     extras_paise: string;
     currency: string;
   }>(
     `select coalesce(sv.price_paise, 0)                                    as service_paise,
             sv.price_max_paise                                             as service_max_paise,
             sv.price_type                                                  as service_price_type,
+            sv.name                                                        as service_name,
             coalesce((select sum(x.price_paise)
                         from queue_entry_extra x
                        where x.queue_entry_id = q.id), 0)                  as extras_paise,
@@ -132,6 +134,10 @@ async function billingFor(businessId: string, entryId: string) {
     : null;
   const amountRequired = noPriceBasis || (pricing?.amountRequired ?? false);
   return {
+    // The booked service on its own. `queue_entry.service_name` carries every add-on too
+    // ("Hair cut + Hair wash + Blow-dry"), so a sheet that asks for the price of an unpriced
+    // service needs this to name the one thing it is asking about.
+    serviceName: row?.service_name ?? null,
     serviceAmount: money(service, currency),
     // The band the shop published, so the checkout sheet can show what it promised the
     // customer next to the box it is asking someone to fill in.
@@ -477,9 +483,18 @@ export async function reassign(businessId: string, entryId: string, staffId: str
   });
 }
 
-export async function extendService(businessId: string, entryId: string, label: string, minutes: number) {
+export async function extendService(
+  businessId: string,
+  entryId: string,
+  label: string,
+  minutes: number,
+  pricePaise?: number,
+) {
+  // The owner's own figure wins. The catalog price is only a fallback for app builds that send
+  // none: it is one platform-wide number per label (a shave is ₹50 in every store), which is why
+  // the chips now ask.
   const known = SERVICE_EXTRAS.find((e) => e.label.toLowerCase() === label.toLowerCase());
-  const price = known?.pricePaise ?? 0;
+  const price = pricePaise ?? known?.pricePaise ?? 0;
   const r = await callRpc('queue_extend', {
     p_business_id: businessId,
     p_entry_id: entryId,
@@ -491,6 +506,20 @@ export async function extendService(businessId: string, entryId: string, label: 
     entryId,
     label,
     minutes,
+    newServiceName: r.service_name,
+  });
+}
+
+/** Take an add-on back off an in-service entry — a tap on a highlighted chip (0039). */
+export async function removeExtra(businessId: string, entryId: string, label: string) {
+  const r = await callRpc('queue_remove_extra', {
+    p_business_id: businessId,
+    p_entry_id: entryId,
+    p_label: label,
+  });
+  return mutateAndReturn(businessId, 'queue:entry.extra_removed', {
+    entryId,
+    label,
     newServiceName: r.service_name,
   });
 }

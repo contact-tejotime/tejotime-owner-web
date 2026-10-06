@@ -110,6 +110,7 @@ Validation: `name` 1–60; deleting a seat with active entries → `409 SEAT_HAS
 | POST | `/queue/:id/no-show` | Mark no-show | FR-C11 |
 | POST | `/queue/:id/reassign` | Move to another seat | FR-C12 |
 | POST | `/queue/:id/extend` | Add service add-on | FR-C13 |
+| POST | `/queue/:id/remove-extra` | Take an add-on back off | FR-C13 |
 | POST | `/queue/:id/move` | Reorder within seat | FR-C14 |
 | DELETE | `/queue/:id` | Cancel/remove | FR-C17 |
 
@@ -148,7 +149,9 @@ Response `201` returns the created entry + the recomputed seat group. Validation
 
 **POST /queue/:id/reassign** → `{ "staffId": "st_lisa" }`. Entry must be `waiting`; appends to target seat's end (per `store.reassign`).
 
-**POST /queue/:id/extend** → `{ "label": "Beard trim", "minutes": 15 }` *or* `{ "extraServiceId": "s_beard" }`. Appends label to `service_name` (dedup, per `store.extendService`), adds minutes, recomputes downstream waits, records a `queue_entry_extra`. Entry must be `in_service`.
+**POST /queue/:id/extend** → `{ "label": "Beard trim", "minutes": 15, "pricePaise": 9000 }`. (The `extraServiceId` form this spec once proposed was never built — the strict schema rejects it.) `pricePaise` is what the owner typed; omit it and the platform catalog default is used. Appends label to `service_name`, adds minutes, recomputes downstream waits, records a `queue_entry_extra`. Entry must be `in_service`. A label already on the visit → `409 ALREADY_ADDED`.
+
+**POST /queue/:id/remove-extra** → `{ "label": "Beard trim" }`. The inverse: deletes the add-on, its minutes and its ` + Label`. `404` if no add-on has that label, `422` if the entry is not `in_service`. See [checkout-add-ons.md](./checkout-add-ons.md).
 
 **POST /queue/:id/move** → `{ "toIndex": 0 }`. Reorders within the entry's seat (waiting only). Clamped to `[0, waitingCount-1]` (per `store.moveWithinSeat`).
 

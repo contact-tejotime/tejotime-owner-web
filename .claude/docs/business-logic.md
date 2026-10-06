@@ -96,6 +96,14 @@ is true — there is no honest figure to pre-fill, and pre-filling the floor is 
 `domain/money.ts::servicePricing` is the one place that reads a row into that shape, so the owner
 list, the public microsite and the checkout sheet cannot disagree about what a price means.
 
+**The checkout sheet's box** (both owner surfaces, `lib/checkout-amount.ts`, 2026-10-06): for a
+fixed service it holds the whole bill and moves by an add-on's price as it goes on or off; for a
+range/unset service it holds **only that service's price**, and the sheet shows "Total to charge"
+= box + add-ons, which is what it sends as `amountPaise`. Add-on chips are a toggle — a plain chip
+asks for its price (always empty), a highlighted one comes off (`remove-extra`) — and one add-on
+label per visit is enforced by `queue_extend` (0039, `TEJO:ALREADY_ADDED`). Full rules:
+[docs/checkout-add-ons.md](../../docs/checkout-add-ons.md).
+
 **`queue_no_show` deliberately does *not* auto-promote.** Marking someone absent should not start
 the next customer's clock without the shop deciding to.
 

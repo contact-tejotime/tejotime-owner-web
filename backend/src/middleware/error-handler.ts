@@ -10,6 +10,9 @@ const PG_ERROR_MAP: Record<string, { status: number; code: string; message: stri
   INVALID_STATE: { status: 422, code: 'INVALID_STATE_TRANSITION', message: 'Invalid state transition' },
   SEAT_BUSY: { status: 409, code: 'SEAT_BUSY', message: 'That seat is already serving someone' },
   ALREADY_CHECKED_IN: { status: 409, code: 'ALREADY_CHECKED_IN', message: 'Appointment already checked in' },
+  // Raised by queue_extend (0039): one row per add-on label per visit. A second tap on a chip
+  // used to record — and charge — the same add-on twice.
+  ALREADY_ADDED: { status: 409, code: 'ALREADY_ADDED', message: 'That add-on is already on this visit' },
   // Raised by queue_checkout for a range-priced or unpriced service: there is no derivable
   // total, so the caller has to say what was actually charged rather than have the floor banked.
   AMOUNT_REQUIRED: {

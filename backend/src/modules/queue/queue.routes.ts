@@ -12,6 +12,7 @@ import {
   moveSchema,
   queueQuerySchema,
   reassignSchema,
+  removeExtraSchema,
 } from './queue.schemas';
 import * as queue from './queue.service';
 
@@ -113,7 +114,28 @@ queueRouter.post(
   validate({ params: entryParams, body: extendSchema }),
   requireOwnRow('queue_entry'),
   asyncHandler(async (req, res) => {
-    res.json(await queue.extendService(req.principal!.businessId, req.params.id, req.body.label, req.body.minutes));
+    res.json(
+      await queue.extendService(
+        req.principal!.businessId,
+        req.params.id,
+        req.body.label,
+        req.body.minutes,
+        req.body.pricePaise,
+      ),
+    );
+  }),
+);
+
+// The inverse of extend: a tap on a highlighted add-on chip. Same guards — a staff login may only
+// change its own chair's customer.
+queueRouter.post(
+  '/:id/remove-extra',
+  limiters.ownerWrite,
+  requirePermission('queue', 'manage'),
+  validate({ params: entryParams, body: removeExtraSchema }),
+  requireOwnRow('queue_entry'),
+  asyncHandler(async (req, res) => {
+    res.json(await queue.removeExtra(req.principal!.businessId, req.params.id, req.body.label));
   }),
 );
 
