@@ -14,11 +14,16 @@
 //   - a service booked as an extra at walk-in (multi-service) comes off the same way;
 //   - an unpriced and a range service with priced add-ons: the server still suggests nothing, names
 //     the service, and checkout banks exactly "service price + add-ons" — the sum the sheet's
-//     "Total to charge" sends (the client's bug of 2026-10-06).
+//     "Total to charge" sends (the client's bug of 2026-10-06);
+//   - (0040) a no-price service picked SECOND — an add-on row at ₹0 — is flagged priceRequired and
+//     blocks a derived checkout, on all three paths that attach services: an owner walk-in, a
+//     customer's waitlist join and an appointment check-in. Picked first, nothing extra is flagged;
+//     a ₹0 chip add-on is never flagged.
 //
 // RE-RUNNABLE: it creates its own chair and services each run (unique names) and removes the chair
 // at the end, so it does not depend on — or disturb — the seeded queue. Each run spends ONE login
-// of the 10-per-5-minutes limiter (see smoke-rest.mjs).
+// of the 10-per-5-minutes limiter (see smoke-rest.mjs) and TWO public writes (a join and a booking)
+// of `publicWrite`'s 20 per hour — restart the API if a run starts reading 429.
 //
 // SMOKE_BASE_URL points the run at a non-default port, for when a dev API already holds 8080.
 const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:8080/api/v1';
@@ -181,6 +186,73 @@ async function main() {
   const revRange = await revenue();
   await call('POST', `/queue/${rangeId}/checkout`, { token, body: { amountPaise: 450000 + b.extrasAmount.amount } });
   ok((await revenue()) - revRange === 450000, 'banked the chosen ₹4,500');
+
+  console.log('A NO-PRICE SERVICE PICKED SECOND MUST STILL BE PRICED (0040)');
+  // "Hair wash, then Hair cut": the haircut becomes an add-on row at ₹0. Before 0040 nothing
+  // marked it, so checkout derived ₹100 for a haircut-and-wash. Checked on every path that
+  // attaches services: an owner walk-in, a customer's waitlist join, and a booking's check-in.
+  async function assertUnpricedSecond(entryId, how) {
+    const bill = await detail(entryId);
+    const cutRow = bill.extras.find((x) => x.label === unsetSvc.name);
+    ok(cutRow?.priceRequired === true, `${how}: the no-price service is flagged priceRequired (got ${JSON.stringify(cutRow)})`);
+    ok(bill.extras.every((x) => x.label === unsetSvc.name || x.priceRequired === false), `${how}: priced rows are not flagged`);
+    ok(bill.amountRequired === true && bill.suggestedAmount === null, `${how}: an amount is required, nothing is suggested`);
+    const bare = await call('POST', `/queue/${entryId}/checkout`, { token });
+    ok(bare.status === 422 && bare.json.error?.code === 'AMOUNT_REQUIRED', `${how}: an empty checkout cannot derive ₹100 (got ${bare.status} ${bare.json.error?.code})`);
+    ok(bare.json.error?.message === 'Enter the final amount for this visit', `${how}: the refusal says what to do (got "${bare.json.error?.message}")`);
+    const rev = await revenue();
+    const out = await call('POST', `/queue/${entryId}/checkout`, { token, body: { amountPaise: 30000 } });
+    ok(out.status === 200 && (await revenue()) - rev === 30000, `${how}: checkout with wash ₹100 + haircut ₹200 banks ₹300`);
+  }
+
+  const ownerWalkIn = await inChair('Second Sana', { serviceIds: [washSvc.id, unsetSvc.id] });
+  // A chip add-on typed at ₹0 is a decision, never "required".
+  await call('POST', `/queue/${ownerWalkIn}/extend`, { token, body: { label: 'Head massage', minutes: 15, pricePaise: 0 } });
+  ok((await detail(ownerWalkIn)).extras.find((x) => x.label === 'Head massage')?.priceRequired === false, 'a ₹0 chip add-on is not flagged');
+  await assertUnpricedSecond(ownerWalkIn, 'owner walk-in');
+
+  const cutFirst = await inChair('First Farid', { serviceIds: [unsetSvc.id, washSvc.id] });
+  const cutFirstBill = await detail(cutFirst);
+  ok(
+    cutFirstBill.servicePriceType === 'unset' && cutFirstBill.extras.every((x) => x.priceRequired === false),
+    'picked first: the main service is the unpriced one, and the priced extra is not flagged',
+  );
+  await call('POST', `/queue/${cutFirst}/checkout`, { token, body: { amountPaise: 30000 } });
+
+  const join = await call('POST', '/public/businesses/sharp-cuts/queue', {
+    body: { name: 'Joined Jaya', phone: `+9195550${String(run).slice(-5)}`, serviceIds: [washSvc.id, unsetSvc.id], preferredStaffId: chair },
+  });
+  ok(join.status === 201, `customer joins the waitlist with both (got ${join.status} ${join.json.error?.message ?? ''})`);
+  const joinStart = await call('POST', `/queue/${join.json.ticketId}/start`, { token });
+  ok(joinStart.status === 200, `start the joined customer (got ${joinStart.status} ${joinStart.json.error?.code ?? ''})`);
+  await assertUnpricedSecond(join.json.ticketId, 'waitlist join');
+
+  // A booking: the first day in the next week with a free slot on our chair.
+  let slot = null;
+  for (let d = 1; d <= 7 && !slot; d++) {
+    const day = new Date(Date.now() + d * 86_400_000).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const slots = await call('GET', `/public/businesses/sharp-cuts/slots?date=${day}&serviceIds=${washSvc.id},${unsetSvc.id}&staffId=${chair}`);
+    slot = slots.json.slots?.[0] ?? null;
+  }
+  ok(!!slot, 'found a bookable slot on our chair');
+  if (slot) {
+    const book = await call('POST', '/public/businesses/sharp-cuts/appointments', {
+      body: {
+        name: 'Booked Bela',
+        phone: `+9195551${String(run).slice(-5)}`,
+        serviceIds: [washSvc.id, unsetSvc.id],
+        preferredStaffId: chair,
+        slotStart: slot.startAt,
+      },
+    });
+    ok(book.status === 201, `book the wash + haircut (got ${book.status} ${book.json.error?.message ?? ''})`);
+    const checkIn = await call('POST', `/appointments/${book.json.appointmentId}/check-in`, { token });
+    ok(checkIn.status === 201, `check the booking in (got ${checkIn.status} ${checkIn.json.error?.code ?? ''})`);
+    const bookedEntry = checkIn.json.entry?.id;
+    const bookedStart = await call('POST', `/queue/${bookedEntry}/start`, { token });
+    ok(bookedStart.status === 200, `start the booked customer (got ${bookedStart.status} ${bookedStart.json.error?.code ?? ''})`);
+    await assertUnpricedSecond(bookedEntry, 'appointment check-in');
+  }
 
   console.log('CLEANUP');
   const removed = await call('DELETE', `/staff/${chair}`, { token });

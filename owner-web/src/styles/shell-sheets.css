@@ -795,6 +795,10 @@
   outline: 2px solid var(--primary);
   outline-offset: 1px;
 }
+.dp-close .dp-icon-back,
+.dp-close .dp-icon-x {
+  display: inline-flex;
+}
 .dp-close .dp-icon-x {
   display: none;
 }
@@ -805,12 +809,38 @@
   line-height: 1.3;
   color: var(--text-strong);
 }
+/* Everything but the actions scrolls here, as one page — the customer, and while they are in the
+   chair the whole checkout (amount, add-ons, bill). The checkout used to sit in the pinned footer,
+   which on a laptop squeezed this area into a ~60px strip with its own scrollbar. */
 .dp-scroll {
   flex: 1 1 auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 4px 20px 20px;
+}
+.dp-scroll.has-checkout {
+  padding-bottom: 0;
+}
+/* The checkout: the card-coloured panel the footer continues, filling the rest of the page so the
+   colour never stops short of the buttons on a tall screen. */
+.dp-checkout {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px -20px 0;
+  padding: 16px 20px 18px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+}
+/* Watched by an IntersectionObserver: out of view = more content under the pinned footer. */
+.dp-scroll-end {
+  flex-shrink: 0;
+  height: 1px;
+  margin-top: -1px;
 }
 .dp-hero {
   display: flex;
@@ -940,18 +970,26 @@
   line-height: 1.5;
   color: var(--text-muted);
 }
-/* Pinned, so the actions can never be pushed off a small phone. It scrolls itself only if the
-   in-service footer (amount, eight add-ons, breakdown, two buttons) outgrows a tiny screen. */
+/* Pinned, so the actions can never be pushed off a small phone. Only the actions live here now
+   (plus the line saying why Complete is disabled); the bounded scroll is a safety net for a
+   landscape phone, not something a normal screen ever shows. */
 .dp-footer {
+  position: relative;
+  z-index: 1;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 72dvh;
+  max-height: 60dvh;
   overflow-y: auto;
-  padding: 14px 20px calc(10px + env(safe-area-inset-bottom));
+  padding: 12px 20px calc(10px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border-subtle);
   background: var(--surface-card);
+  transition: box-shadow 160ms ease;
+}
+/* Content is scrolled under the footer: a soft edge says "there is more above". */
+.dp-footer.is-raised {
+  box-shadow: 0 -10px 18px -14px rgb(15 23 42 / 0.4);
 }
 .dp-label {
   margin: 0;
@@ -1110,6 +1148,107 @@
   font-weight: 600;
   color: var(--text-body);
 }
+/* "Total to charge": the box, live — what Complete will charge. It closes the bill. */
+.dp-breakdown li.grand {
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+/* A bill row whose price has to be typed (a service with no price). */
+.dp-breakdown li.dp-req-row {
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-body);
+}
+.dp-req-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dp-req-star {
+  margin-left: 3px;
+  color: var(--error);
+}
+.dp-req-field {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 128px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong, var(--border-default));
+  border-radius: 10px;
+  background: var(--surface-card);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.dp-req-field:focus-within {
+  border-color: var(--primary);
+  box-shadow: var(--ring);
+}
+.dp-req-field.is-invalid {
+  border-color: var(--error);
+}
+.dp-req-prefix {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+/* Same reset as the amount box: the global input rule would give it a second border and height.
+   16px on a phone so iOS does not zoom the page into the field. */
+.dp .dp-req-input,
+.dp .dp-req-input:focus {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* Why Complete is disabled — and a tap away from the field that fixes it. */
+.dp-req-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--warning-soft, #fff7ed);
+  color: var(--warning-soft-fg, #9a3412);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+.dp-req-hint:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.dp-req-hint svg {
+  flex-shrink: 0;
+}
 .dp-breakdown-loading {
   display: grid;
   gap: 7px;
@@ -1142,15 +1281,18 @@
     display: none;
   }
   .dp-close .dp-icon-x {
-    display: inline-block;
+    display: inline-flex;
   }
-  /* Still bounded, and still scrolls itself: the dialog clips (overflow: hidden), and 641px+ is
-     also a phone on its side — 844×390 gives a 343px dialog, while the in-service footer (amount,
-     eight add-ons, breakdown, two buttons) is ~470px. Unbounded, Complete & start next sat below
-     the clip with no way to reach it. The 64px is the top bar. */
+  /* Still bounded: the dialog clips (overflow: hidden), and 641px+ is also a phone on its side —
+     844×390 gives a 343px dialog. The footer only holds the actions now, so this is a safety net
+     rather than the old 470px scrolling footer. The 64px is the top bar. */
   .dp-footer {
     max-height: calc(min(88vh, 860px) - 64px);
     padding-bottom: 18px;
+  }
+  .dp .dp-req-input,
+  .dp .dp-req-input:focus {
+    font-size: 15px;
   }
 }
 
