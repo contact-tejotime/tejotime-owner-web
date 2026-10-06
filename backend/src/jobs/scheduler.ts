@@ -38,9 +38,10 @@ async function staleCleanup() {
 }
 
 /**
- * Recompute ETA / fire the wait-window ticket socket events for businesses that have waiting
- * online live-queue entries. Needed because wall-clock decay of the
- * in-service chair can cross a threshold with no owner mutation.
+ * Recompute ETA / fire the wait-window ticket socket events (and the check-in "starts in 15
+ * minutes" text, docs/sms-opt-in-a2p.md) for businesses that have waiting online live-queue
+ * entries. Needed because wall-clock decay of the in-service chair can cross a threshold with no
+ * owner mutation.
  * Idempotent via notified_eta_15_at / notified_eta_2_at claims inside broadcastQueue.
  */
 export async function etaNotifySweep(): Promise<void> {

@@ -31,7 +31,7 @@ import {
 import { customerSlotsForAppointment, rescheduleByCustomer } from '../appointments/reschedule.service';
 import { findOrCreateCustomer, recordReviewSmsOptIn, recordSmsOptIn } from '../customers/customer.repo';
 import { loadQueueContext } from '../queue/queue.context';
-import { sendBookingConfirmation } from '../notifications/sms-dispatch';
+import { sendBookingConfirmation, sendCheckInConfirmation } from '../notifications/sms-dispatch';
 import { broadcastQueue } from '../queue/queue.service';
 
 /** Short TTL so poll fallbacks coalesce under load without serving stale wait labels for long. */
@@ -502,24 +502,33 @@ export async function joinQueue(
   }
 
   emitToOwners(b.id, 'queue:entry.created', { entryId: result.id, seatId: staffId, source: 'online' });
+
+  // The place is final now; the broadcast below only emits, so this is also what the customer is
+  // shown. Read before the broadcast because the wait at join must be stored first (see below).
+  const fresh = await loadQueueContext(b.id);
+  const pos = ticketPosition(result.id, fresh.engineEntries, fresh.engineStaff, fresh.engineServices);
+
   // Consent flags after the RPC on purpose — do not add a parameter to queue_add (overload trap).
-  // A walk-in is no longer sent any waitlist text; only the post-visit review SMS applies to it,
-  // but `sms_opt_in` is still stored as given so an older client's tick is not lost.
+  // A ticked box gets the check-in texts (docs/sms-opt-in-a2p.md): the confirmation below, and the
+  // "starts in 15 minutes" text later — but only for a join with more than 15 minutes to wait,
+  // which is why `join_wait_minutes` (0041) is stored here, before this join's own broadcast runs
+  // the one-shot 15-minute claim. An unticked box leaves it null: no wait-based text, ever.
   const smsOptIn = input.smsOptIn === true;
   const reviewSmsOptIn = input.reviewSmsOptIn === true;
   if (smsOptIn || reviewSmsOptIn) {
     await exec(
-      `update queue_entry set sms_opt_in = $3, review_sms_opt_in = $4
+      `update queue_entry set sms_opt_in = $3, review_sms_opt_in = $4, join_wait_minutes = $5
         where id = $1 and business_id = $2`,
-      [result.id, b.id, smsOptIn, reviewSmsOptIn],
+      [result.id, b.id, smsOptIn, reviewSmsOptIn, smsOptIn ? pos.waitMinutes : null],
     );
     if (customerId && smsOptIn) await recordSmsOptIn(b.id, customerId);
     if (customerId && reviewSmsOptIn) await recordReviewSmsOptIn(b.id, customerId);
   }
   await broadcastQueue(b.id);
+  // After the broadcast, like bookSlot: a Twilio hiccup must never fail a check-in already made.
+  // A repeat check-in from the same number returned early above, so it is never texted twice.
+  if (smsOptIn) await sendCheckInConfirmation(b.id, result.id, pos.waitMinutes).catch(() => undefined);
 
-  const fresh = await loadQueueContext(b.id);
-  const pos = ticketPosition(result.id, fresh.engineEntries, fresh.engineStaff, fresh.engineServices);
   const staffName = ctx.staffRows.find((s) => s.id === staffId)?.name ?? null;
 
   return {

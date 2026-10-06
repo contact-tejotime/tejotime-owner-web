@@ -3,6 +3,7 @@ import {
   REMINDER_LEAD_MINUTES,
   SMS_TEMPLATES,
   isReminderDue,
+  isWaitlistReminderEligible,
   smsBodyBookingConfirmed,
   smsBodyReminder,
   smsBodyReview,
@@ -125,5 +126,21 @@ describe('isReminderDue', () => {
     expect(isReminderDue({ startAt: start, createdAt: at(5), now: at(4) })).toBe(false);
     // Booked exactly 15 minutes ahead still gets its reminder.
     expect(isReminderDue({ startAt: start, createdAt: at(15), now: at(10) })).toBe(true);
+  });
+});
+
+// Check in (docs/sms-opt-in-a2p.md): the "starts in 15 minutes" text only goes to someone who
+// joined the waitlist with MORE than 15 minutes to wait. Joining with 15 or less ("Almost your
+// turn", no wait) means it would arrive at once and say nothing new, so it is never sent.
+describe('isWaitlistReminderEligible', () => {
+  it('is false for a short wait at check-in, or no recorded wait', () => {
+    for (const wait of [null, undefined, 0, 1, 14, 15]) {
+      expect(isWaitlistReminderEligible(wait)).toBe(false);
+    }
+  });
+
+  it('is true once the wait at check-in was longer than 15 minutes', () => {
+    expect(isWaitlistReminderEligible(16)).toBe(true);
+    expect(isWaitlistReminderEligible(40)).toBe(true);
   });
 });

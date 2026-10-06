@@ -202,6 +202,64 @@ export async function appointmentReminderSweep(now = new Date()): Promise<number
   return sent;
 }
 
+/** The queue entry + store fields both check-in texts need. */
+async function loadCheckInEntry(businessId: string, entryId: string) {
+  return one<{
+    customer_name: string;
+    customer_phone: string | null;
+    sms_opt_in: boolean;
+    name: string;
+    timezone: string;
+    phone_full: string | null;
+    address: string | null;
+  }>(
+    `select q.customer_name, q.customer_phone, q.sms_opt_in,
+            b.name, b.timezone, b.phone_full, b.address
+       from queue_entry q join business b on b.id = q.business_id
+      where q.id = $1 and q.business_id = $2`,
+    [entryId, businessId],
+  );
+}
+
+/**
+ * Message 1 for Check in — sent right after a website check-in, only if the box was ticked. A
+ * walk-in has no booked time, so the approved wording carries the waitlist's estimate (now + the
+ * estimated wait, on the store's clock); with no wait that is simply now. The link is the store
+ * page, where Check Waitlist Status finds the place by phone.
+ */
+export async function sendCheckInConfirmation(businessId: string, entryId: string, waitMinutes: number): Promise<void> {
+  const e = await loadCheckInEntry(businessId, entryId);
+  if (!e || e.sms_opt_in !== true) return;
+  const estimate = new Date(Date.now() + Math.max(0, waitMinutes) * 60_000);
+  const { date, time } = smsDateTime(estimate, e.timezone);
+  await recordSmsNotification({
+    businessId,
+    phone: e.customer_phone,
+    optIn: true,
+    queueEntryId: entryId,
+    template: SMS_TEMPLATES.bookingConfirmed,
+    body: smsBodyBookingConfirmed(e.customer_name, e.name, date, time, storeUrl(e.phone_full)),
+  });
+}
+
+/**
+ * Message 2 for Check in — called once, by the ticket broadcast in queue.service.ts, when the
+ * one-shot `notified_eta_15_at` claim lands for a customer who joined with more than 15 minutes to
+ * wait (isWaitlistReminderEligible). The claim is what makes it one-shot.
+ */
+export async function sendWaitlistReminder(businessId: string, entryId: string): Promise<void> {
+  const e = await loadCheckInEntry(businessId, entryId);
+  if (!e || e.sms_opt_in !== true) return;
+  await recordSmsNotification({
+    businessId,
+    phone: e.customer_phone,
+    optIn: true,
+    queueEntryId: entryId,
+    template: SMS_TEMPLATES.appointmentReminder,
+    body: smsBodyReminder(e.customer_name, e.name, e.address),
+  });
+}
+
 /**
  * Message 3 — after checkout, only if the separate review box was ticked AND the store has set a
  * Google review link. One-shot via the thank_you_sent_at claim (0028).

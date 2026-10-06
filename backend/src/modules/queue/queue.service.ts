@@ -6,6 +6,7 @@ import { Errors } from '../../domain/errors';
 import { normalizePhone } from '../../lib/phone';
 import { initials } from '../../lib/format';
 import { shouldNotifyEta } from '../../lib/eta-notify';
+import { isWaitlistReminderEligible } from '../../lib/sms-copy';
 import {
   buildSeatGroups,
   flatCards,
@@ -16,7 +17,7 @@ import {
 } from '../../lib/queue-engine';
 import { emitToOwners, emitToPublic, emitToTicket } from '../../realtime/emitters';
 import { findOrCreateCustomer } from '../customers/customer.repo';
-import { sendReviewRequest } from '../notifications/sms-dispatch';
+import { sendReviewRequest, sendWaitlistReminder } from '../notifications/sms-dispatch';
 import { loadQueueContext, QueueContext } from './queue.context';
 
 // ---------- DTO mappers ----------
@@ -266,10 +267,11 @@ const ETA_NOTIFY_15_MINUTES = 15;
 const ETA_NOTIFY_2_MINUTES = 2;
 
 /**
- * Per-ticket socket pushes. These used to double as the waitlist SMS (joined / ~15 / ~2 / your
- * turn); that set was replaced by the three appointment texts in modules/notifications/sms-dispatch.ts
- * (docs/sms-opt-in-a2p.md), so nothing here calls Twilio any more — the one-shot claims remain so
- * each socket event still fires once per ticket.
+ * Per-ticket socket pushes, each fired once per ticket by its one-shot claim. The old waitlist SMS
+ * set (joined / ~15 / ~2 / your turn) is gone; the one text sent from here is the approved
+ * "starts in 15 minutes" (docs/sms-opt-in-a2p.md), riding on the ~15-minute claim — and only for a
+ * customer who checked in with more than 15 minutes to wait (join_wait_minutes, 0041). The check-in
+ * confirmation is sent by joinQueue itself.
  */
 async function processTicketBroadcasts(businessId: string, ctx: QueueContext): Promise<void> {
   for (const entry of ctx.entries) {
@@ -315,6 +317,11 @@ async function processTicketBroadcasts(businessId: string, ctx: QueueContext): P
           waitMinutes: pos.waitMinutes,
           thresholdMinutes: ETA_NOTIFY_15_MINUTES,
         });
+        // Not awaited: this loop runs inside owner mutations, and a Twilio round-trip must not
+        // slow a checkout. The claim above already made it one-shot; the sender never throws.
+        if (isWaitlistReminderEligible(entry.join_wait_minutes)) {
+          void sendWaitlistReminder(businessId, entry.id).catch(() => undefined);
+        }
       }
     }
 
