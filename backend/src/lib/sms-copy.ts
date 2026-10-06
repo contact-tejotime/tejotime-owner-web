@@ -78,6 +78,16 @@ export function smsBodyReview(customerName: string, businessName: string, review
 }
 
 /**
+ * Check in: the "starts in 15 minutes" text goes only to someone who joined the waitlist with MORE
+ * than REMINDER_LEAD_MINUTES to wait. Joining with less ("Almost your turn", no wait) would send it
+ * at once, straight after the confirmation, saying nothing new. Null = no wait was recorded at
+ * check-in (owner walk-in, appointment check-in, unticked box, a row from before 0041).
+ */
+export function isWaitlistReminderEligible(joinWaitMinutes: number | null | undefined): boolean {
+  return typeof joinWaitMinutes === 'number' && joinWaitMinutes > REMINDER_LEAD_MINUTES;
+}
+
+/**
  * Pure reminder window: due once the appointment is at most REMINDER_LEAD_MINUTES away and has
  * not started. A booking made inside that window already got its confirmation a moment ago, so it
  * is skipped rather than texted twice back to back.

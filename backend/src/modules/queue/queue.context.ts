@@ -24,6 +24,8 @@ export interface RawEntry {
   notified_eta_2_at: string | null;
   visitor_type: 'mr' | 'patient' | null;
   sms_opt_in: boolean;
+  /** Estimated wait at a ticked website check-in (0041); null otherwise. Gates the 15-minute text. */
+  join_wait_minutes: number | null;
 }
 
 export interface QueueContext {
