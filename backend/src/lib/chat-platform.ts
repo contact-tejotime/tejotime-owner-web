@@ -127,7 +127,7 @@ export const PLATFORM_FACTS: PlatformFacts = {
     {
       name: 'Starter',
       price: 'Free',
-      per: 'during the U.S. pilot',
+      per: 'for the first month, then $9.99/month',
       who: 'Best for independent providers.',
       feats: ['Branded booking page', 'One provider schedule', 'Client profiles', 'Optional walk-in waitlist'],
     },

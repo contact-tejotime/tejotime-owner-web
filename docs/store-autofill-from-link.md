@@ -59,10 +59,13 @@ The **first** fetch into a still-empty **create** form applies everything at onc
 "Empty" is `isPristineCreate` (`lib/store-import.ts`): no typed name / category / tagline /
 description / address / area / city and no real service or staff row (the blank placeholder rows and
 the default hours do not count), **and** no earlier fetch was applied to this form (a `hasImported` ref).
-Picking a category pre-fills the headline with the store type's first suggestion (2026-10-05). That
-self-filled headline is never counted as typed data: `runImport` blanks it before `isPristineCreate`
-and the review items see the form, so the page's own headline shows as a ticked fill. The picked
-category itself still counts as typed data, as before.
+Picking a category pre-fills the headline with the store type's first suggestion (2026-10-05), and
+the About heading and text with the store type's starter (2026-10-08, client review row 36). That
+self-filled text is never counted as typed data: `runImport` blanks each self-filled field
+(`isAuto` in `StoreForm`) before `isPristineCreate` and the review items see the form, so the page's
+own headline or About text shows as a ticked fill. A self-filled field the page gave nothing for
+keeps following the category the import may have set. The picked category itself still counts as
+typed data, as before.
 The fill is **silent**: no "Filled in N items" banner and no warnings box, whether the page gave 2
 fields or 15 — the admin just sees the form filled and presses Save when ready. (Only "nothing
 found" is said, since a fetch that visibly does nothing reads as a broken button; a blank duration

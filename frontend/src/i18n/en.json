@@ -351,7 +351,7 @@
       {
         "name": "Starter",
         "price": "Free",
-        "per": "during the U.S. pilot",
+        "per": "for the first month, then $9.99/month",
         "who": "Best for independent providers.",
         "cta": "Start Free",
         "feats": [
@@ -896,8 +896,8 @@
     "cta": {
       "subEmpty": "No one is waiting right now. Join the waitlist and follow your place live on this page.",
       "subWaiting": "{count} waiting · {wait} · Follow your place live on this page.",
-      "subClosed": "Walk-in check-in is closed. {when}",
-      "headingClosed": "Closed right now — book your next visit",
+      "subClosed": "Pick a day and time that suits you.",
+      "headingClosed": "Book your next visit",
       "buttonClosed": "Book an Appointment",
       "button": "Check in"
     },
@@ -910,7 +910,7 @@
     "mobileBar": {
       "checkIn": "Check in",
       "book": "Book Appointment",
-      "closed": "Walk-ins closed"
+      "bookAhead": "Book ahead"
     },
     "wait": {
       "walkInNow": "No wait right now",
@@ -929,7 +929,8 @@
       "moreCount": "+{count} more",
       "minShort": "~{min}m",
       "closed": "Closed",
-      "walkInsClosed": "Walk-in check-in is closed",
+      "closedOpens": "Closed · Opens {when}",
+      "bookAhead": "Book ahead for your next visit",
       "opensAt": "Opens {when}",
       "liveOnWaitlist": " on the waitlist right now",
       "liveAllPrefix": "All ",
@@ -947,7 +948,6 @@
       "ratingReviews": "{rating} ★ {reviewCount} reviews",
       "walkInRightNow": "Walk in right now",
       "shortestWaitNow": "Shortest wait now",
-      "walkInsClosed": "Walk-ins closed",
       "teamAvailableOne": "Team member available",
       "teamAvailableMany": "Team members available",
       "teamOne": "Team member",
@@ -1065,6 +1065,7 @@
     "sections": {
       "liveFloor": "Our Team",
       "liveNote": "Choose a preferred provider, or take the shortest line. Numbers update as the {queueWord} moves.",
+      "liveNoteClosed": "Choose who you'd like to book with.",
       "waitRightNow": "Walk-in availability",
       "inService": "In service",
       "freeNow": "Available now",

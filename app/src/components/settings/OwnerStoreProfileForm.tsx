@@ -22,6 +22,11 @@ type GalleryItem = { url: string; alt?: string | null };
 
 /** The gallery heading's longest value — the API's limit (`galleryHeading` max 40). */
 const GALLERY_HEADING_MAX = 40;
+/**
+ * Most gallery photos — the API's cap (backend config/constants.ts `MAX_GALLERY_PHOTOS`): 12 since
+ * the client review of 2026-10-08 (row 26), 7 before. owner-web and the admin panel carry the same.
+ */
+const GALLERY_MAX = 12;
 
 function splitPayments(raw: string): string[] {
   return raw
@@ -84,6 +89,7 @@ export function OwnerStoreProfileForm() {
   const readyHeadings = t.galleryHeadings[family];
   const typeDefaultHeading = readyHeadings[0];
   const headlineIdeas = t.headlineSuggestions[family];
+  const aboutStarter = t.aboutStarters[family];
   // A ready-made heading from another store type (the category was just edited) shows as Custom,
   // text intact, rather than being silently dropped.
   const headingIsCustom =
@@ -136,11 +142,13 @@ export function OwnerStoreProfileForm() {
     }
     const yearRaw = establishedYear.trim();
     const year = yearRaw ? Number(yearRaw) : null;
-    if (yearRaw && (!Number.isFinite(year) || year! < 1800 || year! > 2100)) {
+    // 1900–2100 is the API's range (business.routes.ts). This said 1800 until 2026-10-08, so 1850
+    // passed here and then failed at the API with a generic error.
+    if (yearRaw && (!Number.isFinite(year) || year! < 1900 || year! > 2100)) {
       showToast(t.profile.yearInvalid, 'error');
       return;
     }
-    if (gallery.filter((g) => g.url.trim()).length > 7) {
+    if (gallery.filter((g) => g.url.trim()).length > GALLERY_MAX) {
       showToast(t.profile.galleryFull, 'error');
       return;
     }
@@ -273,6 +281,25 @@ export function OwnerStoreProfileForm() {
           multiline
           numberOfLines={5}
         />
+        {/* Optional (client review row 36), so the starter is offered, never pre-filled: filling a
+            saved form on open would publish text the owner never read on their next unrelated save.
+            Fills only the blank field(s). Same as owner-web's StoreProfileEditor. */}
+        {(!aboutHeading.trim() || !description.trim()) && (
+          <View style={s.chipRow}>
+            <Pressable
+              onPress={() => {
+                setAboutHeading((h) => (h.trim() ? h : aboutStarter.heading));
+                setDescription((d) => (d.trim() ? d : aboutStarter.text));
+              }}
+              accessibilityRole="button"
+              style={s.chip}
+            >
+              <TText variant="caption" weight="semibold" color="textBody">
+                {t.profile.aboutSuggest}
+              </TText>
+            </Pressable>
+          </View>
+        )}
         <TInput
           label={t.profile.yearLabel}
           value={establishedYear}
@@ -410,6 +437,12 @@ export function OwnerStoreProfileForm() {
             <TText variant="bodySm" color="textStrong" weight="semibold">
               {format(t.profile.galleryPhotosFor, { heading: shownHeading })}
             </TText>
+            {/* What to photograph, for this kind of store (client review row 26): customers — salon
+                clients above all — choose on the work they can see. Follows the category as typed.
+                Same text as owner-web and the admin panel. */}
+            <TText variant="caption" color="textMuted">
+              {t.galleryTips[family]}
+            </TText>
             <TText variant="caption" color="textMuted">
               {t.profile.galleryHint}
             </TText>
@@ -448,14 +481,14 @@ export function OwnerStoreProfileForm() {
             variant="secondary"
             size="md"
             loading={uploading === 'gallery'}
-            disabled={gallery.length >= 7 || uploading === 'gallery'}
+            disabled={gallery.length >= GALLERY_MAX || uploading === 'gallery'}
             onPress={() => {
-              if (gallery.length >= 7) {
+              if (gallery.length >= GALLERY_MAX) {
                 showToast(t.profile.galleryFull, 'error');
                 return;
               }
               upload('gallery', (url) =>
-                setGallery((xs) => (xs.length >= 7 ? xs : [...xs, { url, alt: null }])),
+                setGallery((xs) => (xs.length >= GALLERY_MAX ? xs : [...xs, { url, alt: null }])),
               );
             }}
           >

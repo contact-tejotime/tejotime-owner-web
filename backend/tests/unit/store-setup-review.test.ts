@@ -7,7 +7,9 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
  *        and reaches the page;
  *  - 30: the neighborhood ("area") is optional, and the page gets the city to stand in for it;
  *  - 34: the headline can't be emptied (a blank one is ignored, so old app builds still save);
- *  - 35: the highlight number/caption are accepted from old clients but never stored or returned.
+ *  - 35: the highlight number/caption are accepted from old clients but never stored or returned;
+ *  - 36: the About heading and text are optional, and a blank one is stored as NULL (the page then
+ *        leaves that piece out) on both the admin and the owner path.
  * The admin router's validation of the same fields is in optional-store-data.test.ts.
  */
 
@@ -50,7 +52,7 @@ const ROW = {
   is_active: true,
 };
 
-describe('store setup review (14 · 23 · 30 · 34 · 35)', { timeout: 30_000 }, () => {
+describe('store setup review (14 · 23 · 30 · 34 · 35 · 36)', { timeout: 30_000 }, () => {
   beforeAll(() => {
     process.env = {
       ...process.env,
@@ -98,6 +100,20 @@ describe('store setup review (14 · 23 · 30 · 34 · 35)', { timeout: 30_000 },
       const { businessColumns } = await import('../../src/modules/admin/admin.service');
       expect(businessColumns(base).area).toBeNull();
     });
+
+    it('stores missing or blank About text as NULL, so the page drops it (36)', async () => {
+      const { businessColumns } = await import('../../src/modules/admin/admin.service');
+      expect(businessColumns(base)).toMatchObject({ description: null, about_heading: null });
+      // The admin schema trims, so a field of spaces arrives here as ''.
+      expect(businessColumns({ ...base, description: '', aboutHeading: '' })).toMatchObject({
+        description: null,
+        about_heading: null,
+      });
+      expect(businessColumns({ ...base, description: 'A salon.', aboutHeading: 'About us' })).toMatchObject({
+        description: 'A salon.',
+        about_heading: 'About us',
+      });
+    });
   });
 
   describe('owner profile update', () => {
@@ -124,6 +140,18 @@ describe('store setup review (14 · 23 · 30 · 34 · 35)', { timeout: 30_000 },
       expect(dto.galleryHeading).toBe('Inside the shop');
       expect(dto).not.toHaveProperty('statValue');
       expect(dto).not.toHaveProperty('statLabel');
+    });
+
+    it('clears blank About text to NULL rather than storing spaces (36)', async () => {
+      const { updateBusiness } = await import('../../src/modules/business/business.service');
+      await updateBusiness('b1', { description: '', aboutHeading: '   ' }, { isOwner: true });
+      expect(lastUpdate()).toMatchObject({ description: null, about_heading: null });
+      // The text is a base column, so a staff login with profile: manage clears it the same way.
+      await updateBusiness('b1', { description: '  \n ' }, { isOwner: false });
+      expect(lastUpdate()).toMatchObject({ description: null });
+      // Real text is kept as written.
+      await updateBusiness('b1', { description: 'Since 2014.', aboutHeading: 'About us' }, { isOwner: true });
+      expect(lastUpdate()).toMatchObject({ description: 'Since 2014.', about_heading: 'About us' });
     });
 
     it('saves a real headline and a chosen heading', async () => {
