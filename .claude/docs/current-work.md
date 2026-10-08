@@ -911,7 +911,7 @@ guide. **Shipped** in `bc0b482`:
 - Homepage copy replaced wholesale — hero, proof bar, industry cards, feature section, online
   booking, walk-ins, client management, getting started, pricing, FAQ, closing CTA.
 - Internal production notes removed from the public site; no `$XX` placeholder pricing anywhere.
-  Pricing is Starter (free during the pilot) / Business (**"Coming soon"**) / Multi-location
+  Pricing is Starter (free for the first month, then $9.99/month — changed 2026-10-08) / Business (**"Coming soon"**) / Multi-location
   (contact us).
 - "Walk-ins" reframed as an **optional** walk-in waitlist, because walk-ins don't fit every target
   industry.

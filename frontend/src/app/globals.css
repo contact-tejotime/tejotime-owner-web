@@ -510,10 +510,13 @@ a.tj-photo-well {
   from { opacity: 0; transform: translateY(-6px) scale(0.9); }
   to { opacity: 1; transform: none; }
 }
+/* Wraps so a long caption ("for the first month, then $9.99/month") drops to its own line under
+   the price in a ~270px card, rather than shrinking into a cramped multi-line block at line-height 1. */
 .tj-plan-price {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px;
+  gap: 8px 6px;
 }
 .tj-plan.is-in .tj-plan-price {
   animation: tjFadeUp 0.45s 0.12s var(--ease-standard) both;

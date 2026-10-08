@@ -66,15 +66,16 @@ describe('answerPlatform', () => {
     expect(a.reply).toBe(PLATFORM_FACTS.faqs[0]!.a);
   });
 
-  it('quotes pricing exactly as the pricing section states it, pilot caveat included', () => {
+  it('quotes pricing exactly as the pricing section states it, free first month included', () => {
     const a = answerPlatform('how much does it cost?');
     expect(a.mode).toBe('facts');
-    expect(a.reply).toContain('Starter — Free during the U.S. pilot');
+    expect(a.reply).toContain('Starter — Free for the first month, then $9.99/month');
     expect(a.reply).toContain('Business — Coming soon');
     expect(a.reply).toContain('Multi-location — Contact us');
     expect(a.reply).toContain('No card');
-    // The one thing it must never do: put a number on a plan that has no number.
-    expect(a.reply).not.toMatch(/\$\s?\d/);
+    // The one thing it must never do: put a number on a plan that has no number. Starter's
+    // $9.99 is the only figure on the page, so it must be the only one in the reply.
+    expect(a.reply.match(/\$\s?\d[\d.,]*/g)).toEqual(['$9.99']);
     expect(a.suggestedActions.map((x) => x.type)).toEqual(['pricing', 'pilot']);
   });
 
@@ -127,7 +128,7 @@ describe('answerPlatform', () => {
   it('a discount question is answered with the real plans and never an invented discount', () => {
     const a = answerPlatform('can I get a discount for two years upfront?');
     expect(a.reply).not.toMatch(/discount|% off|percent/i);
-    expect(a.reply).toContain('Starter — Free during the U.S. pilot');
+    expect(a.reply).toContain('Starter — Free for the first month, then $9.99/month');
   });
 
   it('intents the page cannot answer produce no invented facts', () => {
@@ -169,7 +170,7 @@ describe('buildPlatformSystemPrompt', () => {
     expect(p).toContain('business owner who is evaluating it');
     expect(p).toContain('Never invent or guess prices, plans, launch dates');
     expect(p).toContain('Never claim to have created an account');
-    expect(p).toContain('Starter: Free during the U.S. pilot');
+    expect(p).toContain('Starter: Free for the first month, then $9.99/month');
     expect(p).toContain('Q: Can I cancel?');
   });
 });
