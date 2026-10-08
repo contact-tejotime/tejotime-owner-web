@@ -123,7 +123,7 @@ from the marketing site, billing view, admin team management.
   hidden in the app).
 - **No payment provider is connected yet.** The upgrade path is built behind a switch; with payments
   off, an upgrade simply flips the plan.
-- The marketing site currently sells: **Starter — Free during the U.S. pilot**, **Business — coming
+- The marketing site currently sells: **Starter — Free for the first month, then $9.99/month**, **Business — coming
   soon**, **Multi-location — contact us**.
 - **The mobile app deliberately contains no purchase or plan wording at all.** Apple rejected the
   first submission (guideline 2.1(b)) for referring to a subscription with nothing behind it, so
