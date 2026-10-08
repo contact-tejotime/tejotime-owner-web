@@ -159,6 +159,7 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
   const family = familyFor(draft.category);
   const headings = t.galleryHeadings[family];
   const headlineIdeas = t.headlineSuggestions[family];
+  const aboutStarter = t.aboutStarters[family];
   const choice = headingChoice(draft.galleryHeading, headings, customHeading);
   const headingOptions: OptionCardItem<HeadingChoice>[] = [
     { value: "default", label: format(t.profile.galleryHeadingDefault, { heading: headings[0] }) },
@@ -198,11 +199,12 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
       document.getElementById("sp-tagline")?.focus();
       return;
     }
-    // Same bounds as the app: a typo like "20144" is caught here, naming the field, instead of
-    // coming back from the API as a generic 400.
+    // Same bounds as the app AND the API (business.routes.ts, 1900–2100): a typo like "20144" is
+    // caught here, naming the field, instead of coming back as a generic 400. This said 1800 until
+    // 2026-10-08, so 1850 passed here and then failed at the API with no field named.
     const year = draft.establishedYear.trim();
     const yearNum = year ? Number(year) : null;
-    if (yearNum !== null && (!Number.isInteger(yearNum) || yearNum < 1800 || yearNum > 2100)) {
+    if (yearNum !== null && (!Number.isInteger(yearNum) || yearNum < 1900 || yearNum > 2100)) {
       setError(t.profile.yearInvalid);
       return;
     }
@@ -397,6 +399,26 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
             onChange={(e) => set("description", e.target.value)}
           />
         </SbField>
+        {/* Optional (client review row 36), so the starter is offered, never pre-filled: filling a
+            saved form on open would publish text the owner never read on their next unrelated save.
+            Fills only the blank field(s). */}
+        {(!draft.aboutHeading.trim() || !draft.description.trim()) && (
+          <div className="sb-ideas">
+            <button
+              type="button"
+              className="sb-ap-chip"
+              onClick={() =>
+                setDraft((d) => ({
+                  ...d,
+                  aboutHeading: d.aboutHeading.trim() ? d.aboutHeading : aboutStarter.heading,
+                  description: d.description.trim() ? d.description : aboutStarter.text,
+                }))
+              }
+            >
+              {t.profile.aboutSuggest}
+            </button>
+          </div>
+        )}
         <SbField id="sp-year" label={t.profile.establishedYear}>
           <input
             id="sp-year"
@@ -498,6 +520,9 @@ export function StoreProfileEditor({ business }: { business: BusinessDetail }) {
         </div>
         <div className="sb-block">
           <p className="sb-block-title">{format(t.profile.photosFor, { heading: shownHeading })}</p>
+          {/* What to photograph, for this kind of store (client review row 26): customers — salon
+              clients above all — choose on the work they can see. Follows the category as typed. */}
+          <p className="sb-field-hint">{t.galleryTips[family]}</p>
           <GalleryEditor
             images={gallery}
             onChange={(g) => {

@@ -164,6 +164,13 @@ export async function updateBusiness(
     // empty <h1>. Ignored rather than refused, because older app builds send whatever the field
     // holds on every save, and a 400 there would block the owner's other changes too.
     if (k === 'tagline' && typeof v === 'string' && !v.trim()) continue;
+    // The About heading and text are optional (client review row 36): blank — including the
+    // spaces a cleared textarea can leave — is stored as NULL, so "no About text" has one shape.
+    // Not gated on `isOwner`: the text is a BASE column a staff login with profile: manage writes.
+    if ((k === 'description' || k === 'aboutHeading') && typeof v === 'string' && !v.trim()) {
+      row[allowed[k]!] = null;
+      continue;
+    }
     // '' → NULL so the microsite drops icons / photos instead of keeping a stale URL.
     row[allowed[k]!] = clearable.has(k) && v === '' ? null : v;
   }

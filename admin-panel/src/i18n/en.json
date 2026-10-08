@@ -508,7 +508,7 @@
     "noImage": "No image",
     "remove": "Remove",
     "uploading": "Uploading…",
-    "chooseGallery": "Choose photos from your device (up to 7 for the live mosaic).",
+    "chooseGallery": "Choose photos from your device (up to 12 for the live mosaic).",
     "removeTitle": "Remove",
     "uploadFailed": "Upload failed",
     "partialFail": "{failed} of {total} photo failed: {reason}",
@@ -565,8 +565,6 @@
     "reqCity": "City",
     "reqAddress": "Address",
     "reqTagline": "Headline",
-    "reqAboutHeading": "About heading",
-    "reqDescription": "Description",
     "requestFailed": "Request failed ({status})",
     "somethingWrong": "Something went wrong",
     "createdOk": "Store created",
@@ -596,9 +594,10 @@
     "headlineRequired": "Add a headline — it's the biggest text on your page.",
     "bannerSubtitle": "Banner subtitle",
     "bannerSubtitlePlaceholder": "e.g. track your turn from your phone",
-    "aboutHeading": "About heading *",
-    "description": "Description *",
-    "establishedYear": "Established year",
+    "aboutHeading": "About heading (optional)",
+    "description": "About text (optional)",
+    "aboutSuggest": "Use suggested text",
+    "establishedYear": "Year opened (optional)",
     "rating": "Rating (0–5)",
     "reviewCount": "Review count",
     "payments": "Payments (comma-separated)",
@@ -626,7 +625,7 @@
     "galleryHeadingCustom": "Custom…",
     "galleryHeadingPlaceholder": "Write your own heading",
     "galleryPhotosFor": "Photos for: {heading}",
-    "galleryHint": "Upload from your device. Up to 7 photos fill the live-site mosaic. The first photo shows largest. Drag photos to reorder.",
+    "galleryHint": "Upload from your device. Up to 12 photos fill the live-site mosaic. The first photo shows largest. Drag photos to reorder.",
     "servicesOptional": "Services",
     "serviceName": "Name",
     "duration": "Duration (min)",
@@ -712,6 +711,35 @@
     "food": ["Fresh food, ready when you are"],
     "fitness": ["Train hard. Skip the line."],
     "generic": ["Book ahead or join the line — your time matters"]
+  },
+  "aboutStarters": {
+    "beauty": {
+      "heading": "Look and feel your best",
+      "text": "We're a friendly local team who take the time to listen and get every detail right. Book online in a few taps — we look forward to seeing you."
+    },
+    "clinic": {
+      "heading": "Care that puts you first",
+      "text": "Our team gives every patient unhurried, personal attention in a calm, welcoming setting. Book your visit online in a few taps."
+    },
+    "food": {
+      "heading": "Fresh food, made with care",
+      "text": "We cook fresh every day and keep things friendly and relaxed. Book ahead online and we'll be ready for you."
+    },
+    "fitness": {
+      "heading": "Train at your own pace",
+      "text": "Our coaches help you build strength and confidence, whatever your starting point. Book your session online in a few taps."
+    },
+    "generic": {
+      "heading": "Friendly service, on your schedule",
+      "text": "We're a local business that values your time. Book online in a few taps and we'll be ready when you arrive."
+    }
+  },
+  "galleryTips": {
+    "beauty": "Show your best finished work: fresh cuts, color results, styling, nail sets, and before-and-after shots (with your client's okay). Real photos of your own work win more bookings than stock images.",
+    "clinic": "Show your space and your team: reception, treatment rooms, equipment, and staff at work. Real photos help patients feel at ease before they arrive.",
+    "food": "Show what you serve and where: signature dishes, drinks, and your dining room. Real photos of your own food work best.",
+    "fitness": "Show your space in action: equipment, classes, and coaches at work. Real photos of your own gym work best.",
+    "generic": "Show your real work and your space: finished jobs, your team, and the inside of your shop. Real photos work better than stock images."
   },
   "appearance": {
     "title": "Appearance",
@@ -980,8 +1008,8 @@
     "fieldCity": "City",
     "fieldPhone": "Phone",
     "fieldAboutHeading": "About heading",
-    "fieldDescription": "Description",
-    "fieldEstablishedYear": "Established year",
+    "fieldDescription": "About text",
+    "fieldEstablishedYear": "Year opened",
     "fieldInstagram": "Instagram",
     "fieldFacebook": "Facebook",
     "fieldTwitter": "X / Twitter",

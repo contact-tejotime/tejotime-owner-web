@@ -244,7 +244,7 @@ function MemberAvatar({ photo, name, bg }: { photo: string | null; name: string;
 export function LiveBoard({
   members,
   heading,
-  queueWord,
+  note,
   liveHeadline,
   liveSub,
   ctaLabel,
@@ -253,7 +253,8 @@ export function LiveBoard({
 }: {
   members: LiveMember[];
   heading: string;
-  queueWord: string;
+  /** Under the heading (status-copy.ts `teamNote`): closed, it says nothing about lines or live numbers. */
+  note: string;
   liveHeadline: string;
   liveSub: ReactNode;
   ctaLabel: (name: string) => string;
@@ -268,7 +269,7 @@ export function LiveBoard({
       <SectionHead
         eyebrow={t.microsite.sections.liveFloor}
         title={heading}
-        note={format(t.microsite.sections.liveNote, { queueWord })}
+        note={note}
       />
 
       <Reveal>

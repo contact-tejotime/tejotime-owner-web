@@ -216,7 +216,9 @@ visit stays an ordinary `appointment` row carrying `series_id`, see §7; 0037 ad
 `appointment.rescheduled_at` and `appointment_series.anchor_index` for moving and changing visits).
 0038 adds `business.gallery_heading`: the owner-chosen heading for the page's photo gallery
 ([docs/store-setup-review-2026-10-05.md](docs/store-setup-review-2026-10-05.md); that review also made
-the neighborhood optional, kept the headline required, and retired `stat_value`/`stat_label`).
+the neighborhood optional, kept the headline required, and retired `stat_value`/`stat_label`; its
+rows 36/39 on 2026-10-08 made the About heading and text optional, with per-store-type starter text,
+and renamed "Established year" to "Year opened (optional)", shown on the page only when entered).
 0039/0040 are the checkout add-ons ([docs/checkout-add-ons.md](docs/checkout-add-ons.md)):
 - 0039: one row per add-on label per visit, plus `queue_remove_extra`.
 - 0040: `queue_entry_extra.price_type`, so a no-price service picked second still has to be priced.
@@ -463,7 +465,11 @@ string — the card, picker and summary then omit the price), which is why `Serv
 rendered string rather than a number. Walk-in controls are gated on
 `site.hours.length > 0 && !openStatus.isOpen` — **not** on `isOpen` alone, because a store with no
 configured hours reports `isOpen: false` forever and would lose check-in entirely. The gate is
-**UI-only**: the API still accepts an out-of-hours join.
+**UI-only**: the API still accepts an out-of-hours join. A closed store says **"Closed" once**, in
+the hero "Right now" card. The banner, the phone bar and the team note turn to booking instead. Every
+open/closed/wait string comes from `components/microsite/status-copy.ts`, checked by
+`npm run test:status-copy` (client review row 27,
+[docs/store-setup-review-2026-10-05.md](docs/store-setup-review-2026-10-05.md)).
 
 **Category behaviour** (`config/constants.ts`) — `VISITOR_TYPE_CATEGORIES` (Hospital) require
 identifying the visitor as `mr` | `patient` (display-only, never part of wait-time math). There is
@@ -634,6 +640,8 @@ test:responsive` is the same idea for the mobile app's breakpoint/grid arithmeti
 (`admin-panel/src/lib/import-diff.ts`). `npm run test:chat-flow` walks the store chat's guided
 check-in/booking state machine (`frontend/src/components/chat/flow/engine.ts`) through its
 scenario matrix — keep that file free of React and `@/` imports so it stays runnable this way.
+`npm run test:status-copy` does the same for the store page's open/closed wording
+(`frontend/src/components/microsite/status-copy.ts`, same import rule).
 And `npm run test:commission` — runs the app's and owner-web's hand-kept copies of
 `lib/commission.ts` (rate parsing/printing, store-day labels) through one case table so they cannot
 drift, plus `app/src/lib/date-grid.ts`. Both files must stay import-free.

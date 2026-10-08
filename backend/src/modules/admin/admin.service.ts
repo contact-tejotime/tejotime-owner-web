@@ -134,8 +134,10 @@ export function businessColumns(input: StoreFields) {
     hero_subtitle: input.heroSubtitle ?? null,
     // stat_value / stat_label are no longer written (the fields were removed); the columns stay
     // until no client sends them any more.
-    description: input.description ?? null,
-    about_heading: input.aboutHeading ?? null,
+    // `||`, not `??`: both are optional and the schema trims, so a field of spaces arrives as ''
+    // and must be stored as NULL — the same "blank means absent" the page reads.
+    description: input.description || null,
+    about_heading: input.aboutHeading || null,
     hero_image_url: input.heroImageUrl ?? null,
     about_image_url: input.aboutImageUrl ?? null,
     logo_url: input.logoUrl ?? null,

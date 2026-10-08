@@ -10,6 +10,7 @@ import { verifyAdminToken } from '../auth/token.service';
 import { reviewUrl } from '../business/review-url.schema';
 import { isValidTimezone } from '../../lib/phone-timezone';
 import { isoDateSchema } from '../../lib/report-window';
+import { MAX_GALLERY_PHOTOS } from '../../config/constants';
 import * as admin from './admin.service';
 import * as analytics from './admin-analytics.service';
 import * as inquiries from './admin-inquiries.service';
@@ -91,8 +92,10 @@ const storeFieldsSchema = z.object({
   statLabel: z.string().max(60).optional(),
   /** The photo gallery's heading on the page; '' clears it back to the store type's default. */
   galleryHeading: z.string().trim().max(40).optional(),
-  description: z.string().trim().min(1, 'Description is required').max(2000),
-  aboutHeading: z.string().trim().min(1, 'About heading is required').max(160),
+  // The About heading and text are optional (client review row 36, 2026-10-08): requiring them
+  // slowed setup and produced filler copy. Left blank, the page simply leaves that piece out.
+  description: z.string().trim().max(2000).optional(),
+  aboutHeading: z.string().trim().max(160).optional(),
   heroImageUrl: z.string().url().max(500).optional(),
   aboutImageUrl: z.string().url().max(500).optional(),
   logoUrl: z.string().url().max(500).optional(),
@@ -161,7 +164,7 @@ const storeFieldsSchema = z.object({
   amenities: z.array(z.string().min(1).max(60)).max(30).default([]),
   gallery: z
     .array(z.object({ url: z.string().url().max(500), alt: z.string().max(120).nullable().optional() }))
-    .max(7)
+    .max(MAX_GALLERY_PHOTOS)
     .default([]),
   services: z
     .array(

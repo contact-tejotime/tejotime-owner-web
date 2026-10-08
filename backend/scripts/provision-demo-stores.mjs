@@ -75,7 +75,7 @@ function validate(list) {
     const max = { name: 120, category: 80, area: 120, address: 300, city: 80, tagline: 160, heroSubtitle: 200, description: 2000, aboutHeading: 160 };
     for (const [field, limit] of Object.entries(max)) {
       const v = b[field];
-      if (['name', 'category', 'address', 'city', 'tagline', 'description', 'aboutHeading'].includes(field) && !String(v ?? '').trim()) bad(e, `${field} is required`);
+      if (['name', 'category', 'address', 'city', 'tagline'].includes(field) && !String(v ?? '').trim()) bad(e, `${field} is required`);
       if (v != null && String(v).length > limit) bad(e, `${field} longer than ${limit}`);
     }
     if (!/^\d{1,4}$/.test(b.countryCode) || !/^\d{6,14}$/.test(b.phoneNumber)) bad(e, 'store phone must be digits');

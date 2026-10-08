@@ -159,8 +159,12 @@ export function ImageUpload({
   );
 }
 
-/** Multi-image uploader for the gallery — appends each uploaded photo as a { url, alt } row. */
-const GALLERY_MAX = 7;
+/**
+ * Multi-image uploader for the gallery — appends each uploaded photo as a { url, alt } row.
+ * The cap is the API's (backend config/constants.ts `MAX_GALLERY_PHOTOS`): 12 since the client
+ * review of 2026-10-08 (row 26), 7 before. owner-web and the app carry the same number.
+ */
+const GALLERY_MAX = 12;
 
 /**
  * Gallery uploader.

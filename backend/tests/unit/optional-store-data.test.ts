@@ -12,10 +12,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * `backend/scripts/smoke-rest.mjs` cases.
  */
 
-const { one, many, createBusiness } = vi.hoisted(() => ({
+const { one, many, createBusiness, setGallery } = vi.hoisted(() => ({
   one: vi.fn(),
   many: vi.fn(async () => []),
   createBusiness: vi.fn(),
+  setGallery: vi.fn(async (_businessId: string, images: unknown[]) => ({ gallery: images })),
 }));
 
 vi.mock('../../src/db/pool', () => ({
@@ -31,8 +32,11 @@ vi.mock('../../src/modules/admin/admin.service', () => ({
   createBusiness,
 }));
 
+vi.mock('../../src/modules/business/business.service', () => ({ setGallery }));
+
 const SERVICES = '/api/v1/services';
 const ADMIN_BUSINESSES = '/api/v1/admin/businesses';
+const OWNER_GALLERY = '/api/v1/business/gallery';
 
 describe('optional store data', { timeout: 30_000 }, () => {
   const originalEnv = { ...process.env };
@@ -41,6 +45,7 @@ describe('optional store data', { timeout: 30_000 }, () => {
     vi.resetModules();
     one.mockReset();
     createBusiness.mockReset();
+    setGallery.mockClear();
     process.env = {
       ...originalEnv,
       NODE_ENV: 'test',
@@ -65,6 +70,7 @@ describe('optional store data', { timeout: 30_000 }, () => {
   async function app() {
     const { servicesRouter } = await import('../../src/modules/services/services.routes');
     const { adminRouter } = await import('../../src/modules/admin/admin.routes');
+    const { businessRouter } = await import('../../src/modules/business/business.routes');
     const { errorHandler } = await import('../../src/middleware/error-handler');
     const { requestId } = await import('../../src/middleware/request-id');
     const a = express();
@@ -72,6 +78,7 @@ describe('optional store data', { timeout: 30_000 }, () => {
     a.use(requestId);
     a.use('/api/v1/services', servicesRouter);
     a.use('/api/v1/admin', adminRouter);
+    a.use('/api/v1/business', businessRouter);
     a.use(errorHandler);
     return a;
   }
@@ -184,8 +191,9 @@ describe('optional store data', { timeout: 30_000 }, () => {
 
   describe('a store can be provisioned with no services, no staff and no pictures (admin API)', () => {
     /**
-     * The fields the API genuinely requires — nothing about services, staff or images, and no
-     * neighborhood ("area"), optional since the client review of 2026-10-05.
+     * The fields the API genuinely requires — nothing about services, staff or images, no
+     * neighborhood ("area"), optional since the client review of 2026-10-05, and no About heading
+     * or text, optional since its row 36 (2026-10-08).
      */
     const minimalStore = () => ({
       name: 'Curv Beauty',
@@ -193,8 +201,6 @@ describe('optional store data', { timeout: 30_000 }, () => {
       address: '1 Main St',
       city: 'Naples',
       tagline: 'Hair and beauty',
-      description: 'A salon.',
-      aboutHeading: 'About us',
       countryCode: '91',
       phoneNumber: '9399385943',
       hours: [],
@@ -226,6 +232,24 @@ describe('optional store data', { timeout: 30_000 }, () => {
         .send(minimalStore());
       expect(res.status).toBe(201);
       expect(createBusiness.mock.calls[0]![0].area).toBeUndefined();
+    });
+
+    it('needs no About heading or text; blank ones are accepted and long ones refused (point 36)', async () => {
+      createBusiness.mockResolvedValue({ id: 'b-new' });
+      const send = async (extra: Record<string, string>) =>
+        request(await app())
+          .post(ADMIN_BUSINESSES)
+          .set('authorization', `Bearer ${await adminToken()}`)
+          .send({ ...minimalStore(), ...extra });
+      expect((await send({})).status).toBe(201);
+      expect(createBusiness.mock.calls[0]![0].description).toBeUndefined();
+      expect(createBusiness.mock.calls[0]![0].aboutHeading).toBeUndefined();
+      // Spaces are trimmed to '' (businessColumns then stores NULL), not refused.
+      expect((await send({ description: '   ', aboutHeading: ' ' })).status).toBe(201);
+      expect(createBusiness.mock.calls[1]![0]).toMatchObject({ description: '', aboutHeading: '' });
+      expect((await send({ description: 'x'.repeat(2001) })).status).toBe(400);
+      expect((await send({ aboutHeading: 'x'.repeat(161) })).status).toBe(400);
+      expect(createBusiness).toHaveBeenCalledTimes(2);
     });
 
     it('still takes the removed highlight fields from an old admin build, rather than failing the save', async () => {
@@ -355,6 +379,48 @@ describe('optional store data', { timeout: 30_000 }, () => {
       expect(reply).toContain('• Haircut — 30 min');
       expect(reply).toContain('• Beard Trim — ₹150 · 15 min');
       expect(reply).not.toMatch(/Price on request/i);
+    });
+  });
+
+  describe('the photo gallery holds up to 12 photos (client review row 26, 2026-10-08; it was 7)', () => {
+    const photos = (n: number) => Array.from({ length: n }, (_, i) => ({ url: `https://cdn.example.com/g${i}.jpg`, alt: null }));
+
+    it('the owner can save 12 photos; a 13th is refused before anything is written', async () => {
+      const a = await app();
+      const token = await ownerToken();
+      const twelve = await request(a).put(OWNER_GALLERY).set('authorization', `Bearer ${token}`).send({ images: photos(12) });
+      expect(twelve.status).toBe(200);
+      expect(setGallery).toHaveBeenCalledTimes(1);
+      expect(setGallery.mock.calls[0]![1]).toHaveLength(12);
+
+      const thirteen = await request(a).put(OWNER_GALLERY).set('authorization', `Bearer ${token}`).send({ images: photos(13) });
+      expect(thirteen.status).toBe(400);
+      expect(setGallery).toHaveBeenCalledTimes(1);
+    });
+
+    it('admin create takes 12 photos and refuses 13', async () => {
+      createBusiness.mockResolvedValue({ id: 'b-new' });
+      const send = async (n: number) =>
+        request(await app())
+          .post(ADMIN_BUSINESSES)
+          .set('authorization', `Bearer ${await adminToken()}`)
+          .send({ ...minimalStoreForGallery(), gallery: photos(n) });
+      expect((await send(12)).status).toBe(201);
+      expect(createBusiness.mock.calls[0]![0].gallery).toHaveLength(12);
+      expect((await send(13)).status).toBe(400);
+      expect(createBusiness).toHaveBeenCalledTimes(1);
+    });
+
+    const minimalStoreForGallery = () => ({
+      name: 'Curv Beauty',
+      category: 'Salon & Barber',
+      address: '1 Main St',
+      city: 'Naples',
+      tagline: 'Hair and beauty',
+      countryCode: '91',
+      phoneNumber: '9399385943',
+      hours: [],
+      owner: { password: 'secret123' },
     });
   });
 });
