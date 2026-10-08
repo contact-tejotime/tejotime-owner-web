@@ -32,7 +32,9 @@ export interface GalleryImage {
 export function GalleryEditor({
   images,
   onChange,
-  max = 7,
+  // The API's cap (backend config/constants.ts `MAX_GALLERY_PHOTOS`): 12 since the client review
+  // of 2026-10-08 (row 26), 7 before. The admin panel and the app carry the same number.
+  max = 12,
 }: {
   images: GalleryImage[];
   onChange: (next: GalleryImage[]) => void;

@@ -27,6 +27,14 @@ export const MAX_SERVICES_PER_VISIT = 10;
  */
 export const BOOKING_WINDOW_DAYS = 14;
 
+/**
+ * Most photos a store's gallery may hold. 12 since the client review of 2026-10-08 (row 26 — salon
+ * clients choose on the portfolio they can see); it was 7. The page's mosaic flows to any count.
+ * The uploaders in admin-panel, owner-web and app carry the same number by hand, as do the hint
+ * strings that print it — change them together.
+ */
+export const MAX_GALLERY_PHOTOS = 12;
+
 export const SERVICE_EXTRAS = [
   // Default / Barber
   { label: 'Shave', minutes: 10, pricePaise: 5000 },

@@ -8,7 +8,13 @@
 //         a staff-only path is not tested here (unit test: store-setup-review.test.ts);
 //   - 34: a blank headline is ignored — the page keeps the saved one;
 //   - 35: an old client still sending statValue / statLabel saves fine, and the fields come back
-//         nowhere.
+//         nowhere;
+//   - 36: a store can be created with no About heading or text, and an owner clearing them (even to
+//         spaces) leaves both null in the page payload, so the page drops them;
+//   - 39: Year opened is shown only when entered — null in the page payload until a year is saved,
+//         the year once it is, null again when cleared; a year the API refuses (1899) is a 400;
+//   - 26: the gallery holds 12 photos (it was 7): 12 save and all reach the page payload, a 13th
+//         is a 400 and changes nothing.
 //
 // RUNNING IT
 //   cd backend && DATABASE_URL=<throwaway> npm run migrate && npm run seed && npm run dev
@@ -18,7 +24,7 @@
 // smoke-admin-staff-commission.mjs), or SMOKE_ADMIN_TOKEN (an admin JWT signed with the running API's
 // JWT_ACCESS_SECRET for an active admins row). Without either, that half is skipped and says so.
 // The admin-created store is deactivated at the end (there is no delete-store endpoint). The owner
-// half restores the Sharp Cuts headline it changes. Use a throwaway database.
+// half restores the Sharp Cuts About text, year and gallery it changes. Use a throwaway database.
 const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:8080/api/v1';
 const OWNER_PHONE = '919399385943';
 const OWNER_PASSWORD = 'password123';
@@ -79,10 +85,53 @@ async function ownerHalf() {
 
   // 30 — the page payload carries the city, for when the neighborhood is blank.
   ok(typeof site3.json.city === 'string' && site3.json.city.length > 0, `the page payload carries the city ("${site3.json.city}")`);
+
+  const restore = {
+    aboutHeading: before.json.aboutHeading ?? '',
+    description: before.json.description ?? '',
+    establishedYear: before.json.establishedYear ?? '',
+  };
+  try {
+    // 36 — the About heading and text are optional; blank (spaces too) is stored as NULL.
+    const blankStory = await call('PATCH', '/business', { token, body: { aboutHeading: '', description: '   ' } });
+    const site4 = await call('GET', '/public/businesses/sharp-cuts');
+    ok(blankStory.status === 200 && site4.json.aboutHeading === null && site4.json.description === null,
+      `blank About heading and text → both null in the page payload (${blankStory.status}; got ${JSON.stringify([site4.json.aboutHeading, site4.json.description])})`);
+
+    // 39 — Year opened is shown only when entered.
+    const badYear = await call('PATCH', '/business', { token, body: { establishedYear: 1899 } });
+    ok(badYear.status === 400, `year opened 1899 → 400 (got ${badYear.status})`);
+    const setYear = await call('PATCH', '/business', { token, body: { establishedYear: 2015 } });
+    const site5 = await call('GET', '/public/businesses/sharp-cuts');
+    ok(setYear.status === 200 && site5.json.establishedYear === 2015, `year opened 2015 → the page payload carries 2015 (${site5.json.establishedYear})`);
+    const clearYear = await call('PATCH', '/business', { token, body: { establishedYear: '' } });
+    const site6 = await call('GET', '/public/businesses/sharp-cuts');
+    ok(clearYear.status === 200 && site6.json.establishedYear === null, `year opened cleared → null, so the page shows no year (${site6.json.establishedYear})`);
+  } finally {
+    const back = await call('PATCH', '/business', { token, body: restore });
+    ok(back.status === 200, `Sharp Cuts' About text and year restored (${back.status})`);
+  }
+
+  // 26 — the gallery holds 12 photos.
+  const savedGallery = (before.json.gallery ?? []).map((g) => ({ url: g.url, alt: g.alt ?? null }));
+  const photos = (n) => Array.from({ length: n }, (_, i) => ({ url: `https://example.com/smoke-gallery-${i}.jpg`, alt: null }));
+  try {
+    const twelve = await call('PUT', '/business/gallery', { token, body: { images: photos(12) } });
+    const site7 = await call('GET', '/public/businesses/sharp-cuts');
+    ok(twelve.status === 200 && (site7.json.gallery ?? []).length === 12,
+      `12 gallery photos save and all 12 reach the page payload (${twelve.status}; got ${(site7.json.gallery ?? []).length})`);
+    const thirteen = await call('PUT', '/business/gallery', { token, body: { images: photos(13) } });
+    const site8 = await call('GET', '/public/businesses/sharp-cuts');
+    ok(thirteen.status === 400 && (site8.json.gallery ?? []).length === 12,
+      `a 13th photo → 400, and the gallery is unchanged (${thirteen.status}; still ${(site8.json.gallery ?? []).length})`);
+  } finally {
+    const back = await call('PUT', '/business/gallery', { token, body: { images: savedGallery } });
+    ok(back.status === 200, `Sharp Cuts' gallery restored (${savedGallery.length} photos, ${back.status})`);
+  }
 }
 
 async function adminHalf() {
-  console.log('ADMIN (create a store with no neighborhood)');
+  console.log('ADMIN (create a store with no neighborhood, no About text and no year)');
   const token = await adminToken();
   if (!token) {
     skip('no SMOKE_ADMIN_TOKEN / SMOKE_ADMIN_MOBILE+PASSWORD — admin half did not run');
@@ -95,8 +144,7 @@ async function adminHalf() {
     address: '1 Smoke St',
     city: 'Naples',
     tagline: 'Fresh food, ready when you are',
-    description: 'Throwaway store for the store-setup smoke.',
-    aboutHeading: 'About',
+    // 36 / 39: no description, aboutHeading or establishedYear — all optional.
     countryCode: '1',
     phoneNumber,
     timezone: 'America/New_York',
@@ -113,7 +161,7 @@ async function adminHalf() {
     const created = await call('POST', '/admin/businesses', { token, body });
     id = created.json.id ?? created.json.business?.id ?? null;
     ok(created.status === 201 && !!id,
-      `created with no neighborhood and the old highlight fields (${created.status}${created.json.error ? `: ${created.json.error.message}` : ''})`);
+      `created with no neighborhood, no About text, no year and the old highlight fields (${created.status}${created.json.error ? `: ${created.json.error.message}` : ''})`);
     if (!id) return;
     const detail = await call('GET', `/admin/businesses/${id}`, { token });
     ok(detail.json.galleryHeading === 'Inside the restaurant', 'the admin detail carries the gallery heading');
@@ -121,6 +169,12 @@ async function adminHalf() {
     const site = await call('GET', `/public/businesses/by-phone/1${phoneNumber}`);
     ok(site.status === 200 && !site.json.area && site.json.city === 'Naples',
       `the page payload: no neighborhood, city "Naples" for the page to show (${site.status})`);
+    ok(site.json.aboutHeading === null && site.json.description === null, 'no About heading or text in the page payload — the page leaves the About text out');
+    ok(site.json.establishedYear === null, 'no year in the page payload — the page shows no "Since" line');
+    const withYear = await call('PUT', `/admin/businesses/${id}`, { token, body: { ...stripForUpdate(detail.json), establishedYear: 2015 } });
+    const site2 = await call('GET', `/public/businesses/by-phone/1${phoneNumber}`);
+    ok(withYear.status === 200 && site2.json.establishedYear === 2015,
+      `the admin enters year opened 2015 → the page payload carries it (${withYear.status}${withYear.json.error ? `: ${withYear.json.error.message}` : ''})`);
     const noHeadline = await call('POST', '/admin/businesses', { token, body: { ...body, tagline: '', phoneNumber: `${phoneNumber.slice(0, -1)}9` } });
     ok(noHeadline.status === 400, `creating a store without a headline is still refused (got ${noHeadline.status})`);
   } finally {

@@ -7,6 +7,7 @@ import { isOwnerRole } from '../../domain/permissions';
 import { Errors } from '../../domain/errors';
 import { reviewUrl } from './review-url.schema';
 import { isValidTimezone } from '../../lib/phone-timezone';
+import { MAX_GALLERY_PHOTOS } from '../../config/constants';
 
 /** Owner / co-owner only. The service re-checks; this gives a clear 403 before validation. */
 function requireOwnerRole(req: any, _res: any, next: any) {
@@ -104,7 +105,7 @@ const patchSchema = z
 const gallerySchema = z.object({
   images: z
     .array(z.object({ url: z.string().url().max(500), alt: z.string().max(160).nullable().optional() }))
-    .max(7),
+    .max(MAX_GALLERY_PHOTOS),
 });
 
 const hoursSchema = z.object({

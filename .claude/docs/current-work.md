@@ -9,6 +9,32 @@ the system as designed, this one describes where it actually is.
 
 ## 1. What is in flight
 
+### Store setup review rows 26 + 27 (2026-10-08)
+
+- **Row 27, closed page:** a closed store says "Closed" once, in the hero card. The banner, the
+  phone bar and the team note turn to booking, and idle staff no longer read "Available".
+  - All the status wording now comes from `frontend/src/components/microsite/status-copy.ts`.
+  - It is checked by `npm run test:status-copy`, which failed on the old wording.
+- **Row 26, gallery tips:** a photo tip per store type (`galleryTips.<family>`) above the gallery
+  hint on all three setup screens. The gallery limit went from 7 to 12 photos the same day:
+  `MAX_GALLERY_PHOTOS` in the backend, plus the three uploaders and their hint strings.
+- **Row 12** (Google review button on the page) is deliberately left for later.
+- See [docs/store-setup-review-2026-10-05.md](../../docs/store-setup-review-2026-10-05.md) §26
+  and §27.
+
+### Store setup review rows 36 + 39 (2026-10-08)
+
+- **About heading and text are optional.** Backend admin schema; blank is stored as NULL on the
+  admin and owner paths.
+- **Starter text by store type.** `aboutStarters.<family>` is hand-copied byte-identical into the
+  `en.json` of admin-panel, owner-web and app.
+  - Admin Create pre-fills it the way it pre-fills the headline.
+  - Every surface offers "Use suggested text" for a blank field.
+- **"Established year" is now "Year opened (optional)".** It is shown on the page only when entered.
+  The owner-web and app year bound is 1900 (the API's), not 1800.
+- See [docs/store-setup-review-2026-10-05.md](../../docs/store-setup-review-2026-10-05.md) §36 and
+  §39.
+
 ### Checkout: amount to charge + add-on chips (2026-10-06)
 
 Two bugs the client reported on the Customer sheet, fixed on owner-web, the app and the backend

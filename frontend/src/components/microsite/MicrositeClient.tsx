@@ -32,6 +32,7 @@ import { ThemePortalProvider } from "@/theme/ThemePortal";
 import { useThemePreview } from "@/theme/usePreviewChannel";
 import { domainFor } from "./domains";
 import { GalleryMosaic, LiveBoard, ReviewsBlock, Section, ServiceList, StatCards, Ticker } from "./sections";
+import { statusCopy } from "./status-copy";
 import "./salon.css";
 import { SocialLinks } from "./SocialLinks";
 import ChatWidget, { storeChatTitle } from "@/components/chat/ChatWidget";
@@ -361,12 +362,16 @@ const QUEUE_STAFF_PREVIEW = 6;
 function QueueWaitSummary({
   liveCount,
   members,
-  waitHeadline,
+  closedHeadline,
+  detail,
   walkInsClosed = false,
 }: {
   liveCount: number;
   members: QueueStaffMember[];
-  waitHeadline: string;
+  /** Closed with nobody queued: "Closed", shown in place of the count (status-copy.ts `card`). */
+  closedHeadline: string | null;
+  /** The line under the headline (status-copy.ts `card.detail`). */
+  detail: string;
   walkInsClosed?: boolean;
 }) {
   const freeCount = members.filter((m) => !m.busy).length;
@@ -379,9 +384,9 @@ function QueueWaitSummary({
   const isClear = !walkInsClosed && liveCount === 0 && (members.length === 0 || freeCount > 0);
 
   const headline =
-    walkInsClosed && liveCount === 0 ? (
+    closedHeadline ? (
       <span className="ttWaitCountLabel" style={{ font: "var(--fw-bold) 0.62em/1.1 var(--font-sans)", color: "var(--text-muted)" }}>
-        {t.microsite.wait.closed}
+        {closedHeadline}
       </span>
     ) : members.length === 0 ? (
       <>
@@ -457,7 +462,7 @@ function QueueWaitSummary({
           color: isClear ? "var(--success)" : walkInsClosed ? "var(--text-muted)" : "var(--text-strong)",
           // Clear floor: one number says everything, so centre it. Staff rows below stay
           // left/right aligned — they are a list, not a headline.
-          textAlign: isClear || (walkInsClosed && liveCount === 0) ? "center" : undefined,
+          textAlign: isClear || closedHeadline ? "center" : undefined,
         }}
       >
         {headline}
@@ -468,7 +473,7 @@ function QueueWaitSummary({
       {/* Closed with nobody queued: "Opens tomorrow at 9:00 AM" is a sentence, not an ETA, so it
           sits as plain centred text under "Closed". The bordered ttWaitEstimate pill made it look
           like an input field. */}
-      {walkInsClosed && liveCount === 0 && waitHeadline ? (
+      {closedHeadline && detail ? (
         <div
           style={{
             marginTop: 6,
@@ -477,9 +482,9 @@ function QueueWaitSummary({
             color: "var(--text-body)",
           }}
         >
-          {waitHeadline}
+          {detail}
         </div>
-      ) : !isClear && waitHeadline ? (
+      ) : !isClear && detail ? (
         <div
           className="ttWaitEstimate"
           style={{
@@ -488,12 +493,13 @@ function QueueWaitSummary({
             color: "var(--text-body)",
           }}
         >
-          {waitHeadline}
+          {detail}
         </div>
       ) : null}
       {/* The breakdown says "Available" against every idle seat — true of the floor, false as an
-          invitation once the doors are shut. Hidden while closed unless someone is still queued. */}
-      {members.length > 0 && !(walkInsClosed && liveCount === 0) && (
+          invitation once the doors are shut. Hidden whenever closed: it used to stay while anyone
+          was still queued, which put a green "Available" under "Closed · Opens …" (row 27). */}
+      {members.length > 0 && !walkInsClosed && (
         <ul
           style={{
             listStyle: "none",
@@ -1678,23 +1684,6 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // Shop-wide "soonest free chair" wait. A 0 means a chair is open right now, so read
   // it as an invitation ("Walk in now") rather than the nonsensical "~0 min wait".
   const displayLiveWait = displayStaffWaitMinutes(liveWait, liveAsOf, nowTs);
-  // Outside business hours the shop-wide wait is meaningless — a 0 there used to render as an
-  // invitation ("Walk in now") directly beneath the CLOSED badge.
-  //
-  // Two values, because they land in different slots: `waitHeadline` is a compact display value
-  // (the live-board tile at up to 56px, the stat tile, the mobile bar), while `waitDetail` is the
-  // supporting line under it. Closed, that reads "Closed" over "Opens Monday at 10:00 AM" rather
-  // than the same sentence three times in one card.
-  const waitHeadline = walkInsClosed
-    ? t.microsite.wait.closed
-    : displayLiveWait > 0
-      ? format(t.microsite.wait.minWait, { min: displayLiveWait })
-      : t.microsite.wait.walkInNow;
-  const waitDetail = walkInsClosed
-    ? nextOpenLabel
-      ? format(t.microsite.wait.opensAt, { when: nextOpenLabel })
-      : t.microsite.wait.walkInsClosed
-    : waitHeadline;
   // Join-form summary wait, member-aware: a specific member shows their own chair's
   // clear time; "Any" falls back to the shop-wide soonest value.
   const selMember = members.find((b) => b.id === member);
@@ -1993,6 +1982,19 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // categories fall through to the current salon copy, so nothing regresses.
   const domain = domainFor(site.category);
   const queueWord = domain.id === "clinic" ? t.microsite.queueWord.waitingList : domain.id === "food" ? t.microsite.queueWord.waitlist : t.microsite.queueWord.queue;
+  // Every open / closed / wait string on the page, from one place (status-copy.ts), so that a
+  // closed store says "Closed" once — in the hero card — and the check can prove it
+  // (npm run test:status-copy). `waitHeadline` is the compact wait value for the stat tile, the
+  // team board's tile and the open banner.
+  const status = statusCopy({
+    closed: walkInsClosed,
+    nextOpenLabel,
+    liveCount,
+    waitMinutes: displayLiveWait,
+    ctaHeading: domain.ctaHeading,
+    queueWord,
+  });
+  const waitHeadline = status.waitHeadline;
   const svcEyebrow = domain.id === "clinic" ? t.microsite.sections.svcEyebrowTreatments : t.microsite.sections.svcEyebrowMenu;
   // v3's live sub-line: an empty queue is an invitation, never a "0".
   const freeMembers = members.filter((m) => !m.busy);
@@ -2043,11 +2045,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     walkInsClosed ? null : {
       icon: "hourglass" as const,
       value: waitHeadline,
-      label: walkInsClosed
-        ? t.microsite.ticker.walkInsClosed
-        : liveCount === 0
-          ? t.microsite.ticker.walkInRightNow
-          : t.microsite.ticker.shortestWaitNow,
+      label: liveCount === 0 ? t.microsite.ticker.walkInRightNow : t.microsite.ticker.shortestWaitNow,
     },
     members.length > 0
       ? {
@@ -2168,7 +2166,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
     <div className="ttWaitCard" style={{ width: "100%", maxWidth: 430, borderRadius: "calc(26px * var(--radius-scale, 1))", padding: "clamp(18px, 2.4vw, 26px)", background: "var(--surface-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 26px 60px rgba(15,23,42,.16)" }}>
       <div style={{ font: "var(--fw-bold) 10.5px/1 var(--font-sans)", letterSpacing: ".16em", textTransform: "uppercase", color: "var(--primary)" }}>{t.microsite.hero.rightNow}</div>
       <div style={{ marginTop: 14 }}>
-        <QueueWaitSummary liveCount={liveCount} members={members} waitHeadline={waitDetail} walkInsClosed={walkInsClosed} />
+        <QueueWaitSummary
+          liveCount={liveCount}
+          members={members}
+          closedHeadline={status.card.closedHeadline}
+          detail={status.card.detail}
+          walkInsClosed={walkInsClosed}
+        />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
         {/* Closed: booking is promoted to the primary action and the walk-in button is
@@ -2349,7 +2353,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
               <LiveBoard
                 members={members}
                 heading={domain.liveHeading}
-                queueWord={queueWord}
+                note={status.teamNote}
                 liveHeadline={waitHeadline}
                 liveSub={liveStatusDark}
                 ctaLabel={liveCtaLabel}
@@ -2501,14 +2505,10 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         <div style={{ position: "absolute", bottom: -70, left: "6%", width: 170, height: 170, borderRadius: "50%", background: "rgba(255,255,255,.06)", animation: "ttFloat 10s ease-in-out infinite" }} />
         <div style={{ position: "relative", maxWidth: 1180, margin: "0 auto", padding: "calc(var(--section-y, clamp(24px, 4.4vw, 52px)) * var(--density-scale, 1)) clamp(16px, 4vw, 32px)", textAlign: "center" }}>
           <h2 style={{ font: "var(--fw-extrabold) clamp(24px, 5.2vw, 42px)/1.08 var(--font-display, var(--font-sans))", letterSpacing: "-.025em", color: "var(--on-hero)", margin: "0 0 10px" }}>
-            {walkInsClosed ? t.microsite.cta.headingClosed : domain.ctaHeading}
+            {status.cta.heading}
           </h2>
           <p style={{ font: "var(--fw-medium) 16px/1.5 var(--font-sans)", color: "rgba(255,255,255,.85)", margin: "0 0 26px" }}>
-            {walkInsClosed
-              ? format(t.microsite.cta.subClosed, { when: nextOpenLabel ? format(t.microsite.wait.opensAt, { when: nextOpenLabel }) : "" }).trim()
-              : liveCount === 0
-                ? t.microsite.cta.subEmpty
-                : format(t.microsite.cta.subWaiting, { count: liveCount, wait: waitHeadline })}
+            {status.cta.sub}
           </p>
           {domain.urgentLabel && (
             <p style={{ font: "var(--fw-semibold) 13px/1.4 var(--font-sans)", color: "rgba(255,255,255,.72)", margin: "-14px 0 22px" }}>{domain.urgentLabel}</p>
@@ -2594,11 +2594,13 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         >
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="ttMobileBarWait" style={{ font: "var(--fw-extrabold) 16px/1.2 var(--font-sans)", color: walkInsClosed ? "var(--text-muted)" : "var(--text-strong)" }}>
-              {walkInsClosed ? t.microsite.mobileBar.closed : waitHeadline}
+              {status.bar.headline}
             </div>
-            <div className="ttMobileBarCount" style={{ font: "var(--fw-semibold) 15px/1.35 var(--font-sans)", color: "var(--text-body)", marginTop: 4 }}>
-              {liveStatus}
-            </div>
+            {status.bar.sub && (
+              <div className="ttMobileBarCount" style={{ font: "var(--fw-semibold) 15px/1.35 var(--font-sans)", color: "var(--text-body)", marginTop: 4 }}>
+                {status.bar.sub === "live" ? liveStatus : status.bar.sub}
+              </div>
+            )}
           </div>
           <div style={{ flexShrink: 0 }}>
             <Button size="lg" onClick={walkInsClosed ? openBook : openQueue}>

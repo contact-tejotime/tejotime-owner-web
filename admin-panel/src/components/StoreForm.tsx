@@ -100,6 +100,21 @@ const SOCIAL_FIELDS = [
  */
 const headlineIdeasFor = (category: string): readonly string[] => t.headlineSuggestions[familyFor(category)];
 const galleryHeadingsFor = (category: string): readonly string[] => t.galleryHeadings[familyFor(category)];
+/** Starter About heading + text for the store type (client review row 36), meant to be edited. */
+const aboutStarterFor = (category: string): { heading: string; text: string } => t.aboutStarters[familyFor(category)];
+
+/**
+ * The fields a NEW store fills in for itself from its category: the headline (its type's first
+ * idea) and the About heading and text (its type's starter). Each keeps following the category
+ * until the admin writes in it — see `isAuto` / `autoAfter`.
+ */
+type AutoField = "tagline" | "aboutHeading" | "description";
+const AUTO_FIELDS: readonly AutoField[] = ["tagline", "aboutHeading", "description"];
+const suggestionFor = (key: AutoField, category: string): string => {
+  if (key === "tagline") return headlineIdeasFor(category)[0] ?? "";
+  const starter = aboutStarterFor(category);
+  return key === "aboutHeading" ? starter.heading : starter.text;
+};
 
 /** The backend's limit (admin.routes.ts `galleryHeading` max 40). */
 const GALLERY_HEADING_MAX = 40;
@@ -141,11 +156,12 @@ export default function StoreForm({
   // existing store (changing it does not convert prices), and not on a draft (its currency may be
   // a deliberate choice, as with the preset above).
   const currencyTouched = useRef(mode === "edit" || Boolean(draftId));
-  // Same idea for the headline: a NEW store's is pre-filled with its type's first suggestion and
-  // keeps following the category until the admin types one or taps an idea. Only event handlers set
-  // this — never a setForm updater, which must stay pure (StrictMode runs updaters twice). A draft
-  // counts as touched for the reason above.
-  const headlineTouched = useRef(Boolean(draftId));
+  // Same idea for the headline and the About heading/text (AUTO_FIELDS): a NEW store's are pre-filled
+  // from its type and keep following the category until the admin writes in that field (typing, an
+  // idea chip, "Use suggested text"). Only event handlers add to this — never a setForm updater,
+  // which must stay pure (StrictMode runs updaters twice). A draft counts as touched for the reason
+  // above.
+  const autoTouched = useRef<Set<AutoField>>(new Set(draftId ? AUTO_FIELDS : []));
   // Set by a save attempt with no headline. From then on a blank headline shows its inline error,
   // however the text left (typing, a category change taking back our suggestion); any text hides it.
   const [headlineError, setHeadlineError] = useState(false);
@@ -210,39 +226,67 @@ export default function StoreForm({
   };
 
   /**
-   * True while the headline is the one this form filled in itself: a create form the admin has not
-   * written a headline into, still holding its category's first suggestion. That text is ours, not
-   * the admin's — a category change may replace it, and autofill treats it as empty (runImport).
+   * True while `key` holds the text this form filled in itself: a create form the admin has not
+   * written that field into, still holding its category's suggestion. That text is ours, not the
+   * admin's — a category change may replace it, and autofill treats it as empty (runImport).
    */
-  const isAutoHeadline = (f: StoreFormState) =>
+  const isAuto = (f: StoreFormState, key: AutoField) =>
     mode === "create" &&
-    !headlineTouched.current &&
-    f.tagline !== "" &&
+    !autoTouched.current.has(key) &&
+    f[key] !== "" &&
     !!f.category &&
-    f.tagline === headlineIdeasFor(f.category)[0];
+    f[key] === suggestionFor(key, f.category);
 
-  /** The headline once the category becomes `category`: refilled only while blank or still ours. */
-  const headlineAfter = (f: StoreFormState, category: string): string => {
-    if (mode !== "create") return f.tagline;
-    const ours = isAutoHeadline(f);
-    if (f.tagline.trim() && !ours) return f.tagline;
+  /** `key` once the category becomes `category`: refilled only while blank or still ours. */
+  const autoAfter = (f: StoreFormState, key: AutoField, category: string): string => {
+    if (mode !== "create") return f[key];
+    const ours = isAuto(f, key);
+    if (f[key].trim() && !ours) return f[key];
     // Category cleared: take our suggestion back, so an untouched form reads as untouched again
-    // (isPristineCreate) instead of holding a headline nobody chose.
-    if (!category) return ours ? "" : f.tagline;
-    return headlineIdeasFor(category)[0] ?? f.tagline;
+    // (isPristineCreate) instead of holding text nobody chose.
+    if (!category) return ours ? "" : f[key];
+    return suggestionFor(key, category) || f[key];
   };
 
+  /** Every self-filled field once the category becomes `category`. */
+  const autoFieldsAfter = (f: StoreFormState, category: string): Pick<StoreFormState, AutoField> => ({
+    tagline: autoAfter(f, "tagline", category),
+    aboutHeading: autoAfter(f, "aboutHeading", category),
+    description: autoAfter(f, "description", category),
+  });
+
   /**
-   * Category drives the *suggested* preset and headline, for NEW stores only and only until the
-   * admin picks their own. An existing store's look and words never move because someone
+   * Category drives the *suggested* preset, headline and About text, for NEW stores only and only
+   * until the admin picks their own. An existing store's look and words never move because someone
    * re-categorised it.
    */
   const setCategory = (value: string) => {
     setForm((f) => ({
       ...f,
       category: value,
-      tagline: headlineAfter(f, value),
+      ...autoFieldsAfter(f, value),
       ...(mode === "create" && !presetTouched.current ? { theme: { ...f.theme, preset: presetForCategory(value) } } : {}),
+    }));
+  };
+
+  /** Typing in a self-filled field makes it the admin's: the category no longer moves it. */
+  const setOwnText = (key: AutoField, value: string) => {
+    autoTouched.current.add(key);
+    set(key, value);
+  };
+
+  /**
+   * "Use suggested text": the store type's starter into whichever About field is blank. Text the
+   * admin wrote is never replaced. Shown on edit too, where nothing is pre-filled.
+   */
+  const fillAboutStarter = () => {
+    autoTouched.current.add("aboutHeading");
+    autoTouched.current.add("description");
+    const starter = aboutStarterFor(form.category);
+    setForm((f) => ({
+      ...f,
+      aboutHeading: f.aboutHeading.trim() ? f.aboutHeading : starter.heading,
+      description: f.description.trim() ? f.description : starter.text,
     }));
   };
 
@@ -254,10 +298,7 @@ export default function StoreForm({
   };
 
   /** An idea chip replaces the headline outright; that counts as the admin choosing one. */
-  const pickHeadline = (idea: string) => {
-    headlineTouched.current = true;
-    set("tagline", idea);
-  };
+  const pickHeadline = (idea: string) => setOwnText("tagline", idea);
 
   useEffect(() => {
     formRef.current = form;
@@ -455,13 +496,14 @@ export default function StoreForm({
       const previous = lastImport.current?.url === url ? lastImport.current.fields : null;
       const offered = previous ? diffImportedFields(previous, response.fields) : response.fields;
       const warnings = previous ? [] : response.warnings;
-      // A headline the form filled in from the category is not the admin's, so both checks below
-      // see it as empty. In the review dialog that makes the page's own headline a plain fill
-      // (ticked) rather than an unticked "Replaces" row. For isPristineCreate it is never the
-      // reason a form stops being pristine — though the category it came from already counts as
+      // Text the form filled in from the category (headline, About heading/text) is not the admin's,
+      // so both checks below see it as empty. In the review dialog that makes the page's own text a
+      // plain fill (ticked) rather than an unticked "Replaces" row. For isPristineCreate it is never
+      // the reason a form stops being pristine — though the category it came from already counts as
       // typed there (docs/store-autofill-from-link.md), so that outcome is unchanged.
-      // applyImport still runs on the real form, so an unticked headline row keeps ours.
-      const base = isAutoHeadline(form) ? { ...form, tagline: "" } : form;
+      // applyImport still runs on the real form, so an unticked row keeps ours.
+      const base = { ...form };
+      for (const key of AUTO_FIELDS) if (isAuto(form, key)) base[key] = "";
       // A saved store's phone is locked (the backend answers 409 PHONE_LOCKED), so don't offer it.
       const items = buildImportItems(base, offered, { phoneLocked: mode === "edit" && !!initial?.phoneNumber });
       // The first fetch into a still-empty create form has nothing to protect: every row only fills
@@ -502,9 +544,11 @@ export default function StoreForm({
       if (selected.has("category") && fields.category && mode === "create" && !presetTouched.current) {
         next.theme = { ...next.theme, preset: presetForCategory(fields.category) };
       }
-      // And the same rule as the category <select> for the headline, when the page gave none: a
-      // blank (or still self-filled) headline follows the category the import may just have set.
-      if (!(selected.has("tagline") && fields.tagline)) next.tagline = headlineAfter(f, next.category);
+      // And the same rule as the category <select> for the self-filled fields the page gave nothing
+      // for: a blank (or still self-filled) one follows the category the import may just have set.
+      for (const key of AUTO_FIELDS) {
+        if (!(selected.has(key) && fields[key])) next[key] = autoAfter(f, key, next.category);
+      }
       return next;
     });
     if (selected.has("phone") && fields.countryCode) {
@@ -562,14 +606,13 @@ export default function StoreForm({
     setResult(null);
 
     // Required business fields — blocked here for a friendly message (native `required` also guards).
-    // The neighborhood (`area`) is optional: left blank, the page shows the city instead.
+    // The neighborhood (`area`) is optional: left blank, the page shows the city instead. So are the
+    // About heading and text (client review row 36): left blank, the page leaves them out.
     const requiredFields: { key: keyof StoreFormState; label: string }[] = [
       { key: "category", label: t.storeForm.reqCategory },
       { key: "city", label: t.storeForm.reqCity },
       { key: "address", label: t.storeForm.reqAddress },
       { key: "tagline", label: t.storeForm.reqTagline },
-      { key: "aboutHeading", label: t.storeForm.reqAboutHeading },
-      { key: "description", label: t.storeForm.reqDescription },
     ];
     const missing = requiredFields.filter((f) => !String(form[f.key] ?? "").trim());
     // The headline also says why under its own field: it is the biggest text on the page. (A
@@ -914,10 +957,7 @@ export default function StoreForm({
               <input
                 id="sf-tagline"
                 value={form.tagline}
-                onChange={(e) => {
-                  headlineTouched.current = true;
-                  set("tagline", e.target.value);
-                }}
+                onChange={(e) => setOwnText("tagline", e.target.value)}
                 // Native `required` stops an empty submit before onSubmit runs; this still puts the
                 // reason under the field.
                 onInvalid={() => setHeadlineError(true)}
@@ -966,14 +1006,26 @@ export default function StoreForm({
               <input
                 id="sf-aboutHeading"
                 value={form.aboutHeading}
-                onChange={(e) => set("aboutHeading", e.target.value)}
-                required
+                onChange={(e) => setOwnText("aboutHeading", e.target.value)}
                 maxLength={160}
               />
             </div>
             <div className="field full">
               <label htmlFor="sf-description">{t.storeForm.description}</label>
-              <textarea id="sf-description" value={form.description} onChange={(e) => set("description", e.target.value)} required maxLength={2000} />
+              <textarea
+                id="sf-description"
+                value={form.description}
+                onChange={(e) => setOwnText("description", e.target.value)}
+                maxLength={2000}
+              />
+              {/* Optional (client review row 36): offered, never forced. Fills only a blank field. */}
+              {(!form.aboutHeading.trim() || !form.description.trim()) && (
+                <div className="chip-row" style={{ marginTop: 8 }}>
+                  <button type="button" className="pill-choice" onClick={fillAboutStarter}>
+                    {t.storeForm.aboutSuggest}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           <div className="grid cols-3" style={{ marginTop: 12 }}>
@@ -1192,6 +1244,11 @@ export default function StoreForm({
             </div>
           </div>
           <label>{format(t.storeForm.galleryPhotosFor, { heading: shownHeading })}</label>
+          {/* What to photograph, for this kind of store (client review row 26): customers — salon
+              clients above all — choose on the work they can see. Follows the category as typed. */}
+          <p className="hint" style={{ marginTop: 0, marginBottom: 6 }}>
+            {t.galleryTips[familyFor(form.category)]}
+          </p>
           <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
             {t.storeForm.galleryHint}
           </p>
