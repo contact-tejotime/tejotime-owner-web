@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-10-06 · branch `feat-jay`.
+**Last updated:** 2026-10-09 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,27 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Store page: open a pop-up from a link (2026-10-09)
+
+- **What:** the client's Instagram ads link to `/<phone>?instagram`, and the store page now opens
+  Check in on arrival. `?open=checkin` and `?open=book` are the general form, for every other
+  channel.
+  - The pop-up opens through `openQueue`/`openBook`, so a closed store gets Book.
+  - It waits for the held-ticket restore (the new `restored` flag), so someone already in line sees
+    that.
+- **Scope:** customer page only. There is no owner "copy link" button: owner-web and the app are
+  unchanged on purpose, and we hand the client the link format.
+- **Checks:**
+  - `npm run test:open-intent`: 38 checks of how a link is read and stripped.
+  - `frontend` lint and build pass.
+- **Not yet verified:** the browser behaviour has had no manual QA yet:
+  - the timing (waiting for a held place)
+  - closed store → Book
+  - Instagram's in-app browser on Android and iOS
+  - the query surviving the `/salon` rewrite
+- See "Open a pop-up from a link" in
+  [docs/customer-booking-page-copy-2026-09-06.md](../../docs/customer-booking-page-copy-2026-09-06.md).
 
 ### Store setup review rows 26 + 27 (2026-10-08)
 
