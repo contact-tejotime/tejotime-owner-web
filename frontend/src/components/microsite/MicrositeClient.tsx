@@ -33,6 +33,7 @@ import { useThemePreview } from "@/theme/usePreviewChannel";
 import { domainFor } from "./domains";
 import { GalleryMosaic, LiveBoard, ReviewsBlock, Section, ServiceList, StatCards, Ticker } from "./sections";
 import { statusCopy } from "./status-copy";
+import { readOpenIntent, stripOpenIntent, type OpenIntent } from "./open-intent";
 import "./salon.css";
 import { SocialLinks } from "./SocialLinks";
 import ChatWidget, { storeChatTitle } from "@/components/chat/ChatWidget";
@@ -684,6 +685,11 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [leftMsg, setLeftMsg] = useState("");
   const [held, setHeld] = useState<HeldRecord | null>(null);
+  // True once the restore below has settled `held` either way. `held` alone cannot say so: it is
+  // null both before the restore's ticket fetch returns and after it finds nothing. A pop-up opened
+  // from the link (?open=checkin) waits for this, or someone already in line would be handed a
+  // fresh Check in instead of "you're already in line".
+  const [restored, setRestored] = useState(false);
   // Name pulled from the track lookup (returning customer) to pre-fill Join.
   const [trackedName, setTrackedName] = useState("");
 
@@ -889,11 +895,19 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   useEffect(() => {
     const store = readStore(storeKey);
     storeRef.current = store;
-    if (!store.hold) return;
+    if (!store.hold) {
+      // Asynchronously, like the clock tick above: a sync setState here trips
+      // react-hooks/set-state-in-effect.
+      const id = setTimeout(() => setRestored(true), 0);
+      return () => clearTimeout(id);
+    }
     const rec = store.hold;
     publicApi
       .getTicket(rec.ticketId)
       .then((t) => {
+        // In the same callback as setHeld, so both land in one render — the link's pop-up then
+        // sees the restored `held`.
+        setRestored(true);
         if (!isActive(t.status)) {
           clearHold();
           return;
@@ -906,6 +920,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
         startTicketPoll(rec.ticketId);
       })
       .catch((e) => {
+        setRestored(true);
         if (e instanceof ApiError && e.status === 404) clearHold();
         // other (network) errors: keep the record optimistically, don't restore live state
       });
@@ -1439,6 +1454,36 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       if (slotReq.current === req) setSlotsLoading(false);
     }
   };
+
+  // ---- open a pop-up from the link (an Instagram ad's ?instagram, or ?open=checkin|book) ----
+  // Through openQueue/openBook, so the link gets exactly what the buttons give: a closed store's
+  // Check in becomes Book, someone already in line sees that, a blocked number sees the block.
+  // The intent lives in a ref, read once, and the keys leave the address bar as it is read: React's
+  // development double-run would otherwise read an already-cleaned URL the second time and open
+  // nothing (the homepage's ?join=1 effect has that flaw). Waiting on `restored` is what makes
+  // `held` current in the openQueue this render hands the timer.
+  // Declared below fetchSlots on purpose: openJoin calls it, and an effect reaching a function
+  // declared after it fails react-hooks/immutability.
+  const linkIntent = useRef<OpenIntent | null | undefined>(undefined);
+  useEffect(() => {
+    if (!restored) return;
+    if (linkIntent.current === undefined) {
+      const { pathname, search, hash } = window.location;
+      linkIntent.current = readOpenIntent(search);
+      // history.state, not {}: it carries the Next.js router's own entry.
+      if (linkIntent.current) window.history.replaceState(window.history.state, "", pathname + stripOpenIntent(search) + hash);
+    }
+    const intent = linkIntent.current;
+    if (!intent) return;
+    const id = setTimeout(() => {
+      linkIntent.current = null;
+      if (intent === "book") openBook();
+      else openQueue();
+    }, 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restored]);
+
   // Returns true (and shows the blocked view) if this phone is locally rate-limited.
   const blockGuard = (p: string) => {
     const store = storeRef.current;

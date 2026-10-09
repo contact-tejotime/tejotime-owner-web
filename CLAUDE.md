@@ -470,6 +470,12 @@ the hero "Right now" card. The banner, the phone bar and the team note turn to b
 open/closed/wait string comes from `components/microsite/status-copy.ts`, checked by
 `npm run test:status-copy` (client review row 27,
 [docs/store-setup-review-2026-10-05.md](docs/store-setup-review-2026-10-05.md)).
+**A link can open a pop-up** (the client's Instagram ads, 2026-10-09). `?open=checkin` and a bare
+`?instagram` open Check in; `?open=book` opens Book. It goes through `openQueue`/`openBook`, so a
+closed store gets Book and someone already in line sees that. It waits for the held-ticket restore,
+then strips its own keys from the address bar. Every other key is ignored
+(`components/microsite/open-intent.ts`, `npm run test:open-intent`; see "Open a pop-up from a link"
+in [docs/customer-booking-page-copy-2026-09-06.md](docs/customer-booking-page-copy-2026-09-06.md)).
 
 **Category behaviour** (`config/constants.ts`) — `VISITOR_TYPE_CATEGORIES` (Hospital) require
 identifying the visitor as `mr` | `patient` (display-only, never part of wait-time math). There is
@@ -641,7 +647,8 @@ test:responsive` is the same idea for the mobile app's breakpoint/grid arithmeti
 check-in/booking state machine (`frontend/src/components/chat/flow/engine.ts`) through its
 scenario matrix — keep that file free of React and `@/` imports so it stays runnable this way.
 `npm run test:status-copy` does the same for the store page's open/closed wording
-(`frontend/src/components/microsite/status-copy.ts`, same import rule).
+(`frontend/src/components/microsite/status-copy.ts`, same import rule), and `npm run
+test:open-intent` for how the page reads `?open=` / `?instagram` (`open-intent.ts`, import-free).
 And `npm run test:commission` — runs the app's and owner-web's hand-kept copies of
 `lib/commission.ts` (rate parsing/printing, store-day labels) through one case table so they cannot
 drift, plus `app/src/lib/date-grid.ts`. Both files must stay import-free.

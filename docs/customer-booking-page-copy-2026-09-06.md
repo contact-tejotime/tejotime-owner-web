@@ -474,3 +474,64 @@ this page:
   eyebrow reads **"Sample reviews"** (not "Customer Reviews") and each card carries a **"Sample"**
   tag. Real stores are unchanged. The store itself is now a US example: Naples FL, $ prices,
   Card / Apple Pay / Cash.
+
+## Open a pop-up from a link (2026-10-09)
+
+The client advertises stores on Instagram. The ad's button opens the store page inside Instagram's
+own browser, and the customer then had to find **Check in** themselves. A link can now open the
+pop-up on arrival:
+
+| Link | Opens |
+|---|---|
+| `www.tejotime.com/<phone>?open=checkin` (also `check-in`, any letter case) | Check in |
+| `www.tejotime.com/<phone>?open=book` | Book an Appointment, starting on today |
+| `www.tejotime.com/<phone>?instagram` (any value, or none) | Check in. Kept because the client's ads already use it |
+| `www.tejotime.com/<phone>` | The page, with no pop-up (unchanged) |
+
+`?open=` is the form to give out for every other channel too: WhatsApp, a QR poster, the Google
+profile. If a link carries both, `open` wins.
+
+The link opens the pop-up through the same `openQueue` / `openBook` the page's own buttons call, so
+it obeys every rule above:
+
+- **Closed store:** Check in opens **Book an Appointment** instead (§2.2), the same as the Check in
+  button.
+- **Already in line:** if this browser already holds a place, the customer sees "you're already in
+  line", not a fresh Check in. The page restores a held place with a ticket fetch, so the pop-up
+  waits for that fetch (`restored` in `MicrositeClient`); without the wait it would open too early.
+  If the fetch fails on the network, the page opens the normal Check in, which is what the Check in
+  button does in that state.
+- **Blocked number:** the block view, as from the button.
+- **Hospital, services:** the flow starts on its usual first step.
+
+**Removed from the address bar on arrival:** `open` and `instagram` are taken out of the address
+(`history.replaceState`). A refresh, or a link copied from the address bar and forwarded, opens the
+plain page. Every other key stays.
+
+**Ignored:**
+- Every other key. Instagram and Meta add their own to links (`igsh`, `fbclid`, `utm_*`), so a
+  query string alone never opens anything.
+- `?preview=1`, the owner's Appearance preview, never opens a pop-up.
+
+**Not built:** owners have no "copy check-in link" button. We give the client the link format
+ourselves. owner-web and the mobile app are unchanged: this is a customer-page-only change, so the
+owner-surface parity rule (CLAUDE.md §11.1) does not apply.
+
+**Wording note for ads:** a button labelled **"Book now"** matches `?open=book`. For walk-ins,
+"Check in" or "Join the waitlist" says what `?open=checkin` does (§1).
+
+**Code:**
+- `frontend/src/components/microsite/open-intent.ts`: reads and strips the link. It is
+  import-free.
+- The effect beside `fetchSlots` in `MicrositeClient.tsx`.
+
+**Tests:**
+- `npm run test:open-intent` checks how links are read and stripped. It runs on the `tsx` in
+  backend/, like `test:status-copy`.
+- The timing (waiting for a held place) and the closed-store switch have no browser runner to test
+  them (CLAUDE.md §12.3, Tier 2), so they are manual QA:
+  - open, closed and already-in-line stores
+  - refresh after the pop-up opens
+  - `?utm_source=ig` alone
+  - `/salon?open=book` (the industry alias rewrite)
+  - inside Instagram's in-app browser, on both Android and iOS
