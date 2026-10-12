@@ -59,7 +59,7 @@
       "eyebrow": "Built for appointment-based businesses",
       "title": "Booking made simple. Business made easier.",
       "body": "Give clients an easy way to book while you manage appointments, schedules, reminders, client details, and optional walk-ins from one simple platform.",
-      "microPilot": "Free during our U.S. pilot. We’ll personally help you set up your services, schedule, and booking page.",
+      "microPilot": "Free for the first month, then $9.99/month. We’ll personally help you set up your services, schedule, and booking page.",
       "microSelfServe": "Set up in minutes. No credit card required. Cancel anytime.",
       "proofLine": "Built for independent appointment-based businesses."
     },
@@ -204,7 +204,7 @@
       },
       {
         "value": "Free",
-        "label": "During the U.S. pilot"
+        "label": "first month, then $9.99/mo"
       },
       {
         "value": "24/7",
@@ -1552,8 +1552,8 @@
       {
         "heading": "3. The U.S. pilot",
         "paragraphs": [
-          "TejoTime is currently offered through a United States pilot program. During the pilot, the Starter plan is free and we help you set up your services, schedule, and booking page.",
-          "Pilot features may change, and the pilot may end. We will give you reasonable advance notice before the pilot ends or before any plan you are on begins to be charged. Pilot participation does not guarantee any particular future price."
+          "TejoTime is currently offered through a United States pilot program. During the pilot we help you set up your services, schedule, and booking page. The Starter plan is free for the first month, then $9.99/month as published on our website.",
+          "Pilot features may change, and the pilot may end. We will give you reasonable advance notice before the pilot ends or before any change to the published price that applies to your plan. Pilot participation does not guarantee any particular future price."
         ],
         "bullets": []
       },
