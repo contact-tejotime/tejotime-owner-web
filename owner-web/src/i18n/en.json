@@ -403,6 +403,9 @@
     "bookingQrSub": "Show a code customers can scan to book",
     "notifications": "Notifications & reminders",
     "notificationsSub": "Alerts and reminders",
+    "cardPayments": "Card payments",
+    "cardPaymentsOn": "On · taken with the PayPal reader in the TejoTime app",
+    "cardPaymentsOff": "Set up in the TejoTime app",
     "recurring": "Repeating bookings",
     "recurringSub": "Let customers book a visit that repeats — every 2 weeks, every month, and so on.",
     "account": "Your account",
@@ -674,7 +677,26 @@
     "visitNoService": "No service",
     "visitsTotal": "{count} visits · {revenue} · earned {commission}",
     "visitsTotalOne": "1 visit · {revenue} · earned {commission}",
+    "visitRefunded": "Refunded · no commission",
     "close": "Close"
+  },
+  "cardPayments": {
+    "title": "Card payments",
+    "lead": "Card payments are taken on the PayPal card reader from the TejoTime app, on the main owner's phone. Charging, refunds and the reader itself are all in the app; this page shows what was taken.",
+    "on": "Card payments are on.",
+    "off": "Card payments are off. To turn them on, open the TejoTime app on your phone: Settings → Card payments.",
+    "recentTitle": "Recent card payments",
+    "empty": "No card payments yet.",
+    "loadError": "Could not load card payments. Refresh the page to try again.",
+    "statusPending": "Not confirmed",
+    "statusPaid": "Paid",
+    "statusFailed": "Not charged",
+    "statusRefunded": "Refunded",
+    "needsReview": "Needs review",
+    "needsReviewHint": "Charged, but not on a visit. Refund it or keep it in the app.",
+    "pendingHint": "The app has not confirmed this charge yet. Check it in the app.",
+    "card": "{brand} ···· {last4}",
+    "walkIn": "Customer"
   },
   "queue": {
     "actionFailed": "That didn't work. Try again.",
@@ -748,7 +770,21 @@
     "priceRequiredHint": "Enter the price for {services} to complete.",
     "servicePriceAria": "{service} price",
     "totalToCharge": "Total to charge",
-    "removeExtra": "Remove {label}"
+    "removeExtra": "Remove {label}",
+    "paidBy": "Paid by",
+    "paidByRequired": "Choose how the customer paid to complete.",
+    "cardOwnerOnly": "Card payments are taken on the owner's phone.",
+    "cardOnWeb": "Records a card you already charged. To charge a card, use the TejoTime app.",
+    "cardInProgress": "The owner is taking this customer's card payment ({amount}). This customer can be completed once it finishes."
+  },
+  "paymentMethod": {
+    "card": "Card",
+    "cash": "Cash",
+    "venmo": "Venmo",
+    "zelle": "Zelle",
+    "cashApp": "Cash App",
+    "upi": "UPI",
+    "other": "Other"
   },
   "walkin": {
     "errAdd": "Could not add to the queue.",

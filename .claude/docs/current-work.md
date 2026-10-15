@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-10-09 · branch `feat-jay`.
+**Last updated:** 2026-10-15 · branch `feat-jay`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,33 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### "Paid by" + card payments on the PayPal reader (2026-10-15)
+
+- **What:** checkout asks "Paid by" on all three owner surfaces. US stores charge cards on the
+  PayPal POS Card Reader from the app, main owner only, with refunds that leave revenue and
+  commission. Migrations 0042 and 0043, a new `/card-payments` API, and a local native module
+  `app/modules/paypal-reader`. Full write-up:
+  [docs/card-payments-paypal.md](../../docs/card-payments-paypal.md).
+- **Checks run:**
+  - backend `vitest`: 553/553 (19 new)
+  - backend lint
+  - `npm run test:checkout`: 138 checks
+  - owner-web and app: `tsc` + `eslint` on the changed files
+  - `expo config --type introspect`: the plugin applies and the module autolinks
+- **Run 2026-10-15 on a throwaway local DB:** all migrations, including re-running 0042/0043; then
+  the smoke scripts:
+  - `smoke-payment-method` 35/35
+  - `smoke-card-payments` 67/67
+  - seatless 20/20, commission-db 31/31, checkout-addons 84/84, commission 60/60 (its `/auth/me`
+    path fixed)
+- **Preprod DB migrated through 0043 on 2026-10-15** (migrate only, no seed). The preprod API code
+  is still the old build until `feat-jay` is merged to `preprod`; 0042/0043 are backward-compatible
+  with it. Never seed preprod.
+- **Not yet run:**
+  - **any native build**: the Swift/Kotlin module is uncompiled. It needs PayPal client ids, a
+    GitHub `read:packages` token for Android, and a Mac for iOS. Then the device checklist in the
+    doc.
 
 ### Store page: open a pop-up from a link (2026-10-09)
 

@@ -36,7 +36,8 @@ export interface CheckoutBilling {
   /** The booked (first-picked) service on its own; null when the visit has none. */
   serviceName: string | null;
   servicePriceType: CheckoutPriceType;
-  serviceAmount: { amount: number };
+  /** `currency` decides whether "Paid by" is asked at all (US stores only). */
+  serviceAmount: { amount: number; currency?: string };
   extrasAmount: { amount: number };
   suggestedAmount: { amount: number } | null;
   extras: readonly { id: string; label: string; priceRequired?: boolean }[];
@@ -157,9 +158,35 @@ export function missingLabels(billing: CheckoutBilling, typed: TypedPrices): str
     .map((item) => item.label);
 }
 
-/** Complete & start next is allowed only with a readable total and every required price typed. */
-export function canComplete(text: string, billing: CheckoutBilling, typed: TypedPrices): boolean {
-  return parseRupees(text) !== null && missingLabels(billing, typed).length === 0;
+/**
+ * Complete & start next is allowed only with a readable total, every required price typed, and —
+ * on a US store, the only one that asks — "Paid by" answered (docs/card-payments-paypal.md).
+ */
+export function canComplete(
+  text: string,
+  billing: CheckoutBilling,
+  typed: TypedPrices,
+  paymentMethod: PaymentMethod | null,
+): boolean {
+  const paid = paymentMethod !== null || !paidByAsked(billing.serviceAmount.currency);
+  return parseRupees(text) !== null && missingLabels(billing, typed).length === 0 && paid;
+}
+
+/** How the customer paid ("Paid by", migration 0042). Codes are the API's; labels live in i18n. */
+export type PaymentMethod = "card" | "cash" | "venmo" | "zelle" | "cash_app" | "upi" | "other";
+
+/**
+ * The "Paid by" choices: Card and Cash on a US store (priced in dollars), and none on any other
+ * store, whose checkout is unchanged — no question at all (client decision 2026-10-15). The same
+ * rule as the backend's `paymentMethodsFor` (domain/enums.ts), which refuses anything not listed.
+ */
+export function paymentMethodsFor(currency: string | null | undefined): PaymentMethod[] {
+  return (currency ?? "").toUpperCase() === "USD" ? ["card", "cash"] : [];
+}
+
+/** Whether this store's checkout asks "Paid by" at all — US stores only. */
+export function paidByAsked(currency: string | null | undefined): boolean {
+  return paymentMethodsFor(currency).length > 0;
 }
 
 /**

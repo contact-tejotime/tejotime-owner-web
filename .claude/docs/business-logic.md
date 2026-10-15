@@ -237,6 +237,18 @@ store form can set that current percent too (blank = no rate; clearing a started
 Rounded per visit; totals are the sum of the lines. "Today" comes only from the server. All plans.
 Full rules, API and screens: [docs/staff-commission.md](../../docs/staff-commission.md).
 
+## 5a2. "Paid by" and card payments
+
+On US stores only (priced in USD), checkout records how the customer paid (`visit.payment_method`, Card or Cash; every other store checks out as before). US
+stores charge cards on the PayPal POS Card Reader from the app.
+- **Who:** the main owner only. PayPal's SDK is native, so owner-web never charges.
+- **Never refused:** once the reader has taken money, the server always records it — `pending` until
+  confirmed, `needs_review` when its visit can no longer be completed.
+- **Refunds:** whole amount, card only. A refund takes the visit's money out of revenue, commission
+  and customer spend on its own day; counts keep it.
+
+Full rules: [docs/card-payments-paypal.md](../../docs/card-payments-paypal.md).
+
 ## 5b. Recurring appointments
 
 A customer books once and the visit repeats every N days (7–90) until never / after X visits /

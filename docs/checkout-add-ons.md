@@ -218,6 +218,13 @@ The smoke script covers:
 - fixed ("Suggested" only when it differs);
 - a bare walk-in (disabled while empty; the last chip off leaves no ₹0 bill).
 
+## "Paid by" (2026-10-15)
+
+Under the bill, the sheet now asks how the customer paid, and Complete waits for it as it waits for
+a required price. `canComplete` takes the method as a fourth argument, in both
+`lib/checkout-amount.ts` copies. Card on the PayPal reader also starts from this sheet. Both are in
+[card-payments-paypal.md](./card-payments-paypal.md).
+
 ## Not done
 
 - The app's layout has not been looked at on a device or simulator. There is none on the Windows

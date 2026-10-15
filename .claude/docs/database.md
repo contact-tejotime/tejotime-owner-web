@@ -244,6 +244,33 @@ as `visit_commission` below.
 
 `id`, `business_id`, `customer_id`, `queue_entry_id`, `staff_id`, `service_name`,
 `amount_paise` `bigint`, `completed_at`. Written by `queue_checkout`.
+Later columns:
+- `payment_method` (0042): text, check `card|cash|venmo|zelle|cash_app|upi|other`, null before 0042
+  and from old app builds. "Paid by" at checkout.
+- `refunded_at`, `refunded_by` (0043): a refunded card visit. It stays a completed visit in every
+  count, but its money leaves every revenue sum and its commission is 0.
+
+### `card_payment` — a charge on the PayPal reader (0043)
+
+One row per attempt; **`id` is the reference handed to the reader**.
+
+| Group | Columns |
+|---|---|
+| Keys | `business_id`, `queue_entry_id`, `visit_id` |
+| Amounts | `amount_paise` (asked), `charged_amount_paise` (what the reader reported), `currency` |
+| State | `status` (check `pending|paid|failed|refunded`), `needs_review` |
+| Card | `provider`, `provider_payment_id`, `card_brand`, `card_last4` (never the masked number), `entry_mode` |
+| History | `failure_reason`, `created_by`, `created_at`, `paid_at`, `refunded_at`, `refunded_by`, `refund_reference` |
+
+- `uq_card_payment_pending` allows **one pending row per visit**. Paid rows are not unique: a real
+  double charge must be recorded.
+- Written only by plpgsql: `card_payment_start`, `card_payment_complete` (paid first, then
+  `queue_checkout` with `'card'`, in one transaction) and `card_payment_refund`.
+- A recent pending row (< 15 min) makes `queue_checkout` / `queue_no_show` raise
+  `CARD_PAYMENT_IN_PROGRESS`.
+- `business.card_payments_enabled` and `paypal_org_ref` are written only by
+  `PUT /card-payments/settings` (main owner).
+- See [docs/card-payments-paypal.md](../../docs/card-payments-paypal.md).
 
 ### `staff_commission_rate` — pay rates that start at an instant (0034, 0035)
 
@@ -257,7 +284,10 @@ changed. `set_by_user_id` is null on an admin-written row. A rate with `effectiv
 be edited or deleted, which is what keeps history frozen. Saving today inserts `now()`; a future
 day is that day's midnight in `business.timezone`.
 
-### `visit_commission` — view (0034, recreated by 0035)
+### `visit_commission` — view (0034, recreated by 0035 and 0043)
+
+0043 appended `refunded_at` and makes `commission_paise` 0 for a refunded visit (the row stays).
+Readers that sum `amount_paise` as revenue filter `refunded_at is null`.
 
 Every `visit` plus `local_at` / `local_date` (in `business.timezone`), the `rate_bp` and
 `rate_from` (`timestamptz`, the rate's `effective_at`) of the latest rate with

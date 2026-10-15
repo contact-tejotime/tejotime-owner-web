@@ -247,6 +247,9 @@ export function SettingsScreen({
   storeMode,
   cardUrl,
   recurringEnabled,
+  isSuperOwner,
+  isUsStore,
+  cardPaymentsEnabled,
   subs,
 }: {
   role: UserRole;
@@ -263,6 +266,12 @@ export function SettingsScreen({
    * made or failed — the row is then left out rather than drawn in a state nobody saved.
    */
   recurringEnabled: boolean | null;
+  /** The store's main owner — the only login that takes card payments (docs/card-payments-paypal.md). */
+  isSuperOwner: boolean;
+  /** A US store (priced in USD) — the only kind with card payments. */
+  isUsStore: boolean;
+  /** Card payments on/off from `GET /business`; null when not read (the row then says how to set it up). */
+  cardPaymentsEnabled: boolean | null;
   /** Live row subtitles, resolved on the server (see page.tsx). */
   subs: { profile: string; hours: string; services: string; staff: string };
 }) {
@@ -278,7 +287,10 @@ export function SettingsScreen({
   const showQr = can(access, "profile") && !!cardUrl;
   // Owner roles only, as the API decides (business.service OWNER_ONLY_COLUMNS).
   const showRecurring = owner && recurringEnabled !== null;
-  const showBookings = showQr || can(access, "notifications") || showRecurring;
+  // Main owner of a US store only, as the API decides (requireSuperOwner; CARD_PAYMENTS_US_ONLY).
+  // Read-only here: card charging is set up, run and refunded from the app.
+  const showCards = isSuperOwner && isUsStore;
+  const showBookings = showQr || can(access, "notifications") || showRecurring || showCards;
 
   async function onSignOut() {
     setSigningOut(true);
@@ -370,6 +382,14 @@ export function SettingsScreen({
           <Group title={t.settings.groupBookings}>
             {showQr && cardUrl ? <BookingQrRow cardUrl={cardUrl} storeName={storeName} /> : null}
             {showRecurring && recurringEnabled !== null ? <RecurringRow initial={recurringEnabled} /> : null}
+            {showCards ? (
+              <SettingsRow
+                href="/settings/card-payments"
+                icon="creditCard"
+                label={t.settings.cardPayments}
+                sub={cardPaymentsEnabled ? t.settings.cardPaymentsOn : t.settings.cardPaymentsOff}
+              />
+            ) : null}
             {can(access, "notifications") ? (
               <SettingsRow
                 href="/settings/notifications"

@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { THeader, TScreenScroll, TSettingsRow, TSwitch, TText } from '@/components/common';
 import { Icon } from '@/components/ui/Icon';
 import { t, format } from '@/i18n';
 import { appVersion, notificationsSub } from '@/data/settings';
+import { paidByAsked } from '@/lib/checkout-amount';
 import { hoursSummary } from '@/lib/hours';
 import { SUPPORT } from '@/lib/support';
 import { SETTINGS_ROUTES, SettingsPageId } from '@/navigation/routes';
@@ -35,7 +36,12 @@ export default function Settings() {
   // everyone else — and only once GET /business has said where it stands. Before that (or from
   // an API without the flag) there is nothing honest to show, so it is hidden, as on owner-web.
   const showRecurring = isOwnerRole(role) && typeof biz?.recurringEnabled === 'boolean';
-  const showBookings = can(access, 'notifications') || can(access, 'profile') || showRecurring;
+  // Card payments on the PayPal reader: the main owner of a US store only (the API refuses
+  // everyone else — CARD_PAYMENTS_US_ONLY), and never on the app's web target, where PayPal's SDK
+  // cannot run (docs/card-payments-paypal.md).
+  const showCards =
+    store.session?.isSuperOwner === true && paidByAsked(biz?.currency) && Platform.OS !== 'web';
+  const showBookings = can(access, 'notifications') || can(access, 'profile') || showRecurring || showCards;
   const storeLabel = biz?.name ?? t.common.brand;
   // No name on the session → drop the clause rather than fall back. The old fallback was the demo
   // tenant's handle ('sharpcuts'), so a real owner could be told they were signed in as someone else.
@@ -54,6 +60,7 @@ export default function Settings() {
     can(access, 'profile') ? 'qr' : null,
     can(access, 'notifications') ? 'notifications' : null,
     showRecurring ? 'recurring' : null,
+    showCards ? 'cards' : null,
   ].filter(Boolean) as string[];
   const lastBooking = bookingRows[bookingRows.length - 1];
 
@@ -184,6 +191,15 @@ export default function Settings() {
                     />
                   }
                   showBorder={lastBooking !== 'recurring'}
+                />
+              ) : null}
+              {showCards ? (
+                <TSettingsRow
+                  icon="creditCard"
+                  label={t.settings.cardPayments}
+                  sub={biz?.cardPaymentsEnabled ? t.settings.cardPaymentsOn : t.settings.cardPaymentsOff}
+                  onPress={goTo('cardPayments')}
+                  showBorder={lastBooking !== 'cards'}
                 />
               ) : null}
             </View>

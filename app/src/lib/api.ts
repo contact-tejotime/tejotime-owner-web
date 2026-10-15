@@ -321,8 +321,12 @@ export const api = {
    * customer who booked one thing and had three. Omit it and the booked service plus recorded
    * add-ons is used, exactly as before.
    */
-  checkout: (id: string, amountPaise?: number | null) =>
-    raw('POST', `/queue/${id}/checkout`, amountPaise == null ? {} : { amountPaise }),
+  checkout: (id: string, amountPaise?: number | null, paymentMethod?: PaymentMethod | null) =>
+    raw('POST', `/queue/${id}/checkout`, {
+      ...(amountPaise == null ? {} : { amountPaise }),
+      // "Paid by" (0042). The sheet requires it; the API still takes a checkout without it.
+      ...(paymentMethod ? { paymentMethod } : {}),
+    }),
   /** One entry's detail, including the price breakdown the checkout sheet pre-fills from. */
   getQueueEntry: (id: string) =>
     raw<{
@@ -341,6 +345,15 @@ export const api = {
       amountRequired: boolean;
       /** `priceRequired`: a booked service with no price, stored at a placeholder 0 (0040). */
       extras: { id: string; label: string; minutes: number; pricePaise: number; priceRequired?: boolean }[];
+      /**
+       * Card payments (0043, docs/card-payments-paypal.md). Optional: an API from before them sends
+       * none. `cardAllowed` is answered for the login asking — once the store charges cards in
+       * TejoTime, only the main owner may record Card. `pendingCardPayment` is a charge in flight;
+       * nobody can complete this customer until it finishes.
+       */
+      cardPaymentsEnabled?: boolean;
+      cardAllowed?: boolean;
+      pendingCardPayment?: { id: string; amount: { amount: number; currency: string } } | null;
     }>('GET', `/queue/${id}`),
   noShow: (id: string) => raw('POST', `/queue/${id}/no-show`),
   reassign: (id: string, staffId: string) => raw('POST', `/queue/${id}/reassign`, { staffId }),
@@ -523,4 +536,77 @@ export const api = {
    *  the only one not created by somebody else who therefore knows its initial password. */
   changePassword: (currentPassword: string, newPassword: string) =>
     raw('POST', '/auth/password', { currentPassword, newPassword }),
+
+  /* ------------------------------------------------------------------------------------------
+   * Card payments on the PayPal reader — MAIN OWNER ONLY (docs/card-payments-paypal.md). The phone
+   * charges the card through PayPal's SDK (lib/card-reader.ts); these record it. Everyone else
+   * gets 403 from every one of them.
+   * ---------------------------------------------------------------------------------------- */
+  getCardPaymentSettings: () => raw<CardPaymentSettings>('GET', '/card-payments/settings'),
+  setCardPaymentSettings: (enabled: boolean, paypalOrgRef?: string | null) =>
+    raw<CardPaymentSettings>('PUT', '/card-payments/settings', {
+      enabled,
+      ...(paypalOrgRef ? { paypalOrgRef } : {}),
+    }),
+  listCardPayments: (q: { status?: CardPayment['status']; needsReview?: boolean; limit?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (q.status) qs.set('status', q.status);
+    if (q.needsReview !== undefined) qs.set('needsReview', String(q.needsReview));
+    qs.set('limit', String(q.limit ?? 50));
+    return raw<{ data: CardPayment[] }>('GET', `/card-payments?${qs.toString()}`);
+  },
+  /** A `pending` charge; its id is the reference handed to the reader. `resumed`: an attempt was already in flight. */
+  startCardPayment: (queueEntryId: string, amountPaise: number) =>
+    raw<{ payment: CardPayment; resumed: boolean }>('POST', '/card-payments', { queueEntryId, amountPaise }),
+  /** The reader approved: records it and completes the visit. Returns the board, like checkout. */
+  completeCardPayment: (id: string, b: CardChargeReport) =>
+    raw<{ payment: CardPayment; promoted: { id: string; name: string } | null; seats: any[] }>(
+      'POST',
+      `/card-payments/${id}/complete`,
+      b,
+    ),
+  failCardPayment: (id: string, reason: string) =>
+    raw<{ payment: CardPayment }>('POST', `/card-payments/${id}/fail`, { reason }),
+  /** The reader refunded the whole amount. */
+  refundCardPayment: (id: string, refundReference?: string | null) =>
+    raw<{ payment: CardPayment }>('POST', `/card-payments/${id}/refund`, refundReference ? { refundReference } : {}),
 };
+
+/** "Paid by" codes (migration 0042) — the same union as `lib/checkout-amount.ts`. */
+export type PaymentMethod = import('@/lib/checkout-amount').PaymentMethod;
+
+/** `backend/src/modules/card-payments/card-payments.service.ts` `toDTO`. */
+export interface CardPayment {
+  id: string;
+  status: 'pending' | 'paid' | 'failed' | 'refunded';
+  amount: { amount: number; currency: string };
+  chargedAmount: { amount: number; currency: string } | null;
+  /** Paid, but its visit could not be completed with it, or the reader charged a different amount. */
+  needsReview: boolean;
+  cardBrand: string | null;
+  cardLast4: string | null;
+  entryMode: string | null;
+  failureReason: string | null;
+  queueEntryId: string | null;
+  visitId: string | null;
+  customerName: string | null;
+  serviceName: string | null;
+  createdAt: string;
+  paidAt: string | null;
+  refundedAt: string | null;
+}
+
+export interface CardPaymentSettings {
+  enabled: boolean;
+  paypalOrgRef: string | null;
+  currency: string | null;
+}
+
+/** What the reader reported for an approved card. Brand and last four only — never the card number. */
+export interface CardChargeReport {
+  providerPaymentId?: string | null;
+  cardBrand?: string | null;
+  cardLast4?: string | null;
+  entryMode?: string | null;
+  chargedAmountPaise?: number | null;
+}

@@ -2,7 +2,8 @@ import { exec, many, one } from '../../db/pool';
 import { money, servicePricing } from '../../domain/money';
 import { callRpc } from '../../db/rpc';
 import { SERVICE_EXTRAS, VISITOR_TYPE_CATEGORIES } from '../../config/constants';
-import { Errors } from '../../domain/errors';
+import { AppError, Errors } from '../../domain/errors';
+import { isUsStore, PaymentMethod, paymentMethodsFor } from '../../domain/enums';
 import { normalizePhone } from '../../lib/phone';
 import { initials } from '../../lib/format';
 import { shouldNotifyEta } from '../../lib/eta-notify';
@@ -91,7 +92,7 @@ export async function getQueueView(businessId: string, opts: QueueViewOpts = {})
  * list. They adjust it when the customer had extras that were never entered as add-ons, which
  * is the whole reason the override exists.
  */
-async function billingFor(businessId: string, entryId: string) {
+async function billingFor(businessId: string, entryId: string, viewer: EntryViewer = {}) {
   const row = await one<{
     service_paise: string;
     service_max_paise: string | null;
@@ -100,6 +101,9 @@ async function billingFor(businessId: string, entryId: string) {
     extras_paise: string;
     unpriced_extras: number;
     currency: string;
+    card_payments_enabled: boolean | null;
+    pending_card_id: string | null;
+    pending_card_paise: string | null;
   }>(
     `select coalesce(sv.price_paise, 0)                                    as service_paise,
             sv.price_max_paise                                             as service_max_paise,
@@ -111,13 +115,23 @@ async function billingFor(businessId: string, entryId: string) {
             (select count(*)::int
                from queue_entry_extra x
               where x.queue_entry_id = q.id and x.price_type = 'unset')    as unpriced_extras,
-            b.currency
+            b.currency,
+            b.card_payments_enabled,
+            cp.id                                                          as pending_card_id,
+            cp.amount_paise                                                as pending_card_paise
        from queue_entry q
        join business b on b.id = q.business_id
        left join service sv on sv.id = q.service_id
+       -- The card charge in flight, if any — the same 15-minute window queue_checkout's guard
+       -- uses (0043), so the sheet disables Complete exactly when the API would refuse it.
+       left join card_payment cp on cp.queue_entry_id = q.id and cp.status = 'pending'
+                                and cp.created_at > now() - interval '15 minutes'
       where q.id = $1 and q.business_id = $2`,
     [entryId, businessId],
   );
+  // US stores only (isUsStore): a flag left on by a store whose currency was changed since does
+  // not bring card payments back.
+  const cardPaymentsEnabled = row?.card_payments_enabled === true && isUsStore(row?.currency);
   const service = Number(row?.service_paise ?? 0);
   const extras = Number(row?.extras_paise ?? 0);
   const currency = row?.currency;
@@ -161,7 +175,20 @@ async function billingFor(businessId: string, entryId: string) {
      */
     suggestedAmount: amountRequired ? null : money(service + extras, currency),
     amountRequired,
+    // Card payments (0043, docs/card-payments-paypal.md). Once the store charges cards in
+    // TejoTime, only the main owner may record Card — `cardAllowed` is that rule answered for the
+    // person looking, so neither owner surface has to keep its own copy of it.
+    cardPaymentsEnabled,
+    cardAllowed: !cardPaymentsEnabled || viewer.isSuperOwner === true,
+    pendingCardPayment: row?.pending_card_id
+      ? { id: row.pending_card_id, amount: money(Number(row.pending_card_paise ?? 0), currency) }
+      : null,
   };
+}
+
+/** Who is reading an entry — decides `cardAllowed` on its billing. */
+export interface EntryViewer {
+  isSuperOwner?: boolean;
 }
 
 /**
@@ -184,12 +211,12 @@ async function extrasFor(entryId: string) {
   }));
 }
 
-export async function getEntryDetail(businessId: string, entryId: string) {
+export async function getEntryDetail(businessId: string, entryId: string, viewer: EntryViewer = {}) {
   const ctx = await loadQueueContext(businessId);
   const groups = buildSeatGroups(ctx.engineEntries, ctx.engineStaff, ctx.engineServices);
   const card = flatCards(groups).find((c) => c.id === entryId);
   const [billing, extras] = await Promise.all([
-    billingFor(businessId, entryId),
+    billingFor(businessId, entryId, viewer),
     extrasFor(entryId),
   ]);
   if (card) {
@@ -467,16 +494,58 @@ export async function startService(businessId: string, entryId: string) {
   return mutateAndReturn(businessId, 'queue:entry.started', { entryId, seatId: r.staff_id });
 }
 
+export interface CheckoutInput {
+  /** Overrides the derived total; omit it and the service + add-ons sum is used. */
+  amountPaise?: number | null;
+  /** "Paid by" (0042). Null from app builds that predate the question. */
+  paymentMethod?: PaymentMethod | null;
+  isSuperOwner?: boolean;
+}
+
 /**
  * Complete a service. `amountPaise` overrides the derived total for the visit that gets
  * written; omit it and the service + add-ons sum is used, exactly as before.
  */
-export async function checkout(businessId: string, entryId: string, amountPaise?: number | null) {
+export async function checkout(businessId: string, entryId: string, input: CheckoutInput = {}) {
+  const method = input.paymentMethod ?? null;
+  if (method) {
+    const biz = await one<{ currency: string | null; card_payments_enabled: boolean | null }>(
+      'select currency, card_payments_enabled from business where id = $1',
+      [businessId],
+    );
+    // The sheet only offers the store's own list — Card or Cash on a US store, nothing anywhere
+    // else — so this is a stale or hand-made request. Refused rather than banked as a method the
+    // store does not offer.
+    if (!paymentMethodsFor(biz?.currency).includes(method)) {
+      throw Errors.validation('This store does not take that payment method', [
+        { field: 'paymentMethod', message: 'Pick one of the listed payment methods' },
+      ]);
+    }
+    // Once the store charges cards in TejoTime, a card visit is one the main owner charged (or
+    // chose to record as charged elsewhere) — nobody else may mark one paid by card (0043).
+    if (method === 'card' && biz?.card_payments_enabled === true && input.isSuperOwner !== true) {
+      throw new AppError(403, 'CARD_OWNER_ONLY', "Card payments are taken on the owner's phone");
+    }
+  }
   const r = await callRpc('queue_checkout', {
     p_business_id: businessId,
     p_entry_id: entryId,
-    p_amount_paise: amountPaise ?? null,
+    p_amount_paise: input.amountPaise ?? null,
+    p_payment_method: method,
   });
+  return afterCheckout(businessId, entryId, r);
+}
+
+/**
+ * Everything a written checkout sets off, shared by the plain checkout and a card charge
+ * (card-payments.service) so the two can never drift: the owner and ticket events, the review
+ * text, the queue broadcast and the board the caller gets back.
+ */
+export async function afterCheckout(
+  businessId: string,
+  entryId: string,
+  r: { staff_id: string | null; promoted: unknown; visit_id: string },
+) {
   emitToOwners(businessId, 'queue:entry.completed', {
     entryId,
     seatId: r.staff_id,

@@ -1,6 +1,7 @@
 import { exec, many, one, transaction } from '../../db/pool';
 import { env } from '../../config/env';
 import { Errors } from '../../domain/errors';
+import { isUsStore } from '../../domain/enums';
 import { themeColumns } from '../../domain/business-theme';
 
 function businessDTO(b: any, hours: any[], amenities: any[], gallery: any[], plan: string) {
@@ -48,6 +49,9 @@ function businessDTO(b: any, hours: any[], amenities: any[], gallery: any[], pla
     themeColor: b.theme_color ?? null,
     // "Let customers book repeating appointments" (0036). On unless the owner turned it off.
     recurringEnabled: b.recurring_enabled !== false,
+    // Card payments on the PayPal reader (0043). Read-only here: only the main owner changes it,
+    // through PUT /card-payments/settings — PATCH /business admits co-owners.
+    cardPaymentsEnabled: b.card_payments_enabled === true && isUsStore(b.currency),
     plan,
     hours: hours.map((h) => ({
       dayOfWeek: h.day_of_week,

@@ -20,6 +20,8 @@
 
 import * as appLib from '../checkout-amount';
 import * as webLib from '../../../../owner-web/src/lib/checkout-amount';
+// The API's own list (import-free file), so a method added on one side alone fails here.
+import * as backendEnums from '../../../../backend/src/domain/enums';
 
 let checks = 0;
 
@@ -64,6 +66,9 @@ for (const [name, lib] of [
   ['owner-web', webLib],
 ] as const) {
   const at = (label: string) => `${name} · ${label}`;
+  // The amount cases below are about the amount: "Paid by" is answered (cash) so it never decides.
+  const can = (text: string, billing: Billing, typed: Record<string, string>) =>
+    lib.canComplete(text, billing, typed, 'cash');
 
   // ---- parsing ---------------------------------------------------------------------------------
   eq(lib.parseRupees(''), null, at('empty box is not an amount'));
@@ -80,17 +85,17 @@ for (const [name, lib] of [
   const unpriced = bill(HAIR_CUT, [HAIR_WASH, BLOW_DRY]);
   eq(lib.requiredItems(unpriced), [{ key: 'service', label: 'Hair cut' }], at('the haircut must be priced'));
   eq(lib.initialBox(unpriced), '300', at('the box starts at what is known (the add-ons)'));
-  eq(lib.canComplete('300', unpriced, {}), false, at('Complete is disabled until the haircut is priced'));
+  eq(can('300', unpriced, {}), false, at('Complete is disabled until the haircut is priced'));
   eq(lib.missingLabels(unpriced, {}), ['Hair cut'], at('the helper names the haircut'));
   let typed: Record<string, string> = { service: '200' };
   let box = lib.boxAfterPriceChange('300', unpriced, '', '200', typed);
   eq(box, '500', at('typing the haircut price adds it into the box'));
-  eq(lib.canComplete(box, unpriced, typed), true, at('and Complete is enabled'));
+  eq(can(box, unpriced, typed), true, at('and Complete is enabled'));
   eq(lib.boxAfterPriceChange('500', unpriced, '200', '250', { service: '250' }), '550', at('changing it moves by the difference'));
   eq(lib.boxAfterPriceChange('500', unpriced, '200', '', {}), '300', at('clearing it takes it back out'));
-  eq(lib.canComplete('300', unpriced, { service: '' }), false, at('and disables Complete again'));
-  eq(lib.canComplete('300', unpriced, { service: '0' }), true, at('a free haircut (0) is a decision'));
-  eq(lib.canComplete('300', unpriced, { service: 'abc' }), false, at('junk is not a price'));
+  eq(can('300', unpriced, { service: '' }), false, at('and disables Complete again'));
+  eq(can('300', unpriced, { service: '0' }), true, at('a free haircut (0) is a decision'));
+  eq(can('300', unpriced, { service: 'abc' }), false, at('junk is not a price'));
   eq(lib.boxAfterPriceChange('300', unpriced, '', 'abc', { service: 'abc' }), '300', at('junk typed moves nothing'));
 
   // A hand correction (discount) survives later typing and later chips.
@@ -104,30 +109,30 @@ for (const [name, lib] of [
   const washFirst = bill({ name: 'Hair wash', type: 'fixed', paise: 10000 }, [x('c', 'Hair cut', 0, true)]);
   eq(lib.requiredItems(washFirst), [{ key: 'c', label: 'Hair cut' }], at('picked second: still required'));
   eq(lib.initialBox(washFirst), '100', at('picked second: the box starts at the known ₹100'));
-  eq(lib.canComplete('100', washFirst, {}), false, at('picked second: Complete disabled'));
+  eq(can('100', washFirst, {}), false, at('picked second: Complete disabled'));
   eq(lib.boxAfterPriceChange('100', washFirst, '', '200', { c: '200' }), '300', at('picked second: typed price added'));
   // Its chip tapped off (a booked service whose label matches a chip): row and typed price go.
   const washOnly = bill({ name: 'Hair wash', type: 'fixed', paise: 10000 });
   eq(lib.boxAfterExtrasChange('300', washFirst, washOnly, {}, 20000), '100', at('a removed required row takes its typed price with it'));
-  eq(lib.canComplete('100', washOnly, {}), true, at('and nothing is required any more'));
+  eq(can('100', washOnly, {}), true, at('and nothing is required any more'));
 
   // ---- two unpriced services -------------------------------------------------------------------
   const two = bill(HAIR_CUT, [x('p', 'Hair spa', 0, true)]);
   eq(lib.missingLabels(two, {}), ['Hair cut', 'Hair spa'], at('two no-price services: both named'));
   eq(lib.missingLabels(two, { service: '200' }), ['Hair spa'], at('one priced, one still missing'));
-  eq(lib.canComplete('200', two, { service: '200', p: '300' }), true, at('both priced: Complete enabled'));
+  eq(can('200', two, { service: '200', p: '300' }), true, at('both priced: Complete enabled'));
   eq(lib.initialBox(two), '', at('nothing known yet: the box starts empty'));
 
   // ---- range: no required row (the client's call) ----------------------------------------------
   const range = bill({ name: 'Hair Extensions', type: 'range', paise: 200000 }, [HAIR_WASH]);
   eq(lib.requiredItems(range), [], at('range: no required row'));
   eq(lib.initialBox(range), '100', at('range: starts at the add-ons (the floor is never pre-filled)'));
-  eq(lib.canComplete('100', range, {}), true, at('range: the box decides'));
+  eq(can('100', range, {}), true, at('range: the box decides'));
 
   // ---- a fixed service ---------------------------------------------------------------------------
   const fixed = bill({ name: 'Haircut', type: 'fixed', paise: 35000 });
   eq(lib.initialBox(fixed), '350', at('fixed: pre-filled with the suggestion'));
-  eq(lib.canComplete('350', fixed, {}), true, at('fixed: Complete enabled'));
+  eq(can('350', fixed, {}), true, at('fixed: Complete enabled'));
   eq(lib.suggestionDiffers('350', fixed), false, at('fixed: "Suggested" hidden while the box matches'));
   eq(lib.suggestionDiffers('300', fixed), true, at('fixed: shown once the owner changes the box'));
   const fixedPlus = bill({ name: 'Haircut', type: 'fixed', paise: 35000 }, [x('t', 'Touch-up cut', 12300)]);
@@ -140,20 +145,41 @@ for (const [name, lib] of [
   const bare = bill(null);
   eq(lib.requiredItems(bare), [], at('bare: no row to price (the box is the bill)'));
   eq(lib.initialBox(bare), '', at('bare: type the amount'));
-  eq(lib.canComplete('', bare, {}), false, at('bare: Complete disabled while the box is empty'));
+  eq(can('', bare, {}), false, at('bare: Complete disabled while the box is empty'));
   const bareShave = bill(null, [x('s', 'Shave', 5000)]);
   eq(lib.boxAfterExtrasChange('', bare, bareShave), '50', at('bare: a chip seeds the box'));
   eq(lib.boxAfterExtrasChange('100', bare, bareShave), '150', at('bare: typed + chip'));
   eq(lib.boxAfterExtrasChange('50', bareShave, bare), '', at('bare: last chip off leaves no ₹0 bill'));
 
   // ---- the box itself ----------------------------------------------------------------------------
-  eq(lib.canComplete('', fixed, {}), false, at('a cleared box disables Complete'));
-  eq(lib.canComplete('-1', fixed, {}), false, at('a negative box disables Complete'));
-  eq(lib.canComplete('2000000', fixed, {}), false, at('an over-cap box disables Complete'));
+  eq(can('', fixed, {}), false, at('a cleared box disables Complete'));
+  eq(can('-1', fixed, {}), false, at('a negative box disables Complete'));
+  eq(can('2000000', fixed, {}), false, at('an over-cap box disables Complete'));
 
   // ---- chip highlight ----------------------------------------------------------------------------
   eq(lib.isExtraOn([HAIR_WASH, BLOW_DRY], 'blow-DRY '), true, at('chip match is case- and space-insensitive'));
   eq(lib.isExtraOn([HAIR_WASH], 'Shave'), false, at('other chips stay off'));
+
+  // ---- "Paid by" (0042, docs/card-payments-paypal.md): US stores only ----------------------------
+  // A US store is one priced in dollars. Everywhere else checkout is as it always was: no question.
+  const inUsd = (b: Billing): Billing => ({ ...b, serviceAmount: { ...b.serviceAmount, currency: 'USD' } });
+  const inInr = (b: Billing): Billing => ({ ...b, serviceAmount: { ...b.serviceAmount, currency: 'INR' } });
+  eq(lib.canComplete('350', inUsd(fixed), {}, null), false, at('US store, Paid by unanswered: Complete disabled'));
+  eq(lib.canComplete('350', inUsd(fixed), {}, 'card'), true, at('US store, Paid by answered: Complete enabled'));
+  eq(lib.canComplete('', inUsd(fixed), {}, 'card'), false, at('a method does not excuse an empty box'));
+  eq(lib.canComplete('300', inUsd(unpriced), {}, 'cash'), false, at('nor an unpriced service'));
+  eq(lib.canComplete('350', inInr(fixed), {}, null), true, at('rupee store: no Paid by, Complete as before'));
+  eq(lib.canComplete('350', fixed, {}, null), true, at('no currency known: no Paid by, Complete as before'));
+  eq(lib.canComplete('300', inInr(unpriced), {}, null), false, at('rupee store: an unpriced service still blocks'));
+  eq(lib.paymentMethodsFor('USD'), ['card', 'cash'], at('a US store: Card and Cash'));
+  eq(lib.paymentMethodsFor('usd'), ['card', 'cash'], at('currency code case does not matter'));
+  eq(lib.paymentMethodsFor('INR'), [], at('a rupee store: no Paid by'));
+  eq(lib.paymentMethodsFor(null), [], at('no currency: no Paid by'));
+  eq(lib.paidByAsked('USD'), true, at('asked on a US store'));
+  eq(lib.paidByAsked('EUR'), false, at('not asked anywhere else'));
+  for (const cur of ['USD', 'INR', 'EUR', 'CAD', null]) {
+    eq(lib.paymentMethodsFor(cur), [...backendEnums.paymentMethodsFor(cur)], at(`${cur} list matches the API's`));
+  }
 }
 
 console.log(`checkout-amount: ${checks} checks passed (app + owner-web copies agree)`);

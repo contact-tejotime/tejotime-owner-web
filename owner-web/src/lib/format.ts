@@ -65,3 +65,28 @@ export function formatServicePrice(service: {
   }
   return formatMoney(service.price);
 }
+
+/**
+ * "Paid by" for display ("Cash App", "UPI"). The API sends the code (`cash_app`); an unknown code
+ * — a method added on the server before this client knew it — is shown as itself, never as blank.
+ */
+export function paymentMethodLabel(method: string | null | undefined): string {
+  switch (method) {
+    case "card":
+      return t.paymentMethod.card;
+    case "cash":
+      return t.paymentMethod.cash;
+    case "venmo":
+      return t.paymentMethod.venmo;
+    case "zelle":
+      return t.paymentMethod.zelle;
+    case "cash_app":
+      return t.paymentMethod.cashApp;
+    case "upi":
+      return t.paymentMethod.upi;
+    case "other":
+      return t.paymentMethod.other;
+    default:
+      return method ?? "";
+  }
+}

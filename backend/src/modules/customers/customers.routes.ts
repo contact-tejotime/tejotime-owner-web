@@ -194,6 +194,10 @@ customersRouter.get(
         id: v.id,
         serviceName: v.service_name,
         amount: money(Number(v.amount_paise ?? 0), currency),
+        // "Paid by" (0042); null for visits from before the question. A refunded card visit
+        // (0043) stays listed but no longer counts as money taken.
+        paymentMethod: v.payment_method ?? null,
+        refunded: v.refunded_at != null,
         completedAt: v.completed_at,
       })),
     });

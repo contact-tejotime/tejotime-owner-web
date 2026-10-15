@@ -74,6 +74,22 @@ They must match `app/.env.prod.example`:
 | `EXPO_PUBLIC_SOCKET_URL` | `https://api.tejotime.com` |
 | `EXPO_PUBLIC_WEB_URL` | `https://www.tejotime.com` |
 
+Card payments ([card-payments-paypal.md](./card-payments-paypal.md)) add more variables:
+
+- **Public (`EXPO_PUBLIC_*`):** `EXPO_PUBLIC_PAYPAL_CLIENT_ID_IOS`, `_ANDROID`,
+  `EXPO_PUBLIC_PAYPAL_REDIRECT_URL` and `EXPO_PUBLIC_PAYPAL_DEV_MODE`. Dev mode must be **`false`**
+  in production.
+- **Secret: `GITHUB_PACKAGES_TOKEN`.** A GitHub PAT with `read:packages`, needed by Gradle to
+  download PayPal's Android SDK. Without it, every Android build fails at dependency resolution.
+  - For cloud builds, store it as an EAS secret (`eas env:create`, visibility "secret").
+  - For `scripts/build-android.sh`, export it in the shell. The script stops with an error if it
+    is missing.
+  - It is never written into a generated file.
+- `scripts/build-android.sh` writes the four `EXPO_PUBLIC_PAYPAL_*` values into the build's `.env`
+  next to the API URLs, and warns when the Android client id is missing. Before 2026-10-15 it wrote
+  only the four URL settings, so a local APK would have shipped with no card charging and no error.
+  The client ids are public and sit in the committed `.env.*.example` files.
+
 Only `EXPO_PUBLIC_*` names reach the app — Metro inlines them at bundle time, and an unprefixed
 name reads as `undefined`. Keep `EXPO_PUBLIC_WEB_URL` on the same origin as the backend's
 `PUBLIC_WEB_URL`; between them they generate the QR and booking links that get printed on signage.

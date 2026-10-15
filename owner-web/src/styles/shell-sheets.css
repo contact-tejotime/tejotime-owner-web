@@ -1010,6 +1010,14 @@
   line-height: 20px;
   color: var(--text-muted);
 }
+/* "Paid by" under the bill (docs/card-payments-paypal.md): the same chips as the add-ons, with a
+   little air above so it reads as its own question rather than part of the bill. */
+.dp-paid-by {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
 .dp-chips {
   display: flex;
   flex-wrap: wrap;

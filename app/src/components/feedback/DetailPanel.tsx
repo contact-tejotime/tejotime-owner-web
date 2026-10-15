@@ -27,13 +27,16 @@ import {
   isExtraOn,
   missingLabels,
   parseRupees,
+  paymentMethodsFor,
   requiredItems,
   SERVICE_KEY,
   suggestionDiffers,
+  type PaymentMethod,
 } from '@/lib/checkout-amount';
+import { cardReader, isCardReaderAvailable } from '@/lib/card-reader';
 import { currencySymbol } from '@/lib/currencies';
 import { flatCards } from '@/lib/queue';
-import { formatMoney } from '@/lib/mappers';
+import { formatMoney, paymentMethodLabel } from '@/lib/mappers';
 import { extrasForCategory } from '@/lib/service-extras';
 import { styles } from '@/styles';
 import { MAX_FONT_SCALE, moderateScale } from '@/styles/scale';
@@ -67,6 +70,14 @@ interface Billing {
   extrasAmount: { amount: number; currency: string };
   /** `priceRequired`: a booked service with no price, stored at a placeholder 0 (0040). */
   extras: { id: string; label: string; minutes: number; pricePaise: number; priceRequired?: boolean }[];
+  /**
+   * Card payments (0043, docs/card-payments-paypal.md). Optional: an API from before them sends
+   * none, which reads as "off" — Card is then a plain choice, as it always was. `cardAllowed` is
+   * answered for this login; `pendingCardPayment` is a charge in flight (Complete waits for it).
+   */
+  cardPaymentsEnabled?: boolean;
+  cardAllowed?: boolean;
+  pendingCardPayment?: { id: string; amount: { amount: number; currency: string } } | null;
 }
 
 /**
@@ -156,6 +167,10 @@ export function DetailPanel() {
   const [pricePrompt, setPricePrompt] = useState<{ label: string; mins: number } | null>(null);
   /** Content is scrolled under the pinned footer: give the footer an edge so that reads. */
   const [raised, setRaised] = useState(false);
+  /** "Paid by". Nothing is pre-picked: a guessed method is a wrong record nobody notices. */
+  const [method, setMethod] = useState<PaymentMethod | null>(null);
+  /** This phone is signed in to PayPal, so Card can be charged on the reader from here. */
+  const [readerReady, setReaderReady] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const contentRef = useRef<View>(null);
   const requiredRefs = useRef<Record<string, TextInput | null>>({});
@@ -193,6 +208,23 @@ export function DetailPanel() {
     };
   }, [cardId, cardRightText]);
 
+  // Card on the reader is the main owner's, on a build that carries PayPal's SDK, for a store that
+  // turned it on. Whether THIS phone is signed in to PayPal is asked once per open — it is the one
+  // thing the server cannot know (docs/card-payments-paypal.md).
+  const isMainOwner = store.session?.isSuperOwner === true;
+  const cardsOn = billing?.cardPaymentsEnabled === true;
+  useEffect(() => {
+    if (!cardId || !isMainOwner || !cardsOn || !isCardReaderAvailable()) return;
+    let alive = true;
+    cardReader
+      .isLoggedIn()
+      .then((ok) => alive && setReaderReady(ok))
+      .catch(() => alive && setReaderReady(false));
+    return () => {
+      alive = false;
+    };
+  }, [cardId, isMainOwner, cardsOn]);
+
   /** Closing drops the loaded billing so the next customer never sees the previous one's. */
   const close = () => {
     setBilling(null);
@@ -200,6 +232,8 @@ export function DetailPanel() {
     setTyped({});
     setTouched({});
     setRaised(false);
+    setMethod(null);
+    setReaderReady(false);
     store.closeDetail();
   };
 
@@ -294,18 +328,35 @@ export function DetailPanel() {
 
   const onConfirm = () => {
     // The button is disabled until this holds; checked again so a stale render cannot send a bill
-    // that is empty, unreadable, or missing a service's price.
-    if (!billing || !canComplete(amount, billing, typed)) return;
+    // that is empty, unreadable, missing a service's price, or not marked paid.
+    if (!billing || !canComplete(amount, billing, typed, method)) return;
     // Paise on the wire — money crosses the API as an integer minor unit.
-    store.checkout(card!.id, parseRupees(amount)!);
+    store.checkout(card!.id, parseRupees(amount)!, method);
+  };
+
+  /** Charge the bill on the PayPal reader; the visit is completed with it (store.chargeCard). */
+  const onCharge = () => {
+    const paise = parseRupees(amount);
+    if (!billing || !canComplete(amount, billing, typed, 'card') || !paise) return;
+    void store.chargeCard(card!.id, paise);
   };
 
   const serviceName = billing?.serviceName ?? null;
   const currency = billing?.serviceAmount.currency ?? store.business?.currency;
   const symbol = currencySymbol(currency);
   const missing = billing ? missingLabels(billing, typed) : [];
-  const ready = !!billing && canComplete(amount, billing, typed);
+  const pendingCard = billing?.pendingCardPayment ?? null;
+  const ready = !!billing && canComplete(amount, billing, typed, method) && !pendingCard;
   const totalPaise = parseRupees(amount);
+  // Card and Cash on a US store; empty everywhere else, which hides "Paid by" entirely. Read off
+  // the billing's currency only (not the session's), so the list never shows before billing lands.
+  const methods = billing ? paymentMethodsFor(billing.serviceAmount.currency) : [];
+  const cardBlocked = billing?.cardAllowed === false;
+  // Card, picked by the main owner of a store that charges cards in TejoTime, on a phone signed in
+  // to PayPal: the button charges the reader. Without the sign-in it records a card charged
+  // elsewhere, and says how to set the reader up.
+  const cardOnReader = method === 'card' && cardsOn && isMainOwner && isCardReaderAvailable();
+  const willCharge = cardOnReader && readerReady;
 
   /**
    * One bill row whose price has to be typed: the service's name with a required marker, and a
@@ -620,6 +671,47 @@ export function DetailPanel() {
                       </View>
                     </View>
                   ) : null}
+
+                  {/* "Paid by" — US stores only, required there, nothing pre-picked
+                      (docs/card-payments-paypal.md). Every other store has no list, so no
+                      question: its checkout is the old one. Under the bill, the last thing settled. */}
+                  {billing && methods.length > 0 ? (
+                    <View style={s.paidBy} accessibilityRole="radiogroup" accessibilityLabel={t.detail.paidBy}>
+                      <TText variant="bodySm" weight="semibold" color="textBody">
+                        {t.detail.paidBy}
+                      </TText>
+                      <View style={s.chipWrap}>
+                        {methods.map((m) => {
+                          const on = method === m;
+                          const blocked = m === 'card' && cardBlocked;
+                          return (
+                            <Pressable
+                              key={m}
+                              disabled={busy || blocked}
+                              onPress={() => setMethod(m)}
+                              accessibilityRole="radio"
+                              accessibilityState={{ checked: on, disabled: busy || blocked }}
+                              style={[s.chip, on && s.chipOn, blocked && s.chipDisabled]}>
+                              {on ? <Icon name="check" size={16} color={theme.colors.textOnBrand} /> : null}
+                              <TText variant="bodySm" weight="semibold" color={on ? 'textOnBrand' : 'textBody'}>
+                                {paymentMethodLabel(m)}
+                              </TText>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      {/* Why Card is greyed out, or what the button below will do with it. */}
+                      {methods.includes('card') && cardBlocked ? (
+                        <TText variant="caption" color="textMuted">
+                          {t.detail.cardOwnerOnly}
+                        </TText>
+                      ) : cardOnReader && !readerReady ? (
+                        <TText variant="caption" color="textMuted">
+                          {t.detail.readerSignIn}
+                        </TText>
+                      ) : null}
+                    </View>
+                  ) : null}
                 </View>
               )}
               </View>
@@ -677,8 +769,13 @@ export function DetailPanel() {
               )}
               {inService && (
                 <>
-                  {/* Why Complete is disabled, and a way straight to the fix. */}
-                  {missing.length > 0 ? (
+                  {/* Why Complete is disabled, and a way straight to the fix. A card being charged
+                      on the owner's phone comes first: nothing here can be done about it. */}
+                  {pendingCard ? (
+                    <TText variant="bodySm" color="textMuted">
+                      {format(t.detail.cardInProgress, { amount: formatMoney(pendingCard.amount) })}
+                    </TText>
+                  ) : missing.length > 0 ? (
                     <Pressable
                       onPress={focusFirstMissing}
                       accessibilityRole="button"
@@ -688,16 +785,56 @@ export function DetailPanel() {
                         {format(t.detail.priceRequiredHint, { services: missing.join(', ') })}
                       </TText>
                     </Pressable>
+                  ) : billing && !method && methods.length > 0 ? (
+                    <Pressable
+                      onPress={() => scrollRef.current?.scrollToEnd({ animated: true })}
+                      accessibilityRole="button"
+                      style={s.reqHint}>
+                      <Icon name="alertTriangle" size={16} color={theme.colors.warningSoftFg} />
+                      <TText variant="bodySm" weight="semibold" color="warningSoftFg" style={styles.flex}>
+                        {t.detail.paidByRequired}
+                      </TText>
+                    </Pressable>
                   ) : null}
-                  <Button
-                    variant="danger"
-                    size="lg"
-                    fullWidth
-                    loading={running('checkout')}
-                    disabled={busy || !ready}
-                    onPress={onConfirm}>
-                    {t.detail.completeNext}
-                  </Button>
+                  {willCharge ? (
+                    <>
+                      {/* Card on the reader: the charge IS the completion (one step on the API). */}
+                      <Button
+                        variant="danger"
+                        size="lg"
+                        fullWidth
+                        loading={running('charge')}
+                        disabled={busy || !ready || !totalPaise}
+                        onPress={onCharge}>
+                        {format(t.detail.chargeCard, {
+                          amount:
+                            totalPaise !== null
+                              ? formatMoney({ amount: totalPaise, currency: currency ?? 'INR' })
+                              : t.common.dash,
+                        })}
+                      </Button>
+                      {/* The reader is flat or not to hand: record a card already charged in
+                          PayPal's own app. Main owner only (the API refuses anyone else). */}
+                      <Button
+                        variant="outline"
+                        fullWidth
+                        loading={running('checkout')}
+                        disabled={busy || !ready}
+                        onPress={onConfirm}>
+                        {t.detail.chargedOutside}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="danger"
+                      size="lg"
+                      fullWidth
+                      loading={running('checkout')}
+                      disabled={busy || !ready}
+                      onPress={onConfirm}>
+                      {t.detail.completeNext}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     fullWidth
@@ -896,6 +1033,8 @@ const createDetailPanelStyles = ({ colors, radius }: ThemeStyleProps) => {
     // An add-on that is on the visit: filled, so it reads as "on" at a glance; a tap takes it off.
     chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
     chipDisabled: { opacity: 0.55 },
+    // "Paid by" under the bill: its own question, so a little air above it.
+    paidBy: { gap: moderateScale(8), marginTop: moderateScale(8) },
     chipDot: { width: moderateScale(9), height: moderateScale(9), borderRadius: moderateScale(4.5) },
     busyNote: { lineHeight: moderateScale(20) },
   });

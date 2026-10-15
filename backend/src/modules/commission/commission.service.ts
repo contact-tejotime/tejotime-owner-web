@@ -83,7 +83,9 @@ async function loadBuckets(
             vc.rate_bp,
             vc.rate_from,
             count(*)::int as visits,
-            coalesce(sum(vc.amount_paise), 0)::bigint as revenue,
+            -- A refunded card visit (0043) still counts, but brings in nothing and earns nothing
+            -- (the view already zeroes its commission).
+            coalesce(sum(vc.amount_paise) filter (where vc.refunded_at is null), 0)::bigint as revenue,
             coalesce(sum(vc.commission_paise), 0)::bigint as commission
        from visit_commission vc
       where vc.business_id = $1
@@ -225,6 +227,7 @@ export async function visits(
       amount_paise: string;
       rate_bp: number | null;
       commission_paise: string | null;
+      refunded_at: string | null;
     }>(
       `select vc.visit_id,
               vc.completed_at,
@@ -234,7 +237,8 @@ export async function visits(
               coalesce(c.name, q.customer_name) as customer_name,
               vc.amount_paise,
               vc.rate_bp,
-              vc.commission_paise
+              vc.commission_paise,
+              vc.refunded_at
          from visit_commission vc
          left join queue_entry q on q.id = vc.queue_entry_id and q.business_id = vc.business_id
          left join customer c on c.id = vc.customer_id and c.business_id = vc.business_id
@@ -281,6 +285,8 @@ export async function visits(
       amount: m(Number(r.amount_paise)),
       rateBp: r.rate_bp ?? null,
       commission: r.commission_paise == null ? null : m(Number(r.commission_paise)),
+      // Listed, so the stylist can see why it earned nothing (0043).
+      refunded: r.refunded_at != null,
     })),
     meta: { shown: rows.length, total: totalVisits, limit: opts.limit },
   };

@@ -15,8 +15,9 @@ dashboardRouter.use(authenticate);
 // `?range=today|week|month|custom&from=&to=` — resolved in the store's timezone by
 // lib/report-window, the same window the commission reports use, so the revenue on Reports and
 // the commission beside it always cover the same days. Windows are half-open (`< endIso`).
-// Deliberately NOT built on the visit_commission view (migration 0034): Reports keeps working on
-// a backend that is briefly ahead of its schema.
+// Not built on the visit_commission view (migration 0034). Revenue leaves out refunded card visits
+// (`visit.refunded_at`, 0043), so this needs that migration; the visit COUNTS keep them — a
+// refunded visit was still served (client decision 2026-10-15, docs/card-payments-paypal.md).
 
 dashboardRouter.get(
   '/summary',
@@ -53,7 +54,8 @@ dashboardRouter.get(
         [businessId, ['waiting', 'in_service'], ...seatParam],
       ),
       one<{ completed: number; revenue: string }>(
-        `select count(*)::int as completed, coalesce(sum(amount_paise), 0)::bigint as revenue
+        `select count(*)::int as completed,
+                coalesce(sum(amount_paise) filter (where refunded_at is null), 0)::bigint as revenue
            from visit
           where business_id = $1 and completed_at >= $2 and completed_at < $3${seatFilter}`,
         [businessId, w.startIso, w.endIso, ...seatParam],
@@ -134,7 +136,7 @@ dashboardRouter.get(
          left join (
            select staff_id,
                   count(*)::int as completed,
-                  coalesce(sum(amount_paise), 0)::bigint as revenue
+                  coalesce(sum(amount_paise) filter (where refunded_at is null), 0)::bigint as revenue
              from visit
             where business_id = $1
               and completed_at >= $2

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MAX_SERVICES_PER_VISIT, SERVICE_EXTRAS } from '../../config/constants';
+import { PAYMENT_METHODS } from '../../domain/enums';
 
 export const queueQuerySchema = z.object({
   view: z.enum(['grouped', 'flat']).optional().default('grouped'),
@@ -30,6 +31,10 @@ export const addWalkInSchema = z
 export const checkoutSchema = z
   .object({
     amountPaise: z.coerce.number().int().min(0).max(100_000_000).optional().nullable(),
+    // "Paid by" (0042). Both owner surfaces require it before Complete; it stays optional here
+    // only for the app builds already on phones, which send no method. Which methods a store may
+    // use depends on its currency — checked in the service, which knows the store.
+    paymentMethod: z.enum(PAYMENT_METHODS).optional().nullable(),
   })
   .strict()
   .optional();

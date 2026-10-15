@@ -15,13 +15,16 @@ import {
   initialBox,
   isExtraOn,
   missingLabels,
+  paidByAsked,
   parseRupees,
+  paymentMethodsFor,
   requiredItems,
   SERVICE_KEY,
   suggestionDiffers,
+  type PaymentMethod,
 } from "@/lib/checkout-amount";
 import { currencySymbol } from "@/lib/currencies";
-import { formatMoney, formatServicePrice } from "@/lib/format";
+import { formatMoney, formatServicePrice, paymentMethodLabel } from "@/lib/format";
 import { extrasForCategory } from "@/lib/service-extras";
 import { showToast } from "@/lib/toast";
 import type { Money, QueueCard, SeatGroup, ServicePriceType } from "@/lib/server-api";
@@ -82,6 +85,18 @@ interface Billing {
   amountRequired: boolean;
   /** `priceRequired`: a booked service with no price, stored at a placeholder 0 (0040). */
   extras: { id: string; label: string; minutes: number; pricePaise: number; priceRequired?: boolean }[];
+  /**
+   * Card payments (0043, docs/card-payments-paypal.md). Optional: an API from before them sends
+   * none, which reads as "off", so Card is a plain choice as it always was.
+   *
+   * `cardAllowed` is the server's answer for whoever is looking: once the store charges cards in
+   * TejoTime, only the main owner may record Card — and the web never charges one, it only records
+   * a card already charged. `pendingCardPayment` is a charge the owner's phone has in flight;
+   * until it finishes, nobody can complete this customer (the API refuses with 409).
+   */
+  cardPaymentsEnabled?: boolean;
+  cardAllowed?: boolean;
+  pendingCardPayment?: { id: string; amount: Money } | null;
 }
 
 type Action = "start" | "checkout" | "no-show" | "reassign" | "extend";
@@ -143,6 +158,9 @@ export function QueueDetailSheet({
   const [pricePrompt, setPricePrompt] = useState<{ label: string; minutes: number } | null>(null);
   /** Content is scrolled under the pinned footer: give the footer an edge so that reads. */
   const [raised, setRaised] = useState(false);
+  /** "Paid by". Nothing is pre-picked: a guessed method is a wrong record nobody notices. */
+  const [method, setMethod] = useState<PaymentMethod | null>(null);
+  const paidByRef = useRef<HTMLDivElement>(null);
   const addOns = extrasForCategory(category);
   const titleId = useId();
   const fieldId = useId();
@@ -314,13 +332,21 @@ export function QueueDetailSheet({
 
   async function onComplete() {
     // The button is disabled until this holds; checked again so Enter or a stale render cannot
-    // send a bill that is empty, unreadable, or missing a service's price.
-    if (!billing || !canComplete(amount, billing, typed)) {
-      setError(t.detail.errAmount);
+    // send a bill that is empty, unreadable, missing a service's price, or not marked paid.
+    if (!billing || !canComplete(amount, billing, typed, method)) {
+      setError(!method && billing && paidByAsked(billing.serviceAmount.currency) ? t.detail.paidByRequired : t.detail.errAmount);
       return;
     }
     // Paise on the wire — money crosses the API as an integer minor unit.
-    await act("checkout", { amountPaise: parseRupees(amount) });
+    await act("checkout", { amountPaise: parseRupees(amount), paymentMethod: method });
+  }
+
+  /** The footer's "Choose how the customer paid" line: bring the choices into view. */
+  function focusPaidBy() {
+    const row = paidByRef.current;
+    if (!row) return;
+    row.scrollIntoView({ block: "center", behavior: "smooth" });
+    row.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
   }
 
   // Real chairs only: the seatless "Any"/"Waiting" group is not a seat the API can reassign to.
@@ -334,8 +360,12 @@ export function QueueDetailSheet({
   const serviceName = billing?.serviceName ?? null;
   const symbol = billing ? currencySymbol(billing.serviceAmount.currency) : "";
   const missing = billing ? missingLabels(billing, typed) : [];
-  const ready = !!billing && canComplete(amount, billing, typed);
+  const pendingCard = billing?.pendingCardPayment ?? null;
+  const ready = !!billing && canComplete(amount, billing, typed, method) && !pendingCard;
   const totalPaise = parseRupees(amount);
+  // Card and Cash on a US store; empty everywhere else, which hides "Paid by" entirely.
+  const methods = billing ? paymentMethodsFor(billing.serviceAmount.currency) : [];
+  const cardBlocked = billing?.cardAllowed === false;
 
   /**
    * One bill row whose price has to be typed: the service's name with a required marker, and a
@@ -616,6 +646,42 @@ export function QueueDetailSheet({
                     <Skeleton height={12} width="45%" />
                   </div>
                 )}
+
+                {/* "Paid by" — US stores only, required there, nothing pre-picked
+                    (docs/card-payments-paypal.md). Every other store has no list, so no question:
+                    its checkout is the old one. Under the bill, the last thing settled. */}
+                {billing && methods.length > 0 ? (
+                  <div ref={paidByRef} className="dp-paid-by" role="radiogroup" aria-label={t.detail.paidBy}>
+                    <p className="dp-label">{t.detail.paidBy}</p>
+                    <div className="dp-chips">
+                      {methods.map((m) => {
+                        const on = method === m;
+                        const blocked = m === "card" && cardBlocked;
+                        return (
+                          <button
+                            key={m}
+                            type="button"
+                            role="radio"
+                            aria-checked={on}
+                            className={on ? "dp-chip is-selected" : "dp-chip"}
+                            disabled={busy || blocked}
+                            title={blocked ? t.detail.cardOwnerOnly : undefined}
+                            onClick={() => setMethod(m)}
+                          >
+                            {on ? <Icon name="check" size={16} /> : null}
+                            <span>{paymentMethodLabel(m)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {/* Why Card is greyed out, or what picking it means on the web. */}
+                    {methods.includes("card") && cardBlocked ? (
+                      <p className="dp-hint">{t.detail.cardOwnerOnly}</p>
+                    ) : method === "card" && billing.cardPaymentsEnabled ? (
+                      <p className="dp-hint">{t.detail.cardOnWeb}</p>
+                    ) : null}
+                  </div>
+                ) : null}
               </section>
             ) : null}
             <div ref={endRef} className="dp-scroll-end" aria-hidden />
@@ -630,11 +696,21 @@ export function QueueDetailSheet({
 
             {inService ? (
               <>
-                {/* Why Complete is disabled, and a way straight to the fix. */}
-                {missing.length > 0 ? (
+                {/* Why Complete is disabled, and a way straight to the fix. A card being charged on
+                    the owner's phone comes first: nothing else here can be done about it. */}
+                {pendingCard ? (
+                  <p className="dp-note" role="status">
+                    {format(t.detail.cardInProgress, { amount: formatMoney(pendingCard.amount) })}
+                  </p>
+                ) : missing.length > 0 ? (
                   <button type="button" className="dp-req-hint" onClick={focusFirstMissing}>
                     <Icon name="alertTriangle" size={16} />
                     <span>{format(t.detail.priceRequiredHint, { services: missing.join(", ") })}</span>
+                  </button>
+                ) : billing && !method && methods.length > 0 ? (
+                  <button type="button" className="dp-req-hint" onClick={focusPaidBy}>
+                    <Icon name="alertTriangle" size={16} />
+                    <span>{t.detail.paidByRequired}</span>
                   </button>
                 ) : null}
                 {/* Red, matching the board's End — it is the same action. */}
