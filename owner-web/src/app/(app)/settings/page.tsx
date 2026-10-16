@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { t, format, plural } from "@/i18n";
-import { paidByAsked } from "@/lib/checkout-amount";
+import { isUsStore } from "@/lib/checkout-amount";
 import { can, NO_ACCESS } from "@/lib/roles";
 import {
   getBusiness,
@@ -85,7 +85,7 @@ export default async function SettingsPage() {
       cardUrl={qr?.cardUrl ?? null}
       recurringEnabled={recurringEnabled}
       isSuperOwner={me.user.isSuperOwner === true}
-      isUsStore={paidByAsked(me.business.currency)}
+      isUsStore={isUsStore(me.business.currency)}
       cardPaymentsEnabled={typeof business?.cardPaymentsEnabled === "boolean" ? business.cardPaymentsEnabled : null}
       subs={{
         // The neighborhood is optional now; the store page shows the city in its place, so this

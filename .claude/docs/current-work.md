@@ -11,6 +11,9 @@ the system as designed, this one describes where it actually is.
 
 ### "Paid by" + card payments on the PayPal reader (2026-10-15)
 
+- **2026-10-16 change:** "Paid by" is asked only while a US store has Card payments switched
+  on. Off, it's the old checkout. Checks: `test:checkout` 190 checks; backend `vitest` 558/558;
+  `smoke-payment-method.mjs` 53/53 on the local throwaway DB.
 - **What:** checkout asks "Paid by" on all three owner surfaces. US stores charge cards on the
   PayPal POS Card Reader from the app, main owner only, with refunds that leave revenue and
   commission. Migrations 0042 and 0043, a new `/card-payments` API, and a local native module

@@ -21,7 +21,8 @@ TejoTime. Decisions, all 2026-10-15:
 | Final amount only | No tips, no tax |
 | Refunds | Whole amount, back to the card. Card payments only |
 | **US stores only** | "Paid by" and card payments exist only on a **US store**, meaning one priced in **USD** (`business.currency`, set in the admin panel). Every other store checks out exactly as before: no "Paid by" question, no Card payments row, and the API refuses card payments there (409 `CARD_PAYMENTS_US_ONLY`) |
-| **"Paid by" is required** on a US store's checkout | **Card · Cash** only. The first version offered more (USD: Venmo · Zelle · Cash App · Other; others: UPI · Other). Those codes stay valid in the database, so widening the list is a code change, not a migration |
+| **"Paid by" is required** on a US store's checkout **while Card payments is switched on** | **Card · Cash** only. The first version offered more (USD: Venmo · Zelle · Cash App · Other; others: UPI · Other). Those codes stay valid in the database, so widening the list is a code change, not a migration |
+| **Card payments off = the old checkout** (client 2026-10-16) | A US store that has not switched Card payments on (Settings → Card payments), or has switched it off, gets no "Paid by" question: Complete & start next is ready as soon as the bill is, exactly as before |
 | Staff and co-owners cannot pick Card | Once card charging is on, they leave the customer for the main owner |
 | A refund takes money out | Leaves revenue, the stylist's commission and the customer's total spend, **on the original visit's day** |
 | A refunded visit still counts | It is still a completed visit in every count |
@@ -44,26 +45,35 @@ that is not priced in USD (an INR store, for example) sees none of it.
 
 ### Which stores: US stores only
 
-**One rule decides it:** a store is a US store when `business.currency` is `USD`. That's
-`isUsStore` in `backend/src/domain/enums.ts`, and `paymentMethodsFor` / `paidByAsked` in both
-`lib/checkout-amount.ts` copies.
+**Two rules decide it:**
+- **A store is a US store** when `business.currency` is `USD`. That's `isUsStore` in
+  `backend/src/domain/enums.ts` and in both `lib/checkout-amount.ts` copies. Only a US store can
+  have card payments, so this decides the Settings row.
+- **"Paid by" is asked only while the US store has Card payments switched on** (client
+  2026-10-16). That's `paidByAsked` / `paidByChoices` in both `lib/checkout-amount.ts` copies,
+  fed by the billing's `cardPaymentsEnabled` from `GET /queue/:id`. The API already reports that
+  flag as off on any store that isn't a US store.
 
-| | US store (USD) | Any other store |
-|---|---|---|
-| "Paid by" on checkout | Card · Cash, required | **not shown**: the old checkout, Complete as before |
-| A `paymentMethod` sent to the API | `card` / `cash` accepted, others 400 | any method → 400 (a bare checkout works as always) |
-| Settings → Card payments row and page | main owner | **hidden**; the page redirects to Settings |
-| `PUT /card-payments/settings {enabled: true}`, `POST /card-payments` | allowed (main owner) | **409 `CARD_PAYMENTS_US_ONLY`** |
-| `cardPaymentsEnabled` (GET /business, GET /queue/:id, settings) | the switch | always `false`, even if the column was left on from before a currency change |
+| | US store, Card payments **on** | US store, Card payments **off** (the default) | Any other store |
+|---|---|---|---|
+| "Paid by" on checkout | Card · Cash, required | **not shown**: the old checkout, Complete as before | **not shown**: the old checkout |
+| A `paymentMethod` sent to the API | `card` / `cash` accepted, others 400 | `card` / `cash` still accepted, so a sheet opened before the switch still lands; others 400 | any method → 400 (a bare checkout works as always) |
+| Settings → Card payments row and page | main owner | main owner, to switch it on | **hidden**; the page redirects to Settings |
+| `PUT /card-payments/settings {enabled: true}`, `POST /card-payments` | allowed (main owner) | allowed (main owner) | **409 `CARD_PAYMENTS_US_ONLY`** |
+| `cardPaymentsEnabled` (GET /business, GET /queue/:id, settings) | `true` | `false` | always `false`, even if the column was left on from before a currency change |
 
 Completing, failing and refunding a charge are **not** US-gated. If a store changes currency with
 a charge already taken, that money is still recorded and can still be refunded.
 
-### "Paid by" (0042) — all three owner surfaces, US stores
+### "Paid by" (0042) — all three owner surfaces, US stores with Card payments on
 
-- **The sheet.** Under the bill, a US store's checkout sheet asks "Paid by". Nothing is pre-picked,
-  and Complete stays disabled until a method is chosen. Every other store's sheet doesn't ask.
-- **The lists.** The choice list depends on the store's currency (`paymentMethodsFor`). It is
+- **The sheet.** Under the bill, the checkout sheet of a US store **with Card payments switched
+  on** asks "Paid by". Nothing is pre-picked, and Complete stays disabled until a method is chosen.
+  Every other sheet doesn't ask, including a US store that has it off.
+- **History.** On 2026-10-15 every US store was asked. On 2026-10-16 the client narrowed it:
+  "only when card payments is on from Settings; if off, as the old version, nothing asked,
+  Complete & start next enabled directly".
+- **The lists.** What a store *may record* depends on its currency (`paymentMethodsFor`). It is
   hand-kept in three places and pinned by `npm run test:checkout`, which also compares it with
   the backend's list:
   - `backend/src/domain/enums.ts`
@@ -73,6 +83,11 @@ a charge already taken, that money is still recorded and can still be refunded.
 - **Old app builds.** Builds already on phones send no method. The API still accepts that, and
   the visit reads "not recorded". A method the store doesn't offer is a 400: anything but Card or
   Cash on a US store, and any method at all elsewhere.
+- **Asking vs accepting.** The API checks the method against the currency only, not the switch. A
+  Cash picked on a sheet that was open when the owner switched card payments off is a true answer,
+  so it is recorded rather than failing the checkout.
+- **Builds from 2026-10-15** (before the narrowing) ask "Paid by" on every US store. Their answers
+  are still accepted, so nothing breaks; they just ask when they no longer need to.
 - **Widening it later.** Change `paymentMethodsFor` in all three files; the
   `ck_visit_payment_method` check already allows the other codes.
 
@@ -252,8 +267,13 @@ and a short video of a charge.
 
 `smoke-payment-method.mjs` covers:
 - **The rupee store:** Card and Cash are refused, and the old bare checkout works.
-- **The US store:** Card and Cash are recorded on the visit and its history; UPI, Venmo, Other and
-  unknown methods are refused; a bare checkout from an old app still works.
+- **The US store:**
+  - A new store reports Card payments off (so the sheets ask nothing) and checks out the old way.
+  - Switched on, it reports on, and Card and Cash are recorded on the visit and its history.
+  - Switched off again, it reports off, and a Cash from a sheet opened before the switch still lands.
+  - UPI, Venmo, Other and unknown methods are refused, and a bare checkout from an old app still works.
+- Last run 2026-10-16: **53 passed, 0 failed** (local throwaway DB `tejotime_card_smoke`, API on
+  port 8090).
 
 `smoke-card-payments.mjs` covers:
 - US stores only: the rupee store can't turn card payments on (409 `CARD_PAYMENTS_US_ONLY`) and

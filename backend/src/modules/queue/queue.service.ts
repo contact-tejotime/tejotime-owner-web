@@ -515,7 +515,8 @@ export async function checkout(businessId: string, entryId: string, input: Check
     );
     // The sheet only offers the store's own list — Card or Cash on a US store, nothing anywhere
     // else — so this is a stale or hand-made request. Refused rather than banked as a method the
-    // store does not offer.
+    // store does not offer. Deliberately NOT tied to card_payments_enabled, although the sheet only
+    // asks while it is on: an answer from a sheet opened before the owner switched it off is true.
     if (!paymentMethodsFor(biz?.currency).includes(method)) {
       throw Errors.validation('This store does not take that payment method', [
         { field: 'paymentMethod', message: 'Pick one of the listed payment methods' },

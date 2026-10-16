@@ -15,9 +15,8 @@ import {
   initialBox,
   isExtraOn,
   missingLabels,
-  paidByAsked,
+  paidByChoices,
   parseRupees,
-  paymentMethodsFor,
   requiredItems,
   SERVICE_KEY,
   suggestionDiffers,
@@ -86,8 +85,9 @@ interface Billing {
   /** `priceRequired`: a booked service with no price, stored at a placeholder 0 (0040). */
   extras: { id: string; label: string; minutes: number; pricePaise: number; priceRequired?: boolean }[];
   /**
-   * Card payments (0043, docs/card-payments-paypal.md). Optional: an API from before them sends
-   * none, which reads as "off", so Card is a plain choice as it always was.
+   * Card payments (0043, docs/card-payments-paypal.md). "Paid by" is asked only while this is on
+   * (`paidByChoices`). Optional: an API from before them sends none, which reads as "off" — the
+   * old checkout, with no question.
    *
    * `cardAllowed` is the server's answer for whoever is looking: once the store charges cards in
    * TejoTime, only the main owner may record Card — and the web never charges one, it only records
@@ -334,7 +334,7 @@ export function QueueDetailSheet({
     // The button is disabled until this holds; checked again so Enter or a stale render cannot
     // send a bill that is empty, unreadable, missing a service's price, or not marked paid.
     if (!billing || !canComplete(amount, billing, typed, method)) {
-      setError(!method && billing && paidByAsked(billing.serviceAmount.currency) ? t.detail.paidByRequired : t.detail.errAmount);
+      setError(!method && billing && paidByChoices(billing).length > 0 ? t.detail.paidByRequired : t.detail.errAmount);
       return;
     }
     // Paise on the wire — money crosses the API as an integer minor unit.
@@ -363,8 +363,9 @@ export function QueueDetailSheet({
   const pendingCard = billing?.pendingCardPayment ?? null;
   const ready = !!billing && canComplete(amount, billing, typed, method) && !pendingCard;
   const totalPaise = parseRupees(amount);
-  // Card and Cash on a US store; empty everywhere else, which hides "Paid by" entirely.
-  const methods = billing ? paymentMethodsFor(billing.serviceAmount.currency) : [];
+  // Card and Cash on a US store that has switched Card payments on; empty otherwise, which hides
+  // "Paid by" entirely and leaves the old checkout (client 2026-10-16).
+  const methods = billing ? paidByChoices(billing) : [];
   const cardBlocked = billing?.cardAllowed === false;
 
   /**

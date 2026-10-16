@@ -150,7 +150,7 @@ Kept because a browser is not an App Store build, or because removing them would
 - **Card payments (2026-10-15): the web never charges a card.** PayPal's reader can only be
   driven by its native SDK on a phone, so the main owner charges and refunds from the app.
   [card-payments-paypal.md](./card-payments-paypal.md) has the full rules.
-  - **The same on both:** "Paid by" on US stores only (same lists, same required rule, `npm run test:checkout`), Card
+  - **The same on both:** "Paid by" only on US stores with Card payments switched on (same lists, same required rule, `npm run test:checkout`), Card
     greyed out for staff and co-owners, and the "owner is taking this card" banner.
   - **Web only:** the main owner's Card means "charged outside TejoTime".
   - **Settings → Card payments on the web** is a read-only status and list, with no switch, no

@@ -160,25 +160,46 @@ for (const [name, lib] of [
   eq(lib.isExtraOn([HAIR_WASH, BLOW_DRY], 'blow-DRY '), true, at('chip match is case- and space-insensitive'));
   eq(lib.isExtraOn([HAIR_WASH], 'Shave'), false, at('other chips stay off'));
 
-  // ---- "Paid by" (0042, docs/card-payments-paypal.md): US stores only ----------------------------
-  // A US store is one priced in dollars. Everywhere else checkout is as it always was: no question.
+  // ---- "Paid by" (0042, docs/card-payments-paypal.md): only while Card payments is on ------------
+  // Only a US store (priced in dollars) can switch Card payments on, and only then is "Paid by"
+  // asked (client 2026-10-16). Switched off, or on any other store, checkout is as it always was:
+  // no question, and Complete is ready as soon as the bill is.
   const inUsd = (b: Billing): Billing => ({ ...b, serviceAmount: { ...b.serviceAmount, currency: 'USD' } });
   const inInr = (b: Billing): Billing => ({ ...b, serviceAmount: { ...b.serviceAmount, currency: 'INR' } });
-  eq(lib.canComplete('350', inUsd(fixed), {}, null), false, at('US store, Paid by unanswered: Complete disabled'));
-  eq(lib.canComplete('350', inUsd(fixed), {}, 'card'), true, at('US store, Paid by answered: Complete enabled'));
-  eq(lib.canComplete('', inUsd(fixed), {}, 'card'), false, at('a method does not excuse an empty box'));
-  eq(lib.canComplete('300', inUsd(unpriced), {}, 'cash'), false, at('nor an unpriced service'));
+  const cardsOn = (b: Billing): Billing => ({ ...inUsd(b), cardPaymentsEnabled: true });
+  const cardsOff = (b: Billing): Billing => ({ ...inUsd(b), cardPaymentsEnabled: false });
+  eq(lib.canComplete('350', cardsOn(fixed), {}, null), false, at('cards on, Paid by unanswered: Complete disabled'));
+  eq(lib.canComplete('350', cardsOn(fixed), {}, 'card'), true, at('cards on, Paid by answered: Complete enabled'));
+  eq(lib.canComplete('', cardsOn(fixed), {}, 'card'), false, at('a method does not excuse an empty box'));
+  eq(lib.canComplete('300', cardsOn(unpriced), {}, 'cash'), false, at('nor an unpriced service'));
+  eq(lib.canComplete('350', cardsOff(fixed), {}, null), true, at('US store, cards off: no Paid by, Complete as before'));
+  eq(lib.canComplete('350', inUsd(fixed), {}, null), true, at('no card flag from the API reads as off'));
+  eq(lib.canComplete('300', cardsOff(unpriced), {}, null), false, at('cards off: an unpriced service still blocks'));
   eq(lib.canComplete('350', inInr(fixed), {}, null), true, at('rupee store: no Paid by, Complete as before'));
+  eq(lib.canComplete('350', { ...inInr(fixed), cardPaymentsEnabled: true }, {}, null), true,
+    at('rupee store: never asked, even with a stray flag'));
   eq(lib.canComplete('350', fixed, {}, null), true, at('no currency known: no Paid by, Complete as before'));
   eq(lib.canComplete('300', inInr(unpriced), {}, null), false, at('rupee store: an unpriced service still blocks'));
+  eq(lib.paidByChoices(cardsOn(fixed)), ['card', 'cash'], at('cards on: the sheet shows Card and Cash'));
+  eq(lib.paidByChoices(cardsOff(fixed)), [], at('cards off: the sheet shows no Paid by'));
+  eq(lib.paidByChoices(inUsd(fixed)), [], at('no card flag: no Paid by'));
+  eq(lib.paidByChoices({ ...inInr(fixed), cardPaymentsEnabled: true }), [], at('rupee store: no Paid by'));
+  eq(lib.paidByAsked('USD', true), true, at('asked on a US store with cards on'));
+  eq(lib.paidByAsked('usd', true), true, at('currency code case does not matter'));
+  eq(lib.paidByAsked('USD', false), false, at('not asked with cards off'));
+  eq(lib.paidByAsked('USD', undefined), false, at('not asked when the API sends no flag'));
+  eq(lib.paidByAsked('EUR', true), false, at('not asked anywhere else'));
+  // What a US store MAY record — the API's list, which it checks whether or not the sheet asks.
   eq(lib.paymentMethodsFor('USD'), ['card', 'cash'], at('a US store: Card and Cash'));
   eq(lib.paymentMethodsFor('usd'), ['card', 'cash'], at('currency code case does not matter'));
   eq(lib.paymentMethodsFor('INR'), [], at('a rupee store: no Paid by'));
   eq(lib.paymentMethodsFor(null), [], at('no currency: no Paid by'));
-  eq(lib.paidByAsked('USD'), true, at('asked on a US store'));
-  eq(lib.paidByAsked('EUR'), false, at('not asked anywhere else'));
-  for (const cur of ['USD', 'INR', 'EUR', 'CAD', null]) {
+  // The Card payments settings row is offered on a US store whether or not it is switched on yet.
+  eq(lib.isUsStore('USD'), true, at('a dollar store is a US store'));
+  eq(lib.isUsStore('INR'), false, at('a rupee store is not'));
+  for (const cur of ['USD', 'usd', 'INR', 'EUR', 'CAD', null]) {
     eq(lib.paymentMethodsFor(cur), [...backendEnums.paymentMethodsFor(cur)], at(`${cur} list matches the API's`));
+    eq(lib.isUsStore(cur), backendEnums.isUsStore(cur), at(`${cur}: US store agrees with the API`));
   }
 }
 

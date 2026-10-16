@@ -220,10 +220,12 @@ The smoke script covers:
 
 ## "Paid by" (2026-10-15)
 
-Under the bill, the sheet now asks how the customer paid, and Complete waits for it as it waits for
-a required price. `canComplete` takes the method as a fourth argument, in both
-`lib/checkout-amount.ts` copies. Card on the PayPal reader also starts from this sheet. Both are in
-[card-payments-paypal.md](./card-payments-paypal.md).
+On a US store **with Card payments switched on**, the sheet asks how the customer paid, under the
+bill. Complete waits for the answer as it waits for a required price. Every other sheet, including a
+US store with card payments off (client 2026-10-16), doesn't ask, and Complete is ready as before.
+`canComplete` takes the method as a fourth argument, in both `lib/checkout-amount.ts` copies, and
+asks for it only when `paidByChoices(billing)` is non-empty. Card on the PayPal reader also starts
+from this sheet. Both are in [card-payments-paypal.md](./card-payments-paypal.md).
 
 ## Not done
 

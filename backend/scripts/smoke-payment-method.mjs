@@ -9,9 +9,12 @@
 // 2026-10-15), so it runs visits on both kinds:
 //   - a store that is NOT a US store (the seeded `sharp-cuts`, priced in rupees) has no "Paid by":
 //     a method is refused, and the old bare checkout works exactly as before;
-//   - a US store (priced in dollars) offers Card and Cash: each is written onto the visit and comes
-//     back on the customer's visit history; anything else (UPI, Venmo, Other) or an unknown method
-//     is refused and nothing is checked out; the bare checkout old app builds send still works;
+//   - a US store (priced in dollars) asks "Paid by" only while Card payments is switched on (client
+//     2026-10-16): a new store reports it off and checks out the old way; switched on, it reports
+//     on, and Card and Cash are each written onto the visit and come back on the customer's visit
+//     history; switched off again it reports off, and a Cash picked on a sheet opened before the
+//     switch is still recorded. Anything else (UPI, Venmo, Other) or an unknown method is refused
+//     and nothing is checked out; the bare checkout old app builds send still works;
 //   - revenue moves by exactly the amounts checked out.
 //
 // The US store is its own, created each run through the admin API and deactivated at the end. That
@@ -128,10 +131,32 @@ async function main() {
   const usPhone = `+1239557${tail}`;
   const { chair, revenue, inChair } = await storeKit(token, run, usPhone);
   const expected = [];
+  /** What the checkout sheets read to decide whether to ask "Paid by" (`paidByChoices`). */
+  const cardsFlag = async (id) => (await call('GET', `/queue/${id}`, { token })).json.cardPaymentsEnabled;
+  const setCards = async (enabled) => call('PUT', '/card-payments/settings', { token, body: { enabled } });
 
   try {
+    // The sheets ask "Paid by" only while the store has Card payments switched on (client
+    // 2026-10-16); a US store that has not is the old checkout. The asking itself is client logic
+    // (`npm run test:checkout`); what is proved here is the flag the sheets are fed, and that the
+    // checkout each state sends goes through.
+    console.log('A NEW US STORE HAS CARD PAYMENTS OFF: NO "PAID BY", THE OLD CHECKOUT');
+    const offId = await inChair('Payer cards off');
+    const offFlag = await cardsFlag(offId);
+    ok(offFlag === false, `GET /queue/:id reports Card payments off, so the sheet asks nothing (got ${offFlag})`);
+    const offOut = await call('POST', `/queue/${offId}/checkout`, { token, body: { amountPaise: 29900 } });
+    ok(offOut.status === 200, `the old checkout, no method (got ${offOut.status} ${offOut.json.error?.code ?? ''})`);
+    expected.push({ method: null, amount: 29900 });
+
+    console.log('SWITCHED ON: THE SHEET ASKS "PAID BY" — CARD AND CASH');
+    const on = await setCards(true);
+    ok(on.status === 200 && on.json.enabled === true, `the main owner switches Card payments on (got ${on.status} ${on.json.error?.code ?? ''})`);
     for (const [i, method] of ['card', 'cash'].entries()) {
       const id = await inChair(`Payer ${method}`);
+      if (i === 0) {
+        const onFlag = await cardsFlag(id);
+        ok(onFlag === true, `GET /queue/:id now reports Card payments on (got ${onFlag})`);
+      }
       const amount = 30100 + i * 100; // a distinct amount per visit, to match them up in the history
       const rev = await revenue();
       const out = await call('POST', `/queue/${id}/checkout`, { token, body: { amountPaise: amount, paymentMethod: method } });
@@ -139,6 +164,16 @@ async function main() {
       ok((await revenue()) - rev === amount, `revenue moves by exactly ${amount / 100}`);
       expected.push({ method, amount });
     }
+
+    console.log('SWITCHED OFF AGAIN: BACK TO NO "PAID BY"; AN ANSWER FROM A SHEET OPENED BEFORE STILL LANDS');
+    const staleId = await inChair('Payer stale sheet');
+    const off = await setCards(false);
+    ok(off.status === 200 && off.json.enabled === false, `the main owner switches Card payments off (got ${off.status})`);
+    const offAgain = await cardsFlag(staleId);
+    ok(offAgain === false, `GET /queue/:id reports Card payments off again (got ${offAgain})`);
+    const stale = await call('POST', `/queue/${staleId}/checkout`, { token, body: { amountPaise: 30300, paymentMethod: 'cash' } });
+    ok(stale.status === 200, `Cash picked before the switch is recorded, not refused (got ${stale.status} ${stale.json.error?.code ?? ''})`);
+    expected.push({ method: 'cash', amount: 30300 });
 
     console.log('A US STORE OFFERS NOTHING ELSE FOR NOW');
     const refusedId = await inChair('Payer refused');

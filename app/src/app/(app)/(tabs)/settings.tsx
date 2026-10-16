@@ -6,7 +6,7 @@ import { THeader, TScreenScroll, TSettingsRow, TSwitch, TText } from '@/componen
 import { Icon } from '@/components/ui/Icon';
 import { t, format } from '@/i18n';
 import { appVersion, notificationsSub } from '@/data/settings';
-import { paidByAsked } from '@/lib/checkout-amount';
+import { isUsStore } from '@/lib/checkout-amount';
 import { hoursSummary } from '@/lib/hours';
 import { SUPPORT } from '@/lib/support';
 import { SETTINGS_ROUTES, SettingsPageId } from '@/navigation/routes';
@@ -40,7 +40,7 @@ export default function Settings() {
   // everyone else — CARD_PAYMENTS_US_ONLY), and never on the app's web target, where PayPal's SDK
   // cannot run (docs/card-payments-paypal.md).
   const showCards =
-    store.session?.isSuperOwner === true && paidByAsked(biz?.currency) && Platform.OS !== 'web';
+    store.session?.isSuperOwner === true && isUsStore(biz?.currency) && Platform.OS !== 'web';
   const showBookings = can(access, 'notifications') || can(access, 'profile') || showRecurring || showCards;
   const storeLabel = biz?.name ?? t.common.brand;
   // No name on the session → drop the clause rather than fall back. The old fallback was the demo

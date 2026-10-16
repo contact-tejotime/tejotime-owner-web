@@ -239,8 +239,10 @@ Full rules, API and screens: [docs/staff-commission.md](../../docs/staff-commiss
 
 ## 5a2. "Paid by" and card payments
 
-On US stores only (priced in USD), checkout records how the customer paid (`visit.payment_method`, Card or Cash; every other store checks out as before). US
-stores charge cards on the PayPal POS Card Reader from the app.
+On US stores (priced in USD) **with Card payments switched on**, checkout asks how the customer paid
+(`visit.payment_method`, Card or Cash). Every other store, and a US store with it off, checks out as
+before, with no question (client 2026-10-16). US stores charge cards on the PayPal POS Card Reader
+from the app.
 - **Who:** the main owner only. PayPal's SDK is native, so owner-web never charges.
 - **Never refused:** once the reader has taken money, the server always records it — `pending` until
   confirmed, `needs_review` when its visit can no longer be completed.

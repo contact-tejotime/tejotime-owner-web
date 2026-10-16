@@ -402,11 +402,15 @@ the app (`npm run test:checkout`).
 **"Paid by" and card payments** ([docs/card-payments-paypal.md](docs/card-payments-paypal.md), 0042,
 0043):
 - **US stores only** (client 2026-10-15). A US store is one priced in **USD**: `isUsStore` in
-  `domain/enums.ts`, and `paidByAsked` in both `lib/checkout-amount.ts` copies. Every other store
-  checks out exactly as before, with no "Paid by" and no card payments. The API refuses card payments
-  there (409 `CARD_PAYMENTS_US_ONLY`) and reports `cardPaymentsEnabled: false`.
-- **"Paid by"** is required on a US store's checkout sheet: **Card and Cash** (`paymentMethodsFor`).
-  The 0042 check still allows venmo/zelle/cash_app/upi/other, for a wider list later.
+  `domain/enums.ts` and in both `lib/checkout-amount.ts` copies. Every other store checks out exactly
+  as before, with no "Paid by" and no card payments. The API refuses card payments there (409
+  `CARD_PAYMENTS_US_ONLY`) and reports `cardPaymentsEnabled: false`.
+- **"Paid by"** is asked, and required, only while a US store has **Card payments switched on**
+  (client 2026-10-16; `paidByAsked` / `paidByChoices`, fed by the billing's `cardPaymentsEnabled`).
+  It offers **Card and Cash** (`paymentMethodsFor`). Switched off (the default), the sheet is the old
+  one, and Complete is ready as soon as the bill is. The API checks a sent method against the
+  currency only, so a sheet opened before the switch still lands. The 0042 check still allows
+  venmo/zelle/cash_app/upi/other, for a wider list later.
 - **Card charging** uses the PayPal POS Card Reader. It runs only in the app (PayPal's native SDK,
   `app/modules/paypal-reader`) and only for the **main owner** (`requireSuperOwner` on
   `/card-payments`). Once a store turns it on, nobody else may record Card (403 `CARD_OWNER_ONLY`).

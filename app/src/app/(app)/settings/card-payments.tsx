@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { t, format } from '@/i18n';
 import { api, ApiError, type CardPayment, type CardPaymentSettings } from '@/lib/api';
 import { RefundError, refundCardPayment } from '@/lib/card-payment-flow';
-import { paidByAsked } from '@/lib/checkout-amount';
+import { isUsStore } from '@/lib/checkout-amount';
 import { cardReader, cardReaderDevMode, isCardReaderAvailable, type ReaderAccount } from '@/lib/card-reader';
 import { formatMoney } from '@/lib/mappers';
 import { showToast } from '@/lib/toast';
@@ -102,7 +102,7 @@ export default function CardPayments() {
   }, [readReader]);
 
   // Main owner of a US store only — the same gate as the Settings row and the API.
-  if (store.session && (!store.session.isSuperOwner || (store.business && !paidByAsked(storeCurrency)))) {
+  if (store.session && (!store.session.isSuperOwner || (store.business && !isUsStore(storeCurrency)))) {
     return <Redirect href="/settings" />;
   }
 

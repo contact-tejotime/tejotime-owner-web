@@ -26,8 +26,8 @@ import {
   initialBox,
   isExtraOn,
   missingLabels,
+  paidByChoices,
   parseRupees,
-  paymentMethodsFor,
   requiredItems,
   SERVICE_KEY,
   suggestionDiffers,
@@ -71,9 +71,10 @@ interface Billing {
   /** `priceRequired`: a booked service with no price, stored at a placeholder 0 (0040). */
   extras: { id: string; label: string; minutes: number; pricePaise: number; priceRequired?: boolean }[];
   /**
-   * Card payments (0043, docs/card-payments-paypal.md). Optional: an API from before them sends
-   * none, which reads as "off" — Card is then a plain choice, as it always was. `cardAllowed` is
-   * answered for this login; `pendingCardPayment` is a charge in flight (Complete waits for it).
+   * Card payments (0043, docs/card-payments-paypal.md). "Paid by" is asked only while this is on
+   * (`paidByChoices`). Optional: an API from before them sends none, which reads as "off" — the old
+   * checkout, with no question. `cardAllowed` is answered for this login; `pendingCardPayment` is a
+   * charge in flight (Complete waits for it).
    */
   cardPaymentsEnabled?: boolean;
   cardAllowed?: boolean;
@@ -348,9 +349,10 @@ export function DetailPanel() {
   const pendingCard = billing?.pendingCardPayment ?? null;
   const ready = !!billing && canComplete(amount, billing, typed, method) && !pendingCard;
   const totalPaise = parseRupees(amount);
-  // Card and Cash on a US store; empty everywhere else, which hides "Paid by" entirely. Read off
-  // the billing's currency only (not the session's), so the list never shows before billing lands.
-  const methods = billing ? paymentMethodsFor(billing.serviceAmount.currency) : [];
+  // Card and Cash on a US store that has switched Card payments on; empty otherwise, which hides
+  // "Paid by" entirely and leaves the old checkout (client 2026-10-16). Read off the billing only
+  // (not the session's store), so the list never shows before billing lands.
+  const methods = billing ? paidByChoices(billing) : [];
   const cardBlocked = billing?.cardAllowed === false;
   // Card, picked by the main owner of a store that charges cards in TejoTime, on a phone signed in
   // to PayPal: the button charges the reader. Without the sign-in it records a card charged

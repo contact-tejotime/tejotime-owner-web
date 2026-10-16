@@ -72,10 +72,15 @@ export function isUsStore(currency: string | null | undefined): boolean {
 }
 
 /**
- * The "Paid by" choices a store's checkout offers: Card and Cash for a US store, and NONE for every
- * other store — no question at all, the old checkout (client decision 2026-10-15). The other codes
- * stay in PAYMENT_METHODS and the 0042 check, so recorded visits stay valid and a wider list (Venmo,
- * Zelle, Cash App, UPI, Other were in the first version) is a change here, not a migration.
+ * The "Paid by" methods a store MAY record: Card and Cash for a US store, and NONE for every other
+ * store — no question at all, the old checkout (client decision 2026-10-15). The other codes stay in
+ * PAYMENT_METHODS and the 0042 check, so recorded visits stay valid and a wider list (Venmo, Zelle,
+ * Cash App, UPI, Other were in the first version) is a change here, not a migration.
+ *
+ * Whether the sheet ASKS is narrower: only while the store has Card payments switched on (client
+ * 2026-10-16; `paidByAsked` in the clients, fed by the billing's `cardPaymentsEnabled`). This list is
+ * still what the API accepts on a switched-off US store, so a sheet opened before the owner switched
+ * it off records its answer rather than failing.
  *
  * Hand-kept in owner-web's and the app's `lib/checkout-amount.ts` (`npm run test:checkout` pins
  * all three). The API refuses any method not listed here.

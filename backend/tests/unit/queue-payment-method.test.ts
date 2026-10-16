@@ -185,6 +185,49 @@ describe('"Paid by" at checkout (queue API + service)', { timeout: 30_000 }, () 
     expect(res.status).toBe(200);
   });
 
+  it('a US store with Card payments off checks out the old way, and a sheet opened before the switch still lands', async () => {
+    // The sheets ask "Paid by" only while the store has Card payments on (client 2026-10-16), so a
+    // switched-off US store sends the old bare checkout. A Cash or Card picked on a sheet that was
+    // open when the owner switched it off is still a true answer, so it is recorded, not refused.
+    store('USD', false);
+    callRpc.mockClear();
+    const bare = await checkout({ amountPaise: 4500 }, 'co_owner');
+    expect(bare.status).toBe(200);
+    expect(rpcMethod()).toBeNull();
+
+    callRpc.mockClear();
+    const stale = await checkout({ amountPaise: 4500, paymentMethod: 'cash' }, 'co_owner');
+    expect(stale.status).toBe(200);
+    expect(rpcMethod()).toBe('cash');
+  });
+
+  it('GET /queue/:id reports Card payments off on a US store that has not switched it on (no "Paid by")', async () => {
+    one.mockImplementation(async (sql: string) => {
+      if (/from queue_entry q\s+join business b/.test(sql)) {
+        return {
+          service_paise: '4500',
+          service_max_paise: null,
+          service_price_type: 'fixed',
+          service_name: 'Haircut',
+          extras_paise: '0',
+          unpriced_extras: 0,
+          currency: 'USD',
+          card_payments_enabled: false,
+          pending_card_id: null,
+          pending_card_paise: null,
+        };
+      }
+      if (/select \* from queue_entry/.test(sql)) {
+        return { id: ENTRY, customer_name: 'Ada', status: 'in_service', service_name: 'Haircut', source: 'walk_in' };
+      }
+      return null;
+    });
+    const res = await request(await app()).get(DETAIL).set('authorization', `Bearer ${await token('main')}`);
+    expect(res.status).toBe(200);
+    expect(res.body.cardPaymentsEnabled).toBe(false);
+    expect(res.body.serviceAmount).toEqual({ amount: 4500, currency: 'USD' });
+  });
+
   it('a checkout while the card is being charged is a 409, not a generic 422', async () => {
     store('USD');
     callRpc.mockRejectedValueOnce(new Error('TEJO:CARD_PAYMENT_IN_PROGRESS'));

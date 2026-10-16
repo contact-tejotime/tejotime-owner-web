@@ -36,11 +36,13 @@ export interface CheckoutBilling {
   /** The booked (first-picked) service on its own; null when the visit has none. */
   serviceName: string | null;
   servicePriceType: CheckoutPriceType;
-  /** `currency` decides whether "Paid by" is asked at all (US stores only). */
+  /** `currency` + `cardPaymentsEnabled` decide whether "Paid by" is asked at all (`paidByAsked`). */
   serviceAmount: { amount: number; currency?: string };
   extrasAmount: { amount: number };
   suggestedAmount: { amount: number } | null;
   extras: readonly { id: string; label: string; priceRequired?: boolean }[];
+  /** The store has switched Card payments on (0043). Absent, from an older API, reads as off. */
+  cardPaymentsEnabled?: boolean;
 }
 
 /** The API refuses a checkout above this (`checkoutSchema`), so nothing above it is an amount. */
@@ -160,7 +162,7 @@ export function missingLabels(billing: CheckoutBilling, typed: TypedPrices): str
 
 /**
  * Complete & start next is allowed only with a readable total, every required price typed, and —
- * on a US store, the only one that asks — "Paid by" answered (docs/card-payments-paypal.md).
+ * when the store asks it (`paidByAsked`) — "Paid by" answered (docs/card-payments-paypal.md).
  */
 export function canComplete(
   text: string,
@@ -168,7 +170,7 @@ export function canComplete(
   typed: TypedPrices,
   paymentMethod: PaymentMethod | null,
 ): boolean {
-  const paid = paymentMethod !== null || !paidByAsked(billing.serviceAmount.currency);
+  const paid = paymentMethod !== null || paidByChoices(billing).length === 0;
   return parseRupees(text) !== null && missingLabels(billing, typed).length === 0 && paid;
 }
 
@@ -176,17 +178,38 @@ export function canComplete(
 export type PaymentMethod = 'card' | 'cash' | 'venmo' | 'zelle' | 'cash_app' | 'upi' | 'other';
 
 /**
- * The "Paid by" choices: Card and Cash on a US store (priced in dollars), and none on any other
- * store, whose checkout is unchanged — no question at all (client decision 2026-10-15). The same
- * rule as the backend's `paymentMethodsFor` (domain/enums.ts), which refuses anything not listed.
+ * A US store: one priced in dollars. Only a US store can switch Card payments on, so this is what
+ * offers the Card payments settings row — whether or not it is switched on yet. The same rule as
+ * the backend's `isUsStore` (domain/enums.ts).
  */
-export function paymentMethodsFor(currency: string | null | undefined): PaymentMethod[] {
-  return (currency ?? '').toUpperCase() === 'USD' ? ['card', 'cash'] : [];
+export function isUsStore(currency: string | null | undefined): boolean {
+  return (currency ?? '').toUpperCase() === 'USD';
 }
 
-/** Whether this store's checkout asks "Paid by" at all — US stores only. */
-export function paidByAsked(currency: string | null | undefined): boolean {
-  return paymentMethodsFor(currency).length > 0;
+/**
+ * What a store MAY record as "Paid by": Card and Cash on a US store, nothing anywhere else (client
+ * decision 2026-10-15). The same list as the backend's `paymentMethodsFor` (domain/enums.ts), which
+ * refuses anything not on it. Whether the sheet ASKS is `paidByAsked`.
+ */
+export function paymentMethodsFor(currency: string | null | undefined): PaymentMethod[] {
+  return isUsStore(currency) ? ['card', 'cash'] : [];
+}
+
+/**
+ * Whether the checkout asks "Paid by" at all: only on a US store that has switched Card payments
+ * on (client 2026-10-16). Switched off, the sheet is the old one — no question, and Complete is
+ * ready as soon as the bill is. `cardPaymentsEnabled` is the billing's, which the API already
+ * reports as off on any store that is not a US one.
+ */
+export function paidByAsked(currency: string | null | undefined, cardPaymentsEnabled: boolean | undefined): boolean {
+  return cardPaymentsEnabled === true && paymentMethodsFor(currency).length > 0;
+}
+
+/** The "Paid by" chips the checkout sheet shows: the store's list while it asks, none otherwise. */
+export function paidByChoices(billing: Pick<CheckoutBilling, 'serviceAmount' | 'cardPaymentsEnabled'>): PaymentMethod[] {
+  return paidByAsked(billing.serviceAmount.currency, billing.cardPaymentsEnabled)
+    ? paymentMethodsFor(billing.serviceAmount.currency)
+    : [];
 }
 
 /**

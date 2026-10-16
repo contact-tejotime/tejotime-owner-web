@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { t, format } from "@/i18n";
 
 import { SettingsSubpageShell } from "@/components/SettingsSubpageShell";
-import { paidByAsked } from "@/lib/checkout-amount";
+import { isUsStore } from "@/lib/checkout-amount";
 import { formatMoney } from "@/lib/format";
 import { getCardPayments, getCardPaymentSettings, getMe, type CardPayment } from "@/lib/server-api";
 
@@ -21,7 +21,7 @@ export default async function CardPaymentsPage() {
   const me = await getMe();
   if (!me) redirect("/login");
   // Main owner of a US store only — the same gate as the Settings row and the API.
-  if (!me.user.isSuperOwner || !paidByAsked(me.business.currency)) redirect("/settings");
+  if (!me.user.isSuperOwner || !isUsStore(me.business.currency)) redirect("/settings");
 
   const [settings, payments] = await Promise.all([getCardPaymentSettings(), getCardPayments(50)]);
   // The store's own clock: this page is rendered on the server, whose clock is not the store's.

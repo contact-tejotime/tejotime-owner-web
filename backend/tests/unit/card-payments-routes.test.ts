@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { one, many, callRpc, afterCheckout } = vi.hoisted(() => ({
   one: vi.fn(),
-  many: vi.fn(async () => []),
+  many: vi.fn(async (_sql: string, _params?: unknown[]): Promise<unknown[]> => []),
   callRpc: vi.fn(),
   afterCheckout: vi.fn(async () => ({ promoted: null, seats: [], summary: {} })),
 }));
@@ -285,7 +285,7 @@ describe('card payments API', { timeout: 30_000 }, () => {
   it('lists with filters, newest first', async () => {
     const res = await send('get', '?status=paid&needsReview=true&limit=10');
     expect(res.status).toBe(200);
-    const [sql, params] = many.mock.calls[0] as [string, unknown[]];
+    const [sql, params] = many.mock.calls[0];
     expect(sql).toMatch(/cp\.status = \$2/);
     expect(sql).toMatch(/cp\.needs_review = \$3/);
     expect(sql).toMatch(/order by cp\.created_at desc/);
