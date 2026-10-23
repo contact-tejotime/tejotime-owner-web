@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-10-09 · branch `feat-jay`.
+**Last updated:** 2026-10-23 · branch `preprod`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,38 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### WhatsApp for Indian (+91) customers (2026-10-23)
+
+- **What:** the three customer messages (confirmation, 15-minute reminder, review request) go to a
+  +91 number as the client's three approved Meta templates, through the WhatsApp Cloud API. Every
+  other number stays on Twilio SMS.
+  - `WHATSAPP_ENABLED` works like `SMS_ENABLED` and defaults to false. Off, a +91 message is a
+    deferred `whatsapp` row and never an SMS.
+  - The signed webhook `/webhooks/whatsapp` records delivered/failed and STOP. Nothing set
+    `sms_opt_out_at` before this.
+  - Migration 0044 adds an index for the webhook's lookups.
+  - Full doc: [docs/whatsapp-india.md](../../docs/whatsapp-india.md).
+- **Customer page:**
+  - the consent box and the chat's messages step say WhatsApp for a +91 number;
+  - the phone picker now starts on the store's own country, where it used to always start on +1;
+  - Privacy §5 and Terms §18 got one paragraph each.
+- **Owner surfaces:** wording only. "won't get a text" became "won't get a message", and the review
+  link hint and notifications note mention WhatsApp. Changed identically in owner-web and the app;
+  nothing native.
+- **Checks run:**
+  - backend `npm test`: 46 files, 574 tests;
+  - `npm run test:chat-flow`: 178;
+  - frontend lint and build pass;
+  - `smoke-whatsapp.mjs`, run 2026-10-23 against a migrated, seeded throwaway database on local
+    Postgres 18 (since dropped): `--expect-disabled` 8/8, then the full run 36/36.
+  - Not yet verified: a real send through Meta, the live webhook, and a manual look at the store
+    page.
+- **Open:**
+  - the client still has to enter Meta's token, phone number ID, app secret and verify token, and
+    point Meta's webhook at the API (the doc has the steps);
+  - the US-only statements in Privacy §4/§12 and Terms §1/§3 are left for the client to decide;
+  - `review_request` is probably a Marketing template, so Meta may hold some back (131049).
 
 ### Store page: open a pop-up from a link (2026-10-09)
 

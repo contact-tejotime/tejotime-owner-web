@@ -33,7 +33,18 @@ export function createApp() {
 
   app.use(helmet());
   app.use(cors({ origin: corsOrigins.length ? corsOrigins : true, credentials: true, maxAge: 86400 }));
-  app.use(express.json({ limit: '1mb' }));
+  app.use(
+    express.json({
+      limit: '1mb',
+      // The WhatsApp webhook's signature is over the exact bytes Meta sent, which re-serialising
+      // req.body would not reproduce. Kept for that one path only.
+      verify: (req, _res, buf) => {
+        if ((req as { originalUrl?: string }).originalUrl?.startsWith(`${API_PREFIX}/webhooks/whatsapp`)) {
+          (req as { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+        }
+      },
+    }),
+  );
   app.use(requestId);
   app.use(pinoHttp({ logger, customProps: (req) => ({ requestId: (req as any).requestId }) }));
   app.use(limiters.global);

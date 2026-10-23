@@ -23,7 +23,8 @@ import { REPEAT_LIMITS, addDaysYmd, formatYmd, rhythmLabel, ruleTotalVisits } fr
 import { localYmd, viewerBookDays } from "@/lib/booking-days";
 import { t, format, plural } from "@/i18n";
 import { currencySymbol } from "@/lib/currencies";
-import { combineToE164, DEFAULT_DIAL_CODE, DEFAULT_ISO2, formatPhone, splitPhone } from "@/lib/phone";
+import { combineToE164, countryByDial, DEFAULT_DIAL_CODE, DEFAULT_ISO2, formatPhone, splitPhone } from "@/lib/phone";
+import { isWhatsAppDialCode } from "@/lib/message-channel";
 import type { CustomerAuth } from "@/lib/socket";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { API_BASE_URL } from "@/lib/config";
@@ -610,14 +611,27 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
   // Phone entry is split into a searchable country code + national number. `phone`
   // (E.164, e.g. +919824410712) is derived and remains the single value used for
   // storage, dedup and every API call, so the rest of the flow is unchanged.
-  const [phoneCountry, setPhoneCountry] = useState<{ dialCode: string; iso2: string }>({
-    dialCode: DEFAULT_DIAL_CODE,
-    iso2: DEFAULT_ISO2,
-  });
+  // A blank picker starts on the store's own country, not the US: an Indian store's customers are
+  // almost all +91, and a 10-digit number left on +1 is stored as a US number — wrong for the
+  // store, and never sent the WhatsApp messages +91 numbers get (docs/whatsapp-india.md).
+  const storeCountry = useMemo(() => {
+    const c = site.countryCode ? countryByDial(site.countryCode) : undefined;
+    return c ? { dialCode: c.dialCode, iso2: c.iso2 } : { dialCode: DEFAULT_DIAL_CODE, iso2: DEFAULT_ISO2 };
+  }, [site.countryCode]);
+  const [phoneCountry, setPhoneCountry] = useState<{ dialCode: string; iso2: string }>(storeCountry);
   const [national, setNational] = useState("");
   const phone = combineToE164(phoneCountry.dialCode, national);
-  // Seed the picker from a stored full number (held / lastPhone restore).
+  // The consent box names the channel the messages will really arrive on, which follows the
+  // picker's country (lib/message-channel.ts) — so it is right before a digit is typed.
+  const whatsappMessages = isWhatsAppDialCode(phoneCountry.dialCode);
+  // Seed the picker from a stored full number (held / lastPhone restore); nothing stored → the
+  // store's country.
   const seedPhone = (raw: string) => {
+    if (!raw.trim()) {
+      setPhoneCountry(storeCountry);
+      setNational("");
+      return;
+    }
     const parts = splitPhone(raw);
     setPhoneCountry({ dialCode: parts.dialCode, iso2: parts.iso2 });
     setNational(parts.national);
@@ -1955,7 +1969,7 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
       case "appointment":
         return <AppointmentCard appt={card.appt} when={chatFormatWhen(card.appt.scheduledStartAt)} />;
       case "consent":
-        return <ConsentCard storeName={site.name} />;
+        return <ConsentCard storeName={site.name} whatsapp={card.whatsapp} />;
     }
   };
 
@@ -2846,14 +2860,20 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                       {/* The form asks for a mobile number. Texts only go out if they check
                           the box — Twilio A2P 30925: unchecked by default, not bundled with Confirm. */}
                       <div style={{ font: "var(--fw-regular) 12.5px/1.45 var(--font-sans)", color: "var(--text-muted)", marginBottom: 12 }}>
-                        {mode === "book" ? t.microsite.join.phoneHelperBook : t.microsite.join.phoneHelperQueue}
+                        {whatsappMessages
+                          ? t.microsite.join.phoneHelperWhatsApp
+                          : mode === "book"
+                            ? t.microsite.join.phoneHelperBook
+                            : t.microsite.join.phoneHelperQueue}
                       </div>
                       {/* One unticked box, on both Book and Check in, that names all three texts —
                           confirmation, reminder and the post-visit review request — so it matches the
                           three registered A2P samples and "Up to 3 messages per visit". Unchecked by
                           default and not tied to Confirm (Twilio 30923 / 30925). Body-size,
                           full-contrast text: A2P reviewers reject disclosures that are not "clearly and
-                          conspicuously" visible — small grey type reads as fine print. */}
+                          conspicuously" visible — small grey type reads as fine print. A +91 number's
+                          messages arrive on WhatsApp, so it reads the WhatsApp wording; every other
+                          number keeps the approved A2P wording word for word. */}
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
                         <input
                           id="tt-sms-opt-in"
@@ -2864,12 +2884,14 @@ export default function MicrositeClient({ initialSite }: { initialSite: Microsit
                         />
                         <div style={{ font: "var(--fw-regular) 13px/1.45 var(--font-sans)", color: "var(--text-strong)" }}>
                           <label htmlFor="tt-sms-opt-in" style={{ cursor: "pointer" }}>
-                            {format(t.microsite.join.consentOptIn, { name: site.name })}
+                            {format(whatsappMessages ? t.microsite.join.consentOptInWhatsApp : t.microsite.join.consentOptIn, { name: site.name })}
                           </label>
                           {" "}
                           <Link href="/privacy" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{t.microsite.join.consentPrivacy}</Link>
                           {" · "}
-                          <Link href="/terms" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{t.microsite.join.consentSmsTerms}</Link>
+                          <Link href="/terms" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>
+                            {whatsappMessages ? t.microsite.join.consentTerms : t.microsite.join.consentSmsTerms}
+                          </Link>
                         </div>
                       </div>
                       {/* Stylists are optional: a store with none has no one to choose between, so
