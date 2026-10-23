@@ -18,6 +18,7 @@
  * must go and do, whose outcome comes back as a `result` input.
  */
 import { t, format } from "../../../i18n";
+import { isWhatsAppNumber } from "../../../lib/message-channel";
 
 const S = t.chat.flow;
 
@@ -125,7 +126,9 @@ export type Card =
   | { type: "summary"; kind: "join" | "book"; draft: Draft }
   | { type: "ticket" }
   | { type: "appointment"; appt: ApptView }
-  | { type: "consent" };
+  // `whatsapp`: the number just given is one whose messages arrive on WhatsApp, so the disclosure
+  // must say WhatsApp (lib/message-channel.ts, docs/whatsapp-india.md).
+  | { type: "consent"; whatsapp: boolean };
 
 export interface Out {
   text?: string;
@@ -442,22 +445,25 @@ function prompt(state: FlowState, ctx: FlowCtx): StepResult {
         };
       }
       return { state, out: [{ text: S.phoneQuestion }] };
-    case "sms":
+    case "sms": {
+      // The phone step comes first, so the channel the messages will use is already known.
+      const whatsapp = isWhatsAppNumber(d.phone);
       return {
         state,
         out: [
           {
-            text: S.smsQuestion,
-            card: { type: "consent" },
+            text: whatsapp ? S.smsQuestionWhatsApp : S.smsQuestion,
+            card: { type: "consent", whatsapp },
             // "No" first is not a trick of ordering: the website box is unticked by default, and
             // here neither answer is pre-selected — the customer has to tap one.
             options: [
-              { id: "sms:yes", label: S.smsYes },
+              { id: "sms:yes", label: whatsapp ? S.smsYesWhatsApp : S.smsYes },
               { id: "sms:no", label: S.smsNo },
             ],
           },
         ],
       };
+    }
     case "summary":
       return {
         state,
@@ -482,7 +488,7 @@ function prompt(state: FlowState, ctx: FlowCtx): StepResult {
         time: S.editDateTime,
         name: S.editName,
         phone: S.editPhone,
-        sms: S.editSms,
+        sms: isWhatsAppNumber(d.phone) ? S.editSmsWhatsApp : S.editSms,
       };
       // Day and time are one choice to a customer; offer them once.
       const steps = state.seq.filter((s) => s !== "time");

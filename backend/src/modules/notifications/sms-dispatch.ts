@@ -1,7 +1,9 @@
-import { env } from '../../config/env';
+import { env, whatsappCountryCodes } from '../../config/env';
 import { logger } from '../../config/logger';
 import { exec, many, one } from '../../db/pool';
 import { smsSender } from '../../integrations/sms';
+import { whatsappSender } from '../../integrations/whatsapp';
+import { isSmsCountryAllowed } from '../../lib/sms-country';
 import { shouldDispatchSms } from '../../lib/sms-opt-in';
 import {
   REMINDER_LEAD_MINUTES,
@@ -12,11 +14,13 @@ import {
   smsBodyReview,
   smsDateTime,
 } from '../../lib/sms-copy';
+import { waParamsBookingConfirmed, waParamsReminder, waParamsReview } from '../../lib/whatsapp-copy';
 
 /**
- * The three customer SMS (docs/sms-opt-in-a2p.md): booking confirmation, 15-minute reminder,
+ * The three customer messages (docs/sms-opt-in-a2p.md): booking confirmation, 15-minute reminder,
  * post-visit review request. Every send goes through `recordSmsNotification`, which is the one
- * place that decides whether Twilio is called at all.
+ * place that decides whether a provider is called at all — Twilio SMS, or WhatsApp for a number
+ * in WHATSAPP_COUNTRY_CODES (docs/whatsapp-india.md).
  */
 
 export interface SmsNotificationInput {
@@ -28,11 +32,25 @@ export interface SmsNotificationInput {
   appointmentId?: string | null;
   template: string;
   body: string;
+  /** The same message as the approved WhatsApp template's {{1}}..{{n}} (lib/whatsapp-copy.ts). */
+  waParams: string[];
 }
 
 /**
- * Persists an outbound message and dispatches via smsSender (Twilio when SMS_ENABLED).
- * Never throws: notification bookkeeping must not break the mutation that triggered it.
+ * Which provider a customer's number gets. Read from the customer's own number, never
+ * WHATSAPP_TEST_TO, and never from WHATSAPP_ENABLED: like SMS_ENABLED, that flag only decides
+ * whether the sender calls out. So with it off an Indian number is recorded as a deferred WhatsApp
+ * message rather than quietly falling back to a text Twilio would refuse anyway.
+ */
+export function messageChannelFor(phone: string): 'sms' | 'whatsapp' {
+  return isSmsCountryAllowed(phone, whatsappCountryCodes) ? 'whatsapp' : 'sms';
+}
+
+/**
+ * Persists an outbound message and dispatches via smsSender (Twilio when SMS_ENABLED) or
+ * whatsappSender (Meta when WHATSAPP_ENABLED). A failed WhatsApp send is never retried as SMS: it
+ * can still arrive (Meta reports some failures only later, on the webhook), and the customer would
+ * get it twice. Never throws: notification bookkeeping must not break the mutation that triggered it.
  */
 export async function recordSmsNotification(input: SmsNotificationInput): Promise<void> {
   const phone = input.phone || null;
@@ -50,9 +68,11 @@ export async function recordSmsNotification(input: SmsNotificationInput): Promis
       optOutUnknown = true;
     }
   }
+  // sms_opt_out_at is the customer's opt-out from these messages on any channel: a STOP on
+  // WhatsApp sets it too (modules/webhooks/whatsapp.service.ts).
   const canSms =
     !optOutUnknown && shouldDispatchSms({ customerPhone: phone, smsOptIn: input.optIn, smsOptOutAt: optedOutAt });
-  const channel = canSms ? 'sms' : 'in_app';
+  const channel = canSms && phone ? messageChannelFor(phone) : 'in_app';
 
   let row: { id: string } | null = null;
   try {
@@ -81,7 +101,10 @@ export async function recordSmsNotification(input: SmsNotificationInput): Promis
   if (!row?.id || !canSms || !phone) return;
 
   try {
-    const result = await smsSender.send(phone, input.body, input.template);
+    const result =
+      channel === 'whatsapp'
+        ? await whatsappSender.send(phone, input.template, input.waParams)
+        : await smsSender.send(phone, input.body, input.template);
     await exec(
       `update notification
           set status = $1, provider_message_id = $2, sent_at = $3, error = $4
@@ -91,12 +114,12 @@ export async function recordSmsNotification(input: SmsNotificationInput): Promis
         result.id,
         result.id ? new Date().toISOString() : null,
         // A refusal of ours (e.g. 'country_not_allowed') is named so the row says why.
-        result.id ? null : (result.error ?? 'SMS send failed or deferred'),
+        result.id ? null : (result.error ?? (channel === 'whatsapp' ? 'WhatsApp send failed or deferred' : 'SMS send failed or deferred')),
         row.id,
       ],
     );
   } catch (err) {
-    logger.warn({ err, template: input.template }, 'SMS dispatch bookkeeping failed');
+    logger.warn({ err, template: input.template, channel }, 'message dispatch bookkeeping failed');
   }
 }
 
@@ -142,13 +165,15 @@ export async function sendBookingConfirmation(businessId: string, appointmentId:
   );
   if (!a || a.sms_opt_in !== true) return;
   const { date, time } = smsDateTime(a.scheduled_start_at, a.timezone);
+  const link = manageUrl(a.phone_full, a.manage_token);
   await recordSmsNotification({
     businessId,
     phone: a.customer_phone,
     optIn: true,
     appointmentId,
     template: SMS_TEMPLATES.bookingConfirmed,
-    body: smsBodyBookingConfirmed(a.customer_name, a.name, date, time, manageUrl(a.phone_full, a.manage_token)),
+    body: smsBodyBookingConfirmed(a.customer_name, a.name, date, time, link),
+    waParams: waParamsBookingConfirmed(a.customer_name, a.name, date, time, link),
   });
 }
 
@@ -168,9 +193,10 @@ export async function appointmentReminderSweep(now = new Date()): Promise<number
     created_at: string;
     name: string;
     address: string | null;
+    phone_full: string | null;
   }>(
     `select a.id, a.business_id, a.customer_name, a.customer_phone, a.scheduled_start_at, a.created_at,
-            b.name, b.address
+            b.name, b.address, b.phone_full
        from appointment a join business b on b.id = a.business_id
       where a.status = 'confirmed'
         and a.sms_opt_in
@@ -196,6 +222,7 @@ export async function appointmentReminderSweep(now = new Date()): Promise<number
       appointmentId: a.id,
       template: SMS_TEMPLATES.appointmentReminder,
       body: smsBodyReminder(a.customer_name, a.name, a.address),
+      waParams: waParamsReminder(a.customer_name, a.name, a.address, storeUrl(a.phone_full)),
     });
     sent++;
   }
@@ -232,13 +259,15 @@ export async function sendCheckInConfirmation(businessId: string, entryId: strin
   if (!e || e.sms_opt_in !== true) return;
   const estimate = new Date(Date.now() + Math.max(0, waitMinutes) * 60_000);
   const { date, time } = smsDateTime(estimate, e.timezone);
+  const link = storeUrl(e.phone_full);
   await recordSmsNotification({
     businessId,
     phone: e.customer_phone,
     optIn: true,
     queueEntryId: entryId,
     template: SMS_TEMPLATES.bookingConfirmed,
-    body: smsBodyBookingConfirmed(e.customer_name, e.name, date, time, storeUrl(e.phone_full)),
+    body: smsBodyBookingConfirmed(e.customer_name, e.name, date, time, link),
+    waParams: waParamsBookingConfirmed(e.customer_name, e.name, date, time, link),
   });
 }
 
@@ -257,6 +286,7 @@ export async function sendWaitlistReminder(businessId: string, entryId: string):
     queueEntryId: entryId,
     template: SMS_TEMPLATES.appointmentReminder,
     body: smsBodyReminder(e.customer_name, e.name, e.address),
+    waParams: waParamsReminder(e.customer_name, e.name, e.address, storeUrl(e.phone_full)),
   });
 }
 
@@ -299,5 +329,6 @@ export async function sendReviewRequest(businessId: string, entryId: string): Pr
     queueEntryId: entryId,
     template: SMS_TEMPLATES.reviewRequest,
     body: smsBodyReview(e.customer_name, e.name, link),
+    waParams: waParamsReview(e.customer_name, e.name, link),
   });
 }

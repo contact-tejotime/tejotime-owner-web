@@ -28,7 +28,7 @@ written to be **idempotent / re-runnable**.
 | 0009 | `master_data_team_noun.sql` | `team_noun` |
 | 0010 | `admin_analytics.sql` | admin analytics support |
 | 0011 | `staff_avatar.sql` | `staff.avatar_url` |
-| 0012 | `eta_15_whatsapp.sql` | `queue_entry.notified_eta_15_at`; also added `'whatsapp'` to `notification_channel` — dead now that the WhatsApp integration is removed (app code only ever writes `sms`/`in_app`), left in place because Postgres can't drop a single enum value without rebuilding the type |
+| 0012 | `eta_15_whatsapp.sql` | `queue_entry.notified_eta_15_at`; also added `'whatsapp'` to `notification_channel`. It was dead after the first WhatsApp integration was removed, and is **live again since 2026-10-23**: +91 customers' messages are recorded with it ([docs/whatsapp-india.md](../../docs/whatsapp-india.md)) |
 | 0013 | `admin_password.sql` | `admins.password_hash` |
 | 0014 | `inquiries.sql` | `inquiry` table |
 | 0015 | `visitor_type.sql` | `visitor_type` on `queue_entry` + `appointment` |
@@ -54,6 +54,7 @@ written to be **idempotent / re-runnable**.
 | 0038 | `business_gallery_heading.sql` | `business.gallery_heading` — the owner's heading for the page's photo gallery; NULL = the default for the store type ([docs/store-setup-review-2026-10-05.md](../../docs/store-setup-review-2026-10-05.md)) |
 | 0040 | `unpriced_extras.sql` | `queue_entry_extra.price_type` (the catalog service's type for attached rows; NULL for chip add-ons and pre-0040 rows). `queue_attach_services` stores it, by the `serviceId` each item carries. `appointment_check_in` passes `appointment_service.service_id`. `queue_checkout` raises `AMOUNT_REQUIRED` for an `unset` extra when no amount is given. Same signatures throughout ([docs/checkout-add-ons.md](../../docs/checkout-add-ons.md)) |
 | 0039 | `checkout_addons.sql` | `queue_extend` (same signature) raises `TEJO:ALREADY_ADDED` for a label already on the visit — one add-on label per visit; new `queue_remove_extra(biz, entry, label)` deletes those rows, takes their minutes off `extra_minutes` and their ` + Label` off `service_name` (never the first segment) ([docs/checkout-add-ons.md](../../docs/checkout-add-ons.md)) |
+| 0044 | `notification_provider_message_idx.sql` | partial index on `notification.provider_message_id` (non-null only), which the WhatsApp webhook looks rows up by. No enum change: `'whatsapp'` already exists (0012). Numbered 0044 because 0042/0043 are the PayPal POS work ([docs/whatsapp-india.md](../../docs/whatsapp-india.md)) |
 
 > **`0016` is duplicated** across two independent files. Ordering relies on the filename sort, which
 > is deterministic. **Use a strictly increasing prefix from 0025 onward.**
@@ -85,7 +86,7 @@ without the other is a silent runtime break.
 | `appointment_status` | `pending`, `confirmed`, `checked_in`, `completed`, `cancelled`, `no_show` |
 | `appointment_source` | `online`, `owner` |
 | `color_token` | `primary`, `secondary`, `amber500`, `green500` |
-| `notification_channel` | `sms`, `email`, `push`, `in_app` |
+| `notification_channel` | `sms`, `email`, `push`, `in_app`, `whatsapp` (0012; written since 2026-10-23 for +91 customers) |
 | `notification_status` | `queued`, `sent`, `delivered`, `failed` |
 | `otp_purpose` | `join_queue`, `booking`, `customer_login`, `owner_login`, `phone_verify` |
 | `payment_status` | `created`, `authorized`, `captured`, `failed`, `refunded` |

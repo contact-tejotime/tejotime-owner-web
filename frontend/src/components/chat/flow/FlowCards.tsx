@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { t, format } from "@/i18n";
 import { Icon } from "@/components/Icon";
+import { isWhatsAppNumber } from "@/lib/message-channel";
 import type { ApptView, Draft, SlotLite } from "./engine";
 
 /**
@@ -214,7 +215,7 @@ export function SummaryCard({
       <Row label={C.when} value={when} />
       <Row label={C.name} value={draft.name ?? ""} />
       <Row label={C.phone} value={phone} />
-      <Row label={C.texts} value={draft.sms ? C.textsYes : C.textsNo} />
+      <Row label={isWhatsAppNumber(draft.phone) ? C.textsWhatsApp : C.texts} value={draft.sms ? C.textsYes : C.textsNo} />
     </div>
   );
 }
@@ -293,15 +294,16 @@ export function AppointmentCard({ appt, when }: { appt: ApptView; when: string }
 /**
  * The SMS disclosure, word for word the website checkbox's (consentOptIn), with the same Privacy
  * and SMS Terms links — this is an A2P opt-in path now (docs/sms-opt-in-a2p.md), and reviewers
- * reject a disclosure that differs between entry points or reads as fine print.
+ * reject a disclosure that differs between entry points or reads as fine print. A +91 number's
+ * messages arrive on WhatsApp, so it gets the box's WhatsApp wording instead (docs/whatsapp-india.md).
  */
-export function ConsentCard({ storeName }: { storeName: string }) {
+export function ConsentCard({ storeName, whatsapp }: { storeName: string; whatsapp: boolean }) {
   return (
     <div className="ttFlowCard ttFlowConsent">
-      {format(t.microsite.join.consentOptIn, { name: storeName })}{" "}
+      {format(whatsapp ? t.microsite.join.consentOptInWhatsApp : t.microsite.join.consentOptIn, { name: storeName })}{" "}
       <Link href="/privacy">{t.microsite.join.consentPrivacy}</Link>
       {" · "}
-      <Link href="/terms">{t.microsite.join.consentSmsTerms}</Link>
+      <Link href="/terms">{whatsapp ? t.microsite.join.consentTerms : t.microsite.join.consentSmsTerms}</Link>
     </div>
   );
 }

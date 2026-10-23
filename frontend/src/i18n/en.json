@@ -761,6 +761,8 @@
       "phoneInvalid": "That doesn’t look like a valid phone number. Please type it again, with the country code if it isn’t local.",
       "smsQuestion": "Would you like text messages about this visit?",
       "smsYes": "Yes, text me",
+      "smsQuestionWhatsApp": "Would you like WhatsApp messages about this visit?",
+      "smsYesWhatsApp": "Yes, message me on WhatsApp",
       "smsNo": "No thanks",
       "summaryJoin": "Here’s your check-in. Shall I confirm it?",
       "summaryBook": "Here’s your booking. Shall I confirm it?",
@@ -774,6 +776,7 @@
       "editName": "Name",
       "editPhone": "Phone",
       "editSms": "Texts",
+      "editSmsWhatsApp": "WhatsApp messages",
       "joined": "You’re checked in! This card updates live.",
       "alreadyIn": "This number is already on today’s waitlist — here’s your place.",
       "held": "You’re already on the waitlist. This card updates live.",
@@ -833,6 +836,7 @@
         "name": "Name",
         "phone": "Phone",
         "texts": "Texts",
+        "textsWhatsApp": "WhatsApp",
         "textsYes": "Yes",
         "textsNo": "No",
         "total": "Total",
@@ -984,6 +988,7 @@
       "phoneLabel": "Mobile Number",
       "phoneHelperBook": "We'll use this number to identify your visit. Check the box below if you want texts about your visit.",
       "phoneHelperQueue": "We'll use this number to identify your visit. Check the box below if you want texts about your visit.",
+      "phoneHelperWhatsApp": "We'll use this number to identify your visit. Check the box below if you want WhatsApp messages about your visit.",
       "memberLabel": "Preferred Provider (optional)",
       "memberAny": "No preference",
       "timeLabel": "Choose a date and time",
@@ -1001,6 +1006,8 @@
       "consentOptIn": "I agree to receive appointment texts from {name} via TejoTime, including booking confirmations, reminders, and a review request after my visit. Up to 3 messages per visit. Msg & data rates may apply. Reply STOP to opt out, HELP for help. Consent is not required to book.",
       "consentPrivacy": "Privacy Policy",
       "consentSmsTerms": "SMS Terms",
+      "consentOptInWhatsApp": "I agree to receive appointment messages on WhatsApp from {name} via TejoTime, including booking confirmations, reminders, and a review request after my visit. Up to 3 messages per visit. Reply STOP to opt out. Consent is not required to book.",
+      "consentTerms": "Terms",
       "paymentNote": "Payment is due at the business.",
       "errNoPhone": "Enter your phone number",
       "errNoNamePhone": "Enter your name and phone number",
@@ -1385,7 +1392,7 @@
     "metaTitle": "Privacy Policy — TejoTime",
     "metaDescription": "How TejoTime collects, uses, shares, and protects information across our website, booking pages, and owner app.",
     "title": "Privacy Policy",
-    "lastUpdated": "Last updated: October 1, 2026",
+    "lastUpdated": "Last updated: October 23, 2026",
     "intro": "TejoTime is operated by {entity}. This Privacy Policy explains how {entity} (“TejoTime,” “we,” “us”) collects, uses, shares, and protects information when you use our website, our owner and staff apps, and the public booking pages we host for businesses. Please read it alongside our Terms of Service.",
     "sections": [
       {
@@ -1444,6 +1451,7 @@
           "You opt in by checking the one optional, unchecked-by-default SMS box on a business’s TejoTime page when you book an appointment or check in. That box covers all three messages, and we only text your number if it is checked. You can finish a booking or check-in without agreeing to any texts.",
           "Message frequency: up to 3 messages per visit. Message and data rates may apply.",
           "Reply STOP to any message to stop receiving texts from TejoTime, or ask the business to remove you. Reply HELP, or contact us at {email} or {phone}, for help. Carriers are not liable for delayed or undelivered messages.",
+          "WhatsApp for Indian numbers: if your mobile number is an Indian (+91) number, these same messages are sent to you on WhatsApp instead of by text, through Meta’s WhatsApp Business Platform, and the box on the page says so. Meta handles the message to deliver it, under WhatsApp’s own terms and privacy policy. Reply STOP in the WhatsApp chat to stop receiving them.",
           "We do not sell or share your SMS opt-in data or personal information with third parties for marketing purposes.",
           "We do not sell, rent, or share your mobile phone number or your text-message opt-in status with third parties or affiliates for their own marketing or promotional purposes. Text messaging originator opt-in data and consent will not be shared with any third parties. Businesses are responsible for having an appropriate basis to contact their own clients."
         ],
@@ -1530,7 +1538,7 @@
     "metaTitle": "Terms of Service — TejoTime",
     "metaDescription": "The terms that govern your use of TejoTime’s online booking, scheduling, and client-management service.",
     "title": "Terms of Service",
-    "lastUpdated": "Last updated: October 1, 2026",
+    "lastUpdated": "Last updated: October 23, 2026",
     "intro": "TejoTime is operated by {entity}. These Terms of Service (“Terms”) are an agreement between you and {entity} (“TejoTime,” “we,” “us”). They govern your use of our website, our owner and staff apps, and the booking pages we host. By creating an account or using TejoTime, you agree to these Terms. If you do not agree, do not use the service.",
     "sections": [
       {
@@ -1689,6 +1697,7 @@
           "If a business you interact with uses TejoTime’s optional texting feature, you may receive text messages tied to a specific visit: a confirmation when you book an appointment, a reminder 15 minutes before it starts, and one message after your visit asking you to leave the business a review. These messages are not sent on a recurring subscription basis.",
           "You opt in by checking the one optional, unchecked-by-default SMS box when you book an appointment or check in on a business’s TejoTime page. That box covers all three messages, including the post-visit review request. Consenting to receive these texts is not a condition of purchasing any service from the business.",
           "Message frequency: up to 3 messages per visit. Message and data rates may apply. Reply STOP to any message to stop receiving texts from TejoTime, or reply HELP, or contact us at {email} or {phone}, for help. Carriers are not liable for delayed or undelivered messages.",
+          "If your mobile number is an Indian (+91) number, these same messages are sent on WhatsApp instead of by text, through Meta’s WhatsApp Business Platform, under the same opt-in and the same limit of up to 3 messages per visit. Reply STOP in the WhatsApp chat to stop receiving them. Your use of WhatsApp is also subject to WhatsApp’s own terms.",
           "We do not sell, rent, or share your mobile phone number or your text-messaging opt-in status with third parties or affiliates for their own marketing or promotional purposes. Text messaging originator opt-in data and consent will not be shared with any third parties. See our Privacy Policy for more detail on how we handle information.",
           "Businesses using TejoTime’s texting feature are responsible for having their own appropriate basis to text their clients and for complying with applicable messaging and telemarketing law."
         ],
