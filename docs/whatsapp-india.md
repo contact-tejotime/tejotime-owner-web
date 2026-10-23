@@ -38,6 +38,11 @@ the env, so a change to `WHATSAPP_COUNTRY_CODES` has to be copied into `WHATSAPP
   `channel='whatsapp'`, `status='failed'` and error "WhatsApp send failed or deferred". Meta is
   never called, and the message never falls back to SMS. (+91 was never texted anyway:
   `TWILIO_ALLOWED_COUNTRY_CODES=1`.)
+- **No consent, no row.** When the box was left unticked, or the customer has replied STOP since,
+  nothing is sent on either channel and **nothing is written to `notification`**. (Until
+  2026-10-23 an opted-out customer's message was still stored as an unsent `in_app` row, which
+  showed up in the owner's notification list.) A row exists only for a message the customer
+  agreed to. With the flag off, that row reads "deferred".
 - **A failed WhatsApp send is never retried as SMS.** Meta reports some failures only later, on
   the webhook, so a retry could reach the customer twice.
 - **`WHATSAPP_TEST_TO`** pins every send to one number, like `TWILIO_TEST_TO`. The country check
@@ -143,7 +148,9 @@ these lookups use. It is numbered 0044 because 0042 and 0043 are taken by the Pa
 
 ## Environment
 
-All of these are in `backend/src/config/env.ts` and in the four `backend/.env*.example` files.
+All of these are in `backend/src/config/env.ts`. The four `backend/.env*.example` files list
+all of them except the template names and language: their defaults already match the approved
+templates, so set them only if a template is renamed.
 The backend reads them at boot, so restart it after a change.
 
 | Variable | Default | |

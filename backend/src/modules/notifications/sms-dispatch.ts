@@ -72,33 +72,26 @@ export async function recordSmsNotification(input: SmsNotificationInput): Promis
   // WhatsApp sets it too (modules/webhooks/whatsapp.service.ts).
   const canSms =
     !optOutUnknown && shouldDispatchSms({ customerPhone: phone, smsOptIn: input.optIn, smsOptOutAt: optedOutAt });
-  const channel = canSms && phone ? messageChannelFor(phone) : 'in_app';
+  // No consent (the box unticked, or a STOP since) → no row at all. This used to record an 'in_app'
+  // row, which only cluttered the owner's notification list with messages that were never sent.
+  if (!canSms || !phone) return;
+  const channel = messageChannelFor(phone);
 
   let row: { id: string } | null = null;
   try {
     row = await one<{ id: string }>(
       `insert into notification
          (business_id, queue_entry_id, appointment_id, channel, template, to_address, body, status, sent_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       values ($1, $2, $3, $4, $5, $6, $7, 'queued', null)
        returning id`,
-      [
-        input.businessId,
-        input.queueEntryId ?? null,
-        input.appointmentId ?? null,
-        channel,
-        input.template,
-        phone,
-        input.body,
-        canSms ? 'queued' : 'sent',
-        canSms ? null : new Date().toISOString(),
-      ],
+      [input.businessId, input.queueEntryId ?? null, input.appointmentId ?? null, channel, input.template, phone, input.body],
     );
   } catch (err) {
     logger.warn({ err, template: input.template }, 'notification insert failed');
     return;
   }
 
-  if (!row?.id || !canSms || !phone) return;
+  if (!row?.id) return;
 
   try {
     const result =

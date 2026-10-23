@@ -66,6 +66,8 @@ The box sets **both** backend flags, which stay separate on purpose:
 - `appointment/queue_entry.review_sms_opt_in` / `customer.review_sms_opt_in_at` → message 3,
   **only if** the store has set a Google review link
 - Ticking the box clears a prior `customer.sms_opt_out_at` (a fresh consent)
+- No consent (box unticked, or STOP since) → nothing is sent **and no `notification` row is
+  written**. Before 2026-10-23 an opted-out customer's message was stored as an unsent `in_app` row.
 
 > **Bundling risk.** Carriers read message 3 as marketing, and this one box bundles it with the
 > customer-care texts. The wording names it explicitly ("a review request after my visit"), which

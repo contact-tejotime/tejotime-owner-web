@@ -164,13 +164,21 @@ describe('customer message routing', { timeout: 30_000 }, () => {
     expect(notificationInsert()?.[3]).toBe('whatsapp');
   });
 
-  it('a customer who replied STOP gets nothing on either channel', async () => {
+  it('a customer who replied STOP gets nothing on either channel, and no row is stored', async () => {
     stubRows(appointmentRow(), '2026-10-20T10:00:00.000Z');
     await confirm({ WHATSAPP_ENABLED: 'true' });
 
     expect(waSend).not.toHaveBeenCalled();
     expect(smsSend).not.toHaveBeenCalled();
-    expect(notificationInsert()?.[3]).toBe('in_app');
+    expect(notificationInsert()).toBeUndefined();
+  });
+
+  it('a +1 customer who replied STOP gets no text, and no row is stored', async () => {
+    stubRows(appointmentRow({ customer_phone: '+12399385943' }), '2026-10-20T10:00:00.000Z');
+    await confirm({ SMS_ENABLED: 'true' });
+
+    expect(smsSend).not.toHaveBeenCalled();
+    expect(notificationInsert()).toBeUndefined();
   });
 
   it('an unticked box sends and records nothing', async () => {

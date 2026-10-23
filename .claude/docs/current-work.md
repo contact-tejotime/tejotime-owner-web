@@ -28,7 +28,7 @@ the system as designed, this one describes where it actually is.
   link hint and notifications note mention WhatsApp. Changed identically in owner-web and the app;
   nothing native.
 - **Checks run:**
-  - backend `npm test`: 46 files, 573 tests;
+  - backend `npm test`: 46 files, 574 tests;
   - `npm run test:chat-flow`: 178;
   - frontend lint and build pass;
   - `smoke-whatsapp.mjs`, run 2026-10-23 against a migrated, seeded throwaway database on local

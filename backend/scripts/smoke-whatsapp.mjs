@@ -306,9 +306,9 @@ async function main() {
   ok(!!(await optOut()), 'the customer is opted out');
   const sentBefore = sent.length;
   ok(await serve(e.json.ticketId), 'the owner starts and checks out the visit');
-  rows = await waitForRows('queue_entry_id', e.json.ticketId, 2);
-  const blocked = rows.find((r) => r.template === 'review_request');
-  ok(blocked?.channel === 'in_app' && sent.length === sentBefore, `no review request reaches Meta after STOP (row channel ${blocked?.channel})`);
+  // No consent → no row at all (not even an unsent one), so give a stray one time to appear.
+  rows = await waitForRows('queue_entry_id', e.json.ticketId, 2, 2500);
+  ok(!rows.some((r) => r.template === 'review_request') && sent.length === sentBefore, `no review request reaches Meta after STOP, and none is stored (${rows.length} row(s): ${rows.map((r) => r.template).join(', ')})`);
 }
 
 main()
