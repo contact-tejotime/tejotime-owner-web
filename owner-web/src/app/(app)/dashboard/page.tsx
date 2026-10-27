@@ -74,6 +74,7 @@ export default async function DashboardPage() {
     : (staff?.data ?? []).filter((s) => s.isActive);
 
   const cardUrl = qr?.cardUrl ?? null;
+  const socialUrl = qr?.socialUrl ?? null;
   const storeName = me.business.name;
 
   return (
@@ -107,6 +108,7 @@ export default async function DashboardPage() {
             services={(services?.data ?? []).filter((s) => s.isActive)}
             showQr={showQr}
             cardUrl={cardUrl}
+            socialUrl={socialUrl}
             storeName={storeName}
             singleChair={staffScoped || seats.length <= 1}
             category={me.business.category}
@@ -115,7 +117,13 @@ export default async function DashboardPage() {
       ) : showQr && cardUrl ? (
         // No queue access, so no live card to carry the QR shortcut. Keep it reachable on its own.
         <div className="home-actions home-actions-solo">
-          <StoreBookingQr variant="button" label={t.dashboard.contactQr} cardUrl={cardUrl} storeName={storeName} />
+          <StoreBookingQr
+            variant="button"
+            label={t.dashboard.contactQr}
+            cardUrl={cardUrl}
+            socialUrl={socialUrl}
+            storeName={storeName}
+          />
         </div>
       ) : null}
     </div>

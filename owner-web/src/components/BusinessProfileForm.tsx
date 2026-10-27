@@ -25,6 +25,7 @@ export function BusinessProfileForm({
   countryCode = null,
   phoneNumber = null,
   cardUrl = null,
+  socialUrl = null,
 }: {
   name: string;
   address: string;
@@ -33,6 +34,7 @@ export function BusinessProfileForm({
   phoneNumber?: string | null;
   /** The booking chooser URL from GET /business/qr; the QR row is hidden without it. */
   cardUrl?: string | null;
+  socialUrl?: string | null;
 }) {
   const router = useRouter();
   // `router.refresh()` is async and used to be fired and forgotten, so the button stopped
@@ -103,7 +105,7 @@ export function BusinessProfileForm({
                 <Icon name="chevronRight" size={18} className="sb-srow-chev" />
               </span>
               {/* The shared QR dialog, its trigger stretched over the whole row. */}
-              <StoreBookingQr cardUrl={cardUrl} storeName={n || name} buttonClassName="sb-srow-cover" />
+              <StoreBookingQr cardUrl={cardUrl} socialUrl={socialUrl} storeName={n || name} buttonClassName="sb-srow-cover" />
             </div>
           </div>
         </section>

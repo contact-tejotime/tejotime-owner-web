@@ -83,6 +83,7 @@ export default async function SettingsPage() {
       userName={me.user.name?.trim() || null}
       storeMode={me.business.theme?.mode ?? "light"}
       cardUrl={qr?.cardUrl ?? null}
+      socialUrl={qr?.socialUrl ?? null}
       recurringEnabled={recurringEnabled}
       isSuperOwner={me.user.isSuperOwner === true}
       isUsStore={isUsStore(me.business.currency)}

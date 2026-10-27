@@ -134,11 +134,19 @@ function SettingsRow({
  * dialog to maintain. Its trigger is drawn as a transparent button stretched over the whole row
  * (`.st-row-hit`), so the row is the click target and the dialog stays shared.
  */
-function BookingQrRow({ cardUrl, storeName }: { cardUrl: string; storeName: string }) {
+function BookingQrRow({
+  cardUrl,
+  socialUrl,
+  storeName,
+}: {
+  cardUrl: string;
+  socialUrl: string | null;
+  storeName: string;
+}) {
   return (
     <div className="st-row st-row-link st-row-qr">
       <RowContent icon="qrCode" label={t.settings.bookingQr} sub={t.settings.bookingQrSub} />
-      <StoreBookingQr cardUrl={cardUrl} storeName={storeName} buttonClassName="st-row-hit" />
+      <StoreBookingQr cardUrl={cardUrl} socialUrl={socialUrl} storeName={storeName} buttonClassName="st-row-hit" />
     </div>
   );
 }
@@ -246,6 +254,7 @@ export function SettingsScreen({
   userName,
   storeMode,
   cardUrl,
+  socialUrl = null,
   recurringEnabled,
   isSuperOwner,
   isUsStore,
@@ -261,6 +270,8 @@ export function SettingsScreen({
   storeMode: StoreMode;
   /** The booking card URL for the QR, from the profile-gated `/business/qr`. */
   cardUrl: string | null;
+  /** The social-media link (`?open=checkin`) shown in the same QR sheet. */
+  socialUrl?: string | null;
   /**
    * The store's "Repeating bookings" switch, from `GET /business`. Null when that read was not
    * made or failed — the row is then left out rather than drawn in a state nobody saved.
@@ -380,7 +391,7 @@ export function SettingsScreen({
 
         {showBookings ? (
           <Group title={t.settings.groupBookings}>
-            {showQr && cardUrl ? <BookingQrRow cardUrl={cardUrl} storeName={storeName} /> : null}
+            {showQr && cardUrl ? <BookingQrRow cardUrl={cardUrl} socialUrl={socialUrl} storeName={storeName} /> : null}
             {showRecurring && recurringEnabled !== null ? <RecurringRow initial={recurringEnabled} /> : null}
             {showCards ? (
               <SettingsRow

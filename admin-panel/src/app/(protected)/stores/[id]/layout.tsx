@@ -28,6 +28,8 @@ export default async function StoreHubLayout({
   const meta = [detail.demoIndustry ?? detail.category, detail.area, detail.city].filter(Boolean).join(" · ");
   const phoneFull = detail.phoneFull || `${detail.countryCode ?? ""}${detail.phoneNumber ?? ""}`;
   const cardUrl = FRONTEND_URL && phoneFull ? `${FRONTEND_URL}/${phoneFull}/card` : "";
+  // The page with Check in open — the link for social posts and ads (the API's `socialUrl`).
+  const socialUrl = FRONTEND_URL && phoneFull ? `${FRONTEND_URL}/${phoneFull}?open=checkin` : "";
   const vcardUrl = detail.slug ? `${BACKEND_URL}/public/businesses/${detail.slug}/vcard` : "";
 
   return (
@@ -42,6 +44,7 @@ export default async function StoreHubLayout({
             <StoreVCardQR
               cardUrl={cardUrl}
               vcardUrl={vcardUrl}
+              socialUrl={socialUrl}
               storeName={detail.name || t.common.unnamed}
             />
           )}
