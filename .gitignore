@@ -58,9 +58,14 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 
-# generated native folders
-ios/
-android/
+# generated native folders — anchored, because a bare `ios/` / `android/` also swallowed the
+# hand-written sources of app/modules/paypal-reader (they were never committed). app/.gitignore
+# ignores the same two folders.
+/app/ios/
+/app/android/
+# Gradle's per-project cache, written when an editor (Cursor/Android Studio) syncs a module such as
+# app/modules/paypal-reader/android on its own.
+.gradle/
 
 backend/.env.render
 backend/.env.railway

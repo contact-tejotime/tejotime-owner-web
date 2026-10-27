@@ -234,7 +234,11 @@ A local Expo module, autolinked from `app/modules/`:
   expo-router owns `tejotime://`.
 - `EXPO_PUBLIC_PAYPAL_DEV_MODE`: PayPal's **developer mode** answers charges and refunds with no
   merchant account and no money, from any country. It is how this is tested from India.
-  - `true` for local and preprod; **never** in production.
+  - `true` only for local testing; **`false` on preprod** (since 2026-10-19) and **never** on in
+    production. A preprod build therefore takes real money from a real PayPal account and reader.
+  - Only the exact string `true` turns it on (`app/src/lib/config.ts`); anything else is off.
+  - The shell cannot override it for `npm run build:*`: `build-android.sh` reads the PayPal values
+    from `.env.preprod` / `.env.production` (or the `.example`), so set it there.
   - The Card payments screen shows a banner while it is on.
 
 **Not declared:** `UISupportedExternalAccessoryProtocols`. It is only for PayPal's older
@@ -343,15 +347,32 @@ fails:
 That happened once, on 2026-10-15: a local `npm run dev` read preprod from `backend/.env` before
 preprod was migrated.
 
-**Not run yet:**
-- **The native module has never been compiled.** It needs:
-  - a Mac for iOS;
-  - the GitHub token for Android;
-  - PayPal client ids for both.
-- **Spike items to settle on the first build:**
-  - the exact names of the iOS `iZettleSDKPaymentInfo` properties used;
-  - how the iOS SDK reports a cancel;
-  - the Android signed-in account's property names (read reflectively, so a wrong guess gives
-    null rather than a broken build);
-  - whether Kotlin 2.1 (RN 0.85) reads the SDK's Kotlin 2.2 metadata, or needs
-    `expo-build-properties` `android.kotlinVersion`.
+**The native module, 2026-10-16.** The Swift and Kotlin sources were never committed: the
+repo-root `.gitignore` had bare `ios/` / `android/`, which also matched
+`app/modules/paypal-reader/{ios,android}`. That rule is now anchored to `/app/ios/` and
+`/app/android/`. The module was rewritten from PayPal's example apps and the SDK's own compiled
+API (Android AARs 2.52.0 read with `javap`, iOS 4.70.4 headers and `.swiftinterface`).
+- **Android:** compiles against the real SDK with the project's Kotlin 2.1.20, with no
+  `kotlinVersion` override. `npm run build:preprod` produced a verified preprod APK containing the
+  module, PayPal's SDK, its `OAuthActivity` and the Android client id.
+- **iOS:** `pod install` pulls `iZettleSDK` 4.70.4. The `PaypalReader` pod compiles for the
+  simulator with no warnings. The whole app was not built for iOS.
+- **Settled spike items:**
+  - iOS `iZettleSDKPaymentInfo` exposes `amount` (decimal), `cardBrand`, `obfuscatedPan`,
+    `entryMode` and `transactionId`.
+  - The Android account is `User.AuthState.LoggedIn.info`, typed, not reflective.
+  - Kotlin 2.1 reads the SDK as-is.
+- **iOS cancel is still undocumented by PayPal.** A charge that does not plainly succeed is checked
+  with `retrievePaymentInfo` before it is reported as cancelled or declined; if PayPal can't be
+  asked, it rejects and stays pending.
+- **iOS `account()`:** iZettleSDK only hands the account over at sign-in
+  (`ZettleUserAuthorizationDelegate`), so after a relaunch it is null until the next sign-in.
+- **Android backup rules:** PayPal's SDK and expo-secure-store both set
+  `android:fullBackupContent`. The plugin writes one merged rule set
+  (`tejotime_backup_rules` / `tejotime_data_extraction_rules`) that excludes both libraries'
+  credentials. expo-secure-store's "other backup rules are already present" warning at prebuild
+  is expected.
+- **Without the native folder** the plugin skips its Android changes, so the app still builds,
+  just with no card reader.
+
+**Not run yet:** anything on a device. Work through the manual checklist above, dev mode first.
