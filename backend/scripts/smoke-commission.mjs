@@ -165,7 +165,9 @@ async function main() {
   ok(staffLogin.status === 200, 'staff login');
   const staffToken = staffLogin.json.accessToken;
   const me = await call('GET', '/auth/me', { token: staffToken });
-  ok(me.json.permissions?.commission === 'view', '/auth/me tells the clients to draw "My earnings"');
+  // /auth/me nests the map under `user` ({ user: { permissions }, business }); reading it at the
+  // top level made this check fail on every run.
+  ok(me.json.user?.permissions?.commission === 'view', '/auth/me tells the clients to draw "My earnings"');
 
   // An app build from when earnings were a toggle sends its complete map, `commission` included.
   const perms = { ...created.json.permissions };

@@ -15,15 +15,20 @@ import { t, format } from "@/i18n";
 export default function StoreVCardQR({
   cardUrl,
   vcardUrl,
+  socialUrl = "",
   storeName,
 }: {
   /** What the QR encodes — `/{phone}/card` chooser when the store has a phone. */
   cardUrl: string;
   /** Direct `.vcf` for Download (and fallback if cardUrl were ever empty). */
   vcardUrl: string;
+  /** The store page with Check in open (`?open=checkin`), for social posts and ads. */
+  socialUrl?: string;
   storeName: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const socialFieldId = useId();
   const titleId = useId();
   const cardRef = useRef<HTMLDivElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
@@ -91,7 +96,10 @@ export default function StoreVCardQR({
       <button
         type="button"
         className="qr-icon-btn"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setCopied(false);
+          setOpen(true);
+        }}
         title={t.qr.buttonTitle}
         aria-label={t.qr.buttonAria}
       >
@@ -101,7 +109,13 @@ export default function StoreVCardQR({
       {open &&
         typeof document !== "undefined" &&
         createPortal(
-          <div className="confirm-overlay" onClick={() => setOpen(false)}>
+          <div
+            className="confirm-overlay"
+            onClick={() => {
+              setOpen(false);
+              setCopied(false);
+            }}
+          >
             <div
               className="confirm-card"
               role="dialog"
@@ -109,7 +123,7 @@ export default function StoreVCardQR({
               aria-labelledby={titleId}
               ref={cardRef}
               onClick={(e) => e.stopPropagation()}
-              style={{ textAlign: "center", maxWidth: 340 }}
+              style={{ textAlign: "center", maxWidth: 380 }}
             >
               <h3 id={titleId}>{format(t.qr.heading, { name: storeName || t.qr.storeFallback })}</h3>
               <p style={{ marginTop: 4 }}>{t.qr.subtitle}</p>
@@ -126,6 +140,52 @@ export default function StoreVCardQR({
               >
                 <QRCodeSVG value={qrValue} size={220} level="M" marginSize={2} />
               </div>
+              {socialUrl ? (
+                <div
+                  style={{
+                    textAlign: "left",
+                    margin: "0 0 16px",
+                    padding: 12,
+                    border: "1px solid var(--border-subtle)",
+                    borderRadius: 12,
+                    background: "var(--surface-sunken, var(--surface-page))",
+                  }}
+                >
+                  <label htmlFor={socialFieldId} style={{ display: "block", fontWeight: 600, fontSize: 13, marginBottom: 8 }}>
+                    {t.qr.socialLabel}
+                  </label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {/* Read-only, so it can still be selected and copied by hand if the clipboard is refused. */}
+                    <input
+                      id={socialFieldId}
+                      type="text"
+                      readOnly
+                      value={socialUrl}
+                      onFocus={(e) => e.currentTarget.select()}
+                      style={{ flex: "1 1 auto", minWidth: 0, fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12.5 }}
+                    />
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(socialUrl);
+                          setCopied(true);
+                        } catch {
+                          (document.getElementById(socialFieldId) as HTMLInputElement | null)?.select();
+                        }
+                      }}
+                    >
+                      <Icon name={copied ? "check" : "copy"} size={15} strokeWidth={2} />
+                      {copied ? t.qr.copied : t.qr.copy}
+                    </button>
+                  </div>
+                  <p style={{ margin: "8px 0 0", fontSize: 12.5, lineHeight: 1.45, color: "var(--text-muted)" }}>
+                    {t.qr.socialHint}
+                  </p>
+                </div>
+              ) : null}
               <div className="confirm-actions" style={{ justifyContent: "center" }}>
                 <a className="btn-primary" href={vcardUrl} download={`${storeName || "store"}.vcf`}>
                   {t.qr.downloadVcard}

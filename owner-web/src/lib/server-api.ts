@@ -143,6 +143,8 @@ export interface Me {
      * role — staff cannot read GET /business — can show the right symbol on a price input.
      */
     currency?: string | null;
+    /** IANA zone the store runs on (auth.service businessSummary) — for printing a store's own clock. */
+    timezone?: string | null;
     /** Store Appearance — present once the API ships theme on /auth/me. */
     theme?: ThemeConfig | null;
     themeColor?: string | null;
@@ -518,6 +520,11 @@ export interface CommissionVisit {
   amount: Money;
   rateBp: number | null;
   commission: Money | null;
+  /**
+   * A refunded card visit (0043): still listed, earns nothing (`commission` is 0). Optional so a
+   * response from an API older than card payments still type-checks.
+   */
+  refunded?: boolean;
 }
 
 export interface CommissionVisits {
@@ -617,6 +624,11 @@ export interface BusinessDetail {
    * defaults it on; optional so a response from an API older than migration 0036 still type-checks.
    */
   recurringEnabled?: boolean;
+  /**
+   * The main owner takes card payments on the PayPal reader from the TejoTime app
+   * (docs/card-payments-paypal.md). Read-only here; optional for APIs older than migration 0043.
+   */
+  cardPaymentsEnabled?: boolean;
   hours: { dayOfWeek: number; opensAt: string | null; closesAt: string | null; isClosed: boolean }[];
   amenities: string[];
   faqs: { q: string; a: string }[];
@@ -644,7 +656,14 @@ export const getBusiness = () =>
   get<BusinessDetail>("/business", [TAGS.business], TTL.business);
 
 export const getBusinessQr = () =>
-  get<{ slug: string; phoneFull: string; bookingUrl: string | null; cardUrl: string | null }>(
+  get<{
+    slug: string;
+    phoneFull: string;
+    bookingUrl: string | null;
+    cardUrl: string | null;
+    /** The page with Check in open (`?open=checkin`) — the link for social posts and ads. */
+    socialUrl?: string | null;
+  }>(
     "/business/qr",
     [TAGS.business],
     TTL.business,
@@ -727,11 +746,53 @@ export const getCustomer = (id: string) =>
   get<CustomerRow>(`/customers/${id}`, [TAGS.customers], TTL.customers);
 
 export const getCustomerVisits = (id: string) =>
-  get<{ data: { id: string; serviceName: string | null; amount: Money; completedAt: string }[] }>(
-    `/customers/${id}/visits`,
-    [TAGS.customers],
-    TTL.customers,
-  );
+  get<{
+    data: {
+      id: string;
+      serviceName: string | null;
+      amount: Money;
+      /** "Paid by" (0042): card, cash, venmo, zelle, cash_app, upi, other — null before it was asked. */
+      paymentMethod?: string | null;
+      /** A refunded card visit (0043). */
+      refunded?: boolean;
+      completedAt: string;
+    }[];
+  }>(`/customers/${id}/visits`, [TAGS.customers], TTL.customers);
+
+/** One card charge on the PayPal reader (docs/card-payments-paypal.md). Mirrors card-payments.service `toDTO`. */
+export interface CardPayment {
+  id: string;
+  status: "pending" | "paid" | "failed" | "refunded";
+  amount: Money;
+  chargedAmount: Money | null;
+  /** Paid, but its visit could not be completed with it, or the reader charged a different amount. */
+  needsReview: boolean;
+  cardBrand: string | null;
+  cardLast4: string | null;
+  entryMode: string | null;
+  failureReason: string | null;
+  queueEntryId: string | null;
+  visitId: string | null;
+  customerName: string | null;
+  serviceName: string | null;
+  createdAt: string;
+  paidAt: string | null;
+  refundedAt: string | null;
+}
+
+export interface CardPaymentSettings {
+  enabled: boolean;
+  paypalOrgRef: string | null;
+  currency: string | null;
+}
+
+/**
+ * Card payments — MAIN OWNER ONLY (the API answers 403 to anyone else, so this returns null).
+ * Uncached: a charge, a refund and the on/off switch all happen on the owner's phone, with no
+ * revalidate hook back here.
+ */
+export const getCardPaymentSettings = () => getFresh<CardPaymentSettings>("/card-payments/settings");
+export const getCardPayments = (limit = 50) => getFresh<{ data: CardPayment[] }>(`/card-payments?limit=${limit}`);
 
 export const getNotifications = () =>
   get<{ data: { id: string; title: string; body: string | null; readAt: string | null }[] }>(

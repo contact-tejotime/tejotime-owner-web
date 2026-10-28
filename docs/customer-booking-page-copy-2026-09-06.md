@@ -491,6 +491,21 @@ pop-up on arrival:
 `?open=` is the form to give out for every other channel too: WhatsApp, a QR poster, the Google
 profile. If a link carries both, `open` wins.
 
+**Where owners find it (2026-10-27).** Every booking-QR sheet shows a **"Social media link"** box —
+`<page>?open=checkin`, with a one-line "use this in Instagram, Facebook… posts and ads" hint:
+
+| Surface | Where | Action |
+|---|---|---|
+| owner-web | the QR sheet from Home's live card, Settings → Booking QR, and the store profile | Copy (the field is read-only and selectable, for when the clipboard is refused) |
+| app, iOS + Android | the QR sheet | Share link (the system share sheet; iOS shares it as a URL, Android as text) |
+| admin panel | the store hub's QR dialog | Copy, worded for the admin ("Give the owner this link…") |
+
+The API builds it once: `GET /business/qr` returns `socialUrl` next to `bookingUrl` / `cardUrl`.
+owner-web reads that; the app and the admin panel build the same string from their own web origin
+and the store's phone, as they already do for the QR's `/card` link. End to end:
+`node backend/scripts/smoke-social-link.mjs` (running API + seeded DB; set `SMOKE_WEB_URL` to also
+fetch the page behind the link).
+
 The link opens the pop-up through the same `openQueue` / `openBook` the page's own buttons call, so
 it obeys every rule above:
 

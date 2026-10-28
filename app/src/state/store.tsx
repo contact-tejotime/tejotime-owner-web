@@ -17,6 +17,8 @@ import {
   type SeriesIssueDTO,
 } from '@/lib/api';
 import { connectOwner } from '@/lib/socket';
+import { chargeVisit, recoverPendingCardPayments } from '@/lib/card-payment-flow';
+import type { PaymentMethod } from '@/lib/checkout-amount';
 import { getOnboarded, setOnboarded } from '@/lib/tokenStore';
 import {
   COLOR_PALETTE,
@@ -142,6 +144,8 @@ interface BusinessInfo {
   hours?: DayHoursVM[];
   /** Offer "Repeat this booking?" on the store page. Only GET /business carries it (owners). */
   recurringEnabled?: boolean;
+  /** The main owner takes card payments on the PayPal reader (0043). From GET /business. */
+  cardPaymentsEnabled?: boolean;
   /**
    * The store's IANA zone. From /auth/me and login (every role) as well as GET /business; every
    * booking time is printed on it (lib/zoned.ts).
@@ -173,7 +177,7 @@ type State = {
    * span No-show, because both were asking "is the panel busy?". Two spinners for one tap reads
    * as two things happening.
    */
-  detailAction: 'start' | 'checkout' | 'noShow' | 'reassign' | 'extend' | null;
+  detailAction: 'start' | 'checkout' | 'charge' | 'noShow' | 'reassign' | 'extend' | null;
   checkInId: string | null; // appointment id currently being checked in
   queueStaff: string; // 'all' | staff id
   plan: Plan;
@@ -255,7 +259,12 @@ type Store = State & {
   openDayAppts: (dateKey: string) => void;
   closeDayAppts: () => void;
   startService: (id: string) => void;
-  checkout: (id: string, amountPaise?: number | null) => void;
+  checkout: (id: string, amountPaise?: number | null, paymentMethod?: PaymentMethod | null) => void;
+  /**
+   * Charge the customer's card on the PayPal reader for the whole bill and complete the visit with
+   * it (docs/card-payments-paypal.md). Main owner only; resolves when it is settled either way.
+   */
+  chargeCard: (id: string, amountPaise: number) => Promise<void>;
   noShow: (id: string) => void;
   reassign: (id: string, staffId: string) => void;
   /**
@@ -466,6 +475,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const accessRef = useRef<ModuleAccess | null>(null);
   /** Role for by-staff reports — staff must not call /dashboard/by-staff. */
   const roleRef = useRef<SessionUser['role'] | null>(null);
+  /** The main owner — the only login that settles card payments left unconfirmed (bootstrap). */
+  const superOwnerRef = useRef(false);
 
   const patch = useCallback((fn: (p: State) => Partial<State>) => setS((p) => ({ ...p, ...fn(p) })), []);
 
@@ -723,7 +734,21 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setS((p) => ({ ...p, bootstrapping: false }));
     }
-  }, [loadAll]);
+    // A card charge whose result was lost last time (the app killed mid-charge, no network when it
+    // came back) is still `pending`: ask the reader about it now. Main owner only — the only login
+    // that charges — and in the background, so sign-in never waits on Bluetooth.
+    if (superOwnerRef.current) {
+      void recoverPendingCardPayments()
+        .then((settled) => {
+          if (settled > 0) {
+            showToast(t.cardPayments.settled, 'info');
+            void loadQueue();
+            void loadDashboard();
+          }
+        })
+        .catch(() => undefined);
+    }
+  }, [loadAll, loadQueue, loadDashboard]);
 
   /** Pull-to-refresh — re-fetches everything, surfaced via `refreshing`. */
   const refresh = useCallback(async () => {
@@ -852,6 +877,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       teardown();
       accessRef.current = null;
       roleRef.current = null;
+      superOwnerRef.current = false;
       reportQueryRef.current = { range: 'today' };
       setThemeConfig(null);
       setStoreTimeZone(null);
@@ -898,6 +924,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }));
           accessRef.current = session?.permissions ?? null;
           roleRef.current = session?.role ?? null;
+          superOwnerRef.current = session?.isSuperOwner === true;
           // Before bootstrap: every booking it maps is printed on the store's clock.
           setStoreTimeZone(me.business?.timezone);
           // Every role gets chrome theme from /auth/me — staff often cannot call GET /business.
@@ -993,6 +1020,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }));
           accessRef.current = session?.permissions ?? null;
           roleRef.current = session?.role ?? null;
+          superOwnerRef.current = session?.isSuperOwner === true;
           setStoreTimeZone(res.business?.timezone);
           setThemeConfig(themeConfigFromBusiness(res.business));
           showToast(message, 'success');
@@ -1019,6 +1047,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         // in on this device saw the previous user's nav for a frame.
         accessRef.current = null;
         roleRef.current = null;
+        superOwnerRef.current = false;
         reportQueryRef.current = { range: 'today' };
         setThemeConfig(null);
         setStoreTimeZone(null);
@@ -1136,10 +1165,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }
         }
       },
-      checkout: async (id, amountPaise) => {
+      checkout: async (id, amountPaise, paymentMethod) => {
         patch(() => ({ detailBusy: true, detailAction: 'checkout' }));
         try {
-          const res: any = await api.checkout(id, amountPaise);
+          const res: any = await api.checkout(id, amountPaise, paymentMethod);
           setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session), detailId: null, detailBusy: false, detailAction: null }));
           showToast(
             res.promoted ? format(t.toast.nowInService, { name: String(res.promoted.name).split(' ')[0] }) : t.toast.checkedOut,
@@ -1149,6 +1178,38 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {
           patch(() => ({ detailBusy: false, detailAction: null }));
           showToast((e as ApiError)?.message ?? t.toast.couldNotCheckOut, 'error');
+        }
+      },
+      chargeCard: async (id, amountPaise) => {
+        patch(() => ({ detailBusy: true, detailAction: 'charge' }));
+        try {
+          const outcome = await chargeVisit(id, amountPaise);
+          if (outcome.kind === 'paid') {
+            const res: any = outcome.res;
+            const name = flatCards(s.seats).find((c) => c.id === id)?.name?.split(' ')[0] ?? '';
+            setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session), detailId: null, detailBusy: false, detailAction: null }));
+            showToast(
+              res.promoted
+                ? format(t.toast.cardPaidNext, { name: String(res.promoted.name).split(' ')[0] })
+                : format(t.toast.cardPaid, { name }),
+              'success',
+            );
+            loadDashboard();
+            return;
+          }
+          patch(() => ({ detailBusy: false, detailAction: null }));
+          if (outcome.kind === 'declined') {
+            showToast(format(t.toast.cardDeclined, { reason: outcome.reason ? ` (${outcome.reason})` : '' }), 'error');
+          } else if (outcome.kind === 'canceled') {
+            showToast(t.toast.cardCanceled, 'info');
+          } else {
+            // Charged (or maybe charged) but not yet recorded: left pending for recovery, never
+            // failed — see lib/card-payment-flow.ts.
+            showToast(t.toast.cardUnconfirmed, 'error');
+          }
+        } catch (e) {
+          patch(() => ({ detailBusy: false, detailAction: null }));
+          showToast((e as ApiError)?.message ?? t.toast.couldNotCharge, 'error');
         }
       },
       noShow: async (id) => {

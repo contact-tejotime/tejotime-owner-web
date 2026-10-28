@@ -234,7 +234,8 @@ export async function getStoreAnalytics(id: string, range: '30d' | '90d') {
         [id],
       ),
       many(
-        `select amount_paise from visit
+        // A refunded card visit (0043) still counts as completed, but its money is not revenue.
+        `select amount_paise, refunded_at from visit
           where business_id = $1 and completed_at >= $2 and completed_at <= $3`,
         [id, today.startIso, today.endIso],
       ),
@@ -250,7 +251,10 @@ export async function getStoreAnalytics(id: string, range: '30d' | '90d') {
       callRpc<any[]>('admin_top_staff', { p_business_id: id, p_start: startIso, p_end: endIso, p_limit: 5 }),
     ]);
 
-  const todayRevenue = todayVisitRows.reduce((sum, v) => sum + Number(v.amount_paise ?? 0), 0);
+  const todayRevenue = todayVisitRows.reduce(
+    (sum, v) => sum + (v.refunded_at == null ? Number(v.amount_paise ?? 0) : 0),
+    0,
+  );
 
   const totals = totalsRows?.[0] ?? {};
   const customers = Number(totals.customers_count ?? 0);
@@ -362,6 +366,10 @@ export async function listCustomerVisits(id: string, customerId: string) {
       serviceName: v.service_name ?? null,
       staffName: staffNames.get(v.staff_id) ?? null,
       amount: money(Number(v.amount_paise ?? 0), biz.currency),
+      // "Paid by" (0042) and a refunded card payment (0043). A refunded visit stays in the history
+      // so the record is complete; it just no longer counts as money taken.
+      paymentMethod: v.payment_method ?? null,
+      refunded: v.refunded_at != null,
       completedAt: v.completed_at,
     })),
   };
@@ -435,6 +443,8 @@ export async function listStoreVisits(id: string, from: string | undefined, to: 
       // Basis points (2000 = 20%); null when the stylist had no rate that day, or no stylist.
       rateBp: v.rate_bp ?? null,
       commission: v.commission_paise == null ? null : money(Number(v.commission_paise), biz.currency),
+      // A refunded card visit (0043): still listed, no longer revenue, earns no commission.
+      refunded: v.refunded_at != null,
       completedAt: v.completed_at,
     })),
     summary: {

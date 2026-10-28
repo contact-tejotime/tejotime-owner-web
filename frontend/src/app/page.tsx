@@ -88,6 +88,56 @@ const bulletStyle: React.CSSProperties = {
   color: "var(--text-body)",
 };
 
+/** "Payment partner · PayPal" under the pricing cards (the footer has its own, below). */
+function PaymentPartner({ align }: { align: "center" | "start" }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: align === "center" ? "center" : "flex-start",
+        flexWrap: "wrap",
+        gap: 12,
+      }}
+    >
+      <span style={eyebrowStyle}>{t.landing.pricing.paymentPartner}</span>
+      {/* A white chip in every theme: PayPal's mark is dark blue and must sit on a light ground
+          (their brand rules), which a dark-mode card surface would not give it. */}
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          background: "#fff",
+          border: "1px solid var(--border-subtle)",
+          borderRadius: "var(--radius-md)",
+          padding: "8px 14px",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element -- PayPal's official SVG mark, a static public asset */}
+        <img src="/landing/paypal.svg" alt="PayPal" width={92} height={26} style={{ display: "block" }} />
+      </span>
+    </div>
+  );
+}
+
+/**
+ * The footer's "Payment partner" mark, beside the TejoTime logo: small muted text, then PayPal's
+ * logo at about cap height. No tile — beside the black app badges a boxed logo looked
+ * like one more download button. The landing page has no dark theme, so the dark-blue mark is
+ * always on a light ground.
+ */
+function FooterPaymentPartner() {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+      <span style={{ font: "var(--fw-medium) 12.5px/1.5 var(--font-sans)", color: "var(--text-muted)" }}>
+        {t.landing.pricing.paymentPartner}
+      </span>
+      {/* eslint-disable-next-line @next/next/no-img-element -- PayPal's official SVG mark, a static public asset */}
+      <img className="tj-paypal-mark" src="/landing/paypal.svg" alt="PayPal" width={64} height={18} style={{ display: "block" }} />
+    </span>
+  );
+}
+
 /** Five solid stars for the social-proof strip (decorative). */
 function shell(extra?: React.CSSProperties): React.CSSProperties {
   return { maxWidth: MAX, margin: "0 auto", padding: PAD, ...extra };
@@ -1778,20 +1828,28 @@ export default function Home() {
                   style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}
                 >
                   <span style={eyebrowStyle}>{p.name}</span>
-                  {p.featured && (
+                  {p.featured ? (
                     <span className="tj-plan-badge">
                       <Badge tone="primary" size="sm">
                         {t.landing.pricing.mostPopular}
                       </Badge>
                     </span>
-                  )}
+                  ) : p.badge ? (
+                    <span className="tj-plan-badge">
+                      <Badge tone="success" size="sm">
+                        {p.badge}
+                      </Badge>
+                    </span>
+                  ) : null}
                 </span>
                 <span className="tj-plan-price">
                   <span
                     style={{
                       font: "var(--fw-extrabold) 38px/1 var(--font-sans)",
                       letterSpacing: "-.035em",
-                      color: "var(--text-strong)",
+                      // A free-first-month plan shows its price in the badge's green, so the offer
+                      // reads as one highlighted unit rather than a bare "Free".
+                      color: p.badge ? "var(--success)" : "var(--text-strong)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
@@ -1828,6 +1886,9 @@ export default function Home() {
                 </div>
               </div>
             ))}
+          </div>
+          <div data-reveal="1" style={{ marginTop: 32 }}>
+            <PaymentPartner align="center" />
           </div>
         </div>
       </section>
@@ -2087,18 +2148,25 @@ export default function Home() {
                 flexWrap: "wrap",
               }}
             >
-              <a
-                href="#top"
-                className="tj-logo-link"
-                aria-label={t.brand.logoAlt}
-                onClick={(e) => {
-                  e.preventDefault();
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-                style={{ display: "flex", cursor: "pointer" }}
-              >
-                <Logo height={40} />
-              </a>
+              {/* The payment partner rides beside the TejoTime logo, split by a hairline: it is about
+                  who TejoTime works with, so it sits with the brand — not with the app downloads
+                  (where a boxed logo read as a third download button) or the legal line. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+                <a
+                  href="#top"
+                  className="tj-logo-link"
+                  aria-label={t.brand.logoAlt}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  style={{ display: "flex", cursor: "pointer" }}
+                >
+                  <Logo height={40} />
+                </a>
+                <span aria-hidden="true" style={{ width: 1, height: 28, background: "var(--border-subtle)" }} />
+                <FooterPaymentPartner />
+              </div>
               <AppStoreBadges />
             </div>
             <span

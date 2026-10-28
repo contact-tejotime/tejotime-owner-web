@@ -80,6 +80,7 @@ export default async function ProfileSettingsPage() {
               phoneFull={phoneFull}
               visitUrl={qr?.bookingUrl ?? null}
               cardUrl={qr?.cardUrl ?? null}
+              socialUrl={qr?.socialUrl ?? null}
             />
           </aside>
           <div className="sb-profile-main">
@@ -104,6 +105,7 @@ export default async function ProfileSettingsPage() {
               countryCode={business?.countryCode ?? null}
               phoneNumber={business?.phoneNumber ?? null}
               cardUrl={qr?.cardUrl ?? null}
+              socialUrl={qr?.socialUrl ?? null}
             />
           ) : null}
           {account}

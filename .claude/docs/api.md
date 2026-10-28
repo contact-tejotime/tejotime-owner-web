@@ -243,6 +243,28 @@ Every visit at the latest rate whose start instant is at or before checkout — 
 | PUT | `/rates/:staffId` | owner **role** + `perm=commission:manage`; `{ rateBp, effectiveFrom? }` (`effectiveFrom` is a store-local day); today or omitted starts at `now()` as a new row; a future day starts at store midnight and replaces that instant; past day → 409 `COMMISSION_RATE_LOCKED` |
 | DELETE | `/rates/:staffId/:effectiveFrom` | owner role + `perm=commission:manage`; `effectiveFrom` is the UTC instant; only a future instant; a started rate → 409 |
 
+### `/card-payments` (7) — PayPal reader, MAIN OWNER ONLY
+
+All routes are `requireSuperOwner` (a co-owner or staff gets 403). Full rules:
+[docs/card-payments-paypal.md](../../docs/card-payments-paypal.md).
+
+| Method | Path | Does |
+|---|---|---|
+| GET / PUT | `/settings` | card charging on/off `{ enabled, paypalOrgRef? }` |
+| GET | `/` | attempts, `?status=&needsReview=&limit=` |
+| POST | `/` | `{ queueEntryId, amountPaise > 0 }` → pending row (the reader reference); `resumed` if one was in flight; 409 `CARD_PAYMENTS_OFF` |
+| POST | `/:id/complete` | the reader approved → paid + visit completed (returns the board); idempotent; never refused — `needs_review` instead |
+| POST | `/:id/fail` | `{ reason }`, pending only |
+| POST | `/:id/refund` | `{ refundReference? }` → refunded; visit leaves revenue/commission/customer spend; idempotent |
+
+`POST /queue/:id/checkout` also takes `paymentMethod`:
+- 400 for a method the store's currency does not offer;
+- 403 `CARD_OWNER_ONLY` for Card from anyone but the main owner while card charging is on;
+- 409 `CARD_PAYMENT_IN_PROGRESS` while a card charge is in flight.
+
+`GET /queue/:id` adds `cardPaymentsEnabled`, `cardAllowed` (for the caller) and
+`pendingCardPayment`.
+
 ### `/public` (18) — no auth
 
 | Method | Path | Bucket |

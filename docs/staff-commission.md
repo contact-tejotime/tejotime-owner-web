@@ -24,6 +24,7 @@ Changing it to 30% at 4pm does not reprice the visits already paid at 20%.
 | No stylist | Visits on a store with no chairs (or a chair since deleted) earn nothing; the owner's report shows them as "with no stylist". |
 | Rounding | Per visit, half away from zero (`round(amount × bp / 10000)`). A total is the sum of its rounded lines, so a stylist's visit list always adds up to the figure on the report. |
 | "Today" | Computed **only on the server**, in `business.timezone`, and returned in every response. owner-web renders on a UTC server and the app never knows the store's timezone, so neither client ever works out "today" itself. |
+| Refunded card visit (0043) | Earns **nothing**: `visit_commission.commission_paise` is 0 and its money leaves the revenue sums. The visit still counts and is still listed, marked refunded. It comes out of the visit's **own** day, so a period whose commission was already paid can change afterwards (the client's call, 2026-10-15). See [card-payments-paypal.md](./card-payments-paypal.md). |
 
 ## How it is built
 

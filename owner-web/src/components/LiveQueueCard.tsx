@@ -33,12 +33,14 @@ export function LiveQueueCard({
   seats,
   onAddWalkIn,
   cardUrl,
+  socialUrl = null,
   storeName,
 }: {
   seats: SeatGroup[];
   onAddWalkIn: () => void;
   /** Booking QR target. Omitted when this login can't see the profile. */
   cardUrl?: string | null;
+  socialUrl?: string | null;
   storeName: string;
 }) {
   const waiting = seats.reduce((n, g) => n + g.waitingCount, 0);
@@ -76,7 +78,7 @@ export function LiveQueueCard({
           {t.queue.walkIn}
         </button>
         {cardUrl ? (
-          <StoreBookingQr cardUrl={cardUrl} storeName={storeName} buttonClassName="live-card-qr" />
+          <StoreBookingQr cardUrl={cardUrl} socialUrl={socialUrl} storeName={storeName} buttonClassName="live-card-qr" />
         ) : null}
       </div>
 

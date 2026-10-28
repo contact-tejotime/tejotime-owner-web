@@ -134,11 +134,19 @@ function SettingsRow({
  * dialog to maintain. Its trigger is drawn as a transparent button stretched over the whole row
  * (`.st-row-hit`), so the row is the click target and the dialog stays shared.
  */
-function BookingQrRow({ cardUrl, storeName }: { cardUrl: string; storeName: string }) {
+function BookingQrRow({
+  cardUrl,
+  socialUrl,
+  storeName,
+}: {
+  cardUrl: string;
+  socialUrl: string | null;
+  storeName: string;
+}) {
   return (
     <div className="st-row st-row-link st-row-qr">
       <RowContent icon="qrCode" label={t.settings.bookingQr} sub={t.settings.bookingQrSub} />
-      <StoreBookingQr cardUrl={cardUrl} storeName={storeName} buttonClassName="st-row-hit" />
+      <StoreBookingQr cardUrl={cardUrl} socialUrl={socialUrl} storeName={storeName} buttonClassName="st-row-hit" />
     </div>
   );
 }
@@ -246,7 +254,11 @@ export function SettingsScreen({
   userName,
   storeMode,
   cardUrl,
+  socialUrl = null,
   recurringEnabled,
+  isSuperOwner,
+  isUsStore,
+  cardPaymentsEnabled,
   subs,
 }: {
   role: UserRole;
@@ -258,11 +270,19 @@ export function SettingsScreen({
   storeMode: StoreMode;
   /** The booking card URL for the QR, from the profile-gated `/business/qr`. */
   cardUrl: string | null;
+  /** The social-media link (`?open=checkin`) shown in the same QR sheet. */
+  socialUrl?: string | null;
   /**
    * The store's "Repeating bookings" switch, from `GET /business`. Null when that read was not
    * made or failed — the row is then left out rather than drawn in a state nobody saved.
    */
   recurringEnabled: boolean | null;
+  /** The store's main owner — the only login that takes card payments (docs/card-payments-paypal.md). */
+  isSuperOwner: boolean;
+  /** A US store (priced in USD) — the only kind with card payments. */
+  isUsStore: boolean;
+  /** Card payments on/off from `GET /business`; null when not read (the row then says how to set it up). */
+  cardPaymentsEnabled: boolean | null;
   /** Live row subtitles, resolved on the server (see page.tsx). */
   subs: { profile: string; hours: string; services: string; staff: string };
 }) {
@@ -278,7 +298,10 @@ export function SettingsScreen({
   const showQr = can(access, "profile") && !!cardUrl;
   // Owner roles only, as the API decides (business.service OWNER_ONLY_COLUMNS).
   const showRecurring = owner && recurringEnabled !== null;
-  const showBookings = showQr || can(access, "notifications") || showRecurring;
+  // Main owner of a US store only, as the API decides (requireSuperOwner; CARD_PAYMENTS_US_ONLY).
+  // Read-only here: card charging is set up, run and refunded from the app.
+  const showCards = isSuperOwner && isUsStore;
+  const showBookings = showQr || can(access, "notifications") || showRecurring || showCards;
 
   async function onSignOut() {
     setSigningOut(true);
@@ -368,8 +391,16 @@ export function SettingsScreen({
 
         {showBookings ? (
           <Group title={t.settings.groupBookings}>
-            {showQr && cardUrl ? <BookingQrRow cardUrl={cardUrl} storeName={storeName} /> : null}
+            {showQr && cardUrl ? <BookingQrRow cardUrl={cardUrl} socialUrl={socialUrl} storeName={storeName} /> : null}
             {showRecurring && recurringEnabled !== null ? <RecurringRow initial={recurringEnabled} /> : null}
+            {showCards ? (
+              <SettingsRow
+                href="/settings/card-payments"
+                icon="creditCard"
+                label={t.settings.cardPayments}
+                sub={cardPaymentsEnabled ? t.settings.cardPaymentsOn : t.settings.cardPaymentsOff}
+              />
+            ) : null}
             {can(access, "notifications") ? (
               <SettingsRow
                 href="/settings/notifications"

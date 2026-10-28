@@ -48,6 +48,7 @@ selector behind a screen prefix so it cannot leak. `globals.css` keeps only shar
 | Hours, Team, Notifications, Password | `settings/hours|team|notifications|password.tsx` | `settings/hours|team|notifications/`, `HoursEditor`, `TeamManager`, `ChangePasswordForm`, `SettingsSubpageShell` | `settings-a.css` (`.sa-*`) |
 | Profile, Appearance, Services, Staff | `settings/profile|appearance|services|staff.tsx`, `components/settings/*` | `settings/profile|appearance|services|staff/`, `components/store-settings/*`, `components/appearance/*` | `settings-b.css` (`.sb-*`) |
 | Chrome and sheets | `(tabs)/_layout.tsx`, `THeader`, `TSheet`, `DetailPanel`, `AddWalkInSheet`, `QRSheet`, `ConfirmSheet`, `QueueCard` | `BottomNav`, `AppPageHeader`, `PageHeader`, `BottomSheet`, `OverlayPortal`, `QueueDetailSheet`, `WalkInSheet`, `StoreBookingQr`, `ConfirmDialog` | `shell-sheets.css` |
+| Card payments: "Paid by" on checkout, Card rules, the charging banner, Settings → Card payments ([card-payments-paypal.md](./card-payments-paypal.md)) | `feedback/DetailPanel.tsx`, `settings/card-payments.tsx`, `lib/card-reader.ts`, `lib/card-payment-flow.ts`, `modules/paypal-reader/` | `QueueDetailSheet.tsx`, `settings/card-payments/page.tsx` (read-only) | `shell-sheets.css` (`.dp-paid-by`), `settings-a.css` |
 | Checkout: amount to charge, add-on chips, required price for a no-price service, Total to charge, one scroll with pinned actions ([checkout-add-ons.md](./checkout-add-ons.md)) | `feedback/DetailPanel.tsx`, `feedback/ConfirmSheet.tsx` (`presentation="overlay"`), `lib/checkout-amount.ts`, `state/store.tsx` (`extendService`, `removeExtra`) | `QueueDetailSheet.tsx`, `ConfirmDialog.tsx` (`prefix`/`inputMode`/`validate`), `lib/checkout-amount.ts`, BFF `api/queue/[id]/[action]` (`remove-extra`) | `shell-sheets.css` (`.dp-chip.is-selected`, `.cfm-input-wrap`, `.dp-checkout`, `.dp-req-*`, `li.grand`, `.dp-footer.is-raised`) |
 
 ## Rules every overlay must follow
@@ -146,6 +147,14 @@ Kept because a browser is not an App Store build, or because removing them would
   `DetailPanel`'s Modal, because iOS will not present a second Modal over it. Escape (web) and
   Android back close the popup first. Only the web has no toast when an add-on goes on or off — it
   never had one for add-ons; the app keeps its "+10 min · Shave added" / "Shave removed".
+- **Card payments (2026-10-15): the web never charges a card.** PayPal's reader can only be
+  driven by its native SDK on a phone, so the main owner charges and refunds from the app.
+  [card-payments-paypal.md](./card-payments-paypal.md) has the full rules.
+  - **The same on both:** "Paid by" only on US stores with Card payments switched on (same lists, same required rule, `npm run test:checkout`), Card
+    greyed out for staff and co-owners, and the "owner is taking this card" banner.
+  - **Web only:** the main owner's Card means "charged outside TejoTime".
+  - **Settings → Card payments on the web** is a read-only status and list, with no switch, no
+    sign-in and no Refund.
 - **No pull-to-refresh:** `LiveRefresh` (socket for owners, polling for staff) keeps pages current.
 - **Sheets animate in only**; the app also animates them out.
 

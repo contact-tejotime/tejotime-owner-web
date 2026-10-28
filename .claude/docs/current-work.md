@@ -1,6 +1,10 @@
 # Current work
 
+<<<<<<< HEAD
+**Last updated:** 2026-10-15 · branch `feat-jay`.
+=======
 **Last updated:** 2026-10-23 · branch `preprod`.
+>>>>>>> 88d64a337c9b5efeb9c1e29c1131eb2c5b9f86e0
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -9,6 +13,37 @@ the system as designed, this one describes where it actually is.
 
 ## 1. What is in flight
 
+<<<<<<< HEAD
+### "Paid by" + card payments on the PayPal reader (2026-10-15)
+
+- **2026-10-16 change:** "Paid by" is asked only while a US store has Card payments switched
+  on. Off, it's the old checkout. Checks: `test:checkout` 190 checks; backend `vitest` 558/558;
+  `smoke-payment-method.mjs` 53/53 on the local throwaway DB.
+- **What:** checkout asks "Paid by" on all three owner surfaces. US stores charge cards on the
+  PayPal POS Card Reader from the app, main owner only, with refunds that leave revenue and
+  commission. Migrations 0042 and 0043, a new `/card-payments` API, and a local native module
+  `app/modules/paypal-reader`. Full write-up:
+  [docs/card-payments-paypal.md](../../docs/card-payments-paypal.md).
+- **Checks run:**
+  - backend `vitest`: 553/553 (19 new)
+  - backend lint
+  - `npm run test:checkout`: 138 checks
+  - owner-web and app: `tsc` + `eslint` on the changed files
+  - `expo config --type introspect`: the plugin applies and the module autolinks
+- **Run 2026-10-15 on a throwaway local DB:** all migrations, including re-running 0042/0043; then
+  the smoke scripts:
+  - `smoke-payment-method` 35/35
+  - `smoke-card-payments` 67/67
+  - seatless 20/20, commission-db 31/31, checkout-addons 84/84, commission 60/60 (its `/auth/me`
+    path fixed)
+- **Preprod DB migrated through 0043 on 2026-10-15** (migrate only, no seed). The preprod API code
+  is still the old build until `feat-jay` is merged to `preprod`; 0042/0043 are backward-compatible
+  with it. Never seed preprod.
+- **Not yet run:**
+  - **any native build**: the Swift/Kotlin module is uncompiled. It needs PayPal client ids, a
+    GitHub `read:packages` token for Android, and a Mac for iOS. Then the device checklist in the
+    doc.
+=======
 ### WhatsApp for Indian (+91) customers (2026-10-23)
 
 - **What:** the three customer messages (confirmation, 15-minute reminder, review request) go to a
@@ -40,6 +75,7 @@ the system as designed, this one describes where it actually is.
     point Meta's webhook at the API (the doc has the steps);
   - the US-only statements in Privacy §4/§12 and Terms §1/§3 are left for the client to decide;
   - `review_request` is probably a Marketing template, so Meta may hold some back (131049).
+>>>>>>> 88d64a337c9b5efeb9c1e29c1131eb2c5b9f86e0
 
 ### Store page: open a pop-up from a link (2026-10-09)
 

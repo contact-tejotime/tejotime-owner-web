@@ -738,6 +738,49 @@
   gap: 8px;
   margin-top: 8px;
 }
+/* "Social media link" — the page with Check in open, for posts and ads. Tinted so it reads as
+   its own thing between the QR and the buttons, not as a fourth button. */
+.qr-social {
+  margin: 0 0 16px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-sunken, var(--surface-page));
+  text-align: left;
+}
+.qr-social-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.qr-social-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.qr-social-url {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-default, var(--border-subtle));
+  border-radius: 8px;
+  background: var(--surface-card);
+  color: var(--text-body);
+  font: 500 13px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-overflow: ellipsis;
+}
+.qr-social-copy {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.qr-social-hint {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
 
 /* ============================================================== Customer screen (app DetailPanel) */
 
@@ -1009,6 +1052,14 @@
   font-size: 13px;
   line-height: 20px;
   color: var(--text-muted);
+}
+/* "Paid by" under the bill (docs/card-payments-paypal.md): the same chips as the add-ons, with a
+   little air above so it reads as its own question rather than part of the bill. */
+.dp-paid-by {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
 }
 .dp-chips {
   display: flex;

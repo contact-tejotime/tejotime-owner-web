@@ -55,6 +55,40 @@ export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
 export const APPOINTMENT_SOURCES = ['online', 'owner'] as const;
 export type AppointmentSource = (typeof APPOINTMENT_SOURCES)[number];
 
+/**
+ * How a customer paid for a visit ("Paid by" at checkout). Mirrors the `ck_visit_payment_method`
+ * check added in migration 0042.
+ */
+export const PAYMENT_METHODS = ['card', 'cash', 'venmo', 'zelle', 'cash_app', 'upi', 'other'] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+/**
+ * A US store — one priced in dollars (`business.currency`, set in the admin panel). "Paid by" and
+ * card payments on the PayPal reader are US-only (client decision 2026-10-15): PayPal's reader is
+ * a US product here, and every other store checks out exactly as it did before them.
+ */
+export function isUsStore(currency: string | null | undefined): boolean {
+  return (currency ?? '').toUpperCase() === 'USD';
+}
+
+/**
+ * The "Paid by" methods a store MAY record: Card and Cash for a US store, and NONE for every other
+ * store — no question at all, the old checkout (client decision 2026-10-15). The other codes stay in
+ * PAYMENT_METHODS and the 0042 check, so recorded visits stay valid and a wider list (Venmo, Zelle,
+ * Cash App, UPI, Other were in the first version) is a change here, not a migration.
+ *
+ * Whether the sheet ASKS is narrower: only while the store has Card payments switched on (client
+ * 2026-10-16; `paidByAsked` in the clients, fed by the billing's `cardPaymentsEnabled`). This list is
+ * still what the API accepts on a switched-off US store, so a sheet opened before the owner switched
+ * it off records its answer rather than failing.
+ *
+ * Hand-kept in owner-web's and the app's `lib/checkout-amount.ts` (`npm run test:checkout` pins
+ * all three). The API refuses any method not listed here.
+ */
+export function paymentMethodsFor(currency: string | null | undefined): readonly PaymentMethod[] {
+  return isUsStore(currency) ? ['card', 'cash'] : [];
+}
+
 /** Active = counts toward a seat's load / queue position (lib/queue.ts isActive). */
 export const isActiveStatus = (s: QueueStatus): boolean =>
   s === 'waiting' || s === 'in_service';

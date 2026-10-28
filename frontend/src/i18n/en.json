@@ -111,7 +111,8 @@
     },
     "pricing": {
       "title": "Simple plans that grow with your business",
-      "mostPopular": "Most popular"
+      "mostPopular": "Most popular",
+      "paymentPartner": "Payment partner"
     },
     "faq": {
       "title": "Frequently asked questions"
@@ -350,6 +351,7 @@
     "plans": [
       {
         "name": "Starter",
+        "badge": "First month free",
         "price": "Free",
         "per": "for the first month, then $9.99/month",
         "who": "Best for independent providers.",
@@ -363,6 +365,7 @@
       },
       {
         "name": "Business",
+        "badge": "",
         "price": "Coming soon",
         "per": "",
         "who": "Best for growing teams.",
@@ -377,6 +380,7 @@
       },
       {
         "name": "Multi-location",
+        "badge": "",
         "price": "Contact us",
         "per": "",
         "who": "Best for businesses managing multiple locations.",

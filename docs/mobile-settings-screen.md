@@ -9,7 +9,7 @@ groups, each a card of `TSettingsRow`s:
 |---|---|
 | Business | Business profile, Appearance (owner only), Working hours, Services & pricing, Staff & seats |
 | Team | Team logins (owner only) |
-| Bookings & queue | Booking QR code, Notifications & reminders |
+| Bookings & queue | Booking QR code, Notifications & reminders, Repeating bookings (owner roles), Card payments (main owner of a US store only; not on the web target) — [card-payments-paypal.md](./card-payments-paypal.md) |
 | Account | Your account, Dark mode |
 | Support | Email support, Call support |
 | — | Sign out, then a version footer |

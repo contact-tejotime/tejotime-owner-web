@@ -223,6 +223,11 @@ and renamed "Established year" to "Year opened (optional)", shown on the page on
 0039/0040 are the checkout add-ons ([docs/checkout-add-ons.md](docs/checkout-add-ons.md)):
 - 0039: one row per add-on label per visit, plus `queue_remove_extra`.
 - 0040: `queue_entry_extra.price_type`, so a no-price service picked second still has to be priced.
+0042/0043 are "Paid by" and card payments on the PayPal reader ([docs/card-payments-paypal.md](docs/card-payments-paypal.md)):
+- 0042: `visit.payment_method`; `queue_checkout` gains `p_payment_method` (3-arg version dropped).
+- 0043: `business.card_payments_enabled` / `paypal_org_ref`, `visit.refunded_at`, the `card_payment`
+  table and `card_payment_start|complete|refund`. It also adds the pending-card guard on
+  `queue_checkout` / `queue_no_show`, and refund-aware `visit_commission` and 0010 admin functions.
 
 Notable constraints and conventions:
 - UUID PKs (`gen_random_uuid()`); `pgcrypto` + `pg_trgm` extensions.
@@ -395,6 +400,28 @@ price (`extend` with `pricePaise`) and it goes into the box, a highlighted one c
 (`TEJO:ALREADY_ADDED` → 409). The arithmetic is `lib/checkout-amount.ts`, hand-kept in owner-web and
 the app (`npm run test:checkout`).
 
+**"Paid by" and card payments** ([docs/card-payments-paypal.md](docs/card-payments-paypal.md), 0042,
+0043):
+- **US stores only** (client 2026-10-15). A US store is one priced in **USD**: `isUsStore` in
+  `domain/enums.ts` and in both `lib/checkout-amount.ts` copies. Every other store checks out exactly
+  as before, with no "Paid by" and no card payments. The API refuses card payments there (409
+  `CARD_PAYMENTS_US_ONLY`) and reports `cardPaymentsEnabled: false`.
+- **"Paid by"** is asked, and required, only while a US store has **Card payments switched on**
+  (client 2026-10-16; `paidByAsked` / `paidByChoices`, fed by the billing's `cardPaymentsEnabled`).
+  It offers **Card and Cash** (`paymentMethodsFor`). Switched off (the default), the sheet is the old
+  one, and Complete is ready as soon as the bill is. The API checks a sent method against the
+  currency only, so a sheet opened before the switch still lands. The 0042 check still allows
+  venmo/zelle/cash_app/upi/other, for a wider list later.
+- **Card charging** uses the PayPal POS Card Reader. It runs only in the app (PayPal's native SDK,
+  `app/modules/paypal-reader`) and only for the **main owner** (`requireSuperOwner` on
+  `/card-payments`). Once a store turns it on, nobody else may record Card (403 `CARD_OWNER_ONLY`).
+- **Once money has moved it is always recorded:**
+  - a charge in flight blocks other checkouts for 15 minutes (409 `CARD_PAYMENT_IN_PROGRESS`);
+  - an approved card whose visit can't be completed is kept `paid` + `needs_review`;
+  - a lost result stays `pending` until the reader is asked again.
+- **A refund** (whole amount, card only) takes the visit's money out of revenue, commission and
+  customer spend on its own day. The visit still counts.
+
 **ETA-15 alert** (`lib/eta-notify.ts` + `queue.service.ts` `processTicketBroadcasts`) — one-shot
 per ticket, for **online live-queue joins only** (not walk-ins, not checked-in appointments),
 when `0 < waitMinutes <= ETA_NOTIFY_MINUTES`. Idempotency via a **conditional claim** on
@@ -529,6 +556,7 @@ it in the Appearance panel with a live `?preview=1` iframe of the microsite (gat
 | Email | SES/Postmark | **Deferred no-op** (`EMAIL_ENABLED=false`) |
 | Payments | Razorpay/Stripe | **Deferred** — `upgrade()` flips the plan directly when `PAYMENTS_ENABLED=false` |
 | OTP | — | **Deferred stub** (`OTP_ENABLED=false`) |
+| In-store card payments | **PayPal POS Card Reader** via PayPal's native Zettle SDK (iOS 4.70.4 CocoaPods, Android 2.52.0 GitHub Packages) in `app/modules/paypal-reader` — the app only, main owner only | **Written, not yet built on a device** — [docs/card-payments-paypal.md](docs/card-payments-paypal.md) |
 | Help chat (store microsite + marketing landing page) | **Gemini / Groq free tier** behind `CHATBOT_PROVIDER`; a key-free FAQ/facts matcher underneath | **Shipped**, `CHATBOT_ENABLED` default false |
 
 Every integration is a **seam**: an interface plus a flag-gated implementation that logs and
@@ -623,7 +651,10 @@ campaign's Messaging Service instead of `TWILIO_FROM`; see [docs/sms-opt-in-a2p.
 
 Client vars: `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_SOCKET_URL`, `NEXT_PUBLIC_ASSET_PREFIX`,
 `NEXT_PUBLIC_ADMIN_ORIGIN`, `NEXT_PUBLIC_OWNER_ORIGIN`, `NEXT_PUBLIC_FRONTEND_URL` (frontend/
-admin/owner) and `EXPO_PUBLIC_API_BASE_URL` / `_SOCKET_URL` / `_WEB_URL` (mobile).
+admin/owner) and `EXPO_PUBLIC_API_BASE_URL` / `_SOCKET_URL` / `_WEB_URL` (mobile), plus the
+card reader's `EXPO_PUBLIC_PAYPAL_CLIENT_ID_IOS` / `_ANDROID` / `_REDIRECT_URL` / `_DEV_MODE` (never
+dev mode in production). Android builds also need **`GITHUB_PACKAGES_TOKEN`** (a GitHub PAT with
+`read:packages`) for PayPal's SDK ([docs/card-payments-paypal.md](docs/card-payments-paypal.md)).
 `BACKEND_API_BASE_URL` (owner-web, admin-panel) is **server-side only, never `NEXT_PUBLIC_`**.
 Keep `PUBLIC_WEB_URL`, `NEXT_PUBLIC_FRONTEND_URL`, and `EXPO_PUBLIC_WEB_URL` on the same origin —
 they generate QR/booking links.
@@ -666,6 +697,7 @@ And `npm run test:commission` — runs the app's and owner-web's hand-kept copie
 drift, plus `app/src/lib/date-grid.ts`. Both files must stay import-free.
 And `npm run test:checkout` — the same for the two copies of `lib/checkout-amount.ts`, the checkout
 sheet's amount-box arithmetic ([docs/checkout-add-ons.md](docs/checkout-add-ons.md)); import-free too.
+It also pins the "Paid by" lists (`paymentMethodsFor`) against the backend's own, in `domain/enums.ts`.
 
 > These checks are **not wired into CI**. Run them manually after touching the theme engine, the
 > cropper, a theme axis, or the mobile breakpoints.
@@ -777,12 +809,27 @@ Checklist for any owner-facing change:
   running API with `SMS_ENABLED=false` + a seeded throwaway DB that it also **reads**
   (`SMOKE_DATABASE_URL`; refuses `backend/.env`'s), because a text is only visible as a
   `notification` row ([docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)).
+<<<<<<< HEAD
+  `backend/scripts/smoke-payment-method.mjs` ("Paid by" on the visit and the customer history) and
+  `backend/scripts/smoke-card-payments.mjs` cover [docs/card-payments-paypal.md](docs/card-payments-paypal.md).
+  The card script plays the phone's part, since the reader needs PayPal's native SDK. It covers:
+  - US stores only (the rupee seed store is refused);
+  - main owner only, and the pending guard;
+  - complete and repeat;
+  - decline, a late charge recorded as needs review, refund out of revenue and commission;
+  - turning it off.
+
+  Both need a running API, a seeded throwaway DB and an admin login: each creates its own US store
+  through the admin API (`SMOKE_ADMIN_*`, defaulting to the migrate demo admin) and deactivates it at
+  the end. The card script spends five logins.
+=======
   `backend/scripts/smoke-whatsapp.mjs` proves WhatsApp for +91 customers: the templates reach Meta
   with their variables in order, +1 stays SMS, the webhook's signed statuses and STOP work, and
   (`--expect-disabled`) that `WHATSAPP_ENABLED=false` sends nothing. It needs a running API + a seeded
   throwaway DB it also reads (`SMOKE_DATABASE_URL`). It runs its own stand-in for Meta's Graph API,
   and the API points at it via `WHATSAPP_API_BASE_URL`, so nothing leaves the machine
   ([docs/whatsapp-india.md](docs/whatsapp-india.md)).
+>>>>>>> 88d64a337c9b5efeb9c1e29c1131eb2c5b9f86e0
   `backend/scripts/smoke-demo-stores.mjs` is the other odd one out: it needs **no seed** and runs
   against a deployed environment (`SMOKE_BASE_URL`, optional `SMOKE_WEB_URL`) after
   `provision-demo-stores.mjs` has created the nine homepage industry stores through the admin API.

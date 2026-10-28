@@ -56,7 +56,11 @@ queueRouter.get(
   validate({ params: entryParams }),
   requireOwnRow('queue_entry'),
   asyncHandler(async (req, res) => {
-    res.json(await queue.getEntryDetail(req.principal!.businessId, req.params.id));
+    res.json(
+      await queue.getEntryDetail(req.principal!.businessId, req.params.id, {
+        isSuperOwner: req.principal!.isSuperOwner,
+      }),
+    );
   }),
 );
 
@@ -81,7 +85,13 @@ queueRouter.post(
   validate({ params: entryParams, body: checkoutSchema }),
   requireOwnRow('queue_entry'),
   asyncHandler(async (req, res) => {
-    res.json(await queue.checkout(req.principal!.businessId, req.params.id, req.body?.amountPaise));
+    res.json(
+      await queue.checkout(req.principal!.businessId, req.params.id, {
+        amountPaise: req.body?.amountPaise,
+        paymentMethod: req.body?.paymentMethod,
+        isSuperOwner: req.principal!.isSuperOwner,
+      }),
+    );
   }),
 );
 

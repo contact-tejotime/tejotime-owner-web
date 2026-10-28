@@ -1,6 +1,7 @@
 import { exec, many, one, transaction } from '../../db/pool';
 import { env } from '../../config/env';
 import { Errors } from '../../domain/errors';
+import { isUsStore } from '../../domain/enums';
 import { themeColumns } from '../../domain/business-theme';
 
 function businessDTO(b: any, hours: any[], amenities: any[], gallery: any[], plan: string) {
@@ -48,6 +49,9 @@ function businessDTO(b: any, hours: any[], amenities: any[], gallery: any[], pla
     themeColor: b.theme_color ?? null,
     // "Let customers book repeating appointments" (0036). On unless the owner turned it off.
     recurringEnabled: b.recurring_enabled !== false,
+    // Card payments on the PayPal reader (0043). Read-only here: only the main owner changes it,
+    // through PUT /card-payments/settings — PATCH /business admits co-owners.
+    cardPaymentsEnabled: b.card_payments_enabled === true && isUsStore(b.currency),
     plan,
     hours: hours.map((h) => ({
       dayOfWeek: h.day_of_week,
@@ -308,7 +312,11 @@ export async function getQr(businessId: string) {
   // What a printed QR should encode: a chooser offering "book" or "save contact", rather than
   // dropping the scanner straight into either one.
   const cardUrl = phoneFull ? `${bookingUrl}/card` : null;
+  // What owners paste into Instagram/Facebook posts and ads: the page with Check in already open
+  // (`?open=checkin`, read by the page's open-intent.ts — a closed store gets Book instead). Built
+  // here so the owner apps and the admin panel all hand out the same link.
+  const socialUrl = phoneFull ? `${bookingUrl}?open=checkin` : null;
 
   // QR PNG generation deferred (renders client-side from these URLs for now).
-  return { slug: b.slug, phoneFull, bookingUrl, cardUrl, qrPngUrl: null };
+  return { slug: b.slug, phoneFull, bookingUrl, cardUrl, socialUrl, qrPngUrl: null };
 }
