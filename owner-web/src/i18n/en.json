@@ -1023,7 +1023,11 @@
     "heading": "{name} — booking QR",
     "label": "Contact QR",
     "print": "Print",
-    "printTitle": "{name} booking QR"
+    "printTitle": "{name} booking QR",
+    "socialLabel": "Social media link",
+    "socialHint": "Use this link in Instagram, Facebook and other social posts and ads. It opens your page straight to Check in.",
+    "copy": "Copy",
+    "copied": "Copied"
   },
   "notifications": {
     "title": "Notifications",

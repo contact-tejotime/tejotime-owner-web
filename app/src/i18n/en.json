@@ -772,7 +772,10 @@
     "contactTitle": "{name} — booking QR",
     "subtitle": "Scan to book an appointment, or save this store as a contact.",
     "print": "Print",
-    "storeFallback": "Store"
+    "storeFallback": "Store",
+    "socialLabel": "Social media link",
+    "socialHint": "Use this link in Instagram, Facebook and other social posts and ads. It opens your page straight to Check in.",
+    "share": "Share link"
   },
   "serviceSheet": {
     "editTitle": "Edit service",

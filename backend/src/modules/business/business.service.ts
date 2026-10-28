@@ -312,7 +312,11 @@ export async function getQr(businessId: string) {
   // What a printed QR should encode: a chooser offering "book" or "save contact", rather than
   // dropping the scanner straight into either one.
   const cardUrl = phoneFull ? `${bookingUrl}/card` : null;
+  // What owners paste into Instagram/Facebook posts and ads: the page with Check in already open
+  // (`?open=checkin`, read by the page's open-intent.ts — a closed store gets Book instead). Built
+  // here so the owner apps and the admin panel all hand out the same link.
+  const socialUrl = phoneFull ? `${bookingUrl}?open=checkin` : null;
 
   // QR PNG generation deferred (renders client-side from these URLs for now).
-  return { slug: b.slug, phoneFull, bookingUrl, cardUrl, qrPngUrl: null };
+  return { slug: b.slug, phoneFull, bookingUrl, cardUrl, socialUrl, qrPngUrl: null };
 }

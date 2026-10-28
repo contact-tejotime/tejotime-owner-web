@@ -1,0 +1,27 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.tejotime.paypalreader'
+version = '0.1.0'
+
+// PayPal's Zettle Payments SDK (docs/card-payments-paypal.md). It lives on GitHub Packages, not
+// Maven Central: the repository and its token are added to the whole project by app.plugin.js,
+// because the app module resolves these transitive dependencies with its own repositories.
+def zettleVersion = '2.52.0'
+
+android {
+  namespace "expo.modules.paypalreader"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}
+
+dependencies {
+  implementation "com.zettle.sdk:core:${zettleVersion}"
+  implementation "com.zettle.sdk.feature.cardreader:ui:${zettleVersion}"
+  // ZettleSDKLifecycle is driven by the process lifecycle, as in PayPal's example app.
+  implementation 'androidx.lifecycle:lifecycle-process:2.8.7'
+}

@@ -24,6 +24,7 @@ export function StoreProfileHeader({
   phoneFull,
   visitUrl,
   cardUrl,
+  socialUrl = null,
 }: {
   name: string;
   isActive: boolean;
@@ -33,6 +34,7 @@ export function StoreProfileHeader({
   phoneFull: string;
   visitUrl: string | null;
   cardUrl: string | null;
+  socialUrl?: string | null;
 }) {
   const phoneLabel = phoneFull ? formatPhone(phoneFull) : "";
   const meta = [category, area, city, phoneLabel].filter(Boolean).join(" · ");
@@ -49,6 +51,7 @@ export function StoreProfileHeader({
         {cardUrl ? (
           <StoreBookingQr
             cardUrl={cardUrl}
+            socialUrl={socialUrl}
             storeName={name || t.storeHeader.storeFallback}
             buttonClassName="sb-store-qr"
           />

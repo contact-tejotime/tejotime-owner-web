@@ -656,7 +656,14 @@ export const getBusiness = () =>
   get<BusinessDetail>("/business", [TAGS.business], TTL.business);
 
 export const getBusinessQr = () =>
-  get<{ slug: string; phoneFull: string; bookingUrl: string | null; cardUrl: string | null }>(
+  get<{
+    slug: string;
+    phoneFull: string;
+    bookingUrl: string | null;
+    cardUrl: string | null;
+    /** The page with Check in open (`?open=checkin`) — the link for social posts and ads. */
+    socialUrl?: string | null;
+  }>(
     "/business/qr",
     [TAGS.business],
     TTL.business,
