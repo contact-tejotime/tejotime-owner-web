@@ -49,8 +49,8 @@
       "menu": "Main menu"
     },
     "cta": {
-      "pilot": "Start Free",
-      "selfServe": "Start Free",
+      "pilot": "Get Started",
+      "selfServe": "Get Started",
       "bookDemo": "Book a Demo",
       "seeHow": "See How It Works",
       "joinPilot": "Join the Pilot"
@@ -59,7 +59,7 @@
       "eyebrow": "Built for appointment-based businesses",
       "title": "Booking made simple. Business made easier.",
       "body": "Give clients an easy way to book while you manage appointments, schedules, reminders, client details, and optional walk-ins from one simple platform.",
-      "microPilot": "Free for the first month, then $9.99/month. We’ll personally help you set up your services, schedule, and booking page.",
+      "microPilot": "Starter is $9.99/month. We’ll personally help you set up your services, schedule, and booking page.",
       "microSelfServe": "Set up in minutes. No credit card required. Cancel anytime.",
       "proofLine": "Built for independent appointment-based businesses."
     },
@@ -204,8 +204,8 @@
         "label": "Service industries"
       },
       {
-        "value": "Free",
-        "label": "first month, then $9.99/mo"
+        "value": "$9.99",
+        "label": "Per month for Starter"
       },
       {
         "value": "24/7",
@@ -351,11 +351,11 @@
     "plans": [
       {
         "name": "Starter",
-        "badge": "First month free",
-        "price": "Free",
-        "per": "for the first month, then $9.99/month",
+        "badge": "",
+        "price": "$9.99",
+        "per": "per month",
         "who": "Best for independent providers.",
-        "cta": "Start Free",
+        "cta": "Get Started",
         "feats": [
           "Branded booking page",
           "One provider schedule",
@@ -1564,7 +1564,7 @@
       {
         "heading": "3. The U.S. pilot",
         "paragraphs": [
-          "TejoTime is currently offered through a United States pilot program. During the pilot we help you set up your services, schedule, and booking page. The Starter plan is free for the first month, then $9.99/month as published on our website.",
+          "TejoTime is currently offered through a United States pilot program. During the pilot we help you set up your services, schedule, and booking page. The Starter plan is $9.99/month as published on our website.",
           "Pilot features may change, and the pilot may end. We will give you reasonable advance notice before the pilot ends or before any change to the published price that applies to your plan. Pilot participation does not guarantee any particular future price."
         ],
         "bullets": []

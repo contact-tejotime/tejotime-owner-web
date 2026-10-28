@@ -126,8 +126,8 @@ export const PLATFORM_FACTS: PlatformFacts = {
   plans: [
     {
       name: 'Starter',
-      price: 'Free',
-      per: 'for the first month, then $9.99/month',
+      price: '$9.99',
+      per: 'per month',
       who: 'Best for independent providers.',
       feats: ['Branded booking page', 'One provider schedule', 'Client profiles', 'Optional walk-in waitlist'],
     },
@@ -340,7 +340,7 @@ export function factsReply(intent: PlatformIntent): string | null {
       return 'Yes. Each provider keeps their own availability, and a client can either pick a specific person or take whoever is free first.';
 
     case 'cancel':
-      return 'You can cancel according to the terms shown for your plan. Starter is free for the first month, then $9.99/month; cancel anytime under those plan terms.';
+      return 'You can cancel according to the terms shown for your plan. Starter is $9.99/month; cancel anytime under those plan terms.';
 
     case 'demo':
       return 'The page has a live product tour you can click through, plus the booking and walk-in views further up. Tap See how it works to jump to it.';

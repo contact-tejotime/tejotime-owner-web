@@ -51,7 +51,7 @@ export function CookieBanner() {
    * Reserve space at the bottom of the document for as long as the banner is up.
    *
    * On a phone the banner is a full-width bar pinned to the floor, which is exactly where the
-   * hero's "Start Free" button sits. Padding the body pushes the page's own bottom edge clear of
+   * hero's "Get Started" button sits. Padding the body pushes the page's own bottom edge clear of
    * it. This adds scroll height below the fold rather than moving anything already on screen, so
    * it costs no layout shift — the banner itself only ever animates opacity and transform, both
    * of which are composited.
