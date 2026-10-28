@@ -1,7 +1,7 @@
 # API reference
 
 Express 4, TypeScript. Versioned prefix **`/api/v1`** (`config/constants.ts` `API_PREFIX`).
-100 endpoints across 16 routers.
+102 endpoints across 16 routers.
 
 Unversioned and outside auth: `GET /healthz`, `GET /readyz`, `GET /media/*`.
 
@@ -280,7 +280,8 @@ All routes are `requireSuperOwner` (a co-owner or staff gets 403). Full rules:
 | POST | `/businesses/:slug/appointments` | `publicWrite` — re-checks the slot under a per-store lock; not offered by `/slots` → **409 `SLOT_UNAVAILABLE`**; stylist not active at this store → 400 |
 
 Join and book accept optional `smsOptIn` (boolean, default `false`). Missing/false never
-dispatches Twilio; see [docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md).
+dispatches Twilio or WhatsApp; see [docs/sms-opt-in-a2p.md](../../docs/sms-opt-in-a2p.md). A +91
+customer's messages go on WhatsApp instead of SMS ([docs/whatsapp-india.md](../../docs/whatsapp-india.md)).
 | POST | `/businesses/:slug/track` | `publicWrite` — position only: no `socket.ticketKey`, no `customerName` |
 | POST | `/businesses/:slug/appointments/lookup` | `publicWrite` — `{phone}` must start with `+` (else 400); upcoming bookings **with** `appointmentKey` (only where `canChange`) + `series[{seriesId, manageToken, status}]` (active/paused) — client decision 2026-10-05 |
 | GET | `/appointments/:appointmentId` | `publicRead` — needs header `X-Appointment-Key`; wrong/missing key → 404 |
@@ -385,9 +386,19 @@ stores where `business.created_by_admin_id` matches. **Employee denial on a stor
 > unless `OTP_ENABLED=true` (default false everywhere, including production). Do not enable it
 > until real OTP verification exists — it is a complete auth bypass.
 
-### `/webhooks` (2) and `/media` (1)
+### `/webhooks` (4) and `/media` (1)
 
 `POST /webhooks/payments` · `POST /webhooks/sms`. Both handlers are scaffolding.
+
+`GET /webhooks/whatsapp` · `POST /webhooks/whatsapp` — Meta WhatsApp Cloud API (2026-10-23,
+[docs/whatsapp-india.md](../../docs/whatsapp-india.md)). No auth middleware, global limiter only.
+- GET is Meta's handshake: `hub.verify_token` must equal `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, and the
+  answer is `hub.challenge` as text/plain. Anything else gets 403.
+- POST needs `X-Hub-Signature-256` over the raw body with `WHATSAPP_APP_SECRET`; `app.ts` keeps the
+  raw bytes for this path. Without a valid signature it is a 401 and nothing runs. With one, the
+  answer is always 200.
+  - `statuses[]` move the `notification` row (only `channel='whatsapp'`, forward only).
+  - A STOP message sets `customer.sms_opt_out_at` for that number at every store.
 
 `GET /media/*` — unversioned, unauthenticated, 302-redirects to a freshly signed S3 GET.
 

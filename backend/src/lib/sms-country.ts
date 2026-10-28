@@ -13,6 +13,12 @@
 export const DEFAULT_SMS_COUNTRY_CODES = ['1'] as const;
 
 /**
+ * WHATSAPP_COUNTRY_CODES unset or blank: India, whose customers get WhatsApp instead of SMS
+ * (docs/whatsapp-india.md). The same parser and prefix test serve both lists.
+ */
+export const DEFAULT_WHATSAPP_COUNTRY_CODES = ['91'] as const;
+
+/**
  * "1" / "+1, 91" → ['1', '91']. Unset or blank → the US-only default. Anything that is not a
  * comma-separated list of 1-3 digit calling codes ("US", "1;91", "1234") → null, so env.ts can
  * refuse to boot rather than silently text nobody (or everybody).

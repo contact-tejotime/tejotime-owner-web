@@ -205,7 +205,7 @@
     "skipConfirm": "Skip this visit? The rest of the series stays booked.",
     "skipYes": "Skip",
     "skipNo": "Cancel",
-    "cancelConfirm": "Cancel this booking? The customer won't get a text — let them know.",
+    "cancelConfirm": "Cancel this booking? The customer won't get a message — let them know.",
     "cancelYes": "Cancel booking",
     "cancelNo": "Keep booking",
     "visitSkipped": "Visit skipped",
@@ -222,7 +222,7 @@
     "moveYes": "Move visit",
     "visitMoved": "Visit moved",
     "moved": "Moved",
-    "noText": "The customer won't get a text — let them know."
+    "noText": "The customer won't get a message — let them know."
   },
   "series": {
     "repeating": "Repeating booking",
@@ -272,7 +272,7 @@
     "chooseStylist": "Choose who takes this series",
     "cancelSeries": "Cancel series",
     "keepSeries": "Keep series",
-    "cancelConfirm": "Cancel this repeating booking? Upcoming visits will be cancelled. The customer won't get a text — let them know.",
+    "cancelConfirm": "Cancel this repeating booking? Upcoming visits will be cancelled. The customer won't get a message — let them know.",
     "cancelled": "Series cancelled",
     "loadError": "Could not load this repeating booking. Close this and try again.",
     "changeFuture": "Change future visits",
@@ -376,13 +376,13 @@
   },
   "notifications": {
     "title": "Notifications",
-    "note": "Customer messages are sent by SMS from your business name.",
+    "note": "Customer messages are sent by SMS, or on WhatsApp to Indian (+91) numbers.",
     "summary": "{enabled} of {total} on",
     "prefs": {
       "smsConfirmLabel": "Booking confirmations",
-      "smsConfirmSub": "SMS when a customer books or joins",
+      "smsConfirmSub": "A message when a customer books or joins",
       "queueAlertsLabel": "Queue updates",
-      "queueAlertsSub": "Text customers as their turn nears",
+      "queueAlertsSub": "Message customers as their turn nears",
       "noShowAlertsLabel": "No-show alerts",
       "noShowAlertsSub": "Alert you when a customer misses their turn",
       "dailySummaryLabel": "Daily summary",
@@ -441,7 +441,7 @@
     "linkedinLabel": "LinkedIn",
     "yelpLabel": "Yelp",
     "reviewLinkLabel": "Google review link",
-    "reviewLinkHint": "After a visit, customers who agreed to it get one text asking them to review you here. Leave empty to send no review text.",
+    "reviewLinkHint": "After a visit, customers who agreed to it get one message asking them to review you here — a text, or WhatsApp for Indian (+91) numbers. Leave empty to send no review request.",
     "reviewLinkInvalid": "The Google review link must be a full web address starting with https://",
     "galleryHint": "The gallery on your page — up to 12 photos. The first photo shows largest; use Move up to reorder.",
     "galleryEmpty": "No photos yet.",

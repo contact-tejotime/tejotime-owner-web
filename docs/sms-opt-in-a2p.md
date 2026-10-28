@@ -8,6 +8,11 @@ TejoTime sends **exactly three** customer texts, all behind **one** website cons
 | 2 | 15-minute reminder | 15 min before a booked appointment (scheduler, every minute). **Also** for a Check in that joined with **more than 15 minutes** to wait, once its wait drops to 15 or less | Customer care |
 | 3 | Thank-you + Google review link | after the visit is checked out — booked or checked in | **Marketing** |
 
+> **WhatsApp for +91 (2026-10-23).** A customer with an Indian (+91) number gets these same three
+> messages on **WhatsApp** instead of SMS, as approved Meta templates, behind `WHATSAPP_ENABLED`. The
+> box shows a WhatsApp version of its wording for a +91 number. Every other number, and everything
+> on this page, is unchanged. See [whatsapp-india.md](whatsapp-india.md).
+
 The old waitlist set (joined / ~15 min / ~2 min / your turn) was **retired**. Since 2026-10-06
 Check in sends the same three approved texts as a booking (see [Check in](#check-in-2026-10-06)
 below), not the old set. The ticket socket events (`ticket:ready`, `ticket:eta_15`,
@@ -61,6 +66,8 @@ The box sets **both** backend flags, which stay separate on purpose:
 - `appointment/queue_entry.review_sms_opt_in` / `customer.review_sms_opt_in_at` → message 3,
   **only if** the store has set a Google review link
 - Ticking the box clears a prior `customer.sms_opt_out_at` (a fresh consent)
+- No consent (box unticked, or STOP since) → nothing is sent **and no `notification` row is
+  written**. Before 2026-10-23 an opted-out customer's message was stored as an unsent `in_app` row.
 
 > **Bundling risk.** Carriers read message 3 as marketing, and this one box bundles it with the
 > customer-care texts. The wording names it explicitly ("a review request after my visit"), which
@@ -87,7 +94,9 @@ Defaults are **false**.
 | Confirmation trigger | `public.service.ts` `bookSlot`; for recurring visits the job books, `series.service.ts` `afterGeneration`; for Check in, `public.service.ts` `joinQueue` → `sendCheckInConfirmation` |
 | Reminder trigger | `jobs/scheduler.ts` (every minute; one-shot claim on `reminder_sent_at`); for Check in, `queue.service.ts` `processTicketBroadcasts` → `sendWaitlistReminder` (one-shot claim on `notified_eta_15_at`) |
 | Review trigger | `queue.service.ts` `checkout` (one-shot claim on `thank_you_sent_at`) |
-| Consent box | `frontend/src/components/microsite/MicrositeClient.tsx`, string `microsite.join.consentOptIn` |
+| Consent box | `frontend/src/components/microsite/MicrositeClient.tsx`, string `microsite.join.consentOptIn` (`consentOptInWhatsApp` for a +91 number, [whatsapp-india.md](whatsapp-india.md)) |
+| Channel per number (SMS / WhatsApp) | `sms-dispatch.ts` `messageChannelFor`; WhatsApp seam `integrations/whatsapp.ts` |
+| STOP | Twilio Advanced Opt-Out on the Messaging Service; on WhatsApp, the signed webhook `/webhooks/whatsapp` sets `customer.sms_opt_out_at` |
 | Review link field | owner-web `StoreProfileEditor`, app `OwnerStoreProfileForm`, admin `StoreForm` |
 | Review short link | `frontend/src/app/[phone]/r/route.ts` → API `GET /public/businesses/by-phone/:phone/review-link` |
 
@@ -234,6 +243,10 @@ unless it is listed. The value is a comma-separated list of calling codes: `1` (
   and `SMS skipped: country not allowed` in the log. Twilio is never called.
 - The check lives in `smsSender` (`integrations/sms.ts`), the one place Twilio is called, with the
   rule in `lib/sms-country.ts` (`tests/unit/sms-country.test.ts`, `tests/unit/sms.test.ts`).
+
+**India is served by WhatsApp, not by listing `91` here** ([whatsapp-india.md](whatsapp-india.md)).
+A number in `WHATSAPP_COUNTRY_CODES` (default `91`) never reaches `smsSender` at all, whatever this
+list says.
 
 Listing another country only lets the backend try. That text goes out as international SMS,
 outside the 10DLC campaign: it needs the country in Twilio's Geo Permissions (error 21408

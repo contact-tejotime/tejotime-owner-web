@@ -36,7 +36,7 @@ non-trivial work in that area:
 |---|---|
 | [architecture.md](.claude/docs/architecture.md) | topology, request lifecycle, module layout, realtime, routing traps |
 | [database.md](.claude/docs/database.md) | every table and column, enums, indexes, the `queue_*` plpgsql functions, migration history |
-| [api.md](.claude/docs/api.md) | all 100 endpoints with their guards, error envelope, auth, upload flow |
+| [api.md](.claude/docs/api.md) | all 102 endpoints with their guards, error envelope, auth, upload flow |
 | [business-logic.md](.claude/docs/business-logic.md) | queue engine algorithms, ETA alerts, checkout cascade, permissions, plan gating |
 | [deployment.md](.claude/docs/deployment.md) | Railway runbook, migration procedure, env vars, CI gaps |
 | [current-work.md](.claude/docs/current-work.md) | **living** — what shipped recently, known gaps, next steps |
@@ -175,7 +175,8 @@ observability/     health.ts (/healthz liveness, /readyz db-readiness)
   own code, never through the answer bot: [docs/customer-chatbot-booking.md](docs/customer-chatbot-booking.md).
 - Admin surface (`/admin/*`) is gated by a separate admin JWT and re-checks the `admins` row on
   **every** request, so a demotion/deactivation bites immediately.
-- Webhooks: `/webhooks/payments`, `/webhooks/sms`.
+- Webhooks: `/webhooks/payments`, `/webhooks/sms` (both inert), and `/webhooks/whatsapp` (live: Meta's
+  signed delivery reports and STOP replies, see [docs/whatsapp-india.md](docs/whatsapp-india.md)).
 
 ### Realtime (Socket.IO)
 
@@ -442,6 +443,13 @@ booking confirmations, reminders, and a review request after my visit. Up to 3 m
 visit…") sets both backend flags, `sms_opt_in` and `review_sms_opt_in`, which stay separate so the
 review consent can be split back out if a carrier objects to the bundling. All sends go through
 `modules/notifications/sms-dispatch.ts`. Owner surfaces are never an opt-in path.
+**WhatsApp for +91** ([docs/whatsapp-india.md](docs/whatsapp-india.md), 2026-10-23): a customer whose
+number is in `WHATSAPP_COUNTRY_CODES` (default `91`) gets the same three messages as approved Meta
+templates, with the same box, flags, triggers and claims. `WHATSAPP_ENABLED` works exactly like
+`SMS_ENABLED`: off, the row is still `channel='whatsapp'` (deferred), and it never falls back to SMS.
+The box's wording follows the picker's dial code (`frontend/src/lib/message-channel.ts`), and the
+picker now starts on the store's country. A STOP on WhatsApp (signed webhook) sets
+`customer.sms_opt_out_at` at every store, so it now means "opted out on any channel".
 
 **Plan gating** — free plan truncates the customer list to `FREE_PLAN_CUSTOMER_LIMIT` (2) and
 returns `meta.lockedCount`. The **server** truncates; client blur is cosmetic only. Reads use
@@ -544,6 +552,7 @@ it in the Appearance panel with a live `?preview=1` iframe of the microsite (gat
 |---|---|---|
 | Object storage | **Railway Buckets** (S3-compatible) via AWS SDK v3 | **Live** |
 | SMS / alerts | **Twilio SMS** behind `SMS_ENABLED` | Wired, flag-gated |
+| WhatsApp (+91 customers) | **Meta WhatsApp Cloud API** behind `WHATSAPP_ENABLED`; webhook `/webhooks/whatsapp` | Wired, flag-gated ([docs/whatsapp-india.md](docs/whatsapp-india.md)) |
 | Email | SES/Postmark | **Deferred no-op** (`EMAIL_ENABLED=false`) |
 | Payments | Razorpay/Stripe | **Deferred** — `upgrade()` flips the plan directly when `PAYMENTS_ENABLED=false` |
 | OTP | — | **Deferred stub** (`OTP_ENABLED=false`) |
@@ -632,6 +641,9 @@ Feature flags (all default **false**): `OTP_ENABLED`, `PAYMENTS_ENABLED`, `SMS_E
 `TWILIO_ALLOWED_COUNTRY_CODES`, default `1` — only those calling codes are ever texted; the A2P
 campaign covers US only; and `TWILIO_MESSAGING_SERVICE_SID` — when set, texts go through the
 campaign's Messaging Service instead of `TWILIO_FROM`; see [docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)),
+`WHATSAPP_ENABLED` (+ `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_COUNTRY_CODES` default
+`91`, `WHATSAPP_TEST_TO`, `WHATSAPP_APP_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, template names; see
+[docs/whatsapp-india.md](docs/whatsapp-india.md)),
 `EMAIL_ENABLED`, `CHATBOT_ENABLED` (+ `CHATBOT_PROVIDER` `none|gemini|groq|openai`,
 `CHATBOT_API_KEY`, `CHATBOT_MODEL` — server-side only; no key needed for the FAQ-only mode),
 `AUTOFILL_ENABLED` (+ `AUTOFILL_API_KEY` — a Groq key, `AUTOFILL_MODEL`, `AUTOFILL_TIMEOUT_MS`; admin
@@ -747,7 +759,7 @@ Checklist for any owner-facing change:
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **41 vitest files, 522 tests** (2026-10-06), run with `npm test` in `backend/`
+- `backend/tests/unit/` — **46 vitest files, 574 tests** (2026-10-23), run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
   Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
   `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
@@ -797,6 +809,7 @@ Checklist for any owner-facing change:
   running API with `SMS_ENABLED=false` + a seeded throwaway DB that it also **reads**
   (`SMOKE_DATABASE_URL`; refuses `backend/.env`'s), because a text is only visible as a
   `notification` row ([docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)).
+<<<<<<< HEAD
   `backend/scripts/smoke-payment-method.mjs` ("Paid by" on the visit and the customer history) and
   `backend/scripts/smoke-card-payments.mjs` cover [docs/card-payments-paypal.md](docs/card-payments-paypal.md).
   The card script plays the phone's part, since the reader needs PayPal's native SDK. It covers:
@@ -809,6 +822,14 @@ Checklist for any owner-facing change:
   Both need a running API, a seeded throwaway DB and an admin login: each creates its own US store
   through the admin API (`SMOKE_ADMIN_*`, defaulting to the migrate demo admin) and deactivates it at
   the end. The card script spends five logins.
+=======
+  `backend/scripts/smoke-whatsapp.mjs` proves WhatsApp for +91 customers: the templates reach Meta
+  with their variables in order, +1 stays SMS, the webhook's signed statuses and STOP work, and
+  (`--expect-disabled`) that `WHATSAPP_ENABLED=false` sends nothing. It needs a running API + a seeded
+  throwaway DB it also reads (`SMOKE_DATABASE_URL`). It runs its own stand-in for Meta's Graph API,
+  and the API points at it via `WHATSAPP_API_BASE_URL`, so nothing leaves the machine
+  ([docs/whatsapp-india.md](docs/whatsapp-india.md)).
+>>>>>>> 88d64a337c9b5efeb9c1e29c1131eb2c5b9f86e0
   `backend/scripts/smoke-demo-stores.mjs` is the other odd one out: it needs **no seed** and runs
   against a deployed environment (`SMOKE_BASE_URL`, optional `SMOKE_WEB_URL`) after
   `provision-demo-stores.mjs` has created the nine homepage industry stores through the admin API.

@@ -44,7 +44,7 @@ function atStore(businessName: string): string {
 }
 
 /** First word only ("Hi Alexander", not the full name) — keeps the body as short as it can be. */
-function firstName(name: string): string {
+export function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || 'there';
 }
 

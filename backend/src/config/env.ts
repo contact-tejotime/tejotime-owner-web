@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { z } from 'zod';
-import { DEFAULT_SMS_COUNTRY_CODES, parseCountryCodes } from '../lib/sms-country';
+import { DEFAULT_SMS_COUNTRY_CODES, DEFAULT_WHATSAPP_COUNTRY_CODES, parseCountryCodes } from '../lib/sms-country';
 
 /**
  * Central, validated environment configuration. Fails fast on boot if a
@@ -11,6 +11,10 @@ const boolish = (def: boolean) =>
     (v) => (v === undefined ? def : v === true || v === 'true' || v === '1'),
     z.boolean(),
   );
+
+/** A bare `VAR=` arrives as '' and would skip a plain .default(); treat it as unset. */
+const blankAsUnset = <T extends z.ZodTypeAny>(inner: T) =>
+  z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), inner);
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
@@ -59,6 +63,12 @@ const schema = z.object({
   OTP_ENABLED: boolish(false),
   PAYMENTS_ENABLED: boolish(false),
   SMS_ENABLED: boolish(false),
+  /**
+   * WhatsApp for the same three customer messages, to the numbers in WHATSAPP_COUNTRY_CODES
+   * (docs/whatsapp-india.md). Works like SMS_ENABLED: off, the message is still recorded on its
+   * `notification` row as channel 'whatsapp', but Meta is never called.
+   */
+  WHATSAPP_ENABLED: boolish(false),
   EMAIL_ENABLED: boolish(false),
 
   /**
@@ -101,6 +111,45 @@ const schema = z.object({
       message: 'comma-separated country calling codes, e.g. 1 or 1,91',
     }),
   ),
+
+  /**
+   * Meta WhatsApp Cloud API (docs/whatsapp-india.md). The token is a system user's permanent
+   * token with whatsapp_business_messaging; the phone number id is the sender's id in WhatsApp
+   * Manager (not the number itself). The base URL is overridable only so the smoke test can point
+   * it at a local stub — never set it in a deployed environment.
+   */
+  WHATSAPP_ACCESS_TOKEN: z.string().default(''),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().trim().default(''),
+  WHATSAPP_API_BASE_URL: blankAsUnset(z.string().url().default('https://graph.facebook.com')),
+  WHATSAPP_API_VERSION: blankAsUnset(
+    z
+      .string()
+      .trim()
+      .regex(/^v\d+\.\d+$/, 'a Graph API version such as v23.0')
+      .default('v23.0'),
+  ),
+  /** The approved templates' names and language in WhatsApp Manager (same ids as the SMS by default). */
+  WHATSAPP_TEMPLATE_LANGUAGE: blankAsUnset(z.string().trim().default('en')),
+  WHATSAPP_TEMPLATE_BOOKING_CONFIRMED: blankAsUnset(z.string().trim().default('booking_confirmed')),
+  WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER: blankAsUnset(z.string().trim().default('appointment_reminder')),
+  WHATSAPP_TEMPLATE_REVIEW_REQUEST: blankAsUnset(z.string().trim().default('review_request')),
+  /**
+   * Calling codes whose customers get WhatsApp instead of SMS, comma-separated. Unset or blank
+   * means "91". Routing reads the customer's own number; the sender then checks the number that
+   * actually receives it, so a WHATSAPP_TEST_TO must be listed too.
+   */
+  WHATSAPP_COUNTRY_CODES: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() !== '' ? v : DEFAULT_WHATSAPP_COUNTRY_CODES.join(',')),
+    z.string().refine((v) => parseCountryCodes(v) !== null, {
+      message: 'comma-separated country calling codes, e.g. 91',
+    }),
+  ),
+  /** Optional override: when set, ALL WhatsApp sends go here (never message real customers in test). */
+  WHATSAPP_TEST_TO: z.string().default(''),
+  /** The Meta app's secret: signs every webhook POST (X-Hub-Signature-256). Blank ⇒ POSTs are refused. */
+  WHATSAPP_APP_SECRET: z.string().default(''),
+  /** Any string you choose; typed into Meta's webhook setup and echoed back on its GET handshake. */
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().default(''),
 
   /**
    * Customer microsite chatbot (docs/customer-chatbot-v1.md). OFF by default: the widget is
@@ -156,5 +205,9 @@ export const corsOrigins = env.CORS_ALLOWED_ORIGINS.split(',')
 /** Validated above, so the parse cannot fail here; the fallback only satisfies the type. */
 export const smsAllowedCountryCodes: readonly string[] =
   parseCountryCodes(env.TWILIO_ALLOWED_COUNTRY_CODES) ?? DEFAULT_SMS_COUNTRY_CODES;
+
+/** Same: validated above. */
+export const whatsappCountryCodes: readonly string[] =
+  parseCountryCodes(env.WHATSAPP_COUNTRY_CODES) ?? DEFAULT_WHATSAPP_COUNTRY_CODES;
 
 export const isProd = env.NODE_ENV === 'production';

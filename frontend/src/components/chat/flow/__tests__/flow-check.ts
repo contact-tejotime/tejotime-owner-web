@@ -728,6 +728,36 @@ section("live slots: periodic refresh");
   check(!r.effect, "no refresh once past the time step");
 }
 
+section("messages step names the channel the number will get (docs/whatsapp-india.md)");
+{
+  // An Indian number's messages arrive on WhatsApp, so its consent step must say so.
+  const f = new Flow(ctxWith());
+  f.start("join");
+  f.opt("services", ["s1"]);
+  f.opt("staff", "any");
+  f.text("Riya");
+  let r = f.text("98765 43210");
+  const consent = r.out.find((o) => o.card?.type === "consent")?.card as { type: "consent"; whatsapp: boolean } | undefined;
+  check(f.state.draft.phone === "+919876543210" && consent?.whatsapp === true, "+91 → the WhatsApp disclosure card");
+  check(has(r.out, S.smsQuestionWhatsApp) && !has(r.out, S.smsQuestion), "+91 → asks about WhatsApp messages, not texts");
+  check(r.out.flatMap((o) => o.options ?? []).some((o) => o.id === "sms:yes" && o.label === S.smsYesWhatsApp), "+91 → Yes, message me on WhatsApp");
+  r = f.opt("sms:yes");
+  check(f.state.draft.sms === true, "the answer is the same consent flag either way");
+  r = f.opt("change");
+  check(r.out.flatMap((o) => o.options ?? []).some((o) => o.id === "edit:sms" && o.label === S.editSmsWhatsApp), "Change something → WhatsApp messages");
+
+  // Any other number keeps the approved SMS wording.
+  const u = new Flow(ctxWith());
+  u.start("join");
+  u.opt("services", ["s1"]);
+  u.opt("staff", "any");
+  u.text("Sam");
+  r = u.text("+1 415 555 2671");
+  const usConsent = r.out.find((o) => o.card?.type === "consent")?.card as { type: "consent"; whatsapp: boolean } | undefined;
+  check(u.state.draft.phone === "+14155552671" && usConsent?.whatsapp === false, "+1 → the SMS disclosure card");
+  check(has(r.out, S.smsQuestion) && r.out.flatMap((o) => o.options ?? []).some((o) => o.label === S.smsYes), "+1 → asks about text messages");
+}
+
 section("helpers");
 {
   check(slotsKeyOf({ serviceIds: ["a", "b"], date: "2026-10-06", staffId: "x" }) === "2026-10-06|a,b|x", "slots key");
