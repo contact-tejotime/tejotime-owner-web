@@ -278,10 +278,6 @@
     "notifications": {
       "title": "Notifications",
       "desc": "Alerts and reminders"
-    },
-    "subscription": {
-      "title": "Subscription",
-      "desc": "Plan and billing"
     }
   },
   "serviceExtras": {
@@ -410,8 +406,6 @@
     "recurringSub": "Let customers book a visit that repeats — every 2 weeks, every month, and so on.",
     "account": "Your account",
     "accountSub": "Change your password",
-    "subscription": "Subscription",
-    "subscriptionSub": "Plan and billing",
     "darkMode": "Dark mode",
     "darkModeSub": "Easier on the eyes at night",
     "emailSupport": "Email support",
@@ -996,11 +990,7 @@
     "call": "Call {name}",
     "visits": "Visits",
     "lastVisit": "Last visit",
-    "spend": "Spend",
-    "upsell": "Upgrade to Premium to see your full customer list and history.",
-    "upgrade": "Upgrade to Premium",
-    "lockedCountOne": "1 more client locked",
-    "lockedCount": "{count} more clients locked"
+    "spend": "Spend"
   },
   "account": {
     "title": "Profile",
@@ -1222,17 +1212,6 @@
   },
   "settingsSubpage": {
     "back": "Back to settings"
-  },
-  "subscription": {
-    "title": "Subscription",
-    "currentPlan": "Current plan",
-    "free": "Free",
-    "premium": "Premium",
-    "freeSub": "Your customer list shows the latest {count} customers",
-    "freeSubOne": "Your customer list shows only the latest customer",
-    "premiumSub": "Your full customer list and history",
-    "changePlan": "Change plan",
-    "changePlanLead": "Online payments aren't available yet, so our team changes plans for you. Get in touch and we'll set it up."
   },
   "businessForm": {
     "errSave": "Could not save profile",

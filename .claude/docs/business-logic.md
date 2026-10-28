@@ -297,16 +297,19 @@ Full plan, decisions and phases: [docs/recurring-appointments.md](../../docs/rec
 
 ## 6. Plan gating
 
-Free plan truncates the customer list to `FREE_PLAN_CUSTOMER_LIMIT` (default **2**) and returns
-`meta.lockedCount`.
+**Nothing is plan-gated today (2026-10-28).** The customer list used to be cut to
+`FREE_PLAN_CUSTOMER_LIMIT` (2) on Free, with an "Upgrade to Premium" card on owner-web. Every plan
+now gets the whole list, up to the API's page size (newest 100, max 200). `meta.lockedCount` is
+always 0 and the env var is gone. See [docs/customer-list-no-limit.md](../../docs/customer-list-no-limit.md).
 
-Two things to preserve:
+If a plan gate comes back, keep the old rules:
 
-- **The server truncates.** Client-side blur is cosmetic only.
+- **The server enforces it.** Anything client-side is cosmetic.
 - Reads use **`getLivePlan()` (a DB lookup)** rather than the `plan` claim in the token, so an
   upgrade applies immediately instead of waiting up to 15 minutes for a token refresh.
 
-`upgrade()` flips the plan directly while `PAYMENTS_ENABLED=false`.
+`upgrade()` flips the plan directly while `PAYMENTS_ENABLED=false`. No owner surface calls it any
+more, because owner-web's Settings → Subscription page was removed too.
 
 ---
 

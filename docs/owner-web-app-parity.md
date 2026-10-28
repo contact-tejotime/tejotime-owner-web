@@ -109,11 +109,12 @@ targets that element.
 
 Kept because a browser is not an App Store build, or because removing them would lose something:
 
-- **Subscription:** the Settings row, the Team permission grid's billing module, and the Customers
-  upgrade card for locked customers (billing logins only). The app must never show them
+- **Subscription — no longer a difference (2026-10-28).** The web used to keep a Settings →
+  Subscription row, the Team grid's billing module and a Customers "Upgrade to Premium" card. All
+  three are gone, because every plan now sees the whole customer list
+  ([customer-list-no-limit.md](./customer-list-no-limit.md)). Both surfaces now show the same
+  Customers subtitle and no plan UI. The app must still never show one
   ([mobile-no-in-app-purchases.md](./mobile-no-in-app-purchases.md)).
-  `/settings/subscription` is still a static mock, so that upgrade path is a dead end until
-  billing is real.
 - **Mouse-only affordances:** drag-to-reorder (the ticket's number tile is the handle), hover
   Start / End / × on tickets, hover and focus rings.
 - **Appointments:** a second "Checked in or closed" section, and a × no-show shortcut on bookings

@@ -183,8 +183,10 @@ appointments: [docs/recurring-appointments.md](../../docs/recurring-appointments
 `GET /` · `GET /:id` · `GET /:id/visits` (`perm=customers:view`) — `POST /` · `PATCH /:id`
 (`perm=customers:manage`).
 
-Free plan truncates the list server-side to `FREE_PLAN_CUSTOMER_LIMIT` and returns
-`meta.lockedCount`.
+`GET /` returns the newest `limit` customers (default 100, max 200) on **every** plan. The free
+plan's cut to 2 was removed on 2026-10-28. `meta.lockedCount` is kept but always 0, and `plan` is
+kept, because shipped app builds read both
+([docs/customer-list-no-limit.md](../../docs/customer-list-no-limit.md)).
 
 ### `/business` (6)
 

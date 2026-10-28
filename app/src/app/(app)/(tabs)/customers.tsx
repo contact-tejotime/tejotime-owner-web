@@ -29,14 +29,16 @@ export default function Customers() {
   const numColumns = columns(CUSTOMER_CARD_MIN_WIDTH, { gutter: 12, max: 2 });
 
   const shown = store.customers;
-  const { total, lockedCount } = store.customerMeta;
+  const { total } = store.customerMeta;
   /**
-   * A free store gets a truncated list from the server. Say so plainly, but never why or how to
-   * lift it: App Review rejected v1.0 (2) under guideline 2.1(b) for an "Upgrade to Premium"
-   * with no In-App Purchase behind it, and pointing at a purchase elsewhere is its own rejection.
+   * Every plan sees its whole customer book (2026-10-28, docs/customer-list-no-limit.md); the
+   * server only cuts at its page size (the newest 100), and then this says so plainly. It used to
+   * key on `lockedCount`, the free plan's cut, which is now always 0. Never say why or how to see
+   * more: App Review rejected v1.0 (2) under guideline 2.1(b) for an "Upgrade to Premium" with no
+   * In-App Purchase behind it (docs/mobile-no-in-app-purchases.md).
    */
   const subtitle =
-    lockedCount > 0
+    shown.length < total
       ? format(t.customers.latestShown, { shown: shown.length, total })
       : format(t.customers.total, { total });
 

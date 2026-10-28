@@ -69,9 +69,9 @@ export default function OwnerHelpChat() {
           if (pathname !== "/login") router.push("/login");
           break;
         case "pricing":
-          if (pathname.startsWith("/settings") || pathname.startsWith("/dashboard") || pathname.startsWith("/queue")) {
-            router.push("/settings/subscription");
-          } else if (web) {
+          // There is no in-app plan page to send a signed-in owner to any more (Settings →
+          // Subscription was removed 2026-10-28), so every page uses the site's pricing section.
+          if (web) {
             window.open(`${web}/#pricing`, "_blank", "noopener,noreferrer");
           } else {
             window.location.href = `mailto:${SUPPORT.email}`;

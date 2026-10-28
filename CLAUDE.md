@@ -451,10 +451,12 @@ The box's wording follows the picker's dial code (`frontend/src/lib/message-chan
 picker now starts on the store's country. A STOP on WhatsApp (signed webhook) sets
 `customer.sms_opt_out_at` at every store, so it now means "opted out on any channel".
 
-**Plan gating** — free plan truncates the customer list to `FREE_PLAN_CUSTOMER_LIMIT` (2) and
-returns `meta.lockedCount`. The **server** truncates; client blur is cosmetic only. Reads use
-`getLivePlan()` (a DB lookup) rather than the token's `plan` claim, so an upgrade applies
-immediately without waiting for a refresh.
+**Plan gating** — **none today** (2026-10-28, [docs/customer-list-no-limit.md](docs/customer-list-no-limit.md)).
+Every plan sees the whole customer list, up to the API's page size (newest 100). The free plan's
+cut to 2, owner-web's "Upgrade to Premium" card, its Settings → Subscription page and
+`FREE_PLAN_CUSTOMER_LIMIT` are all gone. `plan` and `meta.lockedCount` (always 0) stay in
+`GET /customers` because shipped app builds read them. If a gate ever returns, enforce it on the
+server and read `getLivePlan()` (a DB lookup), not the token's `plan` claim.
 
 **Recurring appointments** ([docs/recurring-appointments.md](docs/recurring-appointments.md), 0036)
 — a customer books once with `repeat: { everyDays, end }`. `appointment_series` stores the **rule**;
@@ -633,7 +635,7 @@ Required (no default): `DATABASE_URL`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SE
 `TICKET_URL_HMAC_SECRET` (secrets are `min(16)`).
 
 Tunables: `JWT_ACCESS_TTL` 900, `JWT_REFRESH_TTL` 2592000, `JWT_ADMIN_TTL` 43200,
-`FREE_PLAN_CUSTOMER_LIMIT` 2, `ETA_NOTIFY_MINUTES` 15, `TICKET_ABANDON_HOURS` 4,
+`ETA_NOTIFY_MINUTES` 15, `TICKET_ABANDON_HOURS` 4,
 `BOOKING_SLOT_MINUTES` 30, `DATABASE_POOL_MAX` 10, `S3_UPLOAD_URL_TTL` 600,
 `S3_DOWNLOAD_URL_TTL` 3600, `CORS_ALLOWED_ORIGINS` (comma-separated; empty ⇒ allow all).
 

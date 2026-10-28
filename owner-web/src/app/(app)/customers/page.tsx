@@ -1,11 +1,9 @@
-import Link from "next/link";
-import { t, format, plural } from "@/i18n";
+import { t, format } from "@/i18n";
 
 import { AppPageHeader } from "@/components/AppPageHeader";
 import { CustomerSearch } from "@/components/CustomerSearch";
 import { Icon, type IconName } from "@/components/Icon";
-import { can, NO_ACCESS } from "@/lib/roles";
-import { getCustomers, getMe } from "@/lib/server-api";
+import { getCustomers } from "@/lib/server-api";
 import { CustomerCard } from "./CustomerCard";
 import "@/styles/customers.css";
 
@@ -29,8 +27,11 @@ function CustomersEmpty({ icon, title, hint }: { icon: IconName; title: string; 
  * for why that is 300 and not the app's `CUSTOMER_CARD_MIN_WIDTH` of 320).
  *
  * Search runs on the SERVER (`GET /customers?search=`), not by filtering a page of results —
- * the free plan truncates the list server-side and reports how many are withheld, so
- * client-side filtering would only ever search the visible slice.
+ * the API returns at most a page (100) of the newest customers, so client-side filtering would
+ * only ever search the visible slice.
+ *
+ * Every plan sees the whole list (2026-10-28, docs/customer-list-no-limit.md). This page used to
+ * cut a free store to its latest 2 and end the grid with an "Upgrade to Premium" prompt.
  */
 export default async function CustomersPage({
   searchParams,
@@ -38,52 +39,16 @@ export default async function CustomersPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const { q = "" } = await searchParams;
-  const [res, me] = await Promise.all([getCustomers(q), getMe()]);
+  const res = await getCustomers(q);
   const customers = res?.data ?? [];
-  const locked = res?.lockedCount ?? 0;
-  const access = me?.user.permissions ?? NO_ACCESS;
 
-  // The app's wording. A truncated list says so plainly ("Latest 2 of 10"), as on the phone.
+  // The app's wording. A list cut short by the page size says so plainly ("Latest 100 of 312"), as
+  // on the phone; otherwise the count is the whole book.
   const subtitle = !res
     ? undefined
-    : locked > 0
+    : res.shown < res.total
       ? format(t.customers.latestShown, { shown: res.shown, total: res.total })
       : format(t.customers.total, { total: res.total });
-
-  /*
-   * Web-only, and deliberately kept: the app dropped its upgrade prompt because App Review rejects
-   * an "Upgrade to Premium" with no In-App Purchase behind it. A browser has no such rule, and the
-   * owner can act on it here. Shown only to a login that can open the subscription screen
-   * (`billing`) — for anyone else the link lands on "no access", and the subtitle already says the
-   * list is cut short.
-   */
-  const showUpsell = locked > 0 && can(access, "billing");
-
-  /*
-   * Rendered as the LAST ITEM of the card grid, not under it. A free store always shows exactly
-   * its plan's few cards (2 by default), so beside the sidebar at 1280px the grid's three tracks
-   * held two cards and a hole, with the prompt as a separate strip below at a third width. As a
-   * grid item it takes that empty track (`data-after` tells styles/customers.css how many cards
-   * precede it); wherever it cannot share their row it is a full-width row of its own, which is
-   * how it has always looked on a phone and a tablet.
-   */
-  const upsell = showUpsell ? (
-    <div className="cu-upsell" data-after={customers.length}>
-      <div className="cu-upsell-disc" aria-hidden>
-        <Icon name="star" size={20} />
-      </div>
-      <div className="cu-upsell-body">
-        <p className="cu-upsell-title">
-          {plural(locked, t.customers.lockedCountOne, t.customers.lockedCount)}
-        </p>
-        <p className="cu-upsell-text">{t.customers.upsell}</p>
-      </div>
-      <Link href="/settings/subscription" className="btn cu-upsell-cta">
-        <Icon name="creditCard" size={18} />
-        {t.customers.upgrade}
-      </Link>
-    </div>
-  ) : null;
 
   return (
     <div className="page-app">
@@ -112,12 +77,8 @@ export default async function CustomersPage({
           {customers.map((c) => (
             <CustomerCard key={c.id} customer={c} />
           ))}
-          {upsell}
         </div>
       )}
-
-      {/* No grid to join only when a plan shows no cards at all (a limit of 0). */}
-      {res && customers.length === 0 ? upsell : null}
     </div>
   );
 }

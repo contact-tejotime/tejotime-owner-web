@@ -48,7 +48,13 @@ customersRouter.get(
   }),
   asyncHandler(async (req, res) => {
     const businessId = req.principal!.businessId;
-    const plan = await getLivePlan(businessId); // authoritative — reflects a just-completed upgrade
+    /*
+     * Every plan sees its whole customer book (2026-10-28, docs/customer-list-no-limit.md). A free
+     * store used to get only its latest FREE_PLAN_CUSTOMER_LIMIT (2) and an "Upgrade to Premium"
+     * prompt for the rest. `plan` and `meta.lockedCount` (now always 0) stay in the payload because
+     * app builds already in owners' hands read both.
+     */
+    const plan = await getLivePlan(businessId);
     const search = (req.query.search as string | undefined)?.replace(/[%,()]/g, ' ').trim();
     const limit = Number(req.query.limit ?? 100);
 
@@ -67,23 +73,21 @@ customersRouter.get(
     );
     const total = countRow?.count;
 
-    const shownLimit = plan === 'free' ? env.FREE_PLAN_CUSTOMER_LIMIT : limit;
     const rows = await many(
       `select * from customer
         where ${whereSql}
         order by created_at desc
         limit $${filterParams.length + 1}`,
-      [...filterParams, shownLimit],
+      [...filterParams, limit],
     );
 
     const totalN = total ?? rows.length;
-    const lockedCount = plan === 'free' ? Math.max(0, totalN - rows.length) : 0;
     const currency = await businessCurrency(businessId);
 
     res.json({
       data: rows.map((c) => customerDTO(c, currency)),
       plan,
-      meta: { shown: rows.length, total: totalN, lockedCount, limit: shownLimit },
+      meta: { shown: rows.length, total: totalN, lockedCount: 0, limit },
       nextCursor: null,
     });
   }),

@@ -49,7 +49,7 @@ Legend — **Impact:** 🔴 blocks/changes data model or core flow · 🟡 affec
 
 | # | UI evidence | Assumption | Impact | Decision |
 |---|---|---|---|---|
-| Q20 | `FREE_LIMIT = 2`; premium shows "312 total" | Assumed free plan = latest 2 customers; limit is a plan config, enforced server-side. | 🟡 | Confirm the real free-plan limit (2 seems demo-low). What exactly does premium unlock beyond list length? |
+| Q20 | `FREE_LIMIT = 2`; premium shows "312 total" | **Answered 2026-10-28: no limit.** Every plan sees all customers ([customer-list-no-limit.md](./customer-list-no-limit.md)). | ✅ | Still open: what, if anything, Premium unlocks. Today it unlocks nothing. |
 | Q21 | "latest N shown" | Assumed "latest" = most recently **created** customers (used `created_at`). | 🟢 | Latest by created or by last visit? |
 
 ## Subscription & billing

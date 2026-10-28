@@ -13,6 +13,25 @@ the system as designed, this one describes where it actually is.
 
 ## 1. What is in flight
 
+### Customer list: no plan limit, "Upgrade to Premium" removed (2026-10-28)
+
+- **What:** every plan now sees the whole customer list. Free used to see the latest 2 plus an
+  "N more clients locked · Upgrade to Premium" card on owner-web.
+- **Removed:**
+  - the card;
+  - owner-web's Settings → Subscription page, with its row, tile, BFF route and the Team grid's
+    billing row;
+  - the `FREE_PLAN_CUSTOMER_LIMIT` env var.
+- **Unchanged:** the 100-per-load page size (client's choice), plus `plan` / `lockedCount` (0) in
+  the payload for shipped app builds.
+- **Write-up:** [docs/customer-list-no-limit.md](../../docs/customer-list-no-limit.md).
+- **Checks:**
+  - `smoke-rest.mjs` 136/138 before the fix (the 2 new assertions failed), 138/138 after.
+  - backend `vitest` 598/598.
+  - owner-web `tsc` + `eslint` clean; app `tsc` clean.
+- **Not run:** `owner-web` `next build` (a dev server held `.next`), and no browser check.
+- **Deploy note:** `FREE_PLAN_CUSTOMER_LIMIT` can be deleted from Coolify. Leaving it is harmless.
+
 <<<<<<< HEAD
 ### "Paid by" + card payments on the PayPal reader (2026-10-15)
 

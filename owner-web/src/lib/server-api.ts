@@ -32,7 +32,6 @@ export const TAGS = {
   customers: "customers",
   dashboard: "dashboard",
   notifications: "notifications",
-  subscription: "subscription",
 } as const;
 
 /** Seconds. `queue` and `me` are absent on purpose — they are never cached. */
@@ -44,7 +43,6 @@ const TTL = {
   customers: 60,
   dashboard: 30,
   notifications: 30,
-  subscription: 300,
 } as const;
 
 /**
@@ -721,12 +719,13 @@ export const getAppointments = (query = "") =>
 
 export const getCustomers = async (search = "") => {
   // Backend returns `{ data, meta: { shown, total, lockedCount } }` — flatten for pages.
+  // `lockedCount` is always 0 since the list stopped being plan-gated (2026-10-28), so it is not
+  // read; `shown < total` is what says the page size cut the list short.
   const res = await get<{
     data: CustomerRow[];
-    meta?: { shown?: number; total?: number; lockedCount?: number };
+    meta?: { shown?: number; total?: number };
     shown?: number;
     total?: number;
-    lockedCount?: number;
   }>(
     `/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`,
     [TAGS.customers],
@@ -738,7 +737,6 @@ export const getCustomers = async (search = "") => {
     data,
     shown: res.meta?.shown ?? res.shown ?? data.length,
     total: res.meta?.total ?? res.total ?? data.length,
-    lockedCount: res.meta?.lockedCount ?? res.lockedCount ?? 0,
   };
 };
 
@@ -819,16 +817,3 @@ export const getPermissionCatalogue = () =>
     /** Grantable modules only — `team` is owner-role-only and never appears here. */
     defaults: { staff: Partial<ModuleAccess>; co_owner: Partial<ModuleAccess> };
   }>("/users/modules", [TAGS.staff], TTL.staff);
-
-export const getSubscription = () =>
-  get<{
-    plan: string;
-    status: string;
-    trialEndsAt: string | null;
-    /** How many customers a free store's list shows (`FREE_PLAN_CUSTOMER_LIMIT`); null on Premium. */
-    limits?: { customerListLimit: number | null };
-  }>(
-    "/subscription",
-    [TAGS.subscription],
-    TTL.subscription,
-  );
