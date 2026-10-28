@@ -56,7 +56,8 @@ export const MODULE_LABELS: Record<Module, string> = t.roles.modules;
 /**
  * Mirrors backend GRANTABLE_MODULES. Two modules are never a row in the grid: `team` is
  * owner-only, and `commission` is decided by the role too — every staff login sees its own
- * earnings, and only owners set rates.
+ * earnings, and only owners set rates. `billing` is grantable but hidden from the grid
+ * (TeamManager's SHOWN_MODULES): it opened only Settings → Subscription, removed 2026-10-28.
  */
 export const GRANTABLE_MODULES: Module[] = [
   "dashboard",
@@ -117,7 +118,6 @@ const PATH_MODULES: [string, Module][] = [
   ["/settings/team", "team"],
   ["/settings/hours", "hours"],
   ["/settings/notifications", "notifications"],
-  ["/settings/subscription", "billing"],
   ["/dashboard", "dashboard"],
   ["/stats", "dashboard"],
   ["/queue", "queue"],
@@ -199,7 +199,6 @@ export function settingsTilesFor(access: ModuleAccess, role: UserRole) {
     { href: "/settings/services", title: t.settingsTiles.services.title, desc: t.settingsTiles.services.desc, module: "services" },
     { href: "/settings/hours", title: t.settingsTiles.hours.title, desc: t.settingsTiles.hours.desc, module: "hours" },
     { href: "/settings/notifications", title: t.settingsTiles.notifications.title, desc: t.settingsTiles.notifications.desc, module: "notifications" },
-    { href: "/settings/subscription", title: t.settingsTiles.subscription.title, desc: t.settingsTiles.subscription.desc, module: "billing" },
   ];
   return all.filter((t) => {
     // Team management is tied to the role, not to a permission — matching the backend, where

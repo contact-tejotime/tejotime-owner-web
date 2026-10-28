@@ -222,12 +222,16 @@ export function closedWeekdays(
  * - `closedDays`: weekdays the store is shut (from its hours), so an empty day can say "Closed
  *   this day" rather than "No free times". Empty when the hours could not be read — every empty
  *   day then just says there are no free times.
+ * - `services`: the store's switched-on services, for a NEW booking ("Due to come back" → Book),
+ *   whose services can be changed in the picker. Moving a booking keeps its own, so pages that
+ *   only move or re-book leave it out.
  */
 export interface PickerContext {
   zone: string;
   staff: { id: string; name: string; colorToken: string }[];
   allowAny: boolean;
   closedDays: number[];
+  services?: { id: string; name: string }[];
 }
 
 /**

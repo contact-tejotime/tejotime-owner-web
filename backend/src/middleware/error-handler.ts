@@ -21,6 +21,18 @@ const PG_ERROR_MAP: Record<string, { status: number; code: string; message: stri
     code: 'AMOUNT_REQUIRED',
     message: 'Enter the final amount for this visit',
   },
+  // 0043: the main owner's phone is charging this visit's card right now. Finishing it any other
+  // way would leave that charge with no visit to land on (docs/card-payments-paypal.md).
+  CARD_PAYMENT_IN_PROGRESS: {
+    status: 409,
+    code: 'CARD_PAYMENT_IN_PROGRESS',
+    message: "The owner is taking this customer's card payment",
+  },
+  CARD_PAYMENTS_OFF: {
+    status: 409,
+    code: 'CARD_PAYMENTS_OFF',
+    message: 'Card payments are turned off for this store',
+  },
 };
 
 export function mapPgError(message: string): AppError | null {

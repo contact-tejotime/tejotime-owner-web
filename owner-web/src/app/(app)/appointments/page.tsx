@@ -33,7 +33,6 @@ import {
   getAppointmentsFresh,
   getBusiness,
   getMe,
-  getQueue,
   getSeriesIssues,
   getSeriesList,
   getServices,
@@ -42,7 +41,7 @@ import {
   type SeriesIssue,
 } from "@/lib/server-api";
 
-import { AppointmentsWalkIn } from "./AppointmentsWalkIn";
+import { AppointmentsBook } from "./AppointmentsBook";
 import { RegularsList, type RegularRowView } from "./RegularsList";
 
 type View = "today" | "regulars";
@@ -124,11 +123,9 @@ export default async function AppointmentsPage({
   if (!me) redirect("/login");
 
   const access = me.user.permissions ?? NO_ACCESS;
+  // Booking (the header "+"), check-in, Reschedule and the series actions all need
+  // appointments:manage — the API's own gate. Without it the "+" is hidden and a row shows its status.
   const canManage = can(access, "appointments", "manage");
-  // The app shows "+" and "Add to queue" to everyone and lets the API refuse. Here each is hidden
-  // without the permission its request needs: the "+" posts to /queue (queue:manage), check-in to
-  // /appointments/:id/check-in (appointments:manage — without it the row shows its status).
-  const canWalkIn = can(access, "queue", "manage");
   const staffScoped = me.user.role === "staff";
 
   // Uncached on purpose (see getAppointmentsFresh): GET /appointments is narrowed to a staff
@@ -138,18 +135,16 @@ export default async function AppointmentsPage({
   // socket-driven refresh re-rendered the stale list for up to a minute.
   //
   // GET /staff accepts appointments:view, so every login that can open this page gets the names.
-  // GET /business (the store's timezone) is profile-gated, as on Home: without it the clock falls
-  // back to the default zone. The queue is read only for the walk-in sheet's seat loads, so its
-  // "Any seat → soonest free" names the right chair instead of simply the first one.
+  // GET /business (the store's timezone, hours and country) is profile-gated, as on Home: without
+  // it the clock falls back to the default zone. Services feed the Book appointment sheet.
   //
   // Each view reads only what it draws: Today the day's bookings and the Needs attention list,
-  // Regulars the series list. The header's walk-in "+" is on both.
-  const [res, staff, services, business, queue, issues, series] = await Promise.all([
+  // Regulars the series list. The header's Book appointment "+" is on both.
+  const [res, staff, services, business, issues, series] = await Promise.all([
     view === "today" ? getAppointmentsFresh() : Promise.resolve(null),
     getStaff(),
-    canWalkIn ? getServices() : Promise.resolve(null),
+    canManage ? getServices() : Promise.resolve(null),
     can(access, "profile") ? getBusiness() : Promise.resolve(null),
-    canWalkIn ? getQueue() : Promise.resolve(null),
     view === "today" ? getSeriesIssues() : Promise.resolve(null),
     view === "regulars" ? getSeriesList() : Promise.resolve(null),
   ]);
@@ -158,15 +153,15 @@ export default async function AppointmentsPage({
   const staffNames = new Map((staff?.data ?? []).map((s) => [s.id, s.name] as const));
   const activeStaff = (staff?.data ?? []).filter((s) => s.isActive);
 
-  // Staff walk-ins always land on their linked chair — don't offer every seat in the sheet (Home's rule).
-  const walkInStaff = activeStaff.filter((s) => !staffScoped || s.id === me.user.staffId);
-  const walkInServices = (services?.data ?? []).filter((s) => s.isActive);
+  // A staff login books and moves bookings only on its own chair (the API answers 403 otherwise),
+  // so every picker here gets that chair and no "Any stylist".
+  const pickerStaff = activeStaff.filter((s) => !staffScoped || s.id === me.user.staffId);
+  const bookServices = (services?.data ?? []).filter((s) => s.isActive);
 
-  // What the Reschedule / Change future visits pickers offer. A staff login moves bookings only on
-  // its own chair (the API answers 403 otherwise), so it gets that chair and no "Any stylist".
+  // What the Book appointment, Reschedule and Change future visits pickers offer.
   const picker: PickerContext = {
     zone,
-    staff: walkInStaff.map((s) => ({ id: s.id, name: s.name, colorToken: s.colorToken })),
+    staff: pickerStaff.map((s) => ({ id: s.id, name: s.name, colorToken: s.colorToken })),
     allowAny: !staffScoped,
     closedDays: closedWeekdays(business?.hours),
   };
@@ -174,18 +169,18 @@ export default async function AppointmentsPage({
   return (
     <div className="page-app appts-screen">
       {/* Settings is a tab of its own (bottom nav / sidebar), so the header carries only the app's
-          "+" — as the app's Appointments header does. */}
+          "+" — Book appointment, as on the app. Walk-ins are added from Home. */}
       <AppPageHeader
         title={t.appointments.title}
         subtitle={longDayLabel(zone)}
         showSettings={false}
         action={
-          canWalkIn ? (
-            <AppointmentsWalkIn
-              staff={walkInStaff}
-              services={walkInServices}
-              seats={queue?.seats ?? []}
+          canManage ? (
+            <AppointmentsBook
+              picker={picker}
+              services={bookServices}
               category={me.business.category}
+              countryCode={business?.countryCode ?? null}
             />
           ) : null
         }

@@ -180,6 +180,9 @@ export function mapBusinessDetail(r: any) {
     // Undefined when the API does not send it (one from before migration 0036): Settings then hides
     // the switch rather than offering one whose save the API would refuse. Same as owner-web.
     recurringEnabled: typeof r.recurringEnabled === 'boolean' ? r.recurringEnabled : undefined,
+    // Card payments on the PayPal reader (0043). Read-only on GET /business; only the main owner
+    // changes it, through PUT /card-payments/settings.
+    cardPaymentsEnabled: r.cardPaymentsEnabled === true,
     // IANA zone the store keeps its hours in — every booking time is printed on it (lib/zoned.ts).
     timezone: typeof r.timezone === 'string' && r.timezone ? r.timezone : undefined,
   };
@@ -241,4 +244,30 @@ export function mapCustomer(c: any): Customer {
     spend: formatMoney(c.totalSpend),
     vip: !!c.isVip,
   };
+}
+
+/**
+ * "Paid by" for display ("Cash App", "UPI"). The API sends the code (`cash_app`); a code this
+ * build does not know yet is shown as itself rather than as nothing. Same as owner-web's
+ * `paymentMethodLabel` (lib/format.ts).
+ */
+export function paymentMethodLabel(method: string | null | undefined): string {
+  switch (method) {
+    case 'card':
+      return t.paymentMethod.card;
+    case 'cash':
+      return t.paymentMethod.cash;
+    case 'venmo':
+      return t.paymentMethod.venmo;
+    case 'zelle':
+      return t.paymentMethod.zelle;
+    case 'cash_app':
+      return t.paymentMethod.cashApp;
+    case 'upi':
+      return t.paymentMethod.upi;
+    case 'other':
+      return t.paymentMethod.other;
+    default:
+      return method ?? '';
+  }
 }

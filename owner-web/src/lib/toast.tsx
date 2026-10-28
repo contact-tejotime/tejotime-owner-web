@@ -17,10 +17,17 @@ import { t as copy } from "@/i18n";
 
 export type ToastType = "success" | "error" | "info";
 
+/** One button on the toast — "Undo" after hiding a customer from the call list. */
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface Toast {
   id: number;
   message: string;
   type: ToastType;
+  action?: ToastAction;
 }
 
 type Listener = (toasts: Toast[]) => void;
@@ -38,12 +45,15 @@ function dismiss(id: number) {
   emit();
 }
 
-/** Raise a toast from anywhere on the client. Errors linger; successes get out of the way. */
-export function showToast(message: string, type: ToastType = "info") {
+/**
+ * Raise a toast from anywhere on the client. Errors linger; successes get out of the way. A toast
+ * with an action stays as long as an error, so there is time to reach its button.
+ */
+export function showToast(message: string, type: ToastType = "info", opts: { action?: ToastAction } = {}) {
   const id = nextId++;
-  toasts = [...toasts, { id, message, type }];
+  toasts = [...toasts, { id, message, type, action: opts.action }];
   emit();
-  setTimeout(() => dismiss(id), type === "error" ? 6000 : 3500);
+  setTimeout(() => dismiss(id), type === "error" || opts.action ? 6000 : 3500);
   return id;
 }
 
@@ -79,6 +89,18 @@ export function Toaster() {
         {items.map((t) => (
           <div key={t.id} className={`toast ${t.type}`}>
             <span>{t.message}</span>
+            {t.action ? (
+              <button
+                type="button"
+                className="toast-action"
+                onClick={() => {
+                  t.action!.onClick();
+                  onDismiss(t.id);
+                }}
+              >
+                {t.action.label}
+              </button>
+            ) : null}
             <button
               type="button"
               className="toast-close"

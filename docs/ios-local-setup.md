@@ -64,7 +64,14 @@ npx expo run:ios --device "iPhone 17"
 ```
 
 First build is ~10 minutes — the first `pod install` downloads ~150 MB of prebuilt React Native
-xcframeworks from Maven; incremental builds are fast. `npm run ios` is wired to `expo run:ios`:
+xcframeworks from Maven; incremental builds are fast.
+
+`pod install` also pulls **`iZettleSDK` 4.70.4**, PayPal's card-reader SDK, for the local module
+`app/modules/paypal-reader` ([card-payments-paypal.md](./card-payments-paypal.md)). It is public on
+CocoaPods, so it needs no token. Card charging stays hidden unless `.env.local` sets
+`EXPO_PUBLIC_PAYPAL_CLIENT_ID_IOS`. Use `EXPO_PUBLIC_PAYPAL_DEV_MODE=true` locally: PayPal's
+developer mode needs no merchant account and moves no money. The simulator has no Bluetooth reader,
+so real charges need a device. `npm run ios` is wired to `expo run:ios`:
 with `expo-dev-client` in the dependency list, `expo start --ios` is not enough on a machine that
 has never built the native project.
 

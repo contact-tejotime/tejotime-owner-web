@@ -39,7 +39,9 @@ from one value, `t.legal.entity`, and the footers render `t.brand.operatedBy` wi
 box wording was deliberately **not** changed, so `message_flow` below still quotes it word for word.
 
 Owner-web and Expo are **not** an opt-in path. `message_flow` is website-only. Owner walk-ins
-and owner-created appointments default both flags to `false` and are never texted.
+and owner-created appointments default both flags to `false` and are never texted — including the
+bookings an owner makes from the "Due to come back" call list (2026-10-28,
+[customer-due-list.md](./customer-due-list.md)): no confirmation, no reminder, no review request.
 
 **Second website opt-in path: the store chat (2026-09-30).** Checking in or booking from the
 microsite's help chat ([customer-chatbot-booking.md](customer-chatbot-booking.md)) has an SMS

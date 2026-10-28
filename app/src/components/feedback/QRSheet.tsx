@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef } from 'react';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, Share, StyleSheet, View } from 'react-native';
 import * as Print from 'expo-print';
 import QRCode from 'react-native-qrcode-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -82,6 +82,16 @@ export function QRSheet() {
   // assumed every scan is someone saving the number — most are customers wanting to book. The
   // landing page asks which. Falls back to the raw .vcf for a store with no phone on file.
   const qrValue = phoneFull ? `${WEB_BASE_URL}/${phoneFull}/card` : vcardUrl;
+  // The link owners paste into Instagram/Facebook posts and ads: the page with Check in already
+  // open (`?open=checkin`; a closed store gets Book). Same link the API's GET /business/qr returns
+  // as `socialUrl` for owner-web and the admin panel.
+  const socialUrl = phoneFull ? `${WEB_BASE_URL}/${phoneFull}?open=checkin` : null;
+
+  const onShareSocial = useCallback(() => {
+    if (!socialUrl) return;
+    // iOS shares `url` as a link (Instagram, Messages pick it up as one); Android only reads `message`.
+    Share.share(Platform.OS === 'ios' ? { url: socialUrl } : { message: socialUrl }).catch(() => {});
+  }, [socialUrl]);
 
   const onPrint = useCallback(() => {
     if (!qrValue) return;
@@ -128,6 +138,23 @@ export function QRSheet() {
                 <Icon name="qrCode" size={120} color={theme.colors.textSubtle} />
               )}
             </View>
+            {socialUrl ? (
+              <View style={s.social}>
+                <TText variant="bodySm" weight="semibold">
+                  {t.qr.socialLabel}
+                </TText>
+                {/* Selectable, so it can still be long-pressed and copied by hand. */}
+                <TText variant="bodySm" selectable style={s.socialUrl}>
+                  {socialUrl}
+                </TText>
+                <TText variant="caption" color="textMuted" style={s.socialHint}>
+                  {t.qr.socialHint}
+                </TText>
+                <Button variant="outline" fullWidth onPress={onShareSocial}>
+                  {t.qr.share}
+                </Button>
+              </View>
+            ) : null}
             <View style={s.actions}>
               <Button variant="primary" fullWidth disabled={!qrValue} onPress={onPrint}>
                 {t.qr.print}
@@ -181,4 +208,21 @@ const createQRSheetStyles = ({ colors, radius }: ThemeStyleProps, bottomInset: n
     // Solid white behind a real QR so dark-theme viewers still get a scannable contrast.
     qrBoxActive: { backgroundColor: '#ffffff', borderColor: '#ffffff' },
     actions: { ...styles.mt2 },
+    social: {
+      ...styles.mb4,
+      padding: moderateScale(12),
+      borderRadius: moderateScale(radius.lg),
+      borderWidth: moderateScale(1),
+      borderColor: colors.borderSubtle,
+      backgroundColor: colors.surfaceSunken,
+    },
+    socialUrl: {
+      ...styles.mt2,
+      padding: moderateScale(10),
+      borderRadius: moderateScale(radius.md),
+      borderWidth: moderateScale(1),
+      borderColor: colors.borderDefault,
+      backgroundColor: colors.surfaceCard,
+    },
+    socialHint: { ...styles.mt2, ...styles.mb3 },
   });

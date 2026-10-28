@@ -1,0 +1,191 @@
+/*
+ * "Due to come back" — the call list on Customers (docs/customer-due-list.md). The rows are
+ * customers.css cards (.cu-card) with a status chip, two lines and a row of actions; the switch
+ * above them is the Appointments page's segmented control in its own `due-` classes. Every selector
+ * hangs off `.due` / `.due-` so nothing here reaches another screen. Colours are tokens only.
+ */
+
+/* ---- All | Due · N ---- */
+.due-seg {
+  display: flex;
+  gap: 4px;
+  max-width: 420px;
+  margin: 0 0 16px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--surface-sunken, var(--gray-100));
+}
+.due-seg-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.due-seg-btn[aria-current="page"] {
+  background: var(--surface-card, #fff);
+  color: var(--primary);
+  box-shadow: var(--shadow-xs);
+}
+@media (hover: hover) {
+  .due-seg-btn:not([aria-current="page"]):hover {
+    color: var(--text-strong);
+  }
+}
+.due-seg-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* ---- The list ---- */
+.due-lead {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.due-none {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.due-section + .due-section {
+  margin-top: 4px;
+}
+.due-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.due-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-sunken, var(--gray-100));
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ---- One customer ---- */
+.due-card {
+  gap: 0;
+}
+.due-chip {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.due-chip-due_soon {
+  background: var(--info-soft, #eff6ff);
+  color: var(--info-fg, #1d4ed8);
+}
+.due-chip-overdue {
+  background: var(--warning-soft, #fffbeb);
+  color: var(--warning-fg, #92400e);
+}
+.due-chip-lapsed {
+  background: var(--surface-sunken, var(--gray-100));
+  color: var(--text-muted);
+}
+.due-line {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-body);
+}
+.due-line + .due-line {
+  margin-top: 2px;
+}
+.due-line-muted {
+  color: var(--text-muted);
+}
+/* Call and Book first and largest; Later / Not interested quieter. On a phone they wrap two by two. */
+.due-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.due-btn {
+  flex: 1 1 calc(50% - 4px);
+  height: 40px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+/* ---- Hidden (not interested / call back later), each with Undo ---- */
+.due-hidden {
+  margin: 8px 0 24px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 12px;
+}
+.due-hidden > summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.due-hidden-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.due-hidden-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+}
+.due-hidden-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.due-hidden-reason {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.due-link {
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.due-link:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---- Later sheet ---- */
+.due-later .ss-btn.block {
+  margin-bottom: 4px;
+}

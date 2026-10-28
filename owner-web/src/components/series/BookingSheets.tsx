@@ -16,7 +16,7 @@ import { t } from "@/i18n";
 import type { PickerContext } from "@/lib/series";
 import type { SeriesIssue } from "@/lib/server-api";
 
-import { RescheduleSheet, type PickTarget } from "./RescheduleSheet";
+import { pickKey, RescheduleSheet, type PickTarget } from "./RescheduleSheet";
 import { SeriesSheet } from "./SeriesSheet";
 
 interface BookingSheets {
@@ -91,7 +91,7 @@ export function BookingSheetsHost({
       ) : null}
       {picking ? (
         <RescheduleSheet
-          key={picking.target.kind === "move" ? picking.target.appointmentId : picking.target.issueId}
+          key={pickKey(picking.target)}
           target={picking.target}
           name={picking.name}
           picker={picker}

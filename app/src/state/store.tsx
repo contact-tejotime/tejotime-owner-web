@@ -13,10 +13,14 @@ import {
   initSession,
   refreshSession,
   setOnAuthFail,
+  type DueListDTO,
+  type FollowupBody,
   type SeriesDTO,
   type SeriesIssueDTO,
 } from '@/lib/api';
 import { connectOwner } from '@/lib/socket';
+import { chargeVisit, recoverPendingCardPayments } from '@/lib/card-payment-flow';
+import type { PaymentMethod } from '@/lib/checkout-amount';
 import { getOnboarded, setOnboarded } from '@/lib/tokenStore';
 import {
   COLOR_PALETTE,
@@ -31,6 +35,7 @@ import {
 } from '@/lib/mappers';
 import { DayHoursVM, toApiHours } from '@/lib/hours';
 import { TAB_ROUTES } from '@/navigation/routes';
+import { dropDue, dueLoggedMessage, hideDue, restoreDue } from '@/lib/due';
 import { showToast } from '@/lib/toast';
 import { setStoreTimeZone } from '@/lib/zoned';
 import { t, format } from '@/i18n';
@@ -60,7 +65,8 @@ function themeConfigFromBusiness(r: { theme?: unknown; themeColor?: string | nul
 }
 
 export type Plan = 'free' | 'premium';
-type Sheet = 'walkin' | null;
+/** `book`: Appointments' "+" — Book appointment (docs/owner-book-appointment.md). */
+type Sheet = 'walkin' | 'book' | null;
 export type WalkInPosition = 'end' | 'next';
 export type VisitorType = 'mr' | 'patient';
 
@@ -142,6 +148,8 @@ interface BusinessInfo {
   hours?: DayHoursVM[];
   /** Offer "Repeat this booking?" on the store page. Only GET /business carries it (owners). */
   recurringEnabled?: boolean;
+  /** The main owner takes card payments on the PayPal reader (0043). From GET /business. */
+  cardPaymentsEnabled?: boolean;
   /**
    * The store's IANA zone. From /auth/me and login (every role) as well as GET /business; every
    * booking time is printed on it (lib/zoned.ts).
@@ -173,7 +181,7 @@ type State = {
    * span No-show, because both were asking "is the panel busy?". Two spinners for one tap reads
    * as two things happening.
    */
-  detailAction: 'start' | 'checkout' | 'noShow' | 'reassign' | 'extend' | null;
+  detailAction: 'start' | 'checkout' | 'charge' | 'noShow' | 'reassign' | 'extend' | null;
   checkInId: string | null; // appointment id currently being checked in
   queueStaff: string; // 'all' | staff id
   plan: Plan;
@@ -231,6 +239,12 @@ type State = {
   seriesRev: number;
   /** The booking row action in flight, so only that button spins. */
   apptAction: { id: string; kind: ApptAction } | null;
+  /**
+   * "Due to come back" — the call list on Customers (docs/customer-due-list.md). The API's answer as
+   * is: who is due, in which section, and who is hidden. Null until the first load.
+   */
+  due: DueListDTO | null;
+  dueLoaded: boolean;
 };
 
 type Store = State & {
@@ -242,6 +256,18 @@ type Store = State & {
   openAlerts: () => void;
   openWalkin: () => void;
   closeWalkin: () => void;
+  /** Appointments' "+": the Book appointment sheet. */
+  openBook: () => void;
+  closeBook: () => void;
+  /** Book a typed customer (name + phone) at a time from `getNewBookingSlots`. True when it worked. */
+  bookAppointment: (input: {
+    customerName: string;
+    customerPhone: string;
+    serviceIds: string[];
+    slotStart: string;
+    staffId?: string;
+    visitorType?: 'mr' | 'patient';
+  }) => Promise<boolean>;
   openQr: () => void;
   closeQr: () => void;
   completeOnboarding: () => void;
@@ -255,7 +281,12 @@ type Store = State & {
   openDayAppts: (dateKey: string) => void;
   closeDayAppts: () => void;
   startService: (id: string) => void;
-  checkout: (id: string, amountPaise?: number | null) => void;
+  checkout: (id: string, amountPaise?: number | null, paymentMethod?: PaymentMethod | null) => void;
+  /**
+   * Charge the customer's card on the PayPal reader for the whole bill and complete the visit with
+   * it (docs/card-payments-paypal.md). Main owner only; resolves when it is settled either way.
+   */
+  chargeCard: (id: string, amountPaise: number) => Promise<void>;
   noShow: (id: string) => void;
   reassign: (id: string, staffId: string) => void;
   /**
@@ -278,6 +309,12 @@ type Store = State & {
   actOnAppt: (a: Pick<AppointmentEntry, 'id' | 'seriesId'>, kind: ApptAction, move?: MoveTarget) => Promise<boolean>;
   /** "Book another time" for a Needs attention date. True when it worked. */
   bookSeriesIssue: (issueId: string, move: MoveTarget) => Promise<boolean>;
+  /** "Due to come back" → Book: a time from `getNewBookingSlots`. True when it worked. */
+  bookDueCustomer: (customerId: string, input: { slotStart: string; staffId?: string; serviceIds: string[] }) => Promise<boolean>;
+  /** Log what a call achieved; the row hides at once. True when it worked. */
+  setDueFollowup: (customerId: string, body: FollowupBody) => Promise<boolean>;
+  /** Undo a logged outcome — back on the list (if still due). */
+  undoDueFollowup: (customerId: string) => Promise<void>;
   openSeries: (id: string) => void;
   closeSeries: () => void;
   /** Re-read everything a series change can move: Regulars, Needs attention, the lists, the sheet. */
@@ -316,6 +353,12 @@ const SIGNED_OUT_SERIES: Pick<State, 'series' | 'seriesLoaded' | 'seriesIssues' 
   seriesSheetId: null,
   apptAction: null,
 };
+
+/**
+ * The call list is customers' names and numbers, scoped to whoever signed in (a staff login sees
+ * only its chair's). Dropped on sign-out, like Regulars.
+ */
+const SIGNED_OUT_DUE: Pick<State, 'due' | 'dueLoaded'> = { due: null, dueLoaded: false };
 
 const AppStateContext = createContext<Store | null>(null);
 
@@ -446,10 +489,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     seriesSheetId: null,
     seriesRev: 0,
     apptAction: null,
+    due: null,
+    dueLoaded: false,
   });
 
   const socketRef = useRef<Socket | null>(null);
   const seriesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoursSeq = useRef(0);
   /** Range currently shown on the calendar screen, so socket events can keep it fresh. */
@@ -466,6 +512,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const accessRef = useRef<ModuleAccess | null>(null);
   /** Role for by-staff reports — staff must not call /dashboard/by-staff. */
   const roleRef = useRef<SessionUser['role'] | null>(null);
+  /** The main owner — the only login that settles card payments left unconfirmed (bootstrap). */
+  const superOwnerRef = useRef(false);
 
   const patch = useCallback((fn: (p: State) => Partial<State>) => setS((p) => ({ ...p, ...fn(p) })), []);
 
@@ -565,6 +613,40 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setS((p) => ({ ...p, seriesRev: p.seriesRev + 1 }));
     }, 300);
   }, [loadSeries, loadSeriesIssues]);
+  const loadDue = useCallback(async () => {
+    try {
+      const due = await api.getDueCustomers();
+      setS((p) => ({ ...p, due, dueLoaded: true }));
+    } catch {
+      setS((p) => ({ ...p, dueLoaded: true }));
+    }
+  }, []);
+  /**
+   * Re-read the call list — debounced, like Regulars: a booking, a check-in, a checkout or a call
+   * logged on another device all change who is due, and they come in bursts.
+   */
+  const scheduleDueRefresh = useCallback(() => {
+    if (!can(accessRef.current, 'customers')) return;
+    if (dueTimer.current) clearTimeout(dueTimer.current);
+    dueTimer.current = setTimeout(() => {
+      dueTimer.current = null;
+      void loadDue();
+    }, 300);
+  }, [loadDue]);
+  /** Undo a logged call: back on the list at once, then the API confirms (and the list re-reads). */
+  const undoDue = useCallback(
+    async (customerId: string) => {
+      setS((p) => ({ ...p, due: restoreDue(p.due, customerId) }));
+      try {
+        await api.clearFollowup(customerId);
+        showToast(t.customers.due.undone, 'success');
+      } catch (e) {
+        showToast((e as ApiError)?.message ?? t.toast.error, 'error');
+      }
+      scheduleDueRefresh();
+    },
+    [scheduleDueRefresh],
+  );
   const loadCustomers = useCallback(async (search?: string) => {
     try {
       const r = await api.getCustomers(search);
@@ -700,6 +782,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       can(access, 'appointments') ? loadSeries() : Promise.resolve(),
       can(access, 'appointments') ? loadSeriesIssues() : Promise.resolve(),
       can(access, 'customers') ? loadCustomers() : Promise.resolve(),
+      can(access, 'customers') ? loadDue() : Promise.resolve(),
       can(access, 'dashboard') || can(access, 'commission') ? loadDashboard() : Promise.resolve(),
       can(access, 'profile') ? loadBusiness() : Promise.resolve(),
     ]);
@@ -711,6 +794,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     loadSeries,
     loadSeriesIssues,
     loadCustomers,
+    loadDue,
     loadDashboard,
     loadBusiness,
   ]);
@@ -723,7 +807,21 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setS((p) => ({ ...p, bootstrapping: false }));
     }
-  }, [loadAll]);
+    // A card charge whose result was lost last time (the app killed mid-charge, no network when it
+    // came back) is still `pending`: ask the reader about it now. Main owner only — the only login
+    // that charges — and in the background, so sign-in never waits on Bluetooth.
+    if (superOwnerRef.current) {
+      void recoverPendingCardPayments()
+        .then((settled) => {
+          if (settled > 0) {
+            showToast(t.cardPayments.settled, 'info');
+            void loadQueue();
+            void loadDashboard();
+          }
+        })
+        .catch(() => undefined);
+    }
+  }, [loadAll, loadQueue, loadDashboard]);
 
   /** Pull-to-refresh — re-fetches everything, surfaced via `refreshing`. */
   const refresh = useCallback(async () => {
@@ -776,6 +874,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         loadQueue();
         loadAppointments();
         scheduleSeriesRefresh();
+        scheduleDueRefresh();
       }
       connectedBefore = true;
     });
@@ -790,6 +889,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       loadDashboard();
       refreshVisibleCalendarRange();
       scheduleSeriesRefresh();
+      scheduleDueRefresh();
     });
     sock.on('appointment:checked_in', () => {
       loadAppointments();
@@ -797,12 +897,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       loadQueue();
       refreshVisibleCalendarRange();
       scheduleSeriesRefresh();
+      scheduleDueRefresh();
     });
     sock.on('appointment:updated', () => {
       loadAppointments();
       refreshVisibleCalendarRange();
       scheduleSeriesRefresh();
+      scheduleDueRefresh();
     });
+    // A checkout writes a visit — someone due may have just come in. A call logged on another
+    // device hides or restores a row.
+    sock.on('queue:entry.completed', () => scheduleDueRefresh());
+    sock.on('customer:followup', () => scheduleDueRefresh());
     // Pause / resume / cancel, a Needs attention item handled, the job flagging a date — or a
     // change of future visits, which re-books the month the Calendar may be showing.
     sock.on('series:updated', () => {
@@ -814,7 +920,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       loadCustomers();
     });
     sock.on('notification:new', (d: any) => showToast(d?.body ?? t.toast.newNotification, 'info'));
-  }, [loadAppointments, loadDashboard, loadQueue, loadCustomers, refreshVisibleCalendarRange, scheduleSeriesRefresh]);
+  }, [
+    loadAppointments,
+    loadDashboard,
+    loadQueue,
+    loadCustomers,
+    refreshVisibleCalendarRange,
+    scheduleSeriesRefresh,
+    scheduleDueRefresh,
+  ]);
 
   const teardown = useCallback(() => {
     const sock = socketRef.current;
@@ -852,6 +966,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       teardown();
       accessRef.current = null;
       roleRef.current = null;
+      superOwnerRef.current = false;
       reportQueryRef.current = { range: 'today' };
       setThemeConfig(null);
       setStoreTimeZone(null);
@@ -864,6 +979,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         commission: null,
         commissionVisitsFor: null,
         ...SIGNED_OUT_SERIES,
+        ...SIGNED_OUT_DUE,
       }));
       showToast(t.toast.sessionExpired, 'error');
     });
@@ -898,6 +1014,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }));
           accessRef.current = session?.permissions ?? null;
           roleRef.current = session?.role ?? null;
+          superOwnerRef.current = session?.isSuperOwner === true;
           // Before bootstrap: every booking it maps is printed on the store's clock.
           setStoreTimeZone(me.business?.timezone);
           // Every role gets chrome theme from /auth/me — staff often cannot call GET /business.
@@ -993,6 +1110,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }));
           accessRef.current = session?.permissions ?? null;
           roleRef.current = session?.role ?? null;
+          superOwnerRef.current = session?.isSuperOwner === true;
           setStoreTimeZone(res.business?.timezone);
           setThemeConfig(themeConfigFromBusiness(res.business));
           showToast(message, 'success');
@@ -1019,6 +1137,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         // in on this device saw the previous user's nav for a frame.
         accessRef.current = null;
         roleRef.current = null;
+        superOwnerRef.current = false;
         reportQueryRef.current = { range: 'today' };
         setThemeConfig(null);
         setStoreTimeZone(null);
@@ -1031,6 +1150,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           commission: null,
           commissionVisitsFor: null,
           ...SIGNED_OUT_SERIES,
+          ...SIGNED_OUT_DUE,
         }));
         showToast(message, type);
       },
@@ -1058,6 +1178,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }));
       },
       closeWalkin: () => patch(() => ({ sheet: null })),
+      openBook: () => patch(() => ({ sheet: 'book' })),
+      closeBook: () => patch(() => ({ sheet: null })),
+      bookAppointment: async (input) => {
+        try {
+          await api.createAppointment(input);
+          setS((p) => ({ ...p, sheet: null }));
+          showToast(t.series.visitBooked, 'success');
+          loadAppointments();
+          refreshVisibleCalendarRange();
+          // A booked regular leaves the call list.
+          scheduleDueRefresh();
+          return true;
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? t.toast.error, 'error');
+          return false;
+        }
+      },
       openQr: () => patch(() => ({ qr: true })),
       completeOnboarding: () => {
         patch(() => ({ onboarded: true }));
@@ -1136,10 +1273,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }
         }
       },
-      checkout: async (id, amountPaise) => {
+      checkout: async (id, amountPaise, paymentMethod) => {
         patch(() => ({ detailBusy: true, detailAction: 'checkout' }));
         try {
-          const res: any = await api.checkout(id, amountPaise);
+          const res: any = await api.checkout(id, amountPaise, paymentMethod);
           setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session), detailId: null, detailBusy: false, detailAction: null }));
           showToast(
             res.promoted ? format(t.toast.nowInService, { name: String(res.promoted.name).split(' ')[0] }) : t.toast.checkedOut,
@@ -1149,6 +1286,38 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {
           patch(() => ({ detailBusy: false, detailAction: null }));
           showToast((e as ApiError)?.message ?? t.toast.couldNotCheckOut, 'error');
+        }
+      },
+      chargeCard: async (id, amountPaise) => {
+        patch(() => ({ detailBusy: true, detailAction: 'charge' }));
+        try {
+          const outcome = await chargeVisit(id, amountPaise);
+          if (outcome.kind === 'paid') {
+            const res: any = outcome.res;
+            const name = flatCards(s.seats).find((c) => c.id === id)?.name?.split(' ')[0] ?? '';
+            setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session), detailId: null, detailBusy: false, detailAction: null }));
+            showToast(
+              res.promoted
+                ? format(t.toast.cardPaidNext, { name: String(res.promoted.name).split(' ')[0] })
+                : format(t.toast.cardPaid, { name }),
+              'success',
+            );
+            loadDashboard();
+            return;
+          }
+          patch(() => ({ detailBusy: false, detailAction: null }));
+          if (outcome.kind === 'declined') {
+            showToast(format(t.toast.cardDeclined, { reason: outcome.reason ? ` (${outcome.reason})` : '' }), 'error');
+          } else if (outcome.kind === 'canceled') {
+            showToast(t.toast.cardCanceled, 'info');
+          } else {
+            // Charged (or maybe charged) but not yet recorded: left pending for recovery, never
+            // failed — see lib/card-payment-flow.ts.
+            showToast(t.toast.cardUnconfirmed, 'error');
+          }
+        } catch (e) {
+          patch(() => ({ detailBusy: false, detailAction: null }));
+          showToast((e as ApiError)?.message ?? t.toast.couldNotCharge, 'error');
         }
       },
       noShow: async (id) => {
@@ -1286,6 +1455,40 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
       },
+      bookDueCustomer: async (customerId, input) => {
+        try {
+          await api.createAppointment({ customerId, ...input });
+          setS((p) => ({ ...p, due: dropDue(p.due, customerId) }));
+          showToast(t.series.visitBooked, 'success');
+          loadAppointments();
+          refreshVisibleCalendarRange();
+          scheduleDueRefresh();
+          return true;
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? t.toast.error, 'error');
+          return false;
+        }
+      },
+      setDueFollowup: async (customerId, body) => {
+        let before: DueListDTO | null = null;
+        setS((p) => {
+          before = p.due;
+          return { ...p, due: hideDue(p.due, customerId, body) };
+        });
+        try {
+          await api.setFollowup(customerId, body);
+          showToast(dueLoggedMessage(body), 'info', undefined, {
+            action: { label: t.customers.due.undo, onPress: () => void undoDue(customerId) },
+          });
+          scheduleDueRefresh();
+          return true;
+        } catch (e) {
+          setS((p) => ({ ...p, due: before }));
+          showToast((e as ApiError)?.message ?? t.toast.error, 'error');
+          return false;
+        }
+      },
+      undoDueFollowup: (customerId) => undoDue(customerId),
       openSeries: (id) => patch(() => ({ seriesSheetId: id })),
       closeSeries: () => patch(() => ({ seriesSheetId: null })),
       refreshSeriesViews: () => {
@@ -1484,6 +1687,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     loadCalendarAppointments,
     refreshVisibleCalendarRange,
     scheduleSeriesRefresh,
+    scheduleDueRefresh,
+    undoDue,
     setReportQuery,
     setThemeConfig,
   ]);

@@ -56,6 +56,7 @@ export function SlotPickerInline({
   keepTimeLabel,
   timeLabel = t.appointments.pickTime,
   closedWeekdays,
+  reloadToken = 0,
 }: {
   fetchSlots: (date: string, staffId: string | undefined) => Promise<SlotsResponse>;
   /** The store-local day to open on. */
@@ -72,6 +73,8 @@ export function SlotPickerInline({
   keepTimeLabel?: string;
   timeLabel?: string;
   closedWeekdays?: Set<number>;
+  /** Bump to read the times again — after a booking was refused because the time was taken. */
+  reloadToken?: number;
 }) {
   const theme = useTheme();
   const { colors } = theme;
@@ -85,27 +88,28 @@ export function SlotPickerInline({
    * for the day and stylist now chosen — rather than set inside the effect, so a quick second tap
    * can never be overwritten by the first tap's slower answer.
    */
-  const key = `${date}|${staffValue ?? ''}`;
+  const key = `${date}|${staffValue ?? ''}|${reloadToken}`;
   const [loaded, setLoaded] = useState<{ key: string; res: SlotsResponse } | null>(null);
   const [failed, setFailed] = useState<{ key: string; message: string } | null>(null);
 
   useEffect(() => {
     let alive = true;
+    const requested = `${date}|${staffValue ?? ''}|${reloadToken}`;
     fetchSlots(date, staffValue)
       .then((res) => {
         if (!alive) return;
-        setLoaded({ key: `${date}|${staffValue ?? ''}`, res });
+        setLoaded({ key: requested, res });
         setRange({ today: res.today, lastDay: res.lastDay });
       })
       .catch((e) => {
-        if (alive) setFailed({ key: `${date}|${staffValue ?? ''}`, message: (e as ApiError)?.message ?? t.toast.error });
+        if (alive) setFailed({ key: requested, message: (e as ApiError)?.message ?? t.toast.error });
       });
     return () => {
       alive = false;
     };
     // `fetchSlots` is a fresh closure on every parent render; the request depends only on these.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, staffValue]);
+  }, [date, staffValue, reloadToken]);
 
   const current = loaded?.key === key ? loaded.res : null;
   const error = failed?.key === key ? failed.message : null;

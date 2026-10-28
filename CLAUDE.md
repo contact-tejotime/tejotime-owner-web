@@ -36,7 +36,7 @@ non-trivial work in that area:
 |---|---|
 | [architecture.md](.claude/docs/architecture.md) | topology, request lifecycle, module layout, realtime, routing traps |
 | [database.md](.claude/docs/database.md) | every table and column, enums, indexes, the `queue_*` plpgsql functions, migration history |
-| [api.md](.claude/docs/api.md) | all 102 endpoints with their guards, error envelope, auth, upload flow |
+| [api.md](.claude/docs/api.md) | all 107 endpoints with their guards, error envelope, auth, upload flow |
 | [business-logic.md](.claude/docs/business-logic.md) | queue engine algorithms, ETA alerts, checkout cascade, permissions, plan gating |
 | [deployment.md](.claude/docs/deployment.md) | Railway runbook, migration procedure, env vars, CI gaps |
 | [current-work.md](.claude/docs/current-work.md) | **living** — what shipped recently, known gaps, next steps |
@@ -173,6 +173,10 @@ observability/     health.ts (/healthz liveness, /readyz db-readiness)
   See [docs/customer-chatbot-v1.md](docs/customer-chatbot-v1.md). The store chat can also **act** —
   check in, book, status, leave, cancel — through a page-side state machine that calls the pop-up's
   own code, never through the answer bot: [docs/customer-chatbot-booking.md](docs/customer-chatbot-booking.md).
+- Owner call list ("Due to come back", [docs/customer-due-list.md](docs/customer-due-list.md)):
+  `GET /customers/due`, `PUT|DELETE /customers/:id/followup`, and the owner booking it uses —
+  `GET /appointments/slots?date&serviceIds&staffId` + `POST /appointments`. Each is registered
+  **before** its router's `/:id`, whose uuid check would otherwise answer 400.
 - Admin surface (`/admin/*`) is gated by a separate admin JWT and re-checks the `admins` row on
   **every** request, so a demotion/deactivation bites immediately.
 - Webhooks: `/webhooks/payments`, `/webhooks/sms` (both inert), and `/webhooks/whatsapp` (live: Meta's
@@ -188,7 +192,8 @@ Two namespaces, initialized in `realtime/io.ts`:
 | `/customer` | anonymous; ticket access via HMAC `ticketKey` | `public:{businessId}`, `ticket:{ticketId}` |
 
 Events: `queue:snapshot`, `queue:entry.started|completed`, `availability:updated`,
-`staff:availability`, `ticket:updated`, `ticket:ready`, `ticket:eta_15`, `subscription:updated`.
+`staff:availability`, `ticket:updated`, `ticket:ready`, `ticket:eta_15`, `subscription:updated`,
+`customer:followup` (a call logged or undone on the "Due to come back" list).
 **All emits happen after the DB commit.** A staff socket deliberately does **not** join the
 business room (it would leak the whole shop's queue); seat-scoped emits are not implemented yet,
 so staff clients fall back to polling.
@@ -223,6 +228,16 @@ and renamed "Established year" to "Year opened (optional)", shown on the page on
 0039/0040 are the checkout add-ons ([docs/checkout-add-ons.md](docs/checkout-add-ons.md)):
 - 0039: one row per add-on label per visit, plus `queue_remove_extra`.
 - 0040: `queue_entry_extra.price_type`, so a no-price service picked second still has to be priced.
+0042/0043 are "Paid by" and card payments on the PayPal reader ([docs/card-payments-paypal.md](docs/card-payments-paypal.md)):
+- 0042: `visit.payment_method`; `queue_checkout` gains `p_payment_method` (3-arg version dropped).
+- 0043: `business.card_payments_enabled` / `paypal_org_ref`, `visit.refunded_at`, the `card_payment`
+  table and `card_payment_start|complete|refund`. It also adds the pending-card guard on
+  `queue_checkout` / `queue_no_show`, and refund-aware `visit_commission` and 0010 admin functions.
+
+0045 is "Due to come back" ([docs/customer-due-list.md](docs/customer-due-list.md)):
+- `customer_followup`: one current-state row per customer recording what a call achieved
+  (no_answer / call_later with `snooze_until`, or not_interested), tied to `about_last_visit`.
+- `idx_visit_business_customer_completed`. Who is due is computed when read, from `visit` alone.
 
 Notable constraints and conventions:
 - UUID PKs (`gen_random_uuid()`); `pgcrypto` + `pg_trgm` extensions.
@@ -395,6 +410,32 @@ price (`extend` with `pricePaise`) and it goes into the box, a highlighted one c
 (`TEJO:ALREADY_ADDED` → 409). The arithmetic is `lib/checkout-amount.ts`, hand-kept in owner-web and
 the app (`npm run test:checkout`).
 
+**"Paid by" and card payments** ([docs/card-payments-paypal.md](docs/card-payments-paypal.md), 0042,
+0043):
+- **US stores only** (client 2026-10-15). A US store is one priced in **USD**: `isUsStore` in
+  `domain/enums.ts` and in both `lib/checkout-amount.ts` copies. Every other store checks out exactly
+  as before, with no "Paid by" and no card payments. The API refuses card payments there (409
+  `CARD_PAYMENTS_US_ONLY`) and reports `cardPaymentsEnabled: false`.
+- **"Paid by"** is asked, and required, only while a US store has **Card payments switched on**
+  (client 2026-10-16; `paidByAsked` / `paidByChoices`, fed by the billing's `cardPaymentsEnabled`).
+  It offers **Card and Cash** (`paymentMethodsFor`). Switched off (the default), the sheet is the old
+  one, and Complete is ready as soon as the bill is. The API checks a sent method against the
+  currency only, so a sheet opened before the switch still lands. The 0042 check still allows
+  venmo/zelle/cash_app/upi/other, for a wider list later.
+- **Card charging** uses the PayPal POS Card Reader. It runs only in the app (PayPal's native SDK,
+  `app/modules/paypal-reader`) and only for the **main owner** (`requireSuperOwner` on
+  `/card-payments`). Once a store turns it on, nobody else may record Card (403 `CARD_OWNER_ONLY`).
+- **"Sign out of PayPal"** in the app also turns card payments off and clears the store's saved
+  PayPal account (`POST /card-payments/disconnect`, 2026-10-28), which is how a store switches
+  accounts. It is refused (409 `CARD_PAYMENT_IN_PROGRESS`) while any charge is unconfirmed.
+  `PUT /settings` never clears the account.
+- **Once money has moved it is always recorded:**
+  - a charge in flight blocks other checkouts for 15 minutes (409 `CARD_PAYMENT_IN_PROGRESS`);
+  - an approved card whose visit can't be completed is kept `paid` + `needs_review`;
+  - a lost result stays `pending` until the reader is asked again.
+- **A refund** (whole amount, card only) takes the visit's money out of revenue, commission and
+  customer spend on its own day. The visit still counts.
+
 **ETA-15 alert** (`lib/eta-notify.ts` + `queue.service.ts` `processTicketBroadcasts`) — one-shot
 per ticket, for **online live-queue joins only** (not walk-ins, not checked-in appointments),
 when `0 < waitMinutes <= ETA_NOTIFY_MINUTES`. Idempotency via a **conditional claim** on
@@ -424,10 +465,58 @@ The box's wording follows the picker's dial code (`frontend/src/lib/message-chan
 picker now starts on the store's country. A STOP on WhatsApp (signed webhook) sets
 `customer.sms_opt_out_at` at every store, so it now means "opted out on any channel".
 
-**Plan gating** — free plan truncates the customer list to `FREE_PLAN_CUSTOMER_LIMIT` (2) and
-returns `meta.lockedCount`. The **server** truncates; client blur is cosmetic only. Reads use
-`getLivePlan()` (a DB lookup) rather than the token's `plan` claim, so an upgrade applies
-immediately without waiting for a refresh.
+**Plan gating** — **none today** (2026-10-28, [docs/customer-list-no-limit.md](docs/customer-list-no-limit.md)).
+Every plan sees the whole customer list, up to the API's page size (newest 100). The free plan's
+cut to 2, owner-web's "Upgrade to Premium" card, its Settings → Subscription page and
+`FREE_PLAN_CUSTOMER_LIMIT` are all gone. `plan` and `meta.lockedCount` (always 0) stay in
+`GET /customers` because shipped app builds read them. If a gate ever returns, enforce it on the
+server and read `getLivePlan()` (a DB lookup), not the token's `plan` claim.
+
+**"Due to come back"** ([docs/customer-due-list.md](docs/customer-due-list.md), 0045, client
+2026-10-28) — a call list on Customers (`All | Due · N`, All the default; **no Home card**, per the
+2026-09-22 Home decision), so the salon phones regulars just before they would come back and books
+them there and then. The rules are pure (`backend/src/lib/due-back.ts`):
+- **Regular:** ≥ 3 store-local visit days. The usual gap is the median of the last ≤ 5 gaps, and
+  must be ≥ 7 days. The band is usual ± max(3 days, 25%), e.g. 20 → 15–25. Every recent gap must be
+  inside the band, except one outlier is forgiven once there are ≥ 3 gaps.
+- **Status:** listed from expected − 2 days ("Due soon"), "Overdue" after last + top of the band,
+  "Not back for a while" after last + 2× usual, dropped after 180 days.
+- **Never listed:** a live booking from the store's midnight on, an active/paused series, or a
+  waiting/in-service ticket today — matched by customer id **or phone digits**.
+- **Staff logins** see only customers whose **last visit was in their chair**.
+- **Call outcomes** (`customer_followup`): "no answer" hides until the store's tomorrow, "call back
+  on" until a day ≤ today+60, "not interested" until undone. A snooze only holds while its visit is
+  still the latest one.
+- **Book** uses `POST /appointments` (hardened 2026-10-28; it had no screen and no guard): the same
+  `isBookable` as public booking under the `appt:` lock, owner window today+60, services itemised,
+  `source='owner'`, and **no SMS** (`sms_opt_in` false — no confirmation, reminder or review text).
+  Its picker is `GET /appointments/slots?serviceIds=`.
+
+**No overlapping bookings, from anyone** (2026-10-28). Every booking write goes through
+`lib/booking-slots.ts` `isBookable` / `computeSlots` under the store's `appt:` advisory lock:
+- the customer's own booking, and the owner's booking (`POST /appointments`);
+- owner and customer moves (`reschedule.service.ts`);
+- the series job and series edits.
+
+That rule says:
+- a named stylist never holds two overlapping bookings;
+- "any stylist" bookings use up one of the store's chairs;
+- only on-grid times inside opening hours and the window are accepted.
+
+The bookings it reads (`booking.repo.ts` `slotInputFor`) are `pending`, `confirmed` **and
+`checked_in`**. Before 2026-10-28 a checked-in visit stopped counting, so 12:30 on a stylist with a
+checked-in 12:00–13:00 showed as free and could be double-booked. Cancelled and no-show rows free
+their time. Walk-ins in the live queue are a separate system and are not appointments.
+`scripts/smoke-no-overlap-db.ts` covers every path, including concurrent owner + customer bookings.
+
+**Book appointment** ([docs/owner-book-appointment.md](docs/owner-book-appointment.md), 2026-10-28):
+- **The "+":** on Appointments (owner-web and app) it books a scheduled visit. It used to open Add
+  walk-in, which now opens from Home only.
+- **The form:** name, phone, services, then day / stylist / free time. The phone is **required**, and
+  a known number is that customer, never a duplicate.
+- **The API:** `POST /appointments` without `customerId` refuses a missing or invalid phone (400),
+  and accepts `visitorType`.
+- **Gating:** the "+" needs `appointments: manage`.
 
 **Recurring appointments** ([docs/recurring-appointments.md](docs/recurring-appointments.md), 0036)
 — a customer books once with `repeat: { everyDays, end }`. `appointment_series` stores the **rule**;
@@ -529,6 +618,7 @@ it in the Appearance panel with a live `?preview=1` iframe of the microsite (gat
 | Email | SES/Postmark | **Deferred no-op** (`EMAIL_ENABLED=false`) |
 | Payments | Razorpay/Stripe | **Deferred** — `upgrade()` flips the plan directly when `PAYMENTS_ENABLED=false` |
 | OTP | — | **Deferred stub** (`OTP_ENABLED=false`) |
+| In-store card payments | **PayPal POS Card Reader** via PayPal's native Zettle SDK (iOS 4.70.4 CocoaPods, Android 2.52.0 GitHub Packages) in `app/modules/paypal-reader` — the app only, main owner only | **Written, not yet built on a device** — [docs/card-payments-paypal.md](docs/card-payments-paypal.md) |
 | Help chat (store microsite + marketing landing page) | **Gemini / Groq free tier** behind `CHATBOT_PROVIDER`; a key-free FAQ/facts matcher underneath | **Shipped**, `CHATBOT_ENABLED` default false |
 
 Every integration is a **seam**: an interface plus a flag-gated implementation that logs and
@@ -605,7 +695,7 @@ Required (no default): `DATABASE_URL`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SE
 `TICKET_URL_HMAC_SECRET` (secrets are `min(16)`).
 
 Tunables: `JWT_ACCESS_TTL` 900, `JWT_REFRESH_TTL` 2592000, `JWT_ADMIN_TTL` 43200,
-`FREE_PLAN_CUSTOMER_LIMIT` 2, `ETA_NOTIFY_MINUTES` 15, `TICKET_ABANDON_HOURS` 4,
+`ETA_NOTIFY_MINUTES` 15, `TICKET_ABANDON_HOURS` 4,
 `BOOKING_SLOT_MINUTES` 30, `DATABASE_POOL_MAX` 10, `S3_UPLOAD_URL_TTL` 600,
 `S3_DOWNLOAD_URL_TTL` 3600, `CORS_ALLOWED_ORIGINS` (comma-separated; empty ⇒ allow all).
 
@@ -623,7 +713,10 @@ campaign's Messaging Service instead of `TWILIO_FROM`; see [docs/sms-opt-in-a2p.
 
 Client vars: `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_SOCKET_URL`, `NEXT_PUBLIC_ASSET_PREFIX`,
 `NEXT_PUBLIC_ADMIN_ORIGIN`, `NEXT_PUBLIC_OWNER_ORIGIN`, `NEXT_PUBLIC_FRONTEND_URL` (frontend/
-admin/owner) and `EXPO_PUBLIC_API_BASE_URL` / `_SOCKET_URL` / `_WEB_URL` (mobile).
+admin/owner) and `EXPO_PUBLIC_API_BASE_URL` / `_SOCKET_URL` / `_WEB_URL` (mobile), plus the
+card reader's `EXPO_PUBLIC_PAYPAL_CLIENT_ID_IOS` / `_ANDROID` / `_REDIRECT_URL` / `_DEV_MODE` (never
+dev mode in production). Android builds also need **`GITHUB_PACKAGES_TOKEN`** (a GitHub PAT with
+`read:packages`) for PayPal's SDK ([docs/card-payments-paypal.md](docs/card-payments-paypal.md)).
 `BACKEND_API_BASE_URL` (owner-web, admin-panel) is **server-side only, never `NEXT_PUBLIC_`**.
 Keep `PUBLIC_WEB_URL`, `NEXT_PUBLIC_FRONTEND_URL`, and `EXPO_PUBLIC_WEB_URL` on the same origin —
 they generate QR/booking links.
@@ -666,6 +759,7 @@ And `npm run test:commission` — runs the app's and owner-web's hand-kept copie
 drift, plus `app/src/lib/date-grid.ts`. Both files must stay import-free.
 And `npm run test:checkout` — the same for the two copies of `lib/checkout-amount.ts`, the checkout
 sheet's amount-box arithmetic ([docs/checkout-add-ons.md](docs/checkout-add-ons.md)); import-free too.
+It also pins the "Paid by" lists (`paymentMethodsFor`) against the backend's own, in `domain/enums.ts`.
 
 > These checks are **not wired into CI**. Run them manually after touching the theme engine, the
 > cropper, a theme axis, or the mobile breakpoints.
@@ -727,7 +821,7 @@ Checklist for any owner-facing change:
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **46 vitest files, 574 tests** (2026-10-23), run with `npm test` in `backend/`
+- `backend/tests/unit/` — **51 vitest files, 667 tests** (2026-10-28), run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
   Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
   `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
@@ -769,6 +863,18 @@ Checklist for any owner-facing change:
 
   It needs a running API and a seeded throwaway DB. It spends one login and two public writes, and
   it is re-runnable, because it makes its own chair and services.
+  `backend/scripts/smoke-no-overlap-db.ts` (`npx tsx`; a **migrated** throwaway DB; makes and
+  deletes its own store; refuses `backend/.env`'s DB) proves a stylist never gets two overlapping
+  bookings through ANY path:
+  - customer then owner, and owner then customer;
+  - four tries at one time at once (exactly one wins);
+  - "any stylist" capacity;
+  - owner and customer moves;
+  - a checked-in visit still holding its chair;
+  - a final whole-day overlap query.
+  `backend/scripts/smoke-book-appointment.mjs` (running API + seeded throwaway DB; re-runnable,
+  two logins) proves Book appointment end to end: slots → name + phone booking → on the day's list →
+  one customer per number → 400 without a valid phone → 409 on a taken slot → staff 403.
   `backend/scripts/smoke-booking-guards.mjs` pins the server-side booking rule (one booking when two
   customers confirm together; overlap / past / closed / out-of-hours / beyond-window → 409
   `SLOT_UNAVAILABLE`; foreign or malformed stylist → 400) — same fresh-API rule.
@@ -777,12 +883,33 @@ Checklist for any owner-facing change:
   running API with `SMS_ENABLED=false` + a seeded throwaway DB that it also **reads**
   (`SMOKE_DATABASE_URL`; refuses `backend/.env`'s), because a text is only visible as a
   `notification` row ([docs/sms-opt-in-a2p.md](docs/sms-opt-in-a2p.md)).
+  `backend/scripts/smoke-payment-method.mjs` ("Paid by" on the visit and the customer history) and
+  `backend/scripts/smoke-card-payments.mjs` cover [docs/card-payments-paypal.md](docs/card-payments-paypal.md).
+  The card script plays the phone's part, since the reader needs PayPal's native SDK. It covers:
+  - US stores only (the rupee seed store is refused);
+  - main owner only, and the pending guard;
+  - complete and repeat;
+  - decline, a late charge recorded as needs review, refund out of revenue and commission;
+  - turning it off.
+
+  Both need a running API, a seeded throwaway DB and an admin login: each creates its own US store
+  through the admin API (`SMOKE_ADMIN_*`, defaulting to the migrate demo admin) and deactivates it at
+  the end. The card script spends five logins.
   `backend/scripts/smoke-whatsapp.mjs` proves WhatsApp for +91 customers: the templates reach Meta
   with their variables in order, +1 stays SMS, the webhook's signed statuses and STOP work, and
   (`--expect-disabled`) that `WHATSAPP_ENABLED=false` sends nothing. It needs a running API + a seeded
   throwaway DB it also reads (`SMOKE_DATABASE_URL`). It runs its own stand-in for Meta's Graph API,
   and the API points at it via `WHATSAPP_API_BASE_URL`, so nothing leaves the machine
   ([docs/whatsapp-india.md](docs/whatsapp-india.md)).
+  "Due to come back" has a pair ([docs/customer-due-list.md](docs/customer-due-list.md)):
+  - `backend/scripts/smoke-due-list-db.ts` (`npx tsx`; a **migrated** throwaway DB; injected clock;
+    makes and deletes its own store; refuses `backend/.env`'s DB) proves the real SQL with backdated
+    visits: store-local days, statuses, exclusions, follow-ups, staff scope, the services pre-fill,
+    and booking from the list under the `appt:` lock.
+  - `backend/scripts/smoke-due-list.mjs` (running API + seeded throwaway DB it also writes:
+    `SMOKE_DATABASE_URL`, to backdate three visits) proves the HTTP surface: list, hide/undo,
+    "call back on" validation, slots → book → off the list, 409 on a taken slot, staff 403s, and
+    (its cleanup) the owner's Cancel. Re-runnable; two logins.
   `backend/scripts/smoke-demo-stores.mjs` is the other odd one out: it needs **no seed** and runs
   against a deployed environment (`SMOKE_BASE_URL`, optional `SMOKE_WEB_URL`) after
   `provision-demo-stores.mjs` has created the nine homepage industry stores through the admin API.

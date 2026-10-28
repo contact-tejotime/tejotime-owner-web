@@ -43,6 +43,12 @@
           "cameraPermission": false,
           "microphonePermission": false
         }
+      ],
+      [
+        "./modules/paypal-reader/app.plugin.js",
+        {
+          "redirectUrl": "tejotime-paypal://login.callback"
+        }
       ]
     ],
     "experiments": {

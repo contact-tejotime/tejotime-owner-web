@@ -19,9 +19,13 @@ import { recurringSweep } from '../modules/appointments/series.service';
  */
 async function staleCleanup() {
   const cutoff = new Date(Date.now() - env.TICKET_ABANDON_HOURS * 3_600_000).toISOString();
+  // Not an entry whose card the owner is charging (0043): cancelling it mid-charge would leave the
+  // charge with no visit to land on. Once that attempt is paid or given up, the next sweep takes it.
   const rows = await many(
-    `select id, business_id from queue_entry
-      where status in ('waiting', 'in_service') and joined_at < $1`,
+    `select q.id, q.business_id from queue_entry q
+      where q.status in ('waiting', 'in_service') and q.joined_at < $1
+        and not exists (select 1 from card_payment cp
+                          where cp.queue_entry_id = q.id and cp.status = 'pending')`,
     [cutoff],
   );
   if (!rows.length) return;

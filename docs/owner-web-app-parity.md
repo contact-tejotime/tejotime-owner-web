@@ -40,14 +40,17 @@ selector behind a screen prefix so it cannot leak. `globals.css` keeps only shar
 | Reports | `(tabs)/stats.tsx`, `cards/StatCard.tsx`, `feedback/DateRangeSheet.tsx`, `feedback/CommissionVisitsSheet.tsx`, `lib/commission-text.ts` | `stats/page.tsx`, `stats/ReportQueuePreview.tsx`, `stats/CommissionVisitsSheet.tsx`, `stats/commission-text.ts` | `reports.css` (`.rp-*`) |
 | Commission rates | `settings/commission.tsx`, `components/settings/CommissionEditSheet.tsx`, `common/TMonthGrid.tsx` | `settings/commission/page.tsx`, `components/CommissionEditor.tsx` | `settings-b.css` (`.cm-*`) |
 | Appointments | `(tabs)/appointments.tsx`, `AppointmentListItem.tsx` | `appointments/page.tsx`, `components/AppointmentListItem.tsx`, `lib/appointments.ts` | `appointments.css` |
+| Appointments "+" → Book appointment ([owner-book-appointment.md](./owner-book-appointment.md)); walk-ins only from Home | `feedback/BookAppointmentSheet.tsx` (mounted in `(app)/_layout.tsx`, `store.openBook` / `bookAppointment`), `appointments/SlotPickerInline.tsx`, `RescheduleInline.tsx` (`useStaffOptions`) | `appointments/AppointmentsBook.tsx`, `components/NewAppointmentSheet.tsx`, BFF `api/appointments`, `api/appointments/slots` | `shell-sheets.css` (`wk-*`), `series.css` (`rs-*`) |
 | Calendar | `(tabs)/calendar.tsx`, `DayAppointmentsSheet.tsx` | `calendar/page.tsx`, `calendar/CalendarMonth.tsx` | `calendar.css` (`.calx-*`) |
 | Recurring: Regulars, Needs attention, series sheet ([recurring-appointments.md](./recurring-appointments.md)) | `(tabs)/appointments.tsx` (Today \| Regulars), `appointments/RegularCard.tsx`, `appointments/NeedsAttentionCard.tsx`, `feedback/SeriesSheet.tsx` (mounted in `(app)/_layout.tsx`), `lib/series.ts`, `state/store.tsx` | `appointments/page.tsx` (`?view=regulars`), `appointments/RegularsList.tsx`, `components/series/*` (`SeriesSheet` in a `BottomSheet`/`OverlayPortal`, `NeedsAttentionCard`, `RepeatMark`, `ResolveIssueButton`), `lib/series.ts`, BFF `api/appointments/series/**` | `appointments.css`, `series.css` |
 | Recurring Phase 2: Move visit, Change future visits, Book another time | `appointments/SlotPickerInline.tsx`, `appointments/RescheduleInline.tsx`, `appointments/ChangeFuturePanel.tsx`, `lib/zoned.ts` (store-clock times) | `series/RescheduleSheet.tsx`, `series/ChangeFuturePanel.tsx`, `series/BookingSheets.tsx` (one host for the series sheet, row Reschedule and Book another time on Appointments and Calendar), BFF `api/appointments/[id]/slots`, `series/[id]/slots`, `series/[id]/preview-change`, `series/issues/[issueId]/book` | `series.css`, `calendar.css` |
 | Customers | `(tabs)/customers.tsx`, `cards/CustomerCard.tsx` | `customers/page.tsx`, `customers/CustomerCard.tsx`, `CustomerSearch.tsx` | `customers.css` |
+| Customers → Due ("Due to come back", [customer-due-list.md](./customer-due-list.md)): All \| Due · N switch, call list, Book, Later, Not interested, Undo | `(tabs)/customers.tsx` (Due view), `customers/DueCard.tsx`, `appointments/RescheduleInline.tsx` (`BookNewInline`), `lib/due.ts`, `lib/toast.ts` + `common/TToast.tsx` (Undo), `state/store.tsx` | `customers/page.tsx` (`?view=due`), `customers/DueList.tsx`, `customers/LaterSheet.tsx`, `series/RescheduleSheet.tsx` (target `new`), `lib/due.ts`, `lib/toast.tsx` (Undo), BFF `api/customers/[id]/followup`, `api/appointments`, `api/appointments/slots` | `customers-due.css`, `series.css` |
 | Settings hub | `(tabs)/settings.tsx`, `TSettingsRow.tsx` | `settings/page.tsx`, `SettingsScreen.tsx`, `settings/account/` | `settings-hub.css` (`.st-*`) |
 | Hours, Team, Notifications, Password | `settings/hours|team|notifications|password.tsx` | `settings/hours|team|notifications/`, `HoursEditor`, `TeamManager`, `ChangePasswordForm`, `SettingsSubpageShell` | `settings-a.css` (`.sa-*`) |
 | Profile, Appearance, Services, Staff | `settings/profile|appearance|services|staff.tsx`, `components/settings/*` | `settings/profile|appearance|services|staff/`, `components/store-settings/*`, `components/appearance/*` | `settings-b.css` (`.sb-*`) |
 | Chrome and sheets | `(tabs)/_layout.tsx`, `THeader`, `TSheet`, `DetailPanel`, `AddWalkInSheet`, `QRSheet`, `ConfirmSheet`, `QueueCard` | `BottomNav`, `AppPageHeader`, `PageHeader`, `BottomSheet`, `OverlayPortal`, `QueueDetailSheet`, `WalkInSheet`, `StoreBookingQr`, `ConfirmDialog` | `shell-sheets.css` |
+| Card payments: "Paid by" on checkout, Card rules, the charging banner, Settings → Card payments ([card-payments-paypal.md](./card-payments-paypal.md)) | `feedback/DetailPanel.tsx`, `settings/card-payments.tsx`, `lib/card-reader.ts`, `lib/card-payment-flow.ts`, `modules/paypal-reader/` | `QueueDetailSheet.tsx`, `settings/card-payments/page.tsx` (read-only) | `shell-sheets.css` (`.dp-paid-by`), `settings-a.css` |
 | Checkout: amount to charge, add-on chips, required price for a no-price service, Total to charge, one scroll with pinned actions ([checkout-add-ons.md](./checkout-add-ons.md)) | `feedback/DetailPanel.tsx`, `feedback/ConfirmSheet.tsx` (`presentation="overlay"`), `lib/checkout-amount.ts`, `state/store.tsx` (`extendService`, `removeExtra`) | `QueueDetailSheet.tsx`, `ConfirmDialog.tsx` (`prefix`/`inputMode`/`validate`), `lib/checkout-amount.ts`, BFF `api/queue/[id]/[action]` (`remove-extra`) | `shell-sheets.css` (`.dp-chip.is-selected`, `.cfm-input-wrap`, `.dp-checkout`, `.dp-req-*`, `li.grand`, `.dp-footer.is-raised`) |
 
 ## Rules every overlay must follow
@@ -72,7 +75,9 @@ targets that element.
 - **Times and dates use the store's timezone** (`GET /business` → `timezone`, default
   `Asia/Kolkata`), not the server clock — Railway runs UTC, which printed times 5h30m off.
 - **Walk-in (web):** multi-service, Next up / End of queue, and MR/Patient for Hospital stores —
-  the backend requires it, so Hospital walk-ins from the web used to fail.
+  the backend requires it, so Hospital walk-ins from the web used to fail. Since 2026-10-28 it opens
+  only from Home (the live queue card and an empty seat); the Appointments "+" books an appointment
+  instead, on both surfaces.
 - **Customer sheet:** reads the live card, not a click-time snapshot, so a ticket another device
   already started stops offering Start.
 - **Appearance is its own page,** `/settings/appearance`, as on the app. Profile's save no longer
@@ -108,11 +113,12 @@ targets that element.
 
 Kept because a browser is not an App Store build, or because removing them would lose something:
 
-- **Subscription:** the Settings row, the Team permission grid's billing module, and the Customers
-  upgrade card for locked customers (billing logins only). The app must never show them
+- **Subscription — no longer a difference (2026-10-28).** The web used to keep a Settings →
+  Subscription row, the Team grid's billing module and a Customers "Upgrade to Premium" card. All
+  three are gone, because every plan now sees the whole customer list
+  ([customer-list-no-limit.md](./customer-list-no-limit.md)). Both surfaces now show the same
+  Customers subtitle and no plan UI. The app must still never show one
   ([mobile-no-in-app-purchases.md](./mobile-no-in-app-purchases.md)).
-  `/settings/subscription` is still a static mock, so that upgrade path is a dead end until
-  billing is real.
 - **Mouse-only affordances:** drag-to-reorder (the ticket's number tile is the handle), hover
   Start / End / × on tickets, hover and focus rings.
 - **Appointments:** a second "Checked in or closed" section, and a × no-show shortcut on bookings
@@ -146,6 +152,14 @@ Kept because a browser is not an App Store build, or because removing them would
   `DetailPanel`'s Modal, because iOS will not present a second Modal over it. Escape (web) and
   Android back close the popup first. Only the web has no toast when an add-on goes on or off — it
   never had one for add-ons; the app keeps its "+10 min · Shave added" / "Shave removed".
+- **Card payments (2026-10-15): the web never charges a card.** PayPal's reader can only be
+  driven by its native SDK on a phone, so the main owner charges and refunds from the app.
+  [card-payments-paypal.md](./card-payments-paypal.md) has the full rules.
+  - **The same on both:** "Paid by" only on US stores with Card payments switched on (same lists, same required rule, `npm run test:checkout`), Card
+    greyed out for staff and co-owners, and the "owner is taking this card" banner.
+  - **Web only:** the main owner's Card means "charged outside TejoTime".
+  - **Settings → Card payments on the web** is a read-only status and list, with no switch, no
+    sign-in and no Refund.
 - **No pull-to-refresh:** `LiveRefresh` (socket for owners, polling for staff) keeps pages current.
 - **Sheets animate in only**; the app also animates them out.
 

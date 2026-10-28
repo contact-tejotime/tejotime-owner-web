@@ -1,7 +1,7 @@
 # API reference
 
 Express 4, TypeScript. Versioned prefix **`/api/v1`** (`config/constants.ts` `API_PREFIX`).
-102 endpoints across 16 routers.
+107 endpoints across 16 routers.
 
 Unversioned and outside auth: `GET /healthz`, `GET /readyz`, `GET /media/*`.
 
@@ -152,12 +152,13 @@ A staff login's own seat **overrides** any `staffId` in the query, so the whole-
 one query string away. Walk-ins added by a staff login are forced onto that login's own chair
 (`'auto'` would let the engine seat them in someone else's lane).
 
-### `/appointments` (20)
+### `/appointments` (21)
 
 | Method | Path | Guards |
 |---|---|---|
 | GET | `/` | `perm=appointments:view` |
-| POST | `/` | `perm=appointments:manage` |
+| POST | `/` | `perm=appointments:manage` — an owner books a customer ("Due to come back" → Book, and Appointments "+" → Book appointment): `{customerId \| customerName+customerPhone (the phone REQUIRED and valid without customerId, else 400), serviceIds[] (legacy serviceId), staffId?: uuid \| 'any', slotStart (legacy scheduledStartAt), notes?, visitorType?: 'mr'\|'patient'}`; a known phone is that customer. Same `isBookable` as public booking under the `appt:` lock, today…today+60; 409 `SLOT_UNAVAILABLE`; staff → own chair only (403); `source='owner'`, `sms_opt_in` false; clears the customer's `customer_followup` |
+| GET | `/slots?date&serviceIds&staffId` | `perm=appointments:manage` — free times for that new booking (length = the services' sum) + `today`/`lastDay` |
 | GET | `/series` | `perm=appointments:view`; `?status=open\|active\|paused\|ended\|cancelled\|all` (default open); staff → own chair |
 | GET | `/series/issues` | `perm=appointments:view`; Needs attention; staff → own chair |
 | POST | `/series/issues/:issueId/resolve` | `perm=appointments:manage` |
@@ -174,17 +175,29 @@ one query string away. Walk-ins added by a staff login are forced onto that logi
 | POST | `/series/issues/:issueId/book` | `perm=appointments:manage` — Book another time; seat-scoped in the service |
 | POST | `/:id/no-show` | `perm=appointments:manage`, `ownRow`; 2 in a row pause the visit's series |
 
-The `/series…` routes are registered **before** `/:id` — `:id`'s UUID check would 400 on the word
-"series". The appointment DTO carries `seriesId`, `occurrenceDate`, `cancelReason`. Recurring
+The `/series…` and `/slots` routes are registered **before** `/:id` — `:id`'s UUID check would 400
+on the word "series" or "slots". The appointment DTO carries `seriesId`, `occurrenceDate`, `cancelReason`. Recurring
 appointments: [docs/recurring-appointments.md](../../docs/recurring-appointments.md).
 
-### `/customers` (5)
+### `/customers` (8)
 
 `GET /` · `GET /:id` · `GET /:id/visits` (`perm=customers:view`) — `POST /` · `PATCH /:id`
 (`perm=customers:manage`).
 
-Free plan truncates the list server-side to `FREE_PLAN_CUSTOMER_LIMIT` and returns
-`meta.lockedCount`.
+"Due to come back" ([docs/customer-due-list.md](../../docs/customer-due-list.md)), registered
+**before** `/:id`:
+- `GET /due` (`perm=customers:view`; staff → customers whose last visit was in their chair) returns
+  `{ today, callBackRange, counts, data, hidden }`.
+- `PUT /:id/followup` (`perm=customers:manage`) takes `{outcome: 'no_answer'}`,
+  `{outcome: 'call_later', callBackOn}` (tomorrow…today+60, otherwise 400) or
+  `{outcome: 'not_interested'}`. A customer with no visits gives 422; another chair's customer gives
+  404 for staff. It emits `customer:followup`.
+- `DELETE /:id/followup` undoes it, and is idempotent.
+
+`GET /` returns the newest `limit` customers (default 100, max 200) on **every** plan. The free
+plan's cut to 2 was removed on 2026-10-28. `meta.lockedCount` is kept but always 0, and `plan` is
+kept, because shipped app builds read both
+([docs/customer-list-no-limit.md](../../docs/customer-list-no-limit.md)).
 
 ### `/business` (6)
 
@@ -242,6 +255,29 @@ Every visit at the latest rate whose start instant is at or before checkout — 
 | GET | `/rates` | `perm=commission:manage` |
 | PUT | `/rates/:staffId` | owner **role** + `perm=commission:manage`; `{ rateBp, effectiveFrom? }` (`effectiveFrom` is a store-local day); today or omitted starts at `now()` as a new row; a future day starts at store midnight and replaces that instant; past day → 409 `COMMISSION_RATE_LOCKED` |
 | DELETE | `/rates/:staffId/:effectiveFrom` | owner role + `perm=commission:manage`; `effectiveFrom` is the UTC instant; only a future instant; a started rate → 409 |
+
+### `/card-payments` (8) — PayPal reader, MAIN OWNER ONLY
+
+All routes are `requireSuperOwner` (a co-owner or staff gets 403). Full rules:
+[docs/card-payments-paypal.md](../../docs/card-payments-paypal.md).
+
+| Method | Path | Does |
+|---|---|---|
+| GET / PUT | `/settings` | card charging on/off `{ enabled, paypalOrgRef? }` |
+| POST | `/disconnect` | the app's "Sign out of PayPal": off **and** `paypal_org_ref` cleared, so another PayPal account can connect; 409 `CARD_PAYMENT_IN_PROGRESS` while any charge is pending; under the `card_payment_start` lock |
+| GET | `/` | attempts, `?status=&needsReview=&limit=` |
+| POST | `/` | `{ queueEntryId, amountPaise > 0 }` → pending row (the reader reference); `resumed` if one was in flight; 409 `CARD_PAYMENTS_OFF` |
+| POST | `/:id/complete` | the reader approved → paid + visit completed (returns the board); idempotent; never refused — `needs_review` instead |
+| POST | `/:id/fail` | `{ reason }`, pending only |
+| POST | `/:id/refund` | `{ refundReference? }` → refunded; visit leaves revenue/commission/customer spend; idempotent |
+
+`POST /queue/:id/checkout` also takes `paymentMethod`:
+- 400 for a method the store's currency does not offer;
+- 403 `CARD_OWNER_ONLY` for Card from anyone but the main owner while card charging is on;
+- 409 `CARD_PAYMENT_IN_PROGRESS` while a card charge is in flight.
+
+`GET /queue/:id` adds `cardPaymentsEnabled`, `cardAllowed` (for the caller) and
+`pendingCardPayment`.
 
 ### `/public` (18) — no auth
 

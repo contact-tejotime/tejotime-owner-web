@@ -10,8 +10,7 @@
  *
  * Widths: one column on a phone (<=640px); from 641px the grid takes as many 300px+ columns as fit
  * (the app's CUSTOMER_CARD_MIN_WIDTH is 320 — see the tablet block for why the web's is 300). That
- * is two on a tablet inside `.page-app`'s 720px column, and two to four beside the sidebar. The
- * free plan's upsell is the grid's last item and fills the row's empty tracks where it can.
+ * is two on a tablet inside `.page-app`'s 720px column, and two to four beside the sidebar.
  */
 
 /* ---- Search: the app's TSearchInput (a standard md field with a leading icon, not a pill) ---- */
@@ -57,10 +56,6 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding-bottom: 24px;
-  /* Queried by the upsell (its last item) to learn how many tracks the grid has — see the
-     tablet block. Inline-size only: the list is a block in normal flow, so its width never
-     depended on its content anyway. */
-  container: cu-list / inline-size;
 }
 
 /* ---- Card: the app's CustomerCard ---- */
@@ -262,68 +257,6 @@
   color: var(--text-subtle);
 }
 
-/* ---- Upgrade prompt (web only — see page.tsx), in the card's vocabulary ---- */
-.cu-upsell {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  /* Only matters when a grid row stretches the box taller than its content (desktop, beside the
-     cards): one line of content centres, as a banner should. */
-  align-content: center;
-  gap: 12px;
-  padding: 16px;
-  background: var(--surface-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
-}
-.cu-upsell-disc {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--primary-soft);
-  color: var(--primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-/* A full row of its own in the list (page.tsx renders it as the grid's last item), 24px under the
-   last card as before: it is a prompt, not another customer. The tablet block lets it share the
-   cards' row where there is a free track. */
-.cu-list > .cu-upsell {
-  grid-column: 1 / -1;
-  margin-top: 12px;
-}
-/* 999 : 1 against the button's grow, so on a shared line the text takes the spare room and the
-   button stays its own width, while a button wrapped onto a line of its own fills it. That is
-   the phone's full-width button and the wide banner's trailing one from one rule, decided by
-   the box's actual width rather than a viewport breakpoint — the box is 300px wide in a desktop
-   grid cell and 950px as a desktop row. */
-.cu-upsell-body {
-  flex: 999 1 200px;
-  min-width: 0;
-}
-.cu-upsell-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--text-strong);
-}
-.cu-upsell-text {
-  margin: 4px 0 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-muted);
-}
-/* The app's primary Button: md control height, md radius. `.btn` supplies the brand fill and ink. */
-.cu-upsell .cu-upsell-cta {
-  flex: 1 0 auto;
-  min-height: var(--control-h-md, 44px);
-  border-radius: var(--radius-md);
-}
-
 /* ---- Skeleton (loading.tsx) ---- */
 .cu-skel-avatar {
   flex-shrink: 0;
@@ -375,43 +308,6 @@
   .cu-search input {
     font-size: 15px;
   }
-
-  /*
-   * The upsell takes the free tracks at the end of the cards' row instead of a row of its own.
-   * `data-after` is the number of cards before it, which is the plan's limit whenever it shows
-   * (the server cuts the list there). Track counts follow from the grid above: N 300px columns
-   * with 12px gaps need N × 312 − 12 px, so 2 tracks from 612px and 3 from 924px — 1280px beside
-   * the sidebar has three, which is where two cards used to leave a hole. Only the default limit
-   * (2) and a limit of 1 are placed; any other keeps its full row, which is never wrong.
-   *
-   * Width-guarded twice: an `N / -1` placement in a grid with fewer than N tracks would open an
-   * implicit column, so each rule needs its query's track count, and the whole block sits under
-   * the tablet breakpoint because phones are a single `minmax(0, 1fr)` column whatever their width.
-   * In exactly one track it is card-sized, so its two lines spread to the cell's edges, putting
-   * the button level with the neighbouring cards' metric bands.
-   */
-  @container cu-list (min-width: 612px) {
-    .cu-list > .cu-upsell[data-after="1"] {
-      grid-column: 2 / -1;
-      margin-top: 0;
-    }
-  }
-  @container cu-list (min-width: 612px) and (max-width: 923.98px) {
-    .cu-list > .cu-upsell[data-after="1"] {
-      align-content: space-between;
-    }
-  }
-  @container cu-list (min-width: 924px) {
-    .cu-list > .cu-upsell[data-after="2"] {
-      grid-column: 3 / -1;
-      margin-top: 0;
-    }
-  }
-  @container cu-list (min-width: 924px) and (max-width: 1235.98px) {
-    .cu-list > .cu-upsell[data-after="2"] {
-      align-content: space-between;
-    }
-  }
 }
 
 /* ---- Desktop (sidebar visible) ---- */
@@ -421,6 +317,4 @@
     max-width: 480px;
     margin-bottom: 12px;
   }
-  /* No cap on the upsell, unlike the search: as the grid's last item it spans exactly the tracks
-     it takes, so its edges line up with the cards'. */
 }

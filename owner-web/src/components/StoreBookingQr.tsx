@@ -66,6 +66,45 @@ function printQr(name: string, qrUrl: string) {
 }
 
 /**
+ * The link owners paste into Instagram/Facebook posts and ads: the store page with Check in open.
+ * Shown as a read-only field, so it can still be selected and copied by hand where the clipboard
+ * API is refused (an http origin, a locked-down browser).
+ */
+function SocialLink({ url, copied, onCopied }: { url: string; copied: boolean; onCopied: () => void }) {
+  const fieldId = useId();
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      onCopied();
+    } catch {
+      (document.getElementById(fieldId) as HTMLInputElement | null)?.select();
+    }
+  };
+  return (
+    <div className="qr-social">
+      <label htmlFor={fieldId} className="qr-social-label">
+        {t.qr.socialLabel}
+      </label>
+      <div className="qr-social-row">
+        <input
+          id={fieldId}
+          className="qr-social-url"
+          type="text"
+          readOnly
+          value={url}
+          onFocus={(e) => e.currentTarget.select()}
+        />
+        <button type="button" className="ss-btn outline qr-social-copy" onClick={copy}>
+          <Icon name={copied ? "check" : "copy"} size={15} />
+          {copied ? t.qr.copied : t.qr.copy}
+        </button>
+      </div>
+      <p className="qr-social-hint">{t.qr.socialHint}</p>
+    </div>
+  );
+}
+
+/**
  * Booking QR for the owner's store profile header / Home's live card.
  *
  * Encodes the customer chooser at `/{phone}/card` (same target as the admin hub and the app).
@@ -82,12 +121,15 @@ function printQr(name: string, qrUrl: string) {
  */
 export function StoreBookingQr({
   cardUrl,
+  socialUrl = null,
   storeName,
   variant = "icon",
   label = t.qr.label,
   buttonClassName = "qr-icon-btn",
 }: {
   cardUrl: string;
+  /** The page with Check in open (`?open=checkin`), for social posts and ads. */
+  socialUrl?: string | null;
   storeName: string;
   /** `icon` = compact header control; `button` = dashboard quick-action style. */
   variant?: "icon" | "button";
@@ -96,6 +138,7 @@ export function StoreBookingQr({
   buttonClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const titleId = useId();
 
   if (!cardUrl) return null;
@@ -130,7 +173,10 @@ export function StoreBookingQr({
 
       {open ? (
         <BottomSheet
-          onClose={() => setOpen(false)}
+          onClose={() => {
+            setOpen(false);
+            setCopied(false);
+          }}
           closeLabel={t.qr.close}
           labelledBy={titleId}
           className="qr-sheet"
@@ -146,6 +192,9 @@ export function StoreBookingQr({
               {/* eslint-disable-next-line @next/next/no-img-element -- remote QR PNG, not a page asset */}
               <img src={qrSrc} alt="" width={176} height={176} />
             </div>
+            {socialUrl ? (
+              <SocialLink url={socialUrl} copied={copied} onCopied={() => setCopied(true)} />
+            ) : null}
             <div className="qr-sheet-actions">
               <button
                 type="button"

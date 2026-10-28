@@ -106,12 +106,28 @@ echo ">>> api    : $API_HOST"
 
 # One deterministic .env, written from the resolved values rather than copied, so precedence is
 # already settled by the time Metro reads anything.
+#
+# The PayPal card-reader settings ride along when the source has them (docs/card-payments-paypal.md).
+# Leaving them out produces an app with no card charging and no error, which is how they were
+# nearly lost here the first time.
 {
   echo "EXPO_PUBLIC_ENV=$EXPO_PUBLIC_ENV"
   echo "EXPO_PUBLIC_API_BASE_URL=$EXPO_PUBLIC_API_BASE_URL"
   echo "EXPO_PUBLIC_SOCKET_URL=$EXPO_PUBLIC_SOCKET_URL"
   echo "EXPO_PUBLIC_WEB_URL=$EXPO_PUBLIC_WEB_URL"
+  for v in EXPO_PUBLIC_PAYPAL_CLIENT_ID_IOS EXPO_PUBLIC_PAYPAL_CLIENT_ID_ANDROID \
+           EXPO_PUBLIC_PAYPAL_REDIRECT_URL EXPO_PUBLIC_PAYPAL_DEV_MODE; do
+    if [ -n "${!v:-}" ]; then echo "$v=${!v}"; fi
+  done
 } > .env
+if [ -z "${EXPO_PUBLIC_PAYPAL_CLIENT_ID_ANDROID:-}" ]; then
+  echo ">>> note   : no EXPO_PUBLIC_PAYPAL_CLIENT_ID_ANDROID — this build has no card charging"
+fi
+if [ -n "${GITHUB_PACKAGES_TOKEN:-}" ]; then :; else
+  echo "error: GITHUB_PACKAGES_TOKEN is not set — Gradle cannot download PayPal's Android SDK" >&2
+  echo "       (a GitHub token with read:packages; docs/mobile-android-release.md)." >&2
+  exit 1
+fi
 
 cd android
 # The bundle task's outputs. NOT `generated/assets/createBundleReleaseJsAndAssets` — that is the

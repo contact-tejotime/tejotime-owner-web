@@ -16,6 +16,7 @@ import { apptDTO } from '../appointments/appointments.service';
 import {
   combinedServiceName,
   insertAppointmentServices,
+  resolveServices as resolveVisitServices,
   slotInputFor,
   visitMinutes,
   type Query,
@@ -380,37 +381,11 @@ export async function getStaffAvailability(slug: string) {
 }
 
 /**
- * The services a visit is for, in the order the customer picked them, validated against this
- * business.
- *
- * One resolver for all three entry points (slots, join, book) so they can never disagree about
- * what was selected — the slot length, the queue entry's duration and the checkout total are all
- * derived from this same list.
- *
- * `serviceId` (singular) is still accepted: it is what every already-shipped client sends. When
- * both arrive `serviceIds` wins, with the singular folded in first if it is not already present.
+ * The services a visit is for, in the order the customer picked them — the shared resolver in
+ * booking.repo.ts (the owner's booking uses the same one), read through the pool.
  */
-async function resolveServices(
-  businessId: string,
-  input: { serviceId?: string; serviceIds?: string[] },
-): Promise<{ id: string; name: string; duration_minutes: number; price_paise: number }[]> {
-  const ids: string[] = [];
-  for (const id of [...(input.serviceIds ?? []), ...(input.serviceId ? [input.serviceId] : [])]) {
-    if (!ids.includes(id)) ids.push(id);
-  }
-  if (ids.length === 0) return [];
-
-  const rows = await many<{ id: string; name: string; duration_minutes: number; price_paise: number }>(
-    'select id, name, duration_minutes, price_paise from service where business_id = $1 and id = any($2::uuid[])',
-    [businessId, ids],
-  );
-  // Any unknown id is a hard error rather than a silent drop: quietly booking a shorter, cheaper
-  // visit than the one the customer chose is the failure this whole feature exists to prevent.
-  const missing = ids.filter((id) => !rows.some((r) => r.id === id));
-  if (missing.length) throw Errors.notFound('Service not found');
-  // Preserve the customer's order — the first pick becomes the primary service.
-  return ids.map((id) => rows.find((r) => r.id === id)!);
-}
+const resolveServices = (businessId: string, input: { serviceId?: string; serviceIds?: string[] }) =>
+  resolveVisitServices(many, businessId, input);
 
 /**
  * The extras payload `queue_attach_services` takes: everything after the primary service.

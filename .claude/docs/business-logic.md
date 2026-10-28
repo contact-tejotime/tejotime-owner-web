@@ -237,6 +237,20 @@ store form can set that current percent too (blank = no rate; clearing a started
 Rounded per visit; totals are the sum of the lines. "Today" comes only from the server. All plans.
 Full rules, API and screens: [docs/staff-commission.md](../../docs/staff-commission.md).
 
+## 5a2. "Paid by" and card payments
+
+On US stores (priced in USD) **with Card payments switched on**, checkout asks how the customer paid
+(`visit.payment_method`, Card or Cash). Every other store, and a US store with it off, checks out as
+before, with no question (client 2026-10-16). US stores charge cards on the PayPal POS Card Reader
+from the app.
+- **Who:** the main owner only. PayPal's SDK is native, so owner-web never charges.
+- **Never refused:** once the reader has taken money, the server always records it — `pending` until
+  confirmed, `needs_review` when its visit can no longer be completed.
+- **Refunds:** whole amount, card only. A refund takes the visit's money out of revenue, commission
+  and customer spend on its own day; counts keep it.
+
+Full rules: [docs/card-payments-paypal.md](../../docs/card-payments-paypal.md).
+
 ## 5b. Recurring appointments
 
 A customer books once and the visit repeats every N days (7–90) until never / after X visits /
@@ -283,16 +297,59 @@ Full plan, decisions and phases: [docs/recurring-appointments.md](../../docs/rec
 
 ## 6. Plan gating
 
-Free plan truncates the customer list to `FREE_PLAN_CUSTOMER_LIMIT` (default **2**) and returns
-`meta.lockedCount`.
+**Nothing is plan-gated today (2026-10-28).** The customer list used to be cut to
+`FREE_PLAN_CUSTOMER_LIMIT` (2) on Free, with an "Upgrade to Premium" card on owner-web. Every plan
+now gets the whole list, up to the API's page size (newest 100, max 200). `meta.lockedCount` is
+always 0 and the env var is gone. See [docs/customer-list-no-limit.md](../../docs/customer-list-no-limit.md).
 
-Two things to preserve:
+If a plan gate comes back, keep the old rules:
 
-- **The server truncates.** Client-side blur is cosmetic only.
+- **The server enforces it.** Anything client-side is cosmetic.
 - Reads use **`getLivePlan()` (a DB lookup)** rather than the `plan` claim in the token, so an
   upgrade applies immediately instead of waiting up to 15 minutes for a token refresh.
 
-`upgrade()` flips the plan directly while `PAYMENTS_ENABLED=false`.
+`upgrade()` flips the plan directly while `PAYMENTS_ENABLED=false`. No owner surface calls it any
+more, because owner-web's Settings → Subscription page was removed too.
+
+## 6a. "Due to come back" — the call list
+
+Full write-up: [docs/customer-due-list.md](../../docs/customer-due-list.md). The rules are the pure
+`lib/due-back.ts`. `customers/due.service.ts` runs one SQL query and applies them to it.
+
+**The rhythm**, on store-local visit days (same-day checkouts collapse; refunds still count):
+- At least 3 visit days. Only the last 5 gaps or fewer are judged.
+- `usual = round(median)`; band = usual ± max(3, 25%), both edges inclusive.
+- Regular when every judged gap is inside the band. One outlier is forgiven with 3 or more gaps.
+- Usual gap of at least 7 days.
+
+**The timeline:**
+- listed from `expected − 2`, as "Due soon";
+- "Overdue" after `last + bandMax`;
+- "Not back for a while" after `last + max(2×usual, bandMax)`;
+- dropped after 180 days.
+
+**Who never shows** (matched by id or phone digits): a pending or confirmed booking from the store's
+midnight, an active or paused series, or a waiting or in-service ticket today.
+
+**Staff scope:** the last visit's `staff_id` must equal the seat.
+
+**Follow-ups** (`customer_followup`):
+- `no_answer` snoozes to the store's tomorrow (on the server);
+- `call_later` snoozes to a day from tomorrow to today+60;
+- `not_interested` holds until undone.
+- A snooze holds only while `about_last_visit` is still the last visit.
+
+**Owner booking** (`owner-booking.service.ts`, `POST /appointments`):
+- It is guarded like public booking: the `appt:` lock, `isFree` with `ownerWindowDays()`, and
+  projected series dates counted as taken.
+- `resolveServices(activeOnly)`, `resolveStaffChoice`, `assertSeat`.
+- It itemises services, sets `source='owner'` and `sms_opt_in=false`, and deletes the follow-up row.
+
+**No overlaps from anyone.** Every booking write is checked by `isBookable` under the `appt:` lock:
+customer booking, owner booking, both moves, and the series job and edits. A named stylist never
+holds two overlapping bookings, and an "any" booking uses up a chair. `slotInputFor` counts
+`pending`, `confirmed` **and `checked_in`**: a checked-in visit keeps its chair for its booked time
+(fixed 2026-10-28). Proof: `scripts/smoke-no-overlap-db.ts`.
 
 ---
 

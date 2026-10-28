@@ -21,6 +21,7 @@ export function HomeQueueSection({
   singleChair = false,
   category,
   cardUrl,
+  socialUrl = null,
   storeName,
 }: {
   seats: SeatGroup[];
@@ -32,6 +33,8 @@ export function HomeQueueSection({
   category?: string | null;
   /** Public booking chooser URL encoded into the Contact QR (from GET /business/qr). */
   cardUrl?: string | null;
+  /** The social-media link (`?open=checkin`) shown in the same QR sheet. */
+  socialUrl?: string | null;
   storeName?: string;
 }) {
   const router = useRouter();
@@ -76,6 +79,7 @@ export function HomeQueueSection({
         seats={seats}
         onAddWalkIn={() => openWalkIn()}
         cardUrl={qrReady ? cardUrl : null}
+        socialUrl={qrReady ? socialUrl : null}
         storeName={storeName || t.dashboard.storeFallback}
       />
 

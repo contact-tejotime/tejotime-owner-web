@@ -18,20 +18,46 @@ import "@/styles/series.css";
  *    (`POST /appointments/:id/reschedule`; the owner may go up to today+60).
  *  - `book`: "Book another time" for a Needs attention date — books that one flagged date at a
  *    time the owner picks (`POST /appointments/series/issues/:id/book`).
+ *  - `new`: Book a customer from the "Due to come back" list after the call
+ *    (`POST /appointments`, docs/customer-due-list.md). Starts on their expected day with their
+ *    last visit's services and stylist; the services can be changed here, since the length of the
+ *    visit — and so the free times — depends on them.
  */
 export type PickTarget =
   | { kind: "move"; appointmentId: string; startAt: string; staffId: string | null }
-  | { kind: "book"; issueId: string; seriesId: string; occurrenceDate: string; staffId: string | null };
+  | { kind: "book"; issueId: string; seriesId: string; occurrenceDate: string; staffId: string | null }
+  | {
+      kind: "new";
+      customerId: string;
+      initialDate: string;
+      staffId: string | null;
+      serviceIds: string[];
+      /** False when part of the last visit could not be matched to a current service. */
+      servicesResolved: boolean;
+    };
+
+/** One sheet per thing being booked or moved (BookingSheetsHost keys the sheet on this). */
+export function pickKey(target: PickTarget): string {
+  if (target.kind === "move") return target.appointmentId;
+  if (target.kind === "book") return target.issueId;
+  return `new:${target.customerId}`;
+}
 
 interface ApiError {
   error?: { code?: string; message?: string };
 }
 
-/** "Move visit", or "Book Mon 26 Oct at another time". */
+/** "Move visit", "Book Mon 26 Oct at another time", or "Book a visit". */
 export function pickTitle(target: PickTarget, zone: string): string {
-  return target.kind === "move"
-    ? t.reschedule.title
-    : format(t.reschedule.bookTitle, { date: dateLabel(target.occurrenceDate, zone) });
+  if (target.kind === "move") return t.reschedule.title;
+  if (target.kind === "new") return t.reschedule.newTitle;
+  return format(t.reschedule.bookTitle, { date: dateLabel(target.occurrenceDate, zone) });
+}
+
+function startDate(target: PickTarget, zone: string): string {
+  if (target.kind === "move") return zonedYmd(target.startAt, zone);
+  if (target.kind === "new") return target.initialDate;
+  return target.occurrenceDate;
 }
 
 /** The stylist to start on: the booking's own when it can be offered, else "Any", else the first. */
@@ -78,29 +104,37 @@ export function ReschedulePanel({
   const dayId = useId();
   const timeId = useId();
   const staffLabelId = useId();
-  const [date, setDate] = useState(() =>
-    target.kind === "move" ? zonedYmd(target.startAt, picker.zone) : target.occurrenceDate,
-  );
+  const servicesLabelId = useId();
+  const [date, setDate] = useState(() => startDate(target, picker.zone));
   const [range, setRange] = useState<{ min: string; max: string } | null>(null);
   const [staffId, setStaffId] = useState<string | null>(() => initialStaff(target.staffId, picker));
+  const [serviceIds, setServiceIds] = useState<string[]>(() => (target.kind === "new" ? target.serviceIds : []));
   const [reload, setReload] = useState(0);
   const [result, setResult] = useState<{ key: string; slots: SlotOption[]; error: string } | null>(null);
   const [chosen, setChosen] = useState<SlotOption | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // A new booking at a store that has services needs at least one: its length sets the free times.
+  const menu = target.kind === "new" ? (picker.services ?? []) : [];
+  const needService = menu.length > 0 && serviceIds.length === 0;
+
   // One key per request; a reply for an older key (the owner kept clicking days) is shown as still
   // loading rather than as the new day's times.
-  const key = `${date}|${staffId ?? ""}|${reload}`;
+  const key = `${date}|${staffId ?? ""}|${serviceIds.join(",")}|${reload}`;
   const loading = !result || result.key !== key;
 
   useEffect(() => {
+    if (needService) return;
     let alive = true;
     const params = new URLSearchParams({ date });
     if (staffId) params.set("staffId", staffId);
+    if (target.kind === "new" && serviceIds.length) params.set("serviceIds", serviceIds.join(","));
     const base =
       target.kind === "move"
         ? `/api/appointments/${encodeURIComponent(target.appointmentId)}/slots`
-        : `/api/appointments/series/${encodeURIComponent(target.seriesId)}/slots`;
+        : target.kind === "new"
+          ? "/api/appointments/slots"
+          : `/api/appointments/series/${encodeURIComponent(target.seriesId)}/slots`;
     (async () => {
       try {
         const res = await fetch(`${base}?${params}`, { cache: "no-store" });
@@ -124,8 +158,13 @@ export function ReschedulePanel({
     return () => {
       alive = false;
     };
-    // `key` also carries `reload`; `target` is fixed for the life of the panel (hosts keep it in state).
-  }, [key, date, staffId, target]);
+    // `key` also carries `reload` and the services; `target` is fixed for the life of the panel
+    // (hosts keep it in state).
+  }, [key, date, staffId, target, needService, serviceIds]);
+
+  function toggleService(id: string) {
+    setServiceIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+  }
 
   function choose(slot: SlotOption | null) {
     setChosen(slot);
@@ -139,11 +178,17 @@ export function ReschedulePanel({
       const url =
         target.kind === "move"
           ? `/api/appointments/${encodeURIComponent(target.appointmentId)}/reschedule`
-          : `/api/appointments/series/issues/${encodeURIComponent(target.issueId)}/book`;
+          : target.kind === "new"
+            ? "/api/appointments"
+            : `/api/appointments/series/issues/${encodeURIComponent(target.issueId)}/book`;
+      const body =
+        target.kind === "new"
+          ? { customerId: target.customerId, serviceIds, slotStart: chosen.startAt, ...(staffId ? { staffId } : {}) }
+          : { slotStart: chosen.startAt, ...(staffId ? { staffId } : {}) };
       const res = await fetch(url, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ slotStart: chosen.startAt, ...(staffId ? { staffId } : {}) }),
+        body: JSON.stringify(body),
       });
       const json = (await res.json().catch(() => ({}))) as AppointmentRow & ApiError;
       if (!res.ok) {
@@ -169,6 +214,35 @@ export function ReschedulePanel({
   return (
     <>
       <div className="srs-scroll rs">
+        {menu.length > 0 ? (
+          <>
+            <p className="wk-label rs-label" id={servicesLabelId}>
+              {t.reschedule.services}
+            </p>
+            {target.kind === "new" && !target.servicesResolved ? (
+              <p className="rs-warn">{t.reschedule.checkServices}</p>
+            ) : null}
+            <div className="rs-chips" role="group" aria-labelledby={servicesLabelId}>
+              {menu.map((s) => {
+                const on = serviceIds.includes(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={`rs-chip${on ? " on" : ""}`}
+                    aria-pressed={on}
+                    disabled={saving}
+                    onClick={() => toggleService(s.id)}
+                  >
+                    {on ? <Icon name="check" size={14} /> : null}
+                    {s.name}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+
         <label className="wk-label rs-label" htmlFor={dayId}>
           {t.reschedule.day}
         </label>
@@ -218,7 +292,9 @@ export function ReschedulePanel({
         <p className="wk-label rs-label" id={timeId}>
           {t.reschedule.time}
         </p>
-        {loading ? (
+        {needService ? (
+          <p className="rs-state">{t.reschedule.pickService}</p>
+        ) : loading ? (
           <p className="rs-state" role="status">
             <Spinner size={14} />
             {t.reschedule.loadingTimes}
@@ -259,7 +335,7 @@ export function ReschedulePanel({
           title={format(target.kind === "move" ? t.reschedule.confirmMove : t.reschedule.confirmBook, {
             when: whenLabel(chosen.startAt, picker.zone),
           })}
-          body={t.reschedule.noText}
+          body={target.kind === "new" ? t.reschedule.noTextDue : t.reschedule.noText}
           confirmLabel={target.kind === "move" ? t.reschedule.moveVisit : t.reschedule.bookVisit}
           cancelLabel={t.reschedule.back}
           busy={saving}

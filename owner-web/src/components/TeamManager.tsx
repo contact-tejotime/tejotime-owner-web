@@ -86,6 +86,15 @@ function toPermissionPayload(draft: Partial<Record<Module, Access>>): Record<str
   return Object.fromEntries(GRANTABLE_MODULES.map((m) => [m, draft[m] ?? "none"]));
 }
 
+/**
+ * The modules the grid and the card summary show: every grantable one but `billing`, as on the
+ * app (`app/src/app/(app)/settings/team.tsx`). Billing only ever opened Settings → Subscription,
+ * which was removed on 2026-10-28 (docs/customer-list-no-limit.md), so the row would toggle
+ * nothing. It stays in GRANTABLE_MODULES, so `toPermissionPayload` still sends the value already
+ * stored — the draft starts from it — rather than quietly resetting it.
+ */
+const SHOWN_MODULES = GRANTABLE_MODULES.filter((m) => m !== "billing");
+
 export function TeamManager({
   users,
   staff,
@@ -580,15 +589,9 @@ export function TeamManager({
   );
 }
 
-/**
- * A one-line "what they can see" for the collapsed card.
- *
- * Billing is counted here, unlike the app. The app never mentions billing (App Review rejected a
- * subscription reference with no In-App Purchase behind it); the web sells the plan, so an owner
- * granting it should see it.
- */
+/** A one-line "what they can see" for the collapsed card. */
 function summarise(access: ModuleAccess): string {
-  const visible = GRANTABLE_MODULES.filter((m) => access[m] && access[m] !== "none");
+  const visible = SHOWN_MODULES.filter((m) => access[m] && access[m] !== "none");
   if (visible.length === 0) return t.team.noAccessYet;
   return format(t.team.canSee, { modules: visible.map((m) => MODULE_LABELS[m]).join(", ") });
 }
@@ -605,7 +608,7 @@ function PermissionGrid({
   return (
     <div className="sa-perm">
       <div className="sa-perm-list">
-        {GRANTABLE_MODULES.map((mod) => (
+        {SHOWN_MODULES.map((mod) => (
           <div key={mod} className="sa-perm-row" role="group" aria-label={MODULE_LABELS[mod]}>
             <span className="sa-perm-label">{MODULE_LABELS[mod]}</span>
             <div className="sa-perm-options">

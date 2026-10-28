@@ -62,7 +62,7 @@ Each app ships committed crib sheets (placeholders only). Copy `.env.local.examp
 ### Plan / feature config
 | Var | Example | Notes |
 |---|---|---|
-| `FREE_PLAN_CUSTOMER_LIMIT` | `2` | `FREE_LIMIT` in `Customers.tsx` (configurable) |
+| ~~`FREE_PLAN_CUSTOMER_LIMIT`~~ | — | **Removed 2026-10-28.** No plan cuts the customer list, and a value still set is ignored ([customer-list-no-limit.md](./customer-list-no-limit.md)). |
 | `PREMIUM_PRICE_PAISE` | `49900` | subscription price (₹499) — **confirm** |
 | `TRIAL_DAYS` | `14` | free-trial length — **confirm** |
 | `TWO_AWAY_THRESHOLD` | `2` | "text when N away" |

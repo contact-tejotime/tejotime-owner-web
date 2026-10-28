@@ -856,6 +856,10 @@ a.tj-photo-well {
     height: 28px !important;
     width: auto !important;
   }
+  /* The rule above is for the logo; the PayPal mark stays text-sized on the copyright line. */
+  .tj-foot-bottom img.tj-paypal-mark {
+    height: 18px !important;
+  }
 
   .tj-feat {
     padding: 16px !important;

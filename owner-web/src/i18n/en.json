@@ -278,10 +278,6 @@
     "notifications": {
       "title": "Notifications",
       "desc": "Alerts and reminders"
-    },
-    "subscription": {
-      "title": "Subscription",
-      "desc": "Plan and billing"
     }
   },
   "serviceExtras": {
@@ -403,12 +399,13 @@
     "bookingQrSub": "Show a code customers can scan to book",
     "notifications": "Notifications & reminders",
     "notificationsSub": "Alerts and reminders",
+    "cardPayments": "Card payments",
+    "cardPaymentsOn": "On · taken with the PayPal reader in the TejoTime app",
+    "cardPaymentsOff": "Set up in the TejoTime app",
     "recurring": "Repeating bookings",
     "recurringSub": "Let customers book a visit that repeats — every 2 weeks, every month, and so on.",
     "account": "Your account",
     "accountSub": "Change your password",
-    "subscription": "Subscription",
-    "subscriptionSub": "Plan and billing",
     "darkMode": "Dark mode",
     "darkModeSub": "Easier on the eyes at night",
     "emailSupport": "Email support",
@@ -674,7 +671,26 @@
     "visitNoService": "No service",
     "visitsTotal": "{count} visits · {revenue} · earned {commission}",
     "visitsTotalOne": "1 visit · {revenue} · earned {commission}",
+    "visitRefunded": "Refunded · no commission",
     "close": "Close"
+  },
+  "cardPayments": {
+    "title": "Card payments",
+    "lead": "Card payments are taken on the PayPal card reader from the TejoTime app, on the main owner's phone. Charging, refunds and the reader itself are all in the app; this page shows what was taken.",
+    "on": "Card payments are on.",
+    "off": "Card payments are off. To turn them on, open the TejoTime app on your phone: Settings → Card payments.",
+    "recentTitle": "Recent card payments",
+    "empty": "No card payments yet.",
+    "loadError": "Could not load card payments. Refresh the page to try again.",
+    "statusPending": "Not confirmed",
+    "statusPaid": "Paid",
+    "statusFailed": "Not charged",
+    "statusRefunded": "Refunded",
+    "needsReview": "Needs review",
+    "needsReviewHint": "Charged, but not on a visit. Refund it or keep it in the app.",
+    "pendingHint": "The app has not confirmed this charge yet. Check it in the app.",
+    "card": "{brand} ···· {last4}",
+    "walkIn": "Customer"
   },
   "queue": {
     "actionFailed": "That didn't work. Try again.",
@@ -748,7 +764,21 @@
     "priceRequiredHint": "Enter the price for {services} to complete.",
     "servicePriceAria": "{service} price",
     "totalToCharge": "Total to charge",
-    "removeExtra": "Remove {label}"
+    "removeExtra": "Remove {label}",
+    "paidBy": "Paid by",
+    "paidByRequired": "Choose how the customer paid to complete.",
+    "cardOwnerOnly": "Card payments are taken on the owner's phone.",
+    "cardOnWeb": "Records a card you already charged. To charge a card, use the TejoTime app.",
+    "cardInProgress": "The owner is taking this customer's card payment ({amount}). This customer can be completed once it finishes."
+  },
+  "paymentMethod": {
+    "card": "Card",
+    "cash": "Cash",
+    "venmo": "Venmo",
+    "zelle": "Zelle",
+    "cashApp": "Cash App",
+    "upi": "UPI",
+    "other": "Other"
   },
   "walkin": {
     "errAdd": "Could not add to the queue.",
@@ -961,10 +991,44 @@
     "visits": "Visits",
     "lastVisit": "Last visit",
     "spend": "Spend",
-    "upsell": "Upgrade to Premium to see your full customer list and history.",
-    "upgrade": "Upgrade to Premium",
-    "lockedCountOne": "1 more client locked",
-    "lockedCount": "{count} more clients locked"
+    "viewAll": "All",
+    "viewDue": "Due",
+    "viewDueCount": "Due · {count}",
+    "due": {
+      "title": "Due to come back",
+      "subtitle": "Regulars who usually come back about now. Call them and book a time.",
+      "sectionOverdue": "Overdue",
+      "sectionDueSoon": "Due soon",
+      "sectionLapsed": "Not back for a while",
+      "rhythm": "Usually every {min}–{max} days",
+      "lastVisitOne": "last visit yesterday",
+      "lastVisit": "last visit {days} days ago",
+      "lastWith": "{service} · with {name}",
+      "call": "Call",
+      "book": "Book",
+      "later": "Later",
+      "notInterested": "Not interested",
+      "laterTitle": "Call {name} later",
+      "noAnswer": "No answer — try tomorrow",
+      "callBackOn": "Call back on a day",
+      "callBackDay": "Day",
+      "save": "Save",
+      "cancel": "Cancel",
+      "hiddenNotInterested": "Hidden: not interested.",
+      "hiddenNoAnswer": "Hidden until tomorrow.",
+      "hiddenUntil": "Hidden until {date}.",
+      "undo": "Undo",
+      "undone": "Back on the list",
+      "hidden": "Hidden ({count})",
+      "reasonNotInterested": "Not interested",
+      "reasonSnoozed": "Call back {date}",
+      "empty": "No one is due right now",
+      "emptyHint": "A customer appears here after their third visit, once they come back on a regular rhythm.",
+      "loadError": "Couldn't load the call list. Refresh to try again.",
+      "callAria": "Call {name}",
+      "scopeContext": "your call list",
+      "networkError": "Could not reach the server."
+    }
   },
   "account": {
     "title": "Profile",
@@ -987,7 +1051,11 @@
     "heading": "{name} — booking QR",
     "label": "Contact QR",
     "print": "Print",
-    "printTitle": "{name} booking QR"
+    "printTitle": "{name} booking QR",
+    "socialLabel": "Social media link",
+    "socialHint": "Use this link in Instagram, Facebook and other social posts and ads. It opens your page straight to Check in.",
+    "copy": "Copy",
+    "copied": "Copied"
   },
   "notifications": {
     "title": "Notifications",
@@ -1018,7 +1086,7 @@
   },
   "appointments": {
     "title": "Appointments",
-    "addWalkIn": "Add walk-in",
+    "bookAppointment": "Book appointment",
     "upcomingToday": "Upcoming today",
     "closedToday": "Checked in or closed",
     "empty": "No appointments today",
@@ -1075,6 +1143,11 @@
     "bookTitle": "Book {date} at another time",
     "confirmBook": "Book this visit for {when}?",
     "bookVisit": "Book visit",
+    "newTitle": "Book a visit",
+    "services": "Services",
+    "checkServices": "Part of their last visit is no longer on your menu — check the services.",
+    "pickService": "Pick a service to see free times",
+    "noTextDue": "The customer won't get a message — confirm the time on the call.",
     "visitBooked": "Visit booked",
     "change": "Change future visits",
     "from": "From",
@@ -1180,19 +1253,14 @@
     "subtitle": "Who can sign in, and what each of them sees",
     "loadError": "Could not load your team right now. Try again in a moment."
   },
+  "bookAppt": {
+    "title": "Book appointment",
+    "submit": "Book appointment",
+    "errPhone": "Enter a valid phone number",
+    "errTime": "Pick a time"
+  },
   "settingsSubpage": {
     "back": "Back to settings"
-  },
-  "subscription": {
-    "title": "Subscription",
-    "currentPlan": "Current plan",
-    "free": "Free",
-    "premium": "Premium",
-    "freeSub": "Your customer list shows the latest {count} customers",
-    "freeSubOne": "Your customer list shows only the latest customer",
-    "premiumSub": "Your full customer list and history",
-    "changePlan": "Change plan",
-    "changePlanLead": "Online payments aren't available yet, so our team changes plans for you. Get in touch and we'll set it up."
   },
   "businessForm": {
     "errSave": "Could not save profile",

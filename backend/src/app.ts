@@ -19,6 +19,7 @@ import { appointmentsRouter } from './modules/appointments/appointments.routes';
 import { customersRouter } from './modules/customers/customers.routes';
 import { dashboardRouter } from './modules/dashboard/dashboard.routes';
 import { commissionRouter } from './modules/commission/commission.routes';
+import { cardPaymentsRouter } from './modules/card-payments/card-payments.routes';
 import { notificationsRouter } from './modules/notifications/notifications.routes';
 import { subscriptionRouter } from './modules/subscription/subscription.routes';
 import { uploadsRouter } from './modules/uploads/uploads.routes';
@@ -67,6 +68,7 @@ export function createApp() {
   app.use(`${API_PREFIX}/customers`, customersRouter);
   app.use(`${API_PREFIX}/dashboard`, dashboardRouter);
   app.use(`${API_PREFIX}/commission`, commissionRouter);
+  app.use(`${API_PREFIX}/card-payments`, cardPaymentsRouter);
   app.use(`${API_PREFIX}/notifications`, notificationsRouter);
   app.use(`${API_PREFIX}/subscription`, subscriptionRouter);
   app.use(`${API_PREFIX}/uploads`, uploadsRouter);

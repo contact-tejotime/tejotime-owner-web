@@ -3775,6 +3775,19 @@ h1.home-title {
   line-height: 1;
   padding: 0 2px;
 }
+/* "Undo" — pushed to the right, next to the ×. */
+.toast-action {
+  margin-left: auto;
+  border: 1px solid rgb(255 255 255 / 0.55);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.toast-action:hover { background: rgb(255 255 255 / 0.12); }
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none; }
 }

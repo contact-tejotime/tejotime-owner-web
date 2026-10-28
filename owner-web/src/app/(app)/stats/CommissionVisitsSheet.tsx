@@ -78,8 +78,14 @@ export function CommissionVisitsSheet({ data, closeHref }: { data: CommissionVis
                         </span>
                         <span className="rp-visit-money">
                           <span className="rp-visit-amount">{formatMoney(v.amount)}</span>
-                          <span className={`rp-visit-earned${v.rateBp == null ? " is-none" : ""}`}>
-                            {v.rateBp == null ? t.stats.rateNone : `${formatRate(v.rateBp)} · ${formatMoney(v.commission)}`}
+                          {/* A refunded card visit (0043) earns nothing; say why rather than show
+                              a bare "20% · ₹0". */}
+                          <span className={`rp-visit-earned${v.rateBp == null || v.refunded ? " is-none" : ""}`}>
+                            {v.refunded
+                              ? t.commission.visitRefunded
+                              : v.rateBp == null
+                                ? t.stats.rateNone
+                                : `${formatRate(v.rateBp)} · ${formatMoney(v.commission)}`}
                           </span>
                         </span>
                       </li>
