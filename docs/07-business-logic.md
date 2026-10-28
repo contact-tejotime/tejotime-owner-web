@@ -178,6 +178,9 @@ premium:    return all; expose total count
 ```
 Enforced server-side (NFR-SE10). `FREE_LIMIT` should be a subscription/plan config value, not a hardcoded constant.
 
+> **Superseded 2026-10-28:** this gate was removed, and every plan sees the whole list
+> ([customer-list-no-limit.md](./customer-list-no-limit.md)).
+
 ## 17. Concurrency & correctness
 
 Multiple actors mutate one queue simultaneously (two owner devices, auto-promotion, a customer leaving, the "2-away" job). Requirements:

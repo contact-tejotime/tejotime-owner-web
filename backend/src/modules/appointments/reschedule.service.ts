@@ -53,8 +53,12 @@ export async function resolveStaffChoice(
  * A staff login may only keep a booking on its OWN chair. `requireOwnRow` checks where the row is
  * now; this checks where it is going — without it a staff login could hand a visit to a colleague.
  */
-export function assertSeat(seat: string | null | undefined, staffId: string | null): void {
-  if (seat && staffId !== seat) throw Errors.forbidden('You can only move bookings on your own chair');
+export function assertSeat(
+  seat: string | null | undefined,
+  staffId: string | null,
+  message = 'You can only move bookings on your own chair',
+): void {
+  if (seat && staffId !== seat) throw Errors.forbidden(message);
 }
 
 /** A booking keeps its own length when it moves; a row with no end counts as one slot. */

@@ -192,6 +192,9 @@ All of this ships on **owner web and the mobile app (iOS and Android) together**
   The owner books another time or skips that visit.
 - **Phase 2:** the owner can create a repeating booking for regulars who phone or WhatsApp. This
   needs an owner "New appointment" screen, which does not exist today on either surface.
+  (2026-10-28: the "Due to come back" list now books a single visit from the owner side, through a
+  guarded `POST /appointments` — [customer-due-list.md](./customer-due-list.md). An active or paused
+  series keeps a customer **off** that list: they are already coming.)
 
 ---
 

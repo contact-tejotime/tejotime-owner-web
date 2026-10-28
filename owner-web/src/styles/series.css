@@ -552,6 +552,50 @@
   outline-offset: 2px;
 }
 
+/* A new booking's services ("Due to come back" → Book): toggle chips, the time chips' vocabulary. */
+.rs-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--surface-card, #fff);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.rs-chip.on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg, var(--primary));
+}
+.rs-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.rs-chip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* A warning above the service chips ("check the services"). Its own name: `.rs-hint` below is the
+   muted hint, and sharing the name made this one render grey. */
+.rs-warn {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--warning-fg, #92400e);
+}
+
 /* Change future visits: the preview list. Scrolled to on arrival, clear of the scroll box's top. */
 .rs-preview {
   scroll-margin-top: 8px;

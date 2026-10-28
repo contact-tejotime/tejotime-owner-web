@@ -278,10 +278,6 @@
     "notifications": {
       "title": "Notifications",
       "desc": "Alerts and reminders"
-    },
-    "subscription": {
-      "title": "Subscription",
-      "desc": "Plan and billing"
     }
   },
   "serviceExtras": {
@@ -410,8 +406,6 @@
     "recurringSub": "Let customers book a visit that repeats — every 2 weeks, every month, and so on.",
     "account": "Your account",
     "accountSub": "Change your password",
-    "subscription": "Subscription",
-    "subscriptionSub": "Plan and billing",
     "darkMode": "Dark mode",
     "darkModeSub": "Easier on the eyes at night",
     "emailSupport": "Email support",
@@ -997,10 +991,44 @@
     "visits": "Visits",
     "lastVisit": "Last visit",
     "spend": "Spend",
-    "upsell": "Upgrade to Premium to see your full customer list and history.",
-    "upgrade": "Upgrade to Premium",
-    "lockedCountOne": "1 more client locked",
-    "lockedCount": "{count} more clients locked"
+    "viewAll": "All",
+    "viewDue": "Due",
+    "viewDueCount": "Due · {count}",
+    "due": {
+      "title": "Due to come back",
+      "subtitle": "Regulars who usually come back about now. Call them and book a time.",
+      "sectionOverdue": "Overdue",
+      "sectionDueSoon": "Due soon",
+      "sectionLapsed": "Not back for a while",
+      "rhythm": "Usually every {min}–{max} days",
+      "lastVisitOne": "last visit yesterday",
+      "lastVisit": "last visit {days} days ago",
+      "lastWith": "{service} · with {name}",
+      "call": "Call",
+      "book": "Book",
+      "later": "Later",
+      "notInterested": "Not interested",
+      "laterTitle": "Call {name} later",
+      "noAnswer": "No answer — try tomorrow",
+      "callBackOn": "Call back on a day",
+      "callBackDay": "Day",
+      "save": "Save",
+      "cancel": "Cancel",
+      "hiddenNotInterested": "Hidden: not interested.",
+      "hiddenNoAnswer": "Hidden until tomorrow.",
+      "hiddenUntil": "Hidden until {date}.",
+      "undo": "Undo",
+      "undone": "Back on the list",
+      "hidden": "Hidden ({count})",
+      "reasonNotInterested": "Not interested",
+      "reasonSnoozed": "Call back {date}",
+      "empty": "No one is due right now",
+      "emptyHint": "A customer appears here after their third visit, once they come back on a regular rhythm.",
+      "loadError": "Couldn't load the call list. Refresh to try again.",
+      "callAria": "Call {name}",
+      "scopeContext": "your call list",
+      "networkError": "Could not reach the server."
+    }
   },
   "account": {
     "title": "Profile",
@@ -1058,7 +1086,7 @@
   },
   "appointments": {
     "title": "Appointments",
-    "addWalkIn": "Add walk-in",
+    "bookAppointment": "Book appointment",
     "upcomingToday": "Upcoming today",
     "closedToday": "Checked in or closed",
     "empty": "No appointments today",
@@ -1115,6 +1143,11 @@
     "bookTitle": "Book {date} at another time",
     "confirmBook": "Book this visit for {when}?",
     "bookVisit": "Book visit",
+    "newTitle": "Book a visit",
+    "services": "Services",
+    "checkServices": "Part of their last visit is no longer on your menu — check the services.",
+    "pickService": "Pick a service to see free times",
+    "noTextDue": "The customer won't get a message — confirm the time on the call.",
     "visitBooked": "Visit booked",
     "change": "Change future visits",
     "from": "From",
@@ -1220,19 +1253,14 @@
     "subtitle": "Who can sign in, and what each of them sees",
     "loadError": "Could not load your team right now. Try again in a moment."
   },
+  "bookAppt": {
+    "title": "Book appointment",
+    "submit": "Book appointment",
+    "errPhone": "Enter a valid phone number",
+    "errTime": "Pick a time"
+  },
   "settingsSubpage": {
     "back": "Back to settings"
-  },
-  "subscription": {
-    "title": "Subscription",
-    "currentPlan": "Current plan",
-    "free": "Free",
-    "premium": "Premium",
-    "freeSub": "Your customer list shows the latest {count} customers",
-    "freeSubOne": "Your customer list shows only the latest customer",
-    "premiumSub": "Your full customer list and history",
-    "changePlan": "Change plan",
-    "changePlanLead": "Online payments aren't available yet, so our team changes plans for you. Get in touch and we'll set it up."
   },
   "businessForm": {
     "errSave": "Could not save profile",

@@ -19,14 +19,23 @@ export function isUuid(value: string): boolean {
 /**
  * A slots route's query string, rebuilt from an allow-list rather than passed through, so a GET
  * route cannot be used to send the backend parameters it was never meant to take. `date` and
- * `fromDate` must be "YYYY-MM-DD"; `staffId` a UUID or "any".
+ * `fromDate` must be "YYYY-MM-DD"; `staffId` a UUID or "any"; `serviceIds` up to ten
+ * comma-separated UUIDs (a new booking's services).
  */
-export function slotsQuery(req: NextRequest, keys: ("date" | "staffId" | "fromDate")[]): string | null {
+export function slotsQuery(
+  req: NextRequest,
+  keys: ("date" | "staffId" | "fromDate" | "serviceIds")[],
+): string | null {
   const out = new URLSearchParams();
   for (const key of keys) {
     const value = req.nextUrl.searchParams.get(key);
     if (value === null || value === "") continue;
-    const ok = key === "staffId" ? value === "any" || isUuid(value) : /^\d{4}-\d{2}-\d{2}$/.test(value);
+    const ok =
+      key === "staffId"
+        ? value === "any" || isUuid(value)
+        : key === "serviceIds"
+          ? value.split(",").length <= 10 && value.split(",").every(isUuid)
+          : /^\d{4}-\d{2}-\d{2}$/.test(value);
     if (!ok) return null;
     out.set(key, value);
   }

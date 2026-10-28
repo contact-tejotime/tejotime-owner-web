@@ -423,14 +423,8 @@ export function SettingsScreen({
             label={t.settings.account}
             sub={userName ?? t.settings.accountSub}
           />
-          {can(access, "billing") ? (
-            <SettingsRow
-              href="/settings/subscription"
-              icon="creditCard"
-              label={t.settings.subscription}
-              sub={t.settings.subscriptionSub}
-            />
-          ) : null}
+          {/* No Subscription row (removed 2026-10-28, docs/customer-list-no-limit.md): with the
+              customer list open to every plan, the page had nothing left to show or sell. */}
           <div className="st-row">
             <RowContent
               icon="moon"

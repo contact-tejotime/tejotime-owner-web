@@ -32,7 +32,6 @@ export const TAGS = {
   customers: "customers",
   dashboard: "dashboard",
   notifications: "notifications",
-  subscription: "subscription",
 } as const;
 
 /** Seconds. `queue` and `me` are absent on purpose — they are never cached. */
@@ -44,7 +43,6 @@ const TTL = {
   customers: 60,
   dashboard: 30,
   notifications: 30,
-  subscription: 300,
 } as const;
 
 /**
@@ -712,6 +710,49 @@ export const getSeriesList = (status: "open" | "active" | "paused" | "ended" | "
 /** Needs attention — series dates the job could not book. Chair-scoped for staff, so uncached too. */
 export const getSeriesIssues = () => getFresh<{ data: SeriesIssue[] }>("/appointments/series/issues");
 
+/**
+ * "Due to come back" (docs/customer-due-list.md) — hand-mirrored from the backend's
+ * `due.service.ts` DueListDTO; there is no compiler between them, so change both together.
+ */
+export type DueStatus = "due_soon" | "overdue" | "lapsed";
+export type FollowupOutcome = "no_answer" | "call_later" | "not_interested";
+
+export interface DueCustomer {
+  customerId: string;
+  name: string;
+  phone: string;
+  isVip: boolean;
+  visitsCount: number;
+  status: DueStatus;
+  usualDays: number;
+  bandMin: number;
+  bandMax: number;
+  /** Store-local "YYYY-MM-DD". */
+  lastVisitDate: string;
+  daysSinceLast: number;
+  expectedDate: string;
+  lastServiceName: string | null;
+  lastStaff: { id: string; name: string; active: boolean } | null;
+  serviceIds: string[];
+  servicesResolved: boolean;
+  followup: { outcome: FollowupOutcome; snoozeUntil: string | null; aboutLastVisit: string; updatedAt: string } | null;
+  hiddenReason?: "not_interested" | "snoozed";
+}
+
+export interface DueList {
+  today: string;
+  callBackRange: { min: string; max: string };
+  counts: { overdue: number; dueSoon: number; lapsed: number; hidden: number };
+  data: DueCustomer[];
+  hidden: DueCustomer[];
+}
+
+/**
+ * Uncached: the API narrows the list to a staff login's own chair, and the cached reader keys on
+ * business + path only (the same reason as getAppointmentsFresh / getSeriesIssues).
+ */
+export const getDueCustomers = () => getFresh<DueList>("/customers/due");
+
 export const getAppointments = (query = "") =>
   get<{ data: AppointmentRow[] }>(
     `/appointments${query}`,
@@ -721,12 +762,13 @@ export const getAppointments = (query = "") =>
 
 export const getCustomers = async (search = "") => {
   // Backend returns `{ data, meta: { shown, total, lockedCount } }` — flatten for pages.
+  // `lockedCount` is always 0 since the list stopped being plan-gated (2026-10-28), so it is not
+  // read; `shown < total` is what says the page size cut the list short.
   const res = await get<{
     data: CustomerRow[];
-    meta?: { shown?: number; total?: number; lockedCount?: number };
+    meta?: { shown?: number; total?: number };
     shown?: number;
     total?: number;
-    lockedCount?: number;
   }>(
     `/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`,
     [TAGS.customers],
@@ -738,7 +780,6 @@ export const getCustomers = async (search = "") => {
     data,
     shown: res.meta?.shown ?? res.shown ?? data.length,
     total: res.meta?.total ?? res.total ?? data.length,
-    lockedCount: res.meta?.lockedCount ?? res.lockedCount ?? 0,
   };
 };
 
@@ -819,16 +860,3 @@ export const getPermissionCatalogue = () =>
     /** Grantable modules only — `team` is owner-role-only and never appears here. */
     defaults: { staff: Partial<ModuleAccess>; co_owner: Partial<ModuleAccess> };
   }>("/users/modules", [TAGS.staff], TTL.staff);
-
-export const getSubscription = () =>
-  get<{
-    plan: string;
-    status: string;
-    trialEndsAt: string | null;
-    /** How many customers a free store's list shows (`FREE_PLAN_CUSTOMER_LIMIT`); null on Premium. */
-    limits?: { customerListLimit: number | null };
-  }>(
-    "/subscription",
-    [TAGS.subscription],
-    TTL.subscription,
-  );

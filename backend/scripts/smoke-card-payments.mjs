@@ -20,6 +20,11 @@
 //     needs review, no visit — never refused (the rule: once money has moved, record it);
 //   - a refund: revenue and the stylist's commission lose it, the customer's total spend drops, the
 //     visit still counts as completed and stays in the history marked refunded; a repeat is a no-op.
+//   - "Sign out of PayPal" (POST /card-payments/disconnect, 2026-10-28): switching off alone keeps
+//     the saved PayPal account, so a store could never move to another one. Signing out turns card
+//     payments off AND forgets the account; it is refused while a charge is unconfirmed (409
+//     CARD_PAYMENT_IN_PROGRESS, nothing changed), main owner only, and afterwards another account
+//     connects and the earlier payments are all still listed.
 //
 //   - US stores only (client decision 2026-10-15): the seeded store, priced in rupees, cannot turn
 //     card payments on (409 CARD_PAYMENTS_US_ONLY) and is told they are unavailable. Everything
@@ -277,6 +282,40 @@ async function main() {
   ok((await detail(dId, coToken)).cardAllowed === true, 'the co-owner may pick Card again');
   const dCard = await call('POST', `/queue/${dId}/checkout`, { token: coToken, body: { amountPaise: 30000, paymentMethod: 'card' } });
   ok(dCard.status === 200, `and records a card charged elsewhere (got ${dCard.status} ${dCard.json.error?.code ?? ''})`);
+
+  console.log('SIGN OUT OF PAYPAL: OFF AND THE ACCOUNT FORGOTTEN, SO ANOTHER ACCOUNT CAN CONNECT');
+  const kept = (await call('GET', '/card-payments/settings', { token })).json;
+  ok(kept.enabled === false && kept.paypalOrgRef === `smoke-org-${run}`, 'switching off alone keeps the saved account (why a store could never change accounts)');
+  const onA = await call('PUT', '/card-payments/settings', { token, body: { enabled: true, paypalOrgRef: `smoke-org-A-${run}` } });
+  ok(onA.status === 200 && onA.json.enabled === true && onA.json.paypalOrgRef === `smoke-org-A-${run}`, 'on again, with PayPal account A');
+  const eId = await inChair('Card Eve', `+9191${tail}`);
+  const se = await call('POST', '/card-payments', { token, body: { queueEntryId: eId, amountPaise: 30000 } });
+  ok(se.status === 201 && se.json.payment?.status === 'pending', `a charge starts, not confirmed yet (got ${se.status} ${se.json.error?.code ?? ''})`);
+  const busy = await call('POST', '/card-payments/disconnect', { token });
+  ok(busy.status === 409 && busy.json.error?.code === 'CARD_PAYMENT_IN_PROGRESS', `signing out with an unconfirmed charge → 409 (got ${busy.status} ${busy.json.error?.code})`);
+  const still = (await call('GET', '/card-payments/settings', { token })).json;
+  ok(still.enabled === true && still.paypalOrgRef === `smoke-org-A-${run}`, 'and nothing changed: still on, still account A');
+  for (const [who, t] of [['co-owner', coToken], ['staff', staffToken]]) {
+    const r = await call('POST', '/card-payments/disconnect', { token: t });
+    ok(r.status === 403, `${who}: cannot sign the store out of PayPal (got ${r.status})`);
+  }
+  ok((await call('GET', '/card-payments/settings', { token })).json.paypalOrgRef === `smoke-org-A-${run}`, 'still account A after their attempts');
+  await call('POST', `/card-payments/${se.json.payment?.id}/fail`, { token, body: { reason: 'Owner: not charged' } });
+  const out = await call('POST', '/card-payments/disconnect', { token });
+  ok(out.status === 200 && out.json.enabled === false && out.json.paypalOrgRef === null, `once settled, sign out → off, account forgotten (got ${out.status} ${out.json.error?.code ?? ''})`);
+  ok((await call('GET', '/business', { token })).json.cardPaymentsEnabled === false, 'GET /business reports it off');
+  const offAfter = await call('POST', '/card-payments', { token, body: { queueEntryId: eId, amountPaise: 30000 } });
+  ok(offAfter.status === 409 && offAfter.json.error?.code === 'CARD_PAYMENTS_OFF', `no charge can start after it → 409 CARD_PAYMENTS_OFF (got ${offAfter.status} ${offAfter.json.error?.code})`);
+  const onB = await call('PUT', '/card-payments/settings', { token, body: { enabled: true, paypalOrgRef: `smoke-org-B-${run}` } });
+  ok(onB.status === 200 && onB.json.enabled === true && onB.json.paypalOrgRef === `smoke-org-B-${run}`, 'signed in with account B: on again, and B is the saved account');
+  const history = (await call('GET', '/card-payments', { token })).json.data ?? [];
+  ok([ref, cRef, se.json.payment?.id].every((id) => history.some((p) => p.id === id)), 'the earlier card payments are all still listed');
+  const out2 = await call('POST', '/card-payments/disconnect', { token });
+  ok(out2.status === 200 && out2.json.enabled === false && out2.json.paypalOrgRef === null, 'signing out again leaves the store off');
+  const out3 = await call('POST', '/card-payments/disconnect', { token });
+  ok(out3.status === 200 && out3.json.enabled === false, 'and a second sign-out in a row is harmless');
+  const eCash = await call('POST', `/queue/${eId}/checkout`, { token, body: { amountPaise: 30000 } });
+  ok(eCash.status === 200, `the visit is finished the old way (got ${eCash.status} ${eCash.json.error?.code ?? ''})`);
 
   console.log('CLEANUP');
   await call('DELETE', `/users/${co.json.id}`, { token });

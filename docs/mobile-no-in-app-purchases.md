@@ -28,11 +28,13 @@ mobile app now **sells nothing and says nothing about plans**.
 
 ## Rules going forward
 
-- **The server still truncates a free store's customer list.** The app shows "Latest N of M" and
-  **nothing about why or how to see more.** Telling the owner to upgrade on the web is also
-  rejectable (guideline 3.1.1 / 3.1.3), so do not add a "visit tejotime.com" hint either.
-- `billing` stays in `GRANTABLE_MODULES`, so saving a staff login's permissions still sends
-  the value the owner set on the web. The app just never displays it.
+- **Since 2026-10-28 no plan truncates the customer list**
+  ([customer-list-no-limit.md](./customer-list-no-limit.md)). The only cut left is the API's page
+  size (the newest 100). The app then shows "Latest N of M" and **nothing about why or how to see
+  more.** Telling the owner to upgrade on the web is also rejectable (guideline 3.1.1 / 3.1.3), so
+  do not add a "visit tejotime.com" hint either.
+- `billing` stays in `GRANTABLE_MODULES`, so saving a staff login's permissions still sends the
+  value already stored. Neither the app nor, since 2026-10-28, owner-web displays it.
 - `store.plan` and the `subscription:updated` socket listener remain as internal state. Nothing
   renders them.
 - The Appearance panel's "Premium" **shadow** style is a visual option, not a plan, and stays.
@@ -41,8 +43,10 @@ mobile app now **sells nothing and says nothing about plans**.
 
 ## Deliberately not changed
 
-- **`owner-web/`** keeps its upgrade flow. It is not distributed through an app store. This is a
-  deliberate, documented exception to CLAUDE.md §11.1.
-- **Backend** — `/subscription/*` endpoints are unchanged. Admin-panel and web still use them.
+- **`owner-web/`** kept its upgrade flow as a documented exception to CLAUDE.md §11.1, until
+  **2026-10-28**. The Customers upgrade card and the Settings → Subscription page were then removed
+  there too ([customer-list-no-limit.md](./customer-list-no-limit.md)), so no owner surface sells a
+  plan now.
+- **Backend** — `/subscription/*` endpoints are unchanged.
 - **`expo-blur`** is no longer imported by `app/src`, but the dependency was left in place.
   Removing a native module means a pod install and a native rebuild; do it in a separate change.

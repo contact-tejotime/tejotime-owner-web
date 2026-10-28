@@ -18,7 +18,6 @@ export async function getSubscription(businessId: string) {
     status: data?.status ?? 'trialing',
     trialEndsAt: data?.trial_ends_at ?? null,
     currentPeriodEnd: data?.current_period_end ?? null,
-    limits: { customerListLimit: plan === 'free' ? env.FREE_PLAN_CUSTOMER_LIMIT : null },
     paymentsEnabled: env.PAYMENTS_ENABLED,
   };
 }

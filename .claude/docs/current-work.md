@@ -1,10 +1,6 @@
 # Current work
 
-<<<<<<< HEAD
-**Last updated:** 2026-10-15 · branch `feat-jay`.
-=======
-**Last updated:** 2026-10-23 · branch `preprod`.
->>>>>>> 88d64a337c9b5efeb9c1e29c1131eb2c5b9f86e0
+**Last updated:** 2026-10-28 · branch `paypal`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -13,7 +9,95 @@ the system as designed, this one describes where it actually is.
 
 ## 1. What is in flight
 
-<<<<<<< HEAD
+### Appointments "+" books an appointment (2026-10-28)
+
+- **What:** on owner-web and the app (iOS + Android), the Appointments header "+" opens **Book
+  appointment** instead of Add walk-in; walk-ins stay on Home. Write-up:
+  [docs/owner-book-appointment.md](../../docs/owner-book-appointment.md).
+  - Form: name, phone (required, store's country first), MR/Patient for Hospital, services, then
+    day / stylist / free time.
+  - Gated on `appointments: manage`.
+- **Files:**
+  - owner-web: `AppointmentsBook.tsx` + `components/NewAppointmentSheet.tsx`;
+    `AppointmentsWalkIn.tsx` is deleted.
+  - app: `feedback/BookAppointmentSheet.tsx`, store `openBook` / `bookAppointment`.
+  - API: a missing or invalid phone is a 400 without `customerId`; `visitorType` is accepted.
+  - Also fixed: the duplicate `.rs-hint` (the Due "check the services" warning rendered grey; it is
+    now `.rs-warn`).
+- **Checks run:**
+  - `owner-booking.test` 24/24; backend suite 667;
+  - `smoke-book-appointment.mjs` 20/20, `smoke-rest` 138/138, `smoke-due-list` 33/33,
+    `smoke-no-overlap-db` 24/24;
+  - owner-web `tsc` + `eslint` and app `tsc` + `expo lint` clean.
+- **Not run:** a browser or device check.
+
+### "Due to come back" — a call list of regulars on Customers (2026-10-28)
+
+- **What:** Customers gets an `All | Due · N` switch. Due lists regulars who usually come back
+  about now, so the salon phones them and books a time on the call.
+  - Rhythm: ≥ 3 visit days; median gap ± max(3 days, 25%), so 20 → 15–25; at least 7 days.
+  - Sections: Overdue, Due soon (from expected − 2 days), Not back for a while.
+  - Call outcomes: no answer / call back on a day / not interested, each with Undo.
+  - Book: the shared slot picker pre-filled with their last services and stylist.
+  - Write-up: [docs/customer-due-list.md](../../docs/customer-due-list.md).
+- **Changed on the way:**
+  - The owner's `POST /appointments` (no screen used it) is now guarded like public booking.
+  - New `GET /appointments/slots`; `resolveServices` moved to `booking.repo.ts`.
+  - **Bug fixed:** the owner's Cancel and No-show answered 500 on every booking since 2026-10-05.
+    `setStatus` reused `$1` as both enum and text.
+  - **Bug fixed:** a checked-in visit stopped holding its stylist, so the rest of its booked time
+    could be double-booked. `slotInputFor` now counts `checked_in`. New
+    `scripts/smoke-no-overlap-db.ts` covers every path: owner/customer booking and moves, four at
+    once, "any", and check-in. It was 22/24 before the fix and is 24/24 after.
+  - Toasts on both surfaces can carry an action (Undo).
+  - Migration **0045** (`customer_followup` + a visit index).
+- **Surfaces:** backend, owner-web, app (iOS + Android, one codebase). No Home card (the 2026-09-22
+  Home decision).
+- **Checks run:**
+  - backend `vitest` 51 files / 664 tests;
+  - `smoke-due-list-db.ts` 44/44 on a migrated throwaway DB;
+  - `smoke-due-list.mjs` 33/33 and `smoke-rest.mjs` 138/138 against a running API + seeded
+    throwaway DB;
+  - owner-web `tsc` + `eslint` clean; app `tsc` + `expo lint` clean.
+- **Not run:** a browser or device check of the new screens (owner-web `next build` too — a dev
+  server held `.next`). Preprod/production need migration 0045 before this backend is deployed.
+
+### "Sign out of PayPal" disconnects the store, so it can switch accounts (2026-10-28)
+
+- **What:** the app's Sign out of PayPal now also turns card payments off and clears the saved
+  PayPal account, through the new `POST /card-payments/disconnect`. It is refused while a charge is
+  unconfirmed. Before this, a store could never move to another PayPal account ("wrong account"
+  for good).
+- **Write-up:** "Signing out of PayPal" in
+  [docs/card-payments-paypal.md](../../docs/card-payments-paypal.md).
+- **owner-web:** deliberately unchanged (read-only page).
+- **Checks:**
+  - `smoke-card-payments.mjs` 94/94 on a throwaway local DB (18 new checks);
+  - backend `vitest` 598/598;
+  - app `tsc` clean;
+  - backend `tsc`: the same 6 errors in `tests/unit/` as before, none in `src/`.
+- **Not run:** a device build (iOS/Android), so the confirm sheet and the real PayPal SDK sign-out
+  are unchecked (checklist items 12–13).
+
+### Customer list: no plan limit, "Upgrade to Premium" removed (2026-10-28)
+
+- **What:** every plan now sees the whole customer list. Free used to see the latest 2 plus an
+  "N more clients locked · Upgrade to Premium" card on owner-web.
+- **Removed:**
+  - the card;
+  - owner-web's Settings → Subscription page, with its row, tile, BFF route and the Team grid's
+    billing row;
+  - the `FREE_PLAN_CUSTOMER_LIMIT` env var.
+- **Unchanged:** the 100-per-load page size (client's choice), plus `plan` / `lockedCount` (0) in
+  the payload for shipped app builds.
+- **Write-up:** [docs/customer-list-no-limit.md](../../docs/customer-list-no-limit.md).
+- **Checks:**
+  - `smoke-rest.mjs` 136/138 before the fix (the 2 new assertions failed), 138/138 after.
+  - backend `vitest` 598/598.
+  - owner-web `tsc` + `eslint` clean; app `tsc` clean.
+- **Not run:** `owner-web` `next build` (a dev server held `.next`), and no browser check.
+- **Deploy note:** `FREE_PLAN_CUSTOMER_LIMIT` can be deleted from Coolify. Leaving it is harmless.
+
 ### "Paid by" + card payments on the PayPal reader (2026-10-15)
 
 - **2026-10-16 change:** "Paid by" is asked only while a US store has Card payments switched
@@ -43,7 +127,7 @@ the system as designed, this one describes where it actually is.
   - **any native build**: the Swift/Kotlin module is uncompiled. It needs PayPal client ids, a
     GitHub `read:packages` token for Android, and a Mac for iOS. Then the device checklist in the
     doc.
-=======
+
 ### WhatsApp for Indian (+91) customers (2026-10-23)
 
 - **What:** the three customer messages (confirmation, 15-minute reminder, review request) go to a
@@ -75,7 +159,6 @@ the system as designed, this one describes where it actually is.
     point Meta's webhook at the API (the doc has the steps);
   - the US-only statements in Privacy §4/§12 and Terms §1/§3 are left for the client to decide;
   - `review_request` is probably a Marketing template, so Meta may hold some back (131049).
->>>>>>> 88d64a337c9b5efeb9c1e29c1131eb2c5b9f86e0
 
 ### Store page: open a pop-up from a link (2026-10-09)
 

@@ -8,6 +8,8 @@ import { requireOwnRow, requirePermission, scopeStaffId } from '../../middleware
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import * as appts from './appointments.service';
+import { ownerBookSchema, ownerSlotsQuery } from './owner-booking.schemas';
+import * as ownerBooking from './owner-booking.service';
 import * as reschedule from './reschedule.service';
 import * as series from './series.service';
 import { changeSchema, moveSchema, seriesSlotsQuery, slotsQuery } from './series.schemas';
@@ -56,24 +58,30 @@ appointmentsRouter.get(
   }),
 );
 
+/**
+ * An owner books a customer — the "Due to come back" list's Book (docs/customer-due-list.md). The
+ * time must be one `GET /slots` offers: same rule as public booking, owner window today … today+60.
+ * A staff login books only on its own chair.
+ */
 appointmentsRouter.post(
   '/',
   limiters.ownerWrite,
   requirePermission('appointments', 'manage'),
-  validate({
-    body: z
-      .object({
-        customerName: z.string().trim().min(1).max(80),
-        customerPhone: z.string().trim().max(20).optional().nullable(),
-        serviceId: z.string().uuid().optional().nullable(),
-        staffId: z.string().uuid().optional().nullable(),
-        scheduledStartAt: z.string().datetime(),
-        notes: z.string().max(1000).optional().nullable(),
-      })
-      .strict(),
-  }),
+  validate({ body: ownerBookSchema }),
   asyncHandler(async (req, res) => {
-    res.status(201).json(await appts.createAppointment(req.principal!.businessId, req.body));
+    res.status(201).json(await ownerBooking.bookByOwner(req.principal!.businessId, req.body, scopeStaffId(req.principal!)));
+  }),
+);
+
+/** Free times for a new owner booking of these services (registered before '/:id'). */
+appointmentsRouter.get(
+  '/slots',
+  limiters.ownerRead,
+  requirePermission('appointments', 'manage'),
+  validate({ query: ownerSlotsQuery }),
+  asyncHandler(async (req, res) => {
+    const q = req.query as unknown as { date: string; staffId?: string; serviceIds?: string[] };
+    res.json(await ownerBooking.ownerNewSlots(req.principal!.businessId, q, scopeStaffId(req.principal!)));
   }),
 );
 

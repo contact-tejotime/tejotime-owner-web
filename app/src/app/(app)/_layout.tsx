@@ -5,6 +5,7 @@ import { View } from 'react-native';
 
 import { TSplashScreen } from '@/components/common';
 import { AddWalkInSheet } from '@/components/feedback/AddWalkInSheet';
+import { BookAppointmentSheet } from '@/components/feedback/BookAppointmentSheet';
 import { CommissionVisitsSheet } from '@/components/feedback/CommissionVisitsSheet';
 import { DayAppointmentsSheet } from '@/components/feedback/DayAppointmentsSheet';
 import { DetailPanel } from '@/components/feedback/DetailPanel';
@@ -31,6 +32,7 @@ export default function AppLayout() {
         <Stack.Screen name="(tabs)" />
       </Stack>
       <AddWalkInSheet />
+      <BookAppointmentSheet />
       <QRSheet />
       <DetailPanel />
       <DayAppointmentsSheet />

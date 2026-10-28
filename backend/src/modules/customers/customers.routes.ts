@@ -8,10 +8,12 @@ import { normalizePhone } from '../../lib/phone';
 import { lastVisitLabel } from '../../lib/time';
 import { asyncHandler } from '../../http/async-handler';
 import { authenticate } from '../../middleware/authenticate';
-import { requirePermission } from '../../middleware/require-permission';
+import { requirePermission, scopeStaffId } from '../../middleware/require-permission';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import { getLivePlan } from '../subscription/subscription.service';
+import { followupSchema } from './due.schemas';
+import * as due from './due.service';
 
 function customerDTO(c: any, currency: string) {
   return {
@@ -48,7 +50,13 @@ customersRouter.get(
   }),
   asyncHandler(async (req, res) => {
     const businessId = req.principal!.businessId;
-    const plan = await getLivePlan(businessId); // authoritative — reflects a just-completed upgrade
+    /*
+     * Every plan sees its whole customer book (2026-10-28, docs/customer-list-no-limit.md). A free
+     * store used to get only its latest FREE_PLAN_CUSTOMER_LIMIT (2) and an "Upgrade to Premium"
+     * prompt for the rest. `plan` and `meta.lockedCount` (now always 0) stay in the payload because
+     * app builds already in owners' hands read both.
+     */
+    const plan = await getLivePlan(businessId);
     const search = (req.query.search as string | undefined)?.replace(/[%,()]/g, ' ').trim();
     const limit = Number(req.query.limit ?? 100);
 
@@ -67,25 +75,69 @@ customersRouter.get(
     );
     const total = countRow?.count;
 
-    const shownLimit = plan === 'free' ? env.FREE_PLAN_CUSTOMER_LIMIT : limit;
     const rows = await many(
       `select * from customer
         where ${whereSql}
         order by created_at desc
         limit $${filterParams.length + 1}`,
-      [...filterParams, shownLimit],
+      [...filterParams, limit],
     );
 
     const totalN = total ?? rows.length;
-    const lockedCount = plan === 'free' ? Math.max(0, totalN - rows.length) : 0;
     const currency = await businessCurrency(businessId);
 
     res.json({
       data: rows.map((c) => customerDTO(c, currency)),
       plan,
-      meta: { shown: rows.length, total: totalN, lockedCount, limit: shownLimit },
+      meta: { shown: rows.length, total: totalN, lockedCount: 0, limit },
       nextCursor: null,
     });
+  }),
+);
+
+// ---- "Due to come back" (docs/customer-due-list.md) ----
+//
+// Registered BEFORE '/:id': that route validates its param as a uuid and would answer 400 for the
+// literal "due". The logic lives in due.service.ts; these handlers only wire it up.
+
+/** The call list. A staff login sees only customers whose last visit was in its chair. */
+customersRouter.get(
+  '/due',
+  limiters.ownerRead,
+  requirePermission('customers'),
+  asyncHandler(async (req, res) => {
+    res.json(await due.listDue(req.principal!.businessId, scopeStaffId(req.principal!)));
+  }),
+);
+
+/** What a call achieved: no answer / call back on a day / not interested. */
+customersRouter.put(
+  '/:id/followup',
+  limiters.ownerWrite,
+  requirePermission('customers', 'manage'),
+  validate({ params: z.object({ id: z.string().uuid() }), body: followupSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await due.setFollowup(
+        req.principal!.businessId,
+        req.params.id,
+        req.body,
+        req.principal!.userId,
+        scopeStaffId(req.principal!),
+      ),
+    );
+  }),
+);
+
+/** Undo a logged outcome — the customer is back on the list if still due. */
+customersRouter.delete(
+  '/:id/followup',
+  limiters.ownerWrite,
+  requirePermission('customers', 'manage'),
+  validate({ params: z.object({ id: z.string().uuid() }) }),
+  asyncHandler(async (req, res) => {
+    await due.clearFollowup(req.principal!.businessId, req.params.id, scopeStaffId(req.principal!));
+    res.json({ ok: true });
   }),
 );
 

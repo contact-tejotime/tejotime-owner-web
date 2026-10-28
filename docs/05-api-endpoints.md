@@ -205,6 +205,10 @@ All queue mutations emit Socket.IO events ([08](./08-realtime-socketio.md)) and 
   "nextCursor": null
 }
 ```
+> **Superseded 2026-10-28:** no plan limit. Every plan gets the newest `limit` (default 100) and
+> `lockedCount` is always 0 ([customer-list-no-limit.md](./customer-list-no-limit.md)). The
+> original spec follows.
+
 Server enforces `FREE_LIMIT` (=2, configurable) — free plan returns only the latest N by `created_at` and reports `lockedCount`; it does **not** return locked rows' details (NFR-SE10). Premium returns all + `total` ("312 total"). Search matches name/phone substring, case-insensitive (FR-E2). Validation: `search` ≤ 80 chars; `phone` on create unique per business → `409 CUSTOMER_EXISTS`.
 
 ---

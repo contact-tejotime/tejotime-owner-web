@@ -30,6 +30,11 @@ import { useTheme } from '@/theme/ThemeProvider';
  * reader (PayPal's own screen), and sees recent card payments — refunding one, or settling one the
  * phone never confirmed. The charge itself happens on the checkout sheet (DetailPanel).
  *
+ * "Sign out of PayPal" is also how a store changes PayPal accounts (user decision 2026-10-28): it
+ * turns card charging off and makes the store forget its saved account (POST
+ * /card-payments/disconnect), then signs the phone out. Before that, the saved account could never
+ * be cleared, so a phone on a new account was refused for good ("wrong account").
+ *
  * owner-web has a read-only twin (settings/card-payments/page.tsx): PayPal's reader can only be
  * driven by its native SDK, so nothing there charges or refunds.
  */
@@ -48,6 +53,7 @@ export default function CardPayments() {
   /** Which action is running, by key — only that button spins. */
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmRefund, setConfirmRefund] = useState<CardPayment | null>(null);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -135,11 +141,36 @@ export default function CardPayments() {
       await readReader();
     });
 
+  /**
+   * The store lets go first, then the phone. If the store refuses (a charge still unconfirmed, or
+   * no connection) the phone stays signed in, so "Check with PayPal" can still settle that charge.
+   * If only the phone's sign-out fails, the store is already off and the button is there to retry.
+   */
   const signOut = () =>
     run('signOut', async () => {
+      try {
+        setSettings(await api.disconnectCardPayments());
+      } catch (e) {
+        if ((e as ApiError)?.code === 'CARD_PAYMENT_IN_PROGRESS') {
+          showToast(t.cardPayments.signOutPending, 'error');
+          return;
+        }
+        throw e;
+      }
+      void store.refresh();
       await cardReader.logout();
       await readReader();
+      showToast(t.cardPayments.signedOutDone, 'success');
     });
+
+  /**
+   * Losing the store's switch and account deserves a question; a store with neither just signs the
+   * phone out. Settings that failed to load could be either, so they ask too.
+   */
+  const askSignOut = () => {
+    if (!settings || settings.enabled || settings.paypalOrgRef) setConfirmSignOut(true);
+    else void signOut();
+  };
 
   /** On needs this phone signed in to the store's PayPal account, in the store's currency. */
   const setEnabled = (next: boolean) =>
@@ -238,7 +269,7 @@ export default function CardPayments() {
                 size="sm"
                 loading={busy === 'signIn' || busy === 'signOut'}
                 disabled={!!busy}
-                onPress={signedIn ? signOut : signIn}>
+                onPress={signedIn ? askSignOut : signIn}>
                 {signedIn ? t.cardPayments.signOut : t.cardPayments.signIn}
               </Button>
             }
@@ -356,6 +387,21 @@ export default function CardPayments() {
             void refund(p);
           }}
           onCancel={() => setConfirmRefund(null)}
+        />
+      ) : null}
+
+      {confirmSignOut ? (
+        <ConfirmSheet
+          visible
+          destructive
+          title={t.cardPayments.signOutTitle}
+          body={t.cardPayments.signOutBody}
+          confirmLabel={t.cardPayments.signOutConfirm}
+          onConfirm={() => {
+            setConfirmSignOut(false);
+            void signOut();
+          }}
+          onCancel={() => setConfirmSignOut(false)}
         />
       ) : null}
     </SettingsPageShell>

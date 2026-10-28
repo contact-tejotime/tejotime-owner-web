@@ -56,7 +56,8 @@ const schema = z.object({
   TICKET_URL_HMAC_SECRET: z.string().min(16),
   PASSWORD_PEPPER: z.string().default(''),
 
-  FREE_PLAN_CUSTOMER_LIMIT: z.coerce.number().int().nonnegative().default(2),
+  // FREE_PLAN_CUSTOMER_LIMIT is gone (2026-10-28): no plan cuts the customer list any more. A
+  // value still set in a deployment is simply ignored (z.object strips unknown keys).
   TICKET_ABANDON_HOURS: z.coerce.number().int().positive().default(4),
   BOOKING_SLOT_MINUTES: z.coerce.number().int().positive().default(30),
 

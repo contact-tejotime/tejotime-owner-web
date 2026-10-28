@@ -122,10 +122,13 @@ async function main() {
   ok(dash.status === 200 && dash.json.kpis.completed >= 1, 'dashboard completed >= 1');
   ok(dash.json.kpis.revenue.amount > 0, 'dashboard revenue > 0');
 
-  console.log('CUSTOMERS + PLAN GATING');
+  // The customer list is no longer plan-gated (2026-10-28, docs/customer-list-no-limit.md): a free
+  // store used to see its latest 2 and an "Upgrade to Premium" prompt for the rest.
+  console.log('CUSTOMERS (no plan gate)');
   const free = await call('GET', '/customers', { token });
-  ok(free.json.plan === 'free' && free.json.meta.shown === 2, 'free plan shows 2 customers');
-  ok(free.json.meta.lockedCount === free.json.meta.total - 2 && free.json.meta.total >= 4, 'lockedCount = total - 2');
+  ok(free.json.plan === 'free' && free.json.meta.total >= 4, 'store is on free with 4+ customers');
+  ok(free.json.meta.shown === free.json.meta.total && free.json.data.length === free.json.meta.total, 'free plan shows every customer');
+  ok(free.json.meta.lockedCount === 0, 'free plan locks nobody');
   const upg = await call('POST', '/subscription/upgrade', { token });
   ok(upg.status === 200 && upg.json.plan === 'premium', 'upgrade → premium');
   const premium = await call('GET', '/customers', { token });

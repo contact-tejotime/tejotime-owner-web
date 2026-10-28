@@ -65,7 +65,7 @@ Each requirement is traced to the UI element that implies it. `FR-#` IDs are sta
 |---|---|---|---|
 | FR-E1 | List customers with name, phone, VIP badge, and metrics: **Visits, Last visit, Spend**. | P0 | `Customers.tsx`, `CustomerCard` |
 | FR-E2 | **Search** by name or phone (case-insensitive, substring). | P0 | `Customers.tsx` filter |
-| FR-E3 | **Plan gating**: free plan shows only the latest **2** customers; the rest are blurred/locked with an "Upgrade to Premium" CTA and count "{N} more clients locked". Premium shows all + total count ("312 total"). | P0 | `Customers.tsx` `FREE_LIMIT=2`, `store.plan` |
+| FR-E3 | **Superseded 2026-10-28:** every plan sees all customers and there is no upgrade prompt ([customer-list-no-limit.md](./customer-list-no-limit.md)). Original spec: **Plan gating**: free plan shows only the latest **2** customers; the rest are blurred/locked with an "Upgrade to Premium" CTA and count "{N} more clients locked". Premium shows all + total count ("312 total"). | P0 | `Customers.tsx` `FREE_LIMIT=2`, `store.plan` |
 | FR-E4 | Mark/track **VIP** status. | P0 | `Customer.vip` |
 | FR-E5 | Track derived metrics: visit count, total spend, last visit — updated as services complete. | P1 | `Customer` fields; [07](./07-business-logic.md) |
 | FR-E6 | View/edit a customer profile & history. | P2 | Implied by CRM |
