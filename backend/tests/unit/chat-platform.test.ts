@@ -66,10 +66,12 @@ describe('answerPlatform', () => {
     expect(a.reply).toBe(PLATFORM_FACTS.faqs[0]!.a);
   });
 
-  it('quotes pricing exactly as the pricing section states it, free first month included', () => {
+  it('quotes pricing exactly as the pricing section states it', () => {
     const a = answerPlatform('how much does it cost?');
     expect(a.mode).toBe('facts');
-    expect(a.reply).toContain('Starter — Free for the first month, then $9.99/month');
+    expect(a.reply).toContain('Starter — $9.99 per month');
+    // The free first month was withdrawn on 2026-10-28; the bot must not keep offering it.
+    expect(a.reply).not.toMatch(/first month|month free/i);
     expect(a.reply).toContain('Business — Coming soon');
     expect(a.reply).toContain('Multi-location — Contact us');
     expect(a.reply).toContain('No card');
@@ -128,7 +130,7 @@ describe('answerPlatform', () => {
   it('a discount question is answered with the real plans and never an invented discount', () => {
     const a = answerPlatform('can I get a discount for two years upfront?');
     expect(a.reply).not.toMatch(/discount|% off|percent/i);
-    expect(a.reply).toContain('Starter — Free for the first month, then $9.99/month');
+    expect(a.reply).toContain('Starter — $9.99 per month');
   });
 
   it('intents the page cannot answer produce no invented facts', () => {
@@ -170,7 +172,7 @@ describe('buildPlatformSystemPrompt', () => {
     expect(p).toContain('business owner who is evaluating it');
     expect(p).toContain('Never invent or guess prices, plans, launch dates');
     expect(p).toContain('Never claim to have created an account');
-    expect(p).toContain('Starter: Free for the first month, then $9.99/month');
+    expect(p).toContain('Starter: $9.99 per month');
     expect(p).toContain('Q: Can I cancel?');
   });
 });
