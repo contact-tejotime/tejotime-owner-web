@@ -21,7 +21,7 @@ const eyebrowStyle: CSSProperties = {
 
 /**
  * Shared chrome for marketing subpages (resources).
- * Start Free / Book a Demo return to the homepage inquiry flow via `?join=1`.
+ * Get Started / Book a Demo return to the homepage inquiry flow via `?join=1`.
  */
 export function MarketingChrome({ children }: { children: ReactNode }) {
   return (

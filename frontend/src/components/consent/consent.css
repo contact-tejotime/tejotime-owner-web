@@ -2,7 +2,7 @@
  * Cookie banner + preferences modal.
  *
  * COLOUR. Primary actions use --primary / --primary-hover, which is the same blue the hero's
- * "Start Free" button paints with (components/landing/ui.tsx, variant="primary"). That button is
+ * "Get Started" button paints with (components/landing/ui.tsx, variant="primary"). That button is
  * a component with inline styles rather than a CSS class, so there is no class to share — binding
  * to the same tokens is what actually keeps the two identical. --brand-accent (the orange in the
  * logo wordmark) is now used for ONE thing here: the tint behind the cookie glyph.

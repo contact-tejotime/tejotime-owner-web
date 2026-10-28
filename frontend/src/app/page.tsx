@@ -1847,8 +1847,9 @@ export default function Home() {
                     style={{
                       font: "var(--fw-extrabold) 38px/1 var(--font-sans)",
                       letterSpacing: "-.035em",
-                      // A free-first-month plan shows its price in the badge's green, so the offer
-                      // reads as one highlighted unit rather than a bare "Free".
+                      // A plan with an offer badge shows its price in the badge's green, so the offer
+                      // reads as one highlighted unit. No plan carries one since the free first
+                      // month was dropped (2026-10-28).
                       color: p.badge ? "var(--success)" : "var(--text-strong)",
                       fontVariantNumeric: "tabular-nums",
                     }}
