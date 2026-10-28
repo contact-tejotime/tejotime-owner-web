@@ -76,10 +76,14 @@ export default function Appointments() {
       <THeader
         title={t.appointments.title}
         subtitle={todayLabel}
+        // "+" books an appointment (owner, 2026-10-28, docs/owner-book-appointment.md) — walk-ins are
+        // added from Home. Only with appointments:manage, the API's own gate for booking.
         action={
-          <IconButton variant="soft" accessibilityLabel={t.appointments.add} onPress={store.openWalkin}>
-            <Icon name="plus" size={20} color={theme.colors.textBody} />
-          </IconButton>
+          canManage ? (
+            <IconButton variant="soft" accessibilityLabel={t.appointments.bookAppointment} onPress={store.openBook}>
+              <Icon name="plus" size={20} color={theme.colors.textBody} />
+            </IconButton>
+          ) : null
         }
       />
       <TScreenScroll

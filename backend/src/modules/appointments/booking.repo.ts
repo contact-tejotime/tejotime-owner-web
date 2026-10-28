@@ -1,5 +1,6 @@
 import { env } from '../../config/env';
 import { BOOKING_WINDOW_DAYS } from '../../config/constants';
+import { Errors } from '../../domain/errors';
 import type { SlotInput } from '../../lib/booking-slots';
 import { projectedBookings, ruleFromColumns } from '../../lib/recurrence';
 import { dayjs } from '../../lib/time';
@@ -23,9 +24,15 @@ export interface VisitService {
 }
 
 /**
- * Everything computeSlots needs for one store-day. Bookings are every pending/confirmed row that
- * OVERLAPS the day — end times included, because capacity is decided by overlap, not by an exact
- * start. A row with no end (older owner bookings) counts as one slot.
+ * Everything computeSlots needs for one store-day. Bookings are every live row that OVERLAPS the
+ * day — end times included, because capacity is decided by overlap, not by an exact start. A row
+ * with no end (older owner bookings) counts as one slot.
+ *
+ * "Live" includes `checked_in`: the customer is in the chair, so the rest of their booked time is
+ * still theirs. Until 2026-10-28 only pending/confirmed counted, so the moment a 12:00–13:00 visit
+ * was checked in, 12:30 showed as free on that stylist and the owner or a customer could book on top
+ * of it (smoke-no-overlap-db.ts). A check-in never changes to `completed`, so this holds the booked
+ * window only — never longer. Cancelled and no-show rows free their time.
  *
  * `windowDays` defaults to the public window; the series job passes its own (today+20) — see
  * lib/recurrence.ts. `now` is injectable so the job can be driven through time in tests.
@@ -56,7 +63,7 @@ export async function slotInputFor(
             staff_id
        from appointment
       where business_id = $1
-        and status in ('pending', 'confirmed')
+        and status in ('pending', 'confirmed', 'checked_in')
         and scheduled_start_at < $3
         and coalesce(scheduled_end_at, scheduled_start_at + make_interval(mins => $4)) > $2
         and not (id = any($5::uuid[]))`,
@@ -115,6 +122,44 @@ async function seriesProjectionFor(q: Query, b: any, date: string, exceptSeriesI
     date,
     b.timezone,
   ).map((p) => ({ start: p.start, end: p.end, staffId: p.staffId }));
+}
+
+/**
+ * The services a visit is for, in the order they were picked, validated against this business.
+ *
+ * One resolver for every entry point — the public slots, join and book (public.service.ts) and the
+ * owner's booking (owner-booking.service.ts) — so they can never disagree about what was selected:
+ * the slot length, the queue entry's duration and the checkout total all derive from this list.
+ *
+ * `serviceId` (singular) is still accepted: it is what every already-shipped client sends. When
+ * both arrive `serviceIds` wins, with the singular folded in first if it is not already present.
+ *
+ * `activeOnly` refuses a service the store has switched off. The owner path sets it; the public
+ * path does not (yet), so its query stays exactly as it was.
+ */
+export async function resolveServices(
+  q: Query,
+  businessId: string,
+  input: { serviceId?: string | null; serviceIds?: string[] },
+  opts: { activeOnly?: boolean } = {},
+): Promise<VisitService[]> {
+  const ids: string[] = [];
+  for (const id of [...(input.serviceIds ?? []), ...(input.serviceId ? [input.serviceId] : [])]) {
+    if (!ids.includes(id)) ids.push(id);
+  }
+  if (ids.length === 0) return [];
+
+  const rows: VisitService[] = await q(
+    'select id, name, duration_minutes, price_paise from service where business_id = $1 and id = any($2::uuid[])' +
+      (opts.activeOnly ? ' and is_active = true' : ''),
+    [businessId, ids],
+  );
+  // Any unknown id is a hard error rather than a silent drop: quietly booking a shorter, cheaper
+  // visit than the one the customer chose is the failure this whole feature exists to prevent.
+  const missing = ids.filter((id) => !rows.some((r) => r.id === id));
+  if (missing.length) throw Errors.notFound('Service not found');
+  // Preserve the picked order — the first pick becomes the primary service.
+  return ids.map((id) => rows.find((r) => r.id === id)!);
 }
 
 /** A multi-service visit occupies the SUM of its parts; no service → the standard slot. */

@@ -710,6 +710,49 @@ export const getSeriesList = (status: "open" | "active" | "paused" | "ended" | "
 /** Needs attention — series dates the job could not book. Chair-scoped for staff, so uncached too. */
 export const getSeriesIssues = () => getFresh<{ data: SeriesIssue[] }>("/appointments/series/issues");
 
+/**
+ * "Due to come back" (docs/customer-due-list.md) — hand-mirrored from the backend's
+ * `due.service.ts` DueListDTO; there is no compiler between them, so change both together.
+ */
+export type DueStatus = "due_soon" | "overdue" | "lapsed";
+export type FollowupOutcome = "no_answer" | "call_later" | "not_interested";
+
+export interface DueCustomer {
+  customerId: string;
+  name: string;
+  phone: string;
+  isVip: boolean;
+  visitsCount: number;
+  status: DueStatus;
+  usualDays: number;
+  bandMin: number;
+  bandMax: number;
+  /** Store-local "YYYY-MM-DD". */
+  lastVisitDate: string;
+  daysSinceLast: number;
+  expectedDate: string;
+  lastServiceName: string | null;
+  lastStaff: { id: string; name: string; active: boolean } | null;
+  serviceIds: string[];
+  servicesResolved: boolean;
+  followup: { outcome: FollowupOutcome; snoozeUntil: string | null; aboutLastVisit: string; updatedAt: string } | null;
+  hiddenReason?: "not_interested" | "snoozed";
+}
+
+export interface DueList {
+  today: string;
+  callBackRange: { min: string; max: string };
+  counts: { overdue: number; dueSoon: number; lapsed: number; hidden: number };
+  data: DueCustomer[];
+  hidden: DueCustomer[];
+}
+
+/**
+ * Uncached: the API narrows the list to a staff login's own chair, and the cached reader keys on
+ * business + path only (the same reason as getAppointmentsFresh / getSeriesIssues).
+ */
+export const getDueCustomers = () => getFresh<DueList>("/customers/due");
+
 export const getAppointments = (query = "") =>
   get<{ data: AppointmentRow[] }>(
     `/appointments${query}`,

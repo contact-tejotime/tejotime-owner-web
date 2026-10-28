@@ -13,6 +13,8 @@ import {
   initSession,
   refreshSession,
   setOnAuthFail,
+  type DueListDTO,
+  type FollowupBody,
   type SeriesDTO,
   type SeriesIssueDTO,
 } from '@/lib/api';
@@ -33,6 +35,7 @@ import {
 } from '@/lib/mappers';
 import { DayHoursVM, toApiHours } from '@/lib/hours';
 import { TAB_ROUTES } from '@/navigation/routes';
+import { dropDue, dueLoggedMessage, hideDue, restoreDue } from '@/lib/due';
 import { showToast } from '@/lib/toast';
 import { setStoreTimeZone } from '@/lib/zoned';
 import { t, format } from '@/i18n';
@@ -62,7 +65,8 @@ function themeConfigFromBusiness(r: { theme?: unknown; themeColor?: string | nul
 }
 
 export type Plan = 'free' | 'premium';
-type Sheet = 'walkin' | null;
+/** `book`: Appointments' "+" — Book appointment (docs/owner-book-appointment.md). */
+type Sheet = 'walkin' | 'book' | null;
 export type WalkInPosition = 'end' | 'next';
 export type VisitorType = 'mr' | 'patient';
 
@@ -235,6 +239,12 @@ type State = {
   seriesRev: number;
   /** The booking row action in flight, so only that button spins. */
   apptAction: { id: string; kind: ApptAction } | null;
+  /**
+   * "Due to come back" — the call list on Customers (docs/customer-due-list.md). The API's answer as
+   * is: who is due, in which section, and who is hidden. Null until the first load.
+   */
+  due: DueListDTO | null;
+  dueLoaded: boolean;
 };
 
 type Store = State & {
@@ -246,6 +256,18 @@ type Store = State & {
   openAlerts: () => void;
   openWalkin: () => void;
   closeWalkin: () => void;
+  /** Appointments' "+": the Book appointment sheet. */
+  openBook: () => void;
+  closeBook: () => void;
+  /** Book a typed customer (name + phone) at a time from `getNewBookingSlots`. True when it worked. */
+  bookAppointment: (input: {
+    customerName: string;
+    customerPhone: string;
+    serviceIds: string[];
+    slotStart: string;
+    staffId?: string;
+    visitorType?: 'mr' | 'patient';
+  }) => Promise<boolean>;
   openQr: () => void;
   closeQr: () => void;
   completeOnboarding: () => void;
@@ -287,6 +309,12 @@ type Store = State & {
   actOnAppt: (a: Pick<AppointmentEntry, 'id' | 'seriesId'>, kind: ApptAction, move?: MoveTarget) => Promise<boolean>;
   /** "Book another time" for a Needs attention date. True when it worked. */
   bookSeriesIssue: (issueId: string, move: MoveTarget) => Promise<boolean>;
+  /** "Due to come back" → Book: a time from `getNewBookingSlots`. True when it worked. */
+  bookDueCustomer: (customerId: string, input: { slotStart: string; staffId?: string; serviceIds: string[] }) => Promise<boolean>;
+  /** Log what a call achieved; the row hides at once. True when it worked. */
+  setDueFollowup: (customerId: string, body: FollowupBody) => Promise<boolean>;
+  /** Undo a logged outcome — back on the list (if still due). */
+  undoDueFollowup: (customerId: string) => Promise<void>;
   openSeries: (id: string) => void;
   closeSeries: () => void;
   /** Re-read everything a series change can move: Regulars, Needs attention, the lists, the sheet. */
@@ -325,6 +353,12 @@ const SIGNED_OUT_SERIES: Pick<State, 'series' | 'seriesLoaded' | 'seriesIssues' 
   seriesSheetId: null,
   apptAction: null,
 };
+
+/**
+ * The call list is customers' names and numbers, scoped to whoever signed in (a staff login sees
+ * only its chair's). Dropped on sign-out, like Regulars.
+ */
+const SIGNED_OUT_DUE: Pick<State, 'due' | 'dueLoaded'> = { due: null, dueLoaded: false };
 
 const AppStateContext = createContext<Store | null>(null);
 
@@ -455,10 +489,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     seriesSheetId: null,
     seriesRev: 0,
     apptAction: null,
+    due: null,
+    dueLoaded: false,
   });
 
   const socketRef = useRef<Socket | null>(null);
   const seriesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoursSeq = useRef(0);
   /** Range currently shown on the calendar screen, so socket events can keep it fresh. */
@@ -576,6 +613,40 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setS((p) => ({ ...p, seriesRev: p.seriesRev + 1 }));
     }, 300);
   }, [loadSeries, loadSeriesIssues]);
+  const loadDue = useCallback(async () => {
+    try {
+      const due = await api.getDueCustomers();
+      setS((p) => ({ ...p, due, dueLoaded: true }));
+    } catch {
+      setS((p) => ({ ...p, dueLoaded: true }));
+    }
+  }, []);
+  /**
+   * Re-read the call list — debounced, like Regulars: a booking, a check-in, a checkout or a call
+   * logged on another device all change who is due, and they come in bursts.
+   */
+  const scheduleDueRefresh = useCallback(() => {
+    if (!can(accessRef.current, 'customers')) return;
+    if (dueTimer.current) clearTimeout(dueTimer.current);
+    dueTimer.current = setTimeout(() => {
+      dueTimer.current = null;
+      void loadDue();
+    }, 300);
+  }, [loadDue]);
+  /** Undo a logged call: back on the list at once, then the API confirms (and the list re-reads). */
+  const undoDue = useCallback(
+    async (customerId: string) => {
+      setS((p) => ({ ...p, due: restoreDue(p.due, customerId) }));
+      try {
+        await api.clearFollowup(customerId);
+        showToast(t.customers.due.undone, 'success');
+      } catch (e) {
+        showToast((e as ApiError)?.message ?? t.toast.error, 'error');
+      }
+      scheduleDueRefresh();
+    },
+    [scheduleDueRefresh],
+  );
   const loadCustomers = useCallback(async (search?: string) => {
     try {
       const r = await api.getCustomers(search);
@@ -711,6 +782,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       can(access, 'appointments') ? loadSeries() : Promise.resolve(),
       can(access, 'appointments') ? loadSeriesIssues() : Promise.resolve(),
       can(access, 'customers') ? loadCustomers() : Promise.resolve(),
+      can(access, 'customers') ? loadDue() : Promise.resolve(),
       can(access, 'dashboard') || can(access, 'commission') ? loadDashboard() : Promise.resolve(),
       can(access, 'profile') ? loadBusiness() : Promise.resolve(),
     ]);
@@ -722,6 +794,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     loadSeries,
     loadSeriesIssues,
     loadCustomers,
+    loadDue,
     loadDashboard,
     loadBusiness,
   ]);
@@ -801,6 +874,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         loadQueue();
         loadAppointments();
         scheduleSeriesRefresh();
+        scheduleDueRefresh();
       }
       connectedBefore = true;
     });
@@ -815,6 +889,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       loadDashboard();
       refreshVisibleCalendarRange();
       scheduleSeriesRefresh();
+      scheduleDueRefresh();
     });
     sock.on('appointment:checked_in', () => {
       loadAppointments();
@@ -822,12 +897,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       loadQueue();
       refreshVisibleCalendarRange();
       scheduleSeriesRefresh();
+      scheduleDueRefresh();
     });
     sock.on('appointment:updated', () => {
       loadAppointments();
       refreshVisibleCalendarRange();
       scheduleSeriesRefresh();
+      scheduleDueRefresh();
     });
+    // A checkout writes a visit — someone due may have just come in. A call logged on another
+    // device hides or restores a row.
+    sock.on('queue:entry.completed', () => scheduleDueRefresh());
+    sock.on('customer:followup', () => scheduleDueRefresh());
     // Pause / resume / cancel, a Needs attention item handled, the job flagging a date — or a
     // change of future visits, which re-books the month the Calendar may be showing.
     sock.on('series:updated', () => {
@@ -839,7 +920,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       loadCustomers();
     });
     sock.on('notification:new', (d: any) => showToast(d?.body ?? t.toast.newNotification, 'info'));
-  }, [loadAppointments, loadDashboard, loadQueue, loadCustomers, refreshVisibleCalendarRange, scheduleSeriesRefresh]);
+  }, [
+    loadAppointments,
+    loadDashboard,
+    loadQueue,
+    loadCustomers,
+    refreshVisibleCalendarRange,
+    scheduleSeriesRefresh,
+    scheduleDueRefresh,
+  ]);
 
   const teardown = useCallback(() => {
     const sock = socketRef.current;
@@ -890,6 +979,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         commission: null,
         commissionVisitsFor: null,
         ...SIGNED_OUT_SERIES,
+        ...SIGNED_OUT_DUE,
       }));
       showToast(t.toast.sessionExpired, 'error');
     });
@@ -1060,6 +1150,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           commission: null,
           commissionVisitsFor: null,
           ...SIGNED_OUT_SERIES,
+          ...SIGNED_OUT_DUE,
         }));
         showToast(message, type);
       },
@@ -1087,6 +1178,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }));
       },
       closeWalkin: () => patch(() => ({ sheet: null })),
+      openBook: () => patch(() => ({ sheet: 'book' })),
+      closeBook: () => patch(() => ({ sheet: null })),
+      bookAppointment: async (input) => {
+        try {
+          await api.createAppointment(input);
+          setS((p) => ({ ...p, sheet: null }));
+          showToast(t.series.visitBooked, 'success');
+          loadAppointments();
+          refreshVisibleCalendarRange();
+          // A booked regular leaves the call list.
+          scheduleDueRefresh();
+          return true;
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? t.toast.error, 'error');
+          return false;
+        }
+      },
       openQr: () => patch(() => ({ qr: true })),
       completeOnboarding: () => {
         patch(() => ({ onboarded: true }));
@@ -1347,6 +1455,40 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
       },
+      bookDueCustomer: async (customerId, input) => {
+        try {
+          await api.createAppointment({ customerId, ...input });
+          setS((p) => ({ ...p, due: dropDue(p.due, customerId) }));
+          showToast(t.series.visitBooked, 'success');
+          loadAppointments();
+          refreshVisibleCalendarRange();
+          scheduleDueRefresh();
+          return true;
+        } catch (e) {
+          showToast((e as ApiError)?.message ?? t.toast.error, 'error');
+          return false;
+        }
+      },
+      setDueFollowup: async (customerId, body) => {
+        let before: DueListDTO | null = null;
+        setS((p) => {
+          before = p.due;
+          return { ...p, due: hideDue(p.due, customerId, body) };
+        });
+        try {
+          await api.setFollowup(customerId, body);
+          showToast(dueLoggedMessage(body), 'info', undefined, {
+            action: { label: t.customers.due.undo, onPress: () => void undoDue(customerId) },
+          });
+          scheduleDueRefresh();
+          return true;
+        } catch (e) {
+          setS((p) => ({ ...p, due: before }));
+          showToast((e as ApiError)?.message ?? t.toast.error, 'error');
+          return false;
+        }
+      },
+      undoDueFollowup: (customerId) => undoDue(customerId),
       openSeries: (id) => patch(() => ({ seriesSheetId: id })),
       closeSeries: () => patch(() => ({ seriesSheetId: null })),
       refreshSeriesViews: () => {
@@ -1545,6 +1687,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     loadCalendarAppointments,
     refreshVisibleCalendarRange,
     scheduleSeriesRefresh,
+    scheduleDueRefresh,
+    undoDue,
     setReportQuery,
     setThemeConfig,
   ]);

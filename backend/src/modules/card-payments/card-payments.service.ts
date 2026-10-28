@@ -1,4 +1,4 @@
-import { many, one } from '../../db/pool';
+import { many, one, transaction } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { isUsStore } from '../../domain/enums';
 import { Errors } from '../../domain/errors';
@@ -135,6 +135,45 @@ export async function setSettings(businessId: string, enabled: boolean, paypalOr
     [businessId, enabled, paypalOrgRef ?? null],
   );
   // Every open checkout sheet's Card rule changes with this.
+  await broadcastQueue(businessId);
+  return getSettings(businessId);
+}
+
+/**
+ * "Sign out of PayPal" in the app: card payments off AND the store forgets its PayPal account, so
+ * the owner can sign in with another one and turn them back on (setSettings saves that one). The
+ * phone signs itself out of PayPal's SDK after this succeeds.
+ *
+ * Its own route rather than `PUT /settings` with `paypalOrgRef: null`: builds already on phones
+ * send no account when switching off, and that has to keep meaning "keep the account".
+ *
+ * Refused while a charge is unconfirmed (`pending`, at any age): once the phone is signed out, or
+ * signed in to another account, "Check with PayPal" can no longer find that charge to settle it.
+ * card_payment_start takes the same lock and then re-reads the switch, so no charge can start
+ * between this check and the update — it gets CARD_PAYMENTS_OFF instead.
+ *
+ * Not US-gated: a store whose currency changed must still be able to let go of its account.
+ */
+export async function disconnect(businessId: string) {
+  await transaction(async (client) => {
+    await client.query('select pg_advisory_xact_lock(hashtext($1::uuid::text))', [businessId]);
+    const pending = await client.query(
+      `select 1 from card_payment where business_id = $1 and status = 'pending' limit 1`,
+      [businessId],
+    );
+    if (pending.rowCount) {
+      throw Errors.conflict('CARD_PAYMENT_IN_PROGRESS', 'Settle the unconfirmed card payment first');
+    }
+    await client.query(
+      `update business
+          set card_payments_enabled = false,
+              paypal_org_ref = null,
+              updated_at = now()
+        where id = $1`,
+      [businessId],
+    );
+  });
+  // After the commit, as every emit is: open checkout sheets stop asking "Paid by".
   await broadcastQueue(businessId);
   return getSettings(businessId);
 }

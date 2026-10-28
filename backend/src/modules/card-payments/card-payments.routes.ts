@@ -43,6 +43,15 @@ cardPaymentsRouter.put(
   }),
 );
 
+// "Sign out of PayPal": off, and the saved PayPal account forgotten (see cards.disconnect).
+cardPaymentsRouter.post(
+  '/disconnect',
+  limiters.ownerWrite,
+  asyncHandler(async (req, res) => {
+    res.json(await cards.disconnect(req.principal!.businessId));
+  }),
+);
+
 cardPaymentsRouter.get(
   '/',
   limiters.ownerRead,

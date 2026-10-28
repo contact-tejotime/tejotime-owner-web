@@ -55,6 +55,7 @@ written to be **idempotent / re-runnable**.
 | 0040 | `unpriced_extras.sql` | `queue_entry_extra.price_type` (the catalog service's type for attached rows; NULL for chip add-ons and pre-0040 rows). `queue_attach_services` stores it, by the `serviceId` each item carries. `appointment_check_in` passes `appointment_service.service_id`. `queue_checkout` raises `AMOUNT_REQUIRED` for an `unset` extra when no amount is given. Same signatures throughout ([docs/checkout-add-ons.md](../../docs/checkout-add-ons.md)) |
 | 0039 | `checkout_addons.sql` | `queue_extend` (same signature) raises `TEJO:ALREADY_ADDED` for a label already on the visit — one add-on label per visit; new `queue_remove_extra(biz, entry, label)` deletes those rows, takes their minutes off `extra_minutes` and their ` + Label` off `service_name` (never the first segment) ([docs/checkout-add-ons.md](../../docs/checkout-add-ons.md)) |
 | 0044 | `notification_provider_message_idx.sql` | partial index on `notification.provider_message_id` (non-null only), which the WhatsApp webhook looks rows up by. No enum change: `'whatsapp'` already exists (0012). Numbered 0044 because 0042/0043 are the PayPal POS work ([docs/whatsapp-india.md](../../docs/whatsapp-india.md)) |
+| 0045 | `customer_followup.sql` | `customer_followup` (one current-state row per customer: what a "Due to come back" call achieved — snooze or not interested) and the partial visit index `(business_id, customer_id, completed_at desc)` ([docs/customer-due-list.md](../../docs/customer-due-list.md)) |
 
 > **`0016` is duplicated** across two independent files. Ordering relies on the filename sort, which
 > is deterministic. **Use a strictly increasing prefix from 0025 onward.**
@@ -183,6 +184,23 @@ made now and checked in later, so check-in has to be able to rebuild those extra
 
 Indexes: `(business_id, created_at desc)`, plus **trigram GIN** on `name` and `phone` for search.
 
+### `customer_followup` — what a "Due to come back" call achieved (0045)
+
+One **current-state** row per customer (PK `customer_id`, cascade), not a history:
+- **Columns:** `business_id`, `outcome`, `snooze_until` `date`, `about_last_visit` `date`,
+  `updated_by_user_id` (→ `app_user`, set null), `created_at`, `updated_at`.
+- **Outcomes** (check `no_answer|call_later|not_interested`):
+  - `no_answer` hides the customer until the store's tomorrow;
+  - `call_later` hides them until `snooze_until`;
+  - `not_interested` hides them until the row is deleted (Undo).
+- **Shape check:** a snooze day is present exactly for the first two.
+- **`about_last_visit`** is the store-local last visit day when the call was logged. A snooze only
+  holds while that is still the latest visit.
+- **Booking deletes the row.**
+- **No due state is stored:** who is due is computed when read, from `visit`.
+
+See [docs/customer-due-list.md](../../docs/customer-due-list.md).
+
 ### `queue_entry` — the live queue and public tickets
 
 `id`, `business_id`, `customer_id`, `customer_name`, `customer_phone`, `service_id`,
@@ -245,6 +263,9 @@ as `visit_commission` below.
 
 `id`, `business_id`, `customer_id`, `queue_entry_id`, `staff_id`, `service_name`,
 `amount_paise` `bigint`, `completed_at`. Written by `queue_checkout`.
+Indexes: `(business_id, completed_at)`, `(customer_id)`, and (0045) a partial
+`(business_id, customer_id, completed_at desc) where customer_id is not null` for the
+"Due to come back" list, which reads each customer's recent visits newest first.
 Later columns:
 - `payment_method` (0042): text, check `card|cash|venmo|zelle|cash_app|upi|other`, null before 0042
   and from old app builds. "Paid by" at checkout.
@@ -270,7 +291,8 @@ One row per attempt; **`id` is the reference handed to the reader**.
 - A recent pending row (< 15 min) makes `queue_checkout` / `queue_no_show` raise
   `CARD_PAYMENT_IN_PROGRESS`.
 - `business.card_payments_enabled` and `paypal_org_ref` are written only by
-  `PUT /card-payments/settings` (main owner).
+  `PUT /card-payments/settings` and `POST /card-payments/disconnect` (main owner). Only
+  disconnect can clear `paypal_org_ref`; `PUT` with no account keeps it.
 - See [docs/card-payments-paypal.md](../../docs/card-payments-paypal.md).
 
 ### `staff_commission_rate` — pay rates that start at an instant (0034, 0035)

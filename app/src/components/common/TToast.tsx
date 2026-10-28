@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import ToastLib, { BaseToast, type BaseToastProps } from 'react-native-toast-message';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { moderateScale } from '@/styles/scale';
+import { MAX_FONT_SCALE, moderateScale } from '@/styles/scale';
 import { fontFamily, fontSize } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -35,6 +35,10 @@ function ThemedToast({ variant, ...props }: BaseToastProps & { variant: ToastVar
     }
   }, [colors, variant]);
 
+  // "Undo" and the like (lib/toast.ts `action`): the whole toast is the button; the label sits at
+  // its trailing edge so it reads as one.
+  const actionLabel = (props as { props?: { actionLabel?: string } }).props?.actionLabel;
+
   return (
     <BaseToast
       {...props}
@@ -48,6 +52,17 @@ function ThemedToast({ variant, ...props }: BaseToastProps & { variant: ToastVar
       text2Style={[tToastStyles.text2, { color: colors.textBody }]}
       text1NumberOfLines={2}
       text2NumberOfLines={2}
+      renderTrailingIcon={
+        actionLabel
+          ? () => (
+              <View style={[tToastStyles.action, { borderColor: tone.text }]} accessibilityRole="button">
+                <Text style={[tToastStyles.actionText, { color: tone.text }]} maxFontSizeMultiplier={MAX_FONT_SCALE}>
+                  {actionLabel}
+                </Text>
+              </View>
+            )
+          : undefined
+      }
     />
   );
 }
@@ -98,5 +113,17 @@ const tToastStyles = StyleSheet.create({
   text2: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.caption,
+  },
+  action: {
+    alignSelf: 'center',
+    marginRight: moderateScale(12),
+    paddingHorizontal: moderateScale(10),
+    paddingVertical: moderateScale(5),
+    borderWidth: 1,
+    borderRadius: moderateScale(8),
+  },
+  actionText: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.bodySm,
   },
 });

@@ -134,6 +134,53 @@ export interface SeriesDetail {
   now: string;
 }
 
+/**
+ * "Due to come back" (docs/customer-due-list.md) — hand-mirrored from the backend's
+ * `due.service.ts` DueListDTO, as owner-web's server-api.ts is. Dates are store-local "YYYY-MM-DD".
+ */
+export type DueStatus = 'due_soon' | 'overdue' | 'lapsed';
+export type FollowupOutcome = 'no_answer' | 'call_later' | 'not_interested';
+export type FollowupBody =
+  | { outcome: 'no_answer' }
+  | { outcome: 'call_later'; callBackOn: string }
+  | { outcome: 'not_interested' };
+
+export interface FollowupDTO {
+  outcome: FollowupOutcome;
+  snoozeUntil: string | null;
+  aboutLastVisit: string;
+  updatedAt: string;
+}
+
+export interface DueCustomerDTO {
+  customerId: string;
+  name: string;
+  phone: string;
+  isVip: boolean;
+  visitsCount: number;
+  status: DueStatus;
+  usualDays: number;
+  bandMin: number;
+  bandMax: number;
+  lastVisitDate: string;
+  daysSinceLast: number;
+  expectedDate: string;
+  lastServiceName: string | null;
+  lastStaff: { id: string; name: string; active: boolean } | null;
+  serviceIds: string[];
+  servicesResolved: boolean;
+  followup: FollowupDTO | null;
+  hiddenReason?: 'not_interested' | 'snoozed';
+}
+
+export interface DueListDTO {
+  today: string;
+  callBackRange: { min: string; max: string };
+  counts: { overdue: number; dueSoon: number; lapsed: number; hidden: number };
+  data: DueCustomerDTO[];
+  hidden: DueCustomerDTO[];
+}
+
 /** One free time: the instant to send back, and its store-local label ("10:00 AM"). */
 export interface SlotDTO {
   startAt: string;
@@ -433,6 +480,36 @@ export const api = {
     raw<{ ok: true }>('POST', `/appointments/series/issues/${issueId}/resolve`),
   getCustomers: (search?: string) =>
     raw('GET', `/customers${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  /** "Due to come back" — the call list (docs/customer-due-list.md). Staff: own chair only. */
+  getDueCustomers: () => raw<DueListDTO>('GET', '/customers/due'),
+  /** What a call achieved. "No answer" hides them until the store's tomorrow. */
+  setFollowup: (customerId: string, body: FollowupBody) =>
+    raw<FollowupDTO>('PUT', `/customers/${customerId}/followup`, body),
+  /** Undo: back on the list if still due. */
+  clearFollowup: (customerId: string) => raw<{ ok: true }>('DELETE', `/customers/${customerId}/followup`),
+  /** Free times for a NEW booking of these services (length = their sum). */
+  getNewBookingSlots: (date: string, serviceIds: string[], staffId?: string) =>
+    raw<SlotsResponse>(
+      'GET',
+      `/appointments/slots?${slotQuery(date, staffId)}${
+        serviceIds.length ? `&serviceIds=${serviceIds.map(encodeURIComponent).join(',')}` : ''
+      }`,
+    ),
+  /**
+   * Book a customer at a slot from `getNewBookingSlots` — "Due to come back" → Book. 409
+   * SLOT_UNAVAILABLE when it was taken meanwhile. No SMS: the owner is on the phone with them.
+   */
+  createAppointment: (body: {
+    /** Someone already on the books ("Due to come back")… */
+    customerId?: string;
+    /** …or a typed customer (Book appointment): the phone is required, an existing number is matched. */
+    customerName?: string;
+    customerPhone?: string;
+    serviceIds: string[];
+    slotStart: string;
+    staffId?: string;
+    visitorType?: 'mr' | 'patient';
+  }) => raw<AppointmentDTO>('POST', '/appointments', body),
   getDashboard: (q: ReportQuery = { range: 'today' }) =>
     raw('GET', `/dashboard/summary?${reportQueryString(q)}`),
   getDashboardByStaff: (q: ReportQuery = { range: 'today' }) =>
@@ -548,6 +625,8 @@ export const api = {
       enabled,
       ...(paypalOrgRef ? { paypalOrgRef } : {}),
     }),
+  /** "Sign out of PayPal": off, and the store forgets its PayPal account. 409 while a charge is unconfirmed. */
+  disconnectCardPayments: () => raw<CardPaymentSettings>('POST', '/card-payments/disconnect'),
   listCardPayments: (q: { status?: CardPayment['status']; needsReview?: boolean; limit?: number } = {}) => {
     const qs = new URLSearchParams();
     if (q.status) qs.set('status', q.status);

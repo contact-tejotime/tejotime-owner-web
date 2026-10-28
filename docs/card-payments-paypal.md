@@ -162,6 +162,53 @@ A refunded visit stays in every list. Its money leaves every sum, and every coun
 Past reports change: a refund takes the money out of the visit's own day, even if that period's
 commission was already paid. This was the client's choice ([staff-commission.md](./staff-commission.md)).
 
+### Signing out of PayPal, and switching accounts (2026-10-28)
+
+**The problem.** Turning card payments on saves the PayPal account's id on the store
+(`business.paypal_org_ref`). The Settings screen then refuses a phone signed in to any other
+account ("wrong account"). Nothing could ever clear that id:
+- switching off kept it (`coalesce` in `setSettings`);
+- the app never sent an empty id;
+- "Sign out of PayPal" only signed the phone out.
+
+So a store that moved to another PayPal account was stuck, and only a database edit freed it.
+
+**The fix (user decision 2026-10-28: no separate Disconnect button).** In the app, **"Sign out of
+PayPal" now also disconnects the store**:
+1. If card payments are on or an account is saved, a confirm sheet asks first. Otherwise the phone
+   just signs out, as before.
+2. `POST /card-payments/disconnect` turns card payments **off** and clears `paypal_org_ref`.
+3. Only then does the phone sign out of PayPal's SDK.
+4. To take cards again, the owner signs in to PayPal (the same account or another) and turns card
+   payments on. That saves the account they signed in with.
+
+**The rules:**
+- **Refused while a charge is unconfirmed:** a `pending` row of any age gives 409
+  `CARD_PAYMENT_IN_PROGRESS`, and nothing changes.
+  - Reason: once the phone is signed out, or signed in to another account, **Check with PayPal**
+    can no longer find that charge.
+  - The app says so and does **not** sign the phone out, so the owner can settle it first.
+- **No race with a starting charge.** The route takes the same advisory lock as
+  `card_payment_start`, which re-reads the switch under it. A charge either starts first (so
+  disconnect is refused) or gets `CARD_PAYMENTS_OFF`.
+- **Not US-gated.** A store whose currency changed can still let go of its account.
+- **A separate route, not `PUT /settings` with `paypalOrgRef: null`.** Builds already on phones
+  send no account when switching off, and that must keep meaning "keep the saved account".
+- **History stays.** Every `card_payment` row stays listed.
+- **Refunds of old charges.** A charge taken on the old account is most likely only refundable
+  from that account in PayPal. This has not been checked against PayPal's SDK. The confirm sheet
+  says so.
+- **The order on the phone:**
+  - the store lets go first, then the phone;
+  - if the API call fails for any reason, the phone stays signed in;
+  - if only the SDK sign-out fails, the store is already off, and the button is still there to
+    retry.
+- **Moving to a new phone** now means signing in there and turning card payments back on. That is
+  one tap more than before, but the old sign-out left the switch on with no phone able to charge.
+- **owner-web is unchanged.** Its page is read-only and simply reads "Card payments are off."
+  afterwards.
+- **Builds from before 2026-10-28** still only sign the phone out.
+
 ## Data model
 
 | Migration | What |
@@ -184,6 +231,7 @@ Everyone else gets 403 from every route.
 | Route | Does |
 |---|---|
 | `GET /settings` · `PUT /settings {enabled, paypalOrgRef?}` | Card charging on/off, and the PayPal account it was turned on with |
+| `POST /disconnect` | The app's "Sign out of PayPal": off **and** the saved account cleared; 409 `CARD_PAYMENT_IN_PROGRESS` while a charge is unconfirmed |
 | `POST / {queueEntryId, amountPaise}` | Start a charge, returning `{payment, resumed}` |
 | `POST /:id/complete {providerPaymentId?, cardBrand?, cardLast4?, entryMode?, chargedAmountPaise?}` | Approved: paid + visit completed, returning the board like a checkout |
 | `POST /:id/fail {reason}` | Declined, cancelled, or given up |
@@ -208,7 +256,8 @@ takes the money can call these routes.
   - Charge on the reader.
   - Settings → **Card payments** (main owner, hidden on the web target): sign in to PayPal, turn
     on, pair the reader (PayPal's own screen), recent payments with Refund / Check with PayPal /
-    It was not charged.
+    It was not charged. **Sign out of PayPal** also turns card payments off and forgets the
+    store's account (above).
   - Recovery on launch.
 
 ## The native module — `app/modules/paypal-reader`
@@ -288,7 +337,17 @@ and a short video of a charge.
 - decline;
 - a late charge recorded as needs review;
 - a refund taking revenue and commission out while counts stay;
-- turning card charging off.
+- turning card charging off;
+- **signing out of PayPal (2026-10-28):**
+  - switching off alone keeps the saved account;
+  - `POST /disconnect` is refused with a charge unconfirmed (409, nothing changed) and for the
+    co-owner and staff (403);
+  - once settled, it turns off and forgets the account, and no charge can start;
+  - account B then connects;
+  - every earlier payment is still listed;
+  - a repeat is harmless.
+- Last run 2026-10-28: **94 passed, 0 failed**. That used a local throwaway DB,
+  `tejotime_signout_smoke`, with the API on port 8090.
 
 **Manual device checklist** (iOS **and** Android, dev mode first, then one real $1 charge and
 refund in the US):
@@ -303,6 +362,11 @@ refund in the US):
 9. A staff phone shows Card disabled.
 10. A second phone shows the "charging" banner.
 11. owner-web shows the method, the banner, the Refunded tag and the list.
+12. Sign out of PayPal with card payments on: the confirm sheet appears, then the switch is off.
+    Sign in with **another** PayPal account and turn card payments on: it works, with no "wrong
+    account".
+13. Sign out with an unconfirmed charge: it is refused, the phone stays signed in, and Check with
+    PayPal still works.
 
 ## What has and has not been verified
 

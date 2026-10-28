@@ -1,13 +1,11 @@
 import { exec, many, one } from '../../db/pool';
 import { callRpc } from '../../db/rpc';
 import { Errors } from '../../domain/errors';
-import { normalizePhone } from '../../lib/phone';
 import { businessDayRange, businessRangeWindow } from '../../lib/time';
 import { soonestSeat } from '../../lib/queue-engine';
 import { emitToOwners } from '../../realtime/emitters';
 import { loadQueueContext } from '../queue/queue.context';
 import { broadcastQueue, getEntryDetail } from '../queue/queue.service';
-import { findOrCreateCustomer } from '../customers/customer.repo';
 import { apptDTO } from './appointment.dto';
 import { noteNoShow } from './series.service';
 
@@ -48,55 +46,8 @@ export async function listAppointments(
   return { data: data.map(apptDTO) };
 }
 
-export async function createAppointment(
-  businessId: string,
-  input: {
-    customerName: string;
-    customerPhone?: string | null;
-    serviceId?: string | null;
-    staffId?: string | null;
-    scheduledStartAt: string;
-    notes?: string | null;
-  },
-) {
-  let serviceName: string | null = null;
-  let durationMinutes = 30;
-  if (input.serviceId) {
-    const svc = await one('select name, duration_minutes from service where id = $1 and business_id = $2', [
-      input.serviceId,
-      businessId,
-    ]);
-    if (!svc) throw Errors.notFound('Service not found');
-    serviceName = svc.name;
-    durationMinutes = svc.duration_minutes;
-  }
-  const phone = input.customerPhone ? normalizePhone(input.customerPhone) : null;
-  const customerId = await findOrCreateCustomer(businessId, input.customerName, phone);
-  const start = new Date(input.scheduledStartAt);
-  const end = new Date(start.getTime() + durationMinutes * 60_000);
-
-  const data = await one(
-    `insert into appointment
-       (business_id, customer_id, customer_name, customer_phone, service_id, service_name,
-        staff_id, scheduled_start_at, scheduled_end_at, status, source, notes)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', 'owner', $10)
-     returning *`,
-    [
-      businessId,
-      customerId,
-      input.customerName,
-      phone,
-      input.serviceId ?? null,
-      serviceName,
-      input.staffId ?? null,
-      start.toISOString(),
-      end.toISOString(),
-      input.notes ?? null,
-    ],
-  );
-  emitToOwners(businessId, 'appointment:created', { appointment: apptDTO(data) });
-  return apptDTO(data);
-}
+// Creating an owner booking lives in owner-booking.service.ts: it is checked like a customer's own
+// booking. The unguarded insert that used to be here was never called by any screen.
 
 export async function checkIn(businessId: string, appointmentId: string) {
   const ctx = await loadQueueContext(businessId);
@@ -146,13 +97,16 @@ export async function checkIn(businessId: string, appointmentId: string) {
 
 export async function setStatus(businessId: string, appointmentId: string, status: 'cancelled' | 'no_show') {
   // A cancelled series visit is marked so reports can tell it from a customer's skip; a one-off
-  // booking keeps a null reason, as before.
+  // booking keeps a null reason, as before. "Is this a cancel?" is its own boolean parameter: reusing
+  // $1 for it made Postgres deduce one parameter as both appointment_status and text ("inconsistent
+  // types deduced for parameter $1"), so every owner Cancel and No-show answered 500 from 2026-10-05
+  // until 2026-10-28 (caught by smoke-due-list.mjs).
   const data = await one(
     `update appointment set status = $1, updated_at = $2,
-            cancel_reason = case when $1 = 'cancelled' and series_id is not null then 'cancelled' else cancel_reason end
+            cancel_reason = case when $5 and series_id is not null then 'cancelled' else cancel_reason end
       where id = $3 and business_id = $4
       returning *`,
-    [status, new Date().toISOString(), appointmentId, businessId],
+    [status, new Date().toISOString(), appointmentId, businessId, status === 'cancelled'],
   );
   if (!data) throw Errors.notFound('Appointment not found');
   emitToOwners(businessId, 'appointment:updated', { appointment: apptDTO(data) });

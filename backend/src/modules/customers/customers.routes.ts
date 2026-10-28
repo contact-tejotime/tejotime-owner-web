@@ -8,10 +8,12 @@ import { normalizePhone } from '../../lib/phone';
 import { lastVisitLabel } from '../../lib/time';
 import { asyncHandler } from '../../http/async-handler';
 import { authenticate } from '../../middleware/authenticate';
-import { requirePermission } from '../../middleware/require-permission';
+import { requirePermission, scopeStaffId } from '../../middleware/require-permission';
 import { validate } from '../../middleware/validate';
 import { limiters } from '../../middleware/rate-limit';
 import { getLivePlan } from '../subscription/subscription.service';
+import { followupSchema } from './due.schemas';
+import * as due from './due.service';
 
 function customerDTO(c: any, currency: string) {
   return {
@@ -90,6 +92,52 @@ customersRouter.get(
       meta: { shown: rows.length, total: totalN, lockedCount: 0, limit },
       nextCursor: null,
     });
+  }),
+);
+
+// ---- "Due to come back" (docs/customer-due-list.md) ----
+//
+// Registered BEFORE '/:id': that route validates its param as a uuid and would answer 400 for the
+// literal "due". The logic lives in due.service.ts; these handlers only wire it up.
+
+/** The call list. A staff login sees only customers whose last visit was in its chair. */
+customersRouter.get(
+  '/due',
+  limiters.ownerRead,
+  requirePermission('customers'),
+  asyncHandler(async (req, res) => {
+    res.json(await due.listDue(req.principal!.businessId, scopeStaffId(req.principal!)));
+  }),
+);
+
+/** What a call achieved: no answer / call back on a day / not interested. */
+customersRouter.put(
+  '/:id/followup',
+  limiters.ownerWrite,
+  requirePermission('customers', 'manage'),
+  validate({ params: z.object({ id: z.string().uuid() }), body: followupSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await due.setFollowup(
+        req.principal!.businessId,
+        req.params.id,
+        req.body,
+        req.principal!.userId,
+        scopeStaffId(req.principal!),
+      ),
+    );
+  }),
+);
+
+/** Undo a logged outcome — the customer is back on the list if still due. */
+customersRouter.delete(
+  '/:id/followup',
+  limiters.ownerWrite,
+  requirePermission('customers', 'manage'),
+  validate({ params: z.object({ id: z.string().uuid() }) }),
+  asyncHandler(async (req, res) => {
+    await due.clearFollowup(req.principal!.businessId, req.params.id, scopeStaffId(req.principal!));
+    res.json({ ok: true });
   }),
 );
 
