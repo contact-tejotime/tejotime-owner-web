@@ -368,11 +368,19 @@ export const api = {
    * customer who booked one thing and had three. Omit it and the booked service plus recorded
    * add-ons is used, exactly as before.
    */
-  checkout: (id: string, amountPaise?: number | null, paymentMethod?: PaymentMethod | null) =>
+  checkout: (
+    id: string,
+    amountPaise?: number | null,
+    paymentMethod?: PaymentMethod | null,
+    tipPaise?: number | null,
+  ) =>
     raw('POST', `/queue/${id}/checkout`, {
       ...(amountPaise == null ? {} : { amountPaise }),
       // "Paid by" (0042). The sheet requires it; the API still takes a checkout without it.
       ...(paymentMethod ? { paymentMethod } : {}),
+      // The tip (0046): beside the bill, never inside it. Left out when there is none, so an old
+      // API (which has a strict body) is never sent a key it does not know.
+      ...(tipPaise ? { tipPaise } : {}),
     }),
   /** One entry's detail, including the price breakdown the checkout sheet pre-fills from. */
   getQueueEntry: (id: string) =>
@@ -635,8 +643,13 @@ export const api = {
     return raw<{ data: CardPayment[] }>('GET', `/card-payments?${qs.toString()}`);
   },
   /** A `pending` charge; its id is the reference handed to the reader. `resumed`: an attempt was already in flight. */
-  startCardPayment: (queueEntryId: string, amountPaise: number) =>
-    raw<{ payment: CardPayment; resumed: boolean }>('POST', '/card-payments', { queueEntryId, amountPaise }),
+  startCardPayment: (queueEntryId: string, amountPaise: number, tipPaise?: number | null) =>
+    raw<{ payment: CardPayment; resumed: boolean }>('POST', '/card-payments', {
+      queueEntryId,
+      // The WHOLE charge (bill + tip); `tipPaise` is the part of it that is the tip (0046).
+      amountPaise,
+      ...(tipPaise ? { tipPaise } : {}),
+    }),
   /** The reader approved: records it and completes the visit. Returns the board, like checkout. */
   completeCardPayment: (id: string, b: CardChargeReport) =>
     raw<{ payment: CardPayment; promoted: { id: string; name: string } | null; seats: any[] }>(
@@ -658,7 +671,10 @@ export type PaymentMethod = import('@/lib/checkout-amount').PaymentMethod;
 export interface CardPayment {
   id: string;
   status: 'pending' | 'paid' | 'failed' | 'refunded';
+  /** The whole charge: the bill plus the tip. */
   amount: { amount: number; currency: string };
+  /** The part of `amount` that is the tip (0046); zero for a charge with none. Optional for older APIs. */
+  tip?: { amount: number; currency: string };
   chargedAmount: { amount: number; currency: string } | null;
   /** Paid, but its visit could not be completed with it, or the reader charged a different amount. */
   needsReview: boolean;

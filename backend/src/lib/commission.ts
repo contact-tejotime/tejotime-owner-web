@@ -23,6 +23,11 @@ export interface CommissionBucket {
   visits: number;
   revenue: number;
   commission: number;
+  /**
+   * Tips on these visits (0046), refunded ones excluded. NEVER part of `revenue` or `commission`:
+   * a tip is the stylist's own, outside the rate. Absent reads as 0 (rows built before tips).
+   */
+  tip?: number;
 }
 
 /** A row of `staff_commission_rate`. */
@@ -55,6 +60,8 @@ export interface StaffCommission {
   visits: number;
   revenue: number;
   commission: number;
+  /** Tips this stylist was given in the window — on top of, and outside, `commission`. */
+  tips: number;
   /** Visits with no rate in force — they earn nothing, and the report says so. */
   unratedVisits: number;
   currentRateBp: number | null;
@@ -65,10 +72,11 @@ export interface StaffCommission {
 }
 
 export interface CommissionSummary {
-  totals: { visits: number; revenue: number; commission: number; salonKeeps: number | null };
+  /** `salonKeeps` = revenue - commission; tips are in neither, so the salon never keeps one. */
+  totals: { visits: number; revenue: number; commission: number; tips: number; salonKeeps: number | null };
   staff: StaffCommission[];
   /** Visits with no stylist (a store with no chairs, or a chair since deleted). Owners only. */
-  unassigned: { visits: number; revenue: number } | null;
+  unassigned: { visits: number; revenue: number; tips: number } | null;
 }
 
 /** `YYYY-MM-DD` ± n days, on the UTC calendar — no timezone, no DST. */
@@ -201,6 +209,7 @@ export function summarizeCommission(input: {
         visits: total(own, (b) => b.visits),
         revenue: total(own, (b) => b.revenue),
         commission: total(own, (b) => b.commission),
+        tips: total(own, (b) => b.tip ?? 0),
         unratedVisits: total(own.filter((b) => b.rateBp == null), (b) => b.visits),
         currentRateBp: current?.rateBp ?? null,
         currentRateFrom: current?.effectiveFrom ?? null,
@@ -218,12 +227,17 @@ export function summarizeCommission(input: {
       visits: total(buckets, (b) => b.visits),
       revenue,
       commission,
+      tips: total(buckets, (b) => b.tip ?? 0),
       salonKeeps: scope === 'store' ? revenue - commission : null,
     },
     staff: rows,
     unassigned:
       scope === 'store'
-        ? { visits: total(loose, (b) => b.visits), revenue: total(loose, (b) => b.revenue) }
+        ? {
+            visits: total(loose, (b) => b.visits),
+            revenue: total(loose, (b) => b.revenue),
+            tips: total(loose, (b) => b.tip ?? 0),
+          }
         : null,
   };
 }

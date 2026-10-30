@@ -203,7 +203,13 @@ kept, because shipped app builds read both
 
 `GET /` · `GET /qr` (`perm=profile:view`) — `PATCH /` · `PUT /gallery` · `PUT /amenities`
 (`perm=profile:manage`) — `PUT /hours` (`perm=hours:manage`). `PATCH /` accepts
-`recurringEnabled` (owner/co-owner only, like the other public-face fields).
+`recurringEnabled` (owner/co-owner only, like the other public-face fields). There is no Tips switch
+([docs/checkout-tips.md](../../docs/checkout-tips.md)); `tipEnabled` is a 400.
+
+**Tips (0046):** `POST /queue/:id/checkout` takes an optional `tipPaise` (beside `amountPaise`, the
+bill; 400 if negative, fractional or over 100,000,000), `GET /queue/:id` carries no tip flag (the Tip row is always there),
+`POST /card-payments` takes `tipPaise` (the part of `amountPaise` that is the tip; > amount → 400),
+and `GET /commission/summary` / `/visits` return `tips` / `tip`.
 
 ### `/services` (4) and `/staff` (4)
 

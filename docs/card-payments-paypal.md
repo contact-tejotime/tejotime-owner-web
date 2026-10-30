@@ -96,9 +96,14 @@ a charge already taken, that money is still recorded and can still be refunded.
 1. The main owner picks **Card** on a store with card payments on, on a phone signed in to PayPal.
    The button becomes **"Charge $45 on the card reader"**.
 2. `POST /card-payments` creates a `pending` row. Its id is the **reference** handed to the reader.
-3. PayPal's SDK takes the card. Tipping is always off.
+3. PayPal's SDK takes the card. Its own on-reader tipping is always off. If the store has **Tips**
+   switched on ([checkout-tips.md](./checkout-tips.md), 0046), the tip is chosen on the checkout
+   sheet and the reader is charged **bill + tip**. `card_payment.amount_paise` is the whole charge,
+   `tip_paise` the part of it that is the tip.
 4. `POST /card-payments/:id/complete` records it **and** completes the visit in one database
-   transaction (`card_payment_complete`). The visit banks what the card was actually charged.
+   transaction (`card_payment_complete`). The visit banks what the card was actually charged, split
+   into the bill (`charged - tip`, which is revenue and earns commission) and the tip (the chair's
+   own). A **refund** returns the whole charge, so the tip goes with it.
 5. A decline or a cancel calls `.../fail`, and the visit can be finished another way.
 
 Below the charge button, **"Charged outside TejoTime"** records a card the owner charged in

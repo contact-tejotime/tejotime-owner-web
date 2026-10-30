@@ -60,6 +60,9 @@ export function CommissionVisitsSheet({ data, closeHref }: { data: CommissionVis
             })}
           </p>
           {data.segments.length ? <p className="rp-comm-break">{segmentBreakdown(data.segments)}</p> : null}
+          {data.totals.tips && data.totals.tips.amount > 0 ? (
+            <p className="rp-comm-break">{format(t.stats.tipsTotalNote, { tips: formatMoney(data.totals.tips) })}</p>
+          ) : null}
 
           {data.data.length === 0 ? (
             <p className="rp-visits-note">{t.commission.visitsEmpty}</p>
@@ -87,6 +90,12 @@ export function CommissionVisitsSheet({ data, closeHref }: { data: CommissionVis
                                 ? t.stats.rateNone
                                 : `${formatRate(v.rateBp)} · ${formatMoney(v.commission)}`}
                           </span>
+                          {/* The tip, below the commission and apart from it (docs/checkout-tips.md). */}
+                          {v.tip && v.tip.amount > 0 ? (
+                            <span className="rp-visit-earned rp-visit-tip">
+                              {format(t.stats.visitTip, { tip: formatMoney(v.tip) })}
+                            </span>
+                          ) : null}
                         </span>
                       </li>
                     ))}

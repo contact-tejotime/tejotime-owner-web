@@ -89,6 +89,7 @@ queueRouter.post(
       await queue.checkout(req.principal!.businessId, req.params.id, {
         amountPaise: req.body?.amountPaise,
         paymentMethod: req.body?.paymentMethod,
+        tipPaise: req.body?.tipPaise,
         isSuperOwner: req.principal!.isSuperOwner,
       }),
     );

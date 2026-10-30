@@ -78,6 +78,7 @@ async function loadBuckets(
     visits: number;
     revenue: string;
     commission: string;
+    tip: string | null;
   }>(
     `select vc.staff_id,
             vc.rate_bp,
@@ -86,7 +87,10 @@ async function loadBuckets(
             -- A refunded card visit (0043) still counts, but brings in nothing and earns nothing
             -- (the view already zeroes its commission).
             coalesce(sum(vc.amount_paise) filter (where vc.refunded_at is null), 0)::bigint as revenue,
-            coalesce(sum(vc.commission_paise), 0)::bigint as commission
+            coalesce(sum(vc.commission_paise), 0)::bigint as commission,
+            -- Tips (0046): the stylist's own, outside revenue and commission. A refunded card
+            -- visit takes its tip back with the rest of the charge.
+            coalesce(sum(vc.tip_paise) filter (where vc.refunded_at is null), 0)::bigint as tip
        from visit_commission vc
       where vc.business_id = $1
         and vc.completed_at >= $2
@@ -101,6 +105,7 @@ async function loadBuckets(
     visits: Number(r.visits),
     revenue: Number(r.revenue),
     commission: Number(r.commission),
+    tip: Number(r.tip ?? 0),
   }));
 }
 
@@ -179,6 +184,7 @@ export async function summary(businessId: string, query: Partial<ReportQuery>, s
       visits: s.totals.visits,
       revenue: m(s.totals.revenue),
       commission: m(s.totals.commission),
+      tips: m(s.totals.tips),
       salonKeeps: s.totals.salonKeeps == null ? null : m(s.totals.salonKeeps),
     },
     staff: s.staff.map((row) => ({
@@ -188,13 +194,16 @@ export async function summary(businessId: string, query: Partial<ReportQuery>, s
       visits: row.visits,
       revenue: m(row.revenue),
       commission: m(row.commission),
+      tips: m(row.tips),
       unratedVisits: row.unratedVisits,
       currentRateBp: row.currentRateBp,
       currentRateFrom: row.currentRateFrom ? local(row.currentRateFrom) : null,
       nextRate: row.nextRate ? { rateBp: row.nextRate.rateBp, from: local(row.nextRate.from) } : null,
       segments: row.segments.map((seg) => ({ ...segmentDTO(seg, store.currency), from: local(seg.from), to: local(seg.to) })),
     })),
-    unassigned: s.unassigned ? { visits: s.unassigned.visits, revenue: m(s.unassigned.revenue) } : null,
+    unassigned: s.unassigned
+      ? { visits: s.unassigned.visits, revenue: m(s.unassigned.revenue), tips: m(s.unassigned.tips) }
+      : null,
   };
 }
 
@@ -228,6 +237,7 @@ export async function visits(
       rate_bp: number | null;
       commission_paise: string | null;
       refunded_at: string | null;
+      tip_paise: string | null;
     }>(
       `select vc.visit_id,
               vc.completed_at,
@@ -238,7 +248,8 @@ export async function visits(
               vc.amount_paise,
               vc.rate_bp,
               vc.commission_paise,
-              vc.refunded_at
+              vc.refunded_at,
+              vc.tip_paise
          from visit_commission vc
          left join queue_entry q on q.id = vc.queue_entry_id and q.business_id = vc.business_id
          left join customer c on c.id = vc.customer_id and c.business_id = vc.business_id
@@ -267,6 +278,7 @@ export async function visits(
       visits: totalVisits,
       revenue: m(buckets.reduce((n, b) => n + b.revenue, 0)),
       commission: m(buckets.reduce((n, b) => n + b.commission, 0)),
+      tips: m(buckets.reduce((n, b) => n + (b.tip ?? 0), 0)),
     },
     segments: buildSegments(buckets, rates, { startIso: w.startIso, endIso: w.endIso }).map((seg) => ({
       ...segmentDTO(seg, store.currency),
@@ -287,6 +299,9 @@ export async function visits(
       commission: r.commission_paise == null ? null : m(Number(r.commission_paise)),
       // Listed, so the stylist can see why it earned nothing (0043).
       refunded: r.refunded_at != null,
+      // What the customer tipped on this visit (0046): not in `amount`, and it earns no commission.
+      // A refunded visit shows 0 — the tip went back to the card with the rest.
+      tip: m(r.refunded_at != null ? 0 : Number(r.tip_paise ?? 0)),
     })),
     meta: { shown: rows.length, total: totalVisits, limit: opts.limit },
   };
