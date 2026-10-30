@@ -281,12 +281,17 @@ type Store = State & {
   openDayAppts: (dateKey: string) => void;
   closeDayAppts: () => void;
   startService: (id: string) => void;
-  checkout: (id: string, amountPaise?: number | null, paymentMethod?: PaymentMethod | null) => void;
+  checkout: (
+    id: string,
+    amountPaise?: number | null,
+    paymentMethod?: PaymentMethod | null,
+    tipPaise?: number | null,
+  ) => void;
   /**
    * Charge the customer's card on the PayPal reader for the whole bill and complete the visit with
    * it (docs/card-payments-paypal.md). Main owner only; resolves when it is settled either way.
    */
-  chargeCard: (id: string, amountPaise: number) => Promise<void>;
+  chargeCard: (id: string, billPaise: number, tipPaise?: number) => Promise<void>;
   noShow: (id: string) => void;
   reassign: (id: string, staffId: string) => void;
   /**
@@ -1273,10 +1278,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }
         }
       },
-      checkout: async (id, amountPaise, paymentMethod) => {
+      checkout: async (id, amountPaise, paymentMethod, tipPaise) => {
         patch(() => ({ detailBusy: true, detailAction: 'checkout' }));
         try {
-          const res: any = await api.checkout(id, amountPaise, paymentMethod);
+          const res: any = await api.checkout(id, amountPaise, paymentMethod, tipPaise);
           setS((p) => ({ ...p, seats: seatsForUser(res.seats, p.session), detailId: null, detailBusy: false, detailAction: null }));
           showToast(
             res.promoted ? format(t.toast.nowInService, { name: String(res.promoted.name).split(' ')[0] }) : t.toast.checkedOut,
@@ -1288,10 +1293,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           showToast((e as ApiError)?.message ?? t.toast.couldNotCheckOut, 'error');
         }
       },
-      chargeCard: async (id, amountPaise) => {
+      chargeCard: async (id, billPaise, tipPaise = 0) => {
         patch(() => ({ detailBusy: true, detailAction: 'charge' }));
         try {
-          const outcome = await chargeVisit(id, amountPaise);
+          const outcome = await chargeVisit(id, billPaise, tipPaise);
           if (outcome.kind === 'paid') {
             const res: any = outcome.res;
             const name = flatCards(s.seats).find((c) => c.id === id)?.name?.split(' ')[0] ?? '';

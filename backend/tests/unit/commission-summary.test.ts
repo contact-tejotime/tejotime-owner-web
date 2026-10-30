@@ -133,9 +133,10 @@ describe('the report', () => {
       visits: 8,
       revenue: 391005,
       commission: 62302,
+      tips: 0, // no bucket here carries a tip
       salonKeeps: 391005 - 62302,
     });
-    expect(r.unassigned).toEqual({ visits: 2, revenue: 70000 });
+    expect(r.unassigned).toEqual({ visits: 2, revenue: 70000, tips: 0 });
 
     const john = r.staff.find((s) => s.staffId === 'john')!;
     expect(john).toMatchObject({
@@ -168,9 +169,48 @@ describe('the report', () => {
       now: NOW,
       scope: 'self',
     });
-    expect(r.totals).toEqual({ visits: 5, revenue: 301005, commission: 60302, salonKeeps: null });
+    expect(r.totals).toEqual({ visits: 5, revenue: 301005, commission: 60302, tips: 0, salonKeeps: null });
     expect(r.unassigned).toBeNull();
     expect(r.staff[0]!.nextRate).toBeNull(); // an upcoming change is the owner's business until it starts
+  });
+
+  // Tips (0046, docs/checkout-tips.md): a second figure beside the bill. The report adds them up
+  // per chair and in total, and they never move revenue, commission or salon keeps.
+  it('adds tips per chair and in total without touching revenue or commission', () => {
+    const base = summarizeCommission({ buckets, staff, rates, window: OCTOBER, now: NOW, scope: 'store' });
+    const tipped = buckets.map((b) =>
+      b.staffId === 'john' ? { ...b, tip: 1500 } : b.staffId === null ? { ...b, tip: 700 } : b,
+    );
+    const r = summarizeCommission({ buckets: tipped, staff, rates, window: OCTOBER, now: NOW, scope: 'store' });
+
+    const johnBuckets = buckets.filter((b) => b.staffId === 'john').length;
+    expect(r.staff.find((s) => s.staffId === 'john')!.tips).toBe(1500 * johnBuckets);
+    expect(r.staff.find((s) => s.staffId === 'lisa')!.tips).toBe(0);
+    expect(r.unassigned!.tips).toBe(700);
+
+    // The money columns are exactly what they were without any tip.
+    expect(r.totals.revenue).toBe(base.totals.revenue);
+    expect(r.totals.commission).toBe(base.totals.commission);
+    expect(r.totals.salonKeeps).toBe(base.totals.salonKeeps);
+    expect(r.staff.map((s) => [s.staffId, s.revenue, s.commission])).toEqual(
+      base.staff.map((s) => [s.staffId, s.revenue, s.commission]),
+    );
+  });
+
+  it("a stylist's own view carries their tips, and still nothing about the shop's", () => {
+    const own = buckets.filter((b) => b.staffId === 'john').map((b) => ({ ...b, tip: 250 }));
+    const r = summarizeCommission({
+      buckets: own,
+      staff: [staff[0]!],
+      rates: rates.filter((x) => x.staffId === 'john'),
+      window: OCTOBER,
+      now: NOW,
+      scope: 'self',
+    });
+    expect(r.staff[0]!.tips).toBe(250 * own.length);
+    expect(r.totals.tips).toBe(250 * own.length);
+    expect(r.totals.salonKeeps).toBeNull();
+    expect(r.unassigned).toBeNull();
   });
 });
 

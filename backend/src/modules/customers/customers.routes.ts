@@ -246,6 +246,9 @@ customersRouter.get(
         id: v.id,
         serviceName: v.service_name,
         amount: money(Number(v.amount_paise ?? 0), currency),
+        // What the customer tipped (0046). Not part of `amount`, which stays the bill; a refunded
+        // card visit gave its tip back with the rest.
+        tip: money(v.refunded_at != null ? 0 : Number(v.tip_paise ?? 0), currency),
         // "Paid by" (0042); null for visits from before the question. A refunded card visit
         // (0043) stays listed but no longer counts as money taken.
         paymentMethod: v.payment_method ?? null,

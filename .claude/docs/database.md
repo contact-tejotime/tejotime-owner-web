@@ -56,6 +56,7 @@ written to be **idempotent / re-runnable**.
 | 0039 | `checkout_addons.sql` | `queue_extend` (same signature) raises `TEJO:ALREADY_ADDED` for a label already on the visit — one add-on label per visit; new `queue_remove_extra(biz, entry, label)` deletes those rows, takes their minutes off `extra_minutes` and their ` + Label` off `service_name` (never the first segment) ([docs/checkout-add-ons.md](../../docs/checkout-add-ons.md)) |
 | 0044 | `notification_provider_message_idx.sql` | partial index on `notification.provider_message_id` (non-null only), which the WhatsApp webhook looks rows up by. No enum change: `'whatsapp'` already exists (0012). Numbered 0044 because 0042/0043 are the PayPal POS work ([docs/whatsapp-india.md](../../docs/whatsapp-india.md)) |
 | 0045 | `customer_followup.sql` | `customer_followup` (one current-state row per customer: what a "Due to come back" call achieved — snooze or not interested) and the partial visit index `(business_id, customer_id, completed_at desc)` ([docs/customer-due-list.md](../../docs/customer-due-list.md)) |
+| 0046 | `checkout_tips.sql` | `business.tip_enabled` (unused: the switch was dropped 2026-10-30), `visit.tip_paise`, `card_payment.tip_paise` (both `>= 0`). `queue_checkout` gains `p_tip_paise` (4-arg signature dropped) and `card_payment_start` gains `p_tip_paise` (old signature dropped); `card_payment_complete` banks `charged - tip` as the bill and the tip apart; `visit_commission` is dropped and recreated with `tip_paise` appended ([docs/checkout-tips.md](../../docs/checkout-tips.md)) |
 
 > **`0016` is duplicated** across two independent files. Ordering relies on the filename sort, which
 > is deterministic. **Use a strictly increasing prefix from 0025 onward.**
@@ -271,6 +272,11 @@ Later columns:
   and from old app builds. "Paid by" at checkout.
 - `refunded_at`, `refunded_by` (0043): a refunded card visit. It stays a completed visit in every
   count, but its money leaves every revenue sum and its commission is 0.
+- `tip_paise` (0046): `bigint not null default 0`, `ck_visit_tip_nonneg`. What the customer tipped,
+  **beside** `amount_paise` (the bill): revenue, commission and `customer.total_spend_paise` never
+  include it. It goes to `staff_id`. Sum it with `refunded_at is null`: a refund returns the whole
+  charge, tip included. `card_payment.tip_paise` is the tip inside a card charge (`amount_paise` is
+  the whole charge).
 
 ### `card_payment` — a charge on the PayPal reader (0043)
 
@@ -310,6 +316,9 @@ day is that day's midnight in `business.timezone`.
 ### `visit_commission` — view (0034, recreated by 0035 and 0043)
 
 0043 appended `refunded_at` and makes `commission_paise` 0 for a refunded visit (the row stays).
+0046 appended `tip_paise` (dropped and recreated, the only way to add a column to a view at the end
+of a changed definition). `commission_paise` is still a percentage of `amount_paise`, the bill, so a
+tip is never in the base.
 Readers that sum `amount_paise` as revenue filter `refunded_at is null`.
 
 Every `visit` plus `local_at` / `local_date` (in `business.timezone`), the `rate_bp` and

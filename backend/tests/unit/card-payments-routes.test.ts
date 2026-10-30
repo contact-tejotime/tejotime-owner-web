@@ -159,18 +159,48 @@ describe('card payments API', { timeout: 30_000 }, () => {
       p_entry_id: ENTRY,
       p_amount_paise: 4500,
       p_user_id: 'u1',
+      p_tip_paise: 0, // a build from before tips sends none: it is a charge with no tip
     });
     expect(res.body.payment.id).toBe(PAYMENT);
     expect(res.body.payment.status).toBe('pending');
     expect(res.body.payment.amount).toEqual({ amount: 4500, currency: 'USD' });
+    expect(res.body.payment.tip).toEqual({ amount: 0, currency: 'USD' });
     expect(res.body.resumed).toBe(false);
   });
 
-  it('refuses a zero or fractional charge, and any field it does not know', async () => {
+  // Tips (0046, docs/checkout-tips.md): `amountPaise` is the WHOLE charge, `tipPaise` the part of
+  // it that is the tip. The reader takes the sum; completing the payment banks them apart.
+  it('starts a charge that carries a tip: the whole charge plus the part that is the tip', async () => {
+    callRpc.mockResolvedValueOnce({ id: PAYMENT, resumed: false });
+    one.mockImplementation(async () => ({
+      ...ROW,
+      amount_paise: '5000',
+      tip_paise: '500',
+      status: 'pending',
+      visit_id: null,
+      paid_at: null,
+    }));
+    const res = await send('post', '', { queueEntryId: ENTRY, amountPaise: 5000, tipPaise: 500 });
+    expect(res.status).toBe(201);
+    expect(callRpc).toHaveBeenCalledWith('card_payment_start', {
+      p_business_id: 'b1',
+      p_entry_id: ENTRY,
+      p_amount_paise: 5000,
+      p_user_id: 'u1',
+      p_tip_paise: 500,
+    });
+    expect(res.body.payment.amount).toEqual({ amount: 5000, currency: 'USD' });
+    expect(res.body.payment.tip).toEqual({ amount: 500, currency: 'USD' });
+  });
+
+  it('refuses a zero or fractional charge, a bad tip, and any field it does not know', async () => {
     for (const body of [
       { queueEntryId: ENTRY, amountPaise: 0 },
       { queueEntryId: ENTRY, amountPaise: 12.5 },
-      { queueEntryId: ENTRY, amountPaise: 4500, tipPaise: 500 },
+      { queueEntryId: ENTRY, amountPaise: 4500, tipPaise: -1 },
+      { queueEntryId: ENTRY, amountPaise: 4500, tipPaise: 5.5 },
+      { queueEntryId: ENTRY, amountPaise: 4500, tipPaise: 4501 }, // a tip larger than the charge it is part of
+      { queueEntryId: ENTRY, amountPaise: 4500, gratuity: 500 },
       { queueEntryId: 'nope', amountPaise: 4500 },
     ]) {
       const res = await send('post', '', body);

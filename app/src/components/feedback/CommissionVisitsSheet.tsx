@@ -136,6 +136,11 @@ function VisitsBody({
               {segmentBreakdown(data.segments)}
             </TText>
           ) : null}
+          {data.totals.tips && data.totals.tips.amount > 0 ? (
+            <TText variant="caption" color="textMuted" style={s.breakdown}>
+              {format(t.stats.tipsTotalNote, { tips: formatMoney(data.totals.tips) })}
+            </TText>
+          ) : null}
 
           {data.data.length === 0 ? (
             <TText variant="bodySm" color="textMuted" style={s.note}>
@@ -175,6 +180,12 @@ function VisitsBody({
                             ? t.stats.rateNone
                             : `${formatRate(v.rateBp)} · ${formatMoney(v.commission)}`}
                         </TText>
+                        {/* The tip, below the commission and apart from it (docs/checkout-tips.md). */}
+                        {v.tip && v.tip.amount > 0 ? (
+                          <TText variant="caption" weight="semibold" style={{ color: colors.textMuted }}>
+                            {format(t.stats.visitTip, { tip: formatMoney(v.tip) })}
+                          </TText>
+                        ) : null}
                       </View>
                     </View>
                   ))}

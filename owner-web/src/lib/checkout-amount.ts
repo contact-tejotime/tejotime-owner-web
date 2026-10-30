@@ -169,9 +169,12 @@ export function canComplete(
   billing: CheckoutBilling,
   typed: TypedPrices,
   paymentMethod: PaymentMethod | null,
+  tipText: string = "",
 ): boolean {
   const paid = paymentMethod !== null || paidByChoices(billing).length === 0;
-  return parseRupees(text) !== null && missingLabels(billing, typed).length === 0 && paid;
+  return (
+    parseRupees(text) !== null && missingLabels(billing, typed).length === 0 && paid && tipOk(text, tipText)
+  );
 }
 
 /** How the customer paid ("Paid by", migration 0042). Codes are the API's; labels live in i18n. */
@@ -228,4 +231,61 @@ export function suggestionDiffers(text: string, billing: CheckoutBilling): boole
 export function isExtraOn(extras: readonly { label: string }[], label: string): boolean {
   const key = label.trim().toLowerCase();
   return extras.some((x) => x.label.trim().toLowerCase() === key);
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Tips (0046, docs/checkout-tips.md)
+//
+// The tip is NOT part of the box. The box stays the bill — what revenue, commission and the
+// customer's spend read — and the tip is a second figure beside it, for the chair that served the
+// visit. The sheet sends `{ amountPaise: bill, tipPaise }`; a card charge is `bill + tip`.
+//
+// The Tip field is the single source of truth. A % chip is a shortcut that fills it with
+// `percent of the bill`, and while one is active it follows the bill (an add-on, a typed price, a
+// hand correction). Typing in the field takes over: the chip lets go, and the figure is never
+// touched again. So `tipTextFor` takes the box, the active percent and the typed text.
+// ---------------------------------------------------------------------------------------------------
+
+/** The % quick picks. One list, so another pick later is one number. */
+export const TIP_PERCENTS: readonly number[] = [10, 15];
+
+/** `percent` of the bill, in paise, rounded to the nearest paisa (halves up). */
+export function tipFromPercent(billPaise: number, percent: number): number {
+  return Math.round((Math.max(0, billPaise) * percent) / 100);
+}
+
+/**
+ * Typed tip → paise. An empty field is no tip (0). Null for junk, a negative or one over the API's
+ * cap — which blocks Complete, as a bad amount does.
+ */
+export function parseTip(text: string): number | null {
+  return text.trim() === "" ? 0 : parseRupees(text);
+}
+
+/**
+ * What the Tip field shows. With a % chip active, `percent` of the box (empty when that comes to
+ * nothing); otherwise exactly what was typed.
+ */
+export function tipTextFor(boxText: string, percent: number | null, typedTip: string): string {
+  if (percent === null) return typedTip;
+  const paise = tipFromPercent(parseRupees(boxText) ?? 0, percent);
+  return paise > 0 ? rupeesText(paise) : "";
+}
+
+/** Bill + tip in paise: null when either is unreadable, or the sum is more than the API takes. */
+export function totalWithTip(boxText: string, tipText: string): number | null {
+  const bill = parseRupees(boxText);
+  const tip = parseTip(tipText);
+  if (bill === null || tip === null) return null;
+  const total = bill + tip;
+  return total > MAX_AMOUNT_PAISE ? null : total;
+}
+
+/**
+ * The tip may be empty, but not unreadable — and with a readable bill, bill + tip must still be one
+ * charge the API accepts (a card charge is the sum). An unreadable bill is `canComplete`'s concern.
+ */
+export function tipOk(boxText: string, tipText: string): boolean {
+  if (parseTip(tipText) === null) return false;
+  return parseRupees(boxText) === null || totalWithTip(boxText, tipText) !== null;
 }

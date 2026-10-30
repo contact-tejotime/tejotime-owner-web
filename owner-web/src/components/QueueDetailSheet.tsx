@@ -17,6 +17,10 @@ import {
   missingLabels,
   paidByChoices,
   parseRupees,
+  parseTip,
+  tipTextFor,
+  TIP_PERCENTS,
+  totalWithTip,
   requiredItems,
   SERVICE_KEY,
   suggestionDiffers,
@@ -161,6 +165,10 @@ export function QueueDetailSheet({
   /** "Paid by". Nothing is pre-picked: a guessed method is a wrong record nobody notices. */
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const paidByRef = useRef<HTMLDivElement>(null);
+  /** The % quick pick in force (null: none). While set, the tip follows the bill. */
+  const [tipPercent, setTipPercent] = useState<number | null>(null);
+  /** The tip as typed. Typing takes over from a % chip and lets go of it. */
+  const [tipTyped, setTipTyped] = useState("");
   const addOns = extrasForCategory(category);
   const titleId = useId();
   const fieldId = useId();
@@ -333,12 +341,23 @@ export function QueueDetailSheet({
   async function onComplete() {
     // The button is disabled until this holds; checked again so Enter or a stale render cannot
     // send a bill that is empty, unreadable, missing a service's price, or not marked paid.
-    if (!billing || !canComplete(amount, billing, typed, method)) {
-      setError(!method && billing && paidByChoices(billing).length > 0 ? t.detail.paidByRequired : t.detail.errAmount);
+    if (!billing || !canComplete(amount, billing, typed, method, tipText)) {
+      setError(
+        parseTip(tipText) === null
+          ? t.detail.errTip
+          : !method && billing && paidByChoices(billing).length > 0
+            ? t.detail.paidByRequired
+            : t.detail.errAmount,
+      );
       return;
     }
-    // Paise on the wire — money crosses the API as an integer minor unit.
-    await act("checkout", { amountPaise: parseRupees(amount), paymentMethod: method });
+    // Paise on the wire — money crosses the API as an integer minor unit. The bill and the tip go
+    // separately: only the bill is revenue and earns commission. A switched-off store sends 0.
+    await act("checkout", {
+      amountPaise: parseRupees(amount),
+      paymentMethod: method,
+      ...(tipOn ? { tipPaise: parseTip(tipText) ?? 0 } : {}),
+    });
   }
 
   /** The footer's "Choose how the customer paid" line: bring the choices into view. */
@@ -361,8 +380,12 @@ export function QueueDetailSheet({
   const symbol = billing ? currencySymbol(billing.serviceAmount.currency) : "";
   const missing = billing ? missingLabels(billing, typed) : [];
   const pendingCard = billing?.pendingCardPayment ?? null;
-  const ready = !!billing && canComplete(amount, billing, typed, method) && !pendingCard;
-  const totalPaise = parseRupees(amount);
+  // The Tip row is always there, for every store and every role (docs/checkout-tips.md): no switch.
+  const tipOn = !!billing;
+  const tipText = tipOn ? tipTextFor(amount, tipPercent, tipTyped) : "";
+  const tipPaise = parseTip(tipText);
+  const ready = !!billing && canComplete(amount, billing, typed, method, tipText) && !pendingCard;
+  const totalPaise = totalWithTip(amount, tipText);
   // Card and Cash on a US store that has switched Card payments on; empty otherwise, which hides
   // "Paid by" entirely and leaves the old checkout (client 2026-10-16).
   const methods = billing ? paidByChoices(billing) : [];
@@ -592,6 +615,66 @@ export function QueueDetailSheet({
                   </div>
                 ) : null}
 
+                {/* Tip — only while the owner has Tips on (docs/checkout-tips.md). Its own figure
+                    beside the bill, never inside the box: the box is revenue and commission, the
+                    tip goes to the chair. A % chip fills the field and follows the bill; typing
+                    takes over. */}
+                {billing && tipOn ? (
+                  <div className="dp-tip">
+                    <p className="dp-label">{t.detail.tip}</p>
+                    <div className="dp-chips" role="group" aria-label={t.detail.tip}>
+                      <button
+                        type="button"
+                        className={tipPercent === null && tipTyped.trim() === "" ? "dp-chip is-selected" : "dp-chip"}
+                        aria-pressed={tipPercent === null && tipTyped.trim() === ""}
+                        disabled={busy}
+                        onClick={() => {
+                          setTipPercent(null);
+                          setTipTyped("");
+                        }}
+                      >
+                        <span>{t.detail.tipNone}</span>
+                      </button>
+                      {TIP_PERCENTS.map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          className={tipPercent === p ? "dp-chip is-selected" : "dp-chip"}
+                          aria-pressed={tipPercent === p}
+                          disabled={busy}
+                          onClick={() => {
+                            setTipPercent(p);
+                            setTipTyped("");
+                          }}
+                        >
+                          <span>{format(t.detail.tipPercent, { percent: p })}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className={parseTip(tipText) === null ? "dp-tip-field is-invalid" : "dp-tip-field"}>
+                      <span className="dp-tip-prefix" aria-hidden>
+                        {symbol}
+                      </span>
+                      <input
+                        className="dp-tip-input"
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step="any"
+                        value={tipText}
+                        placeholder={t.detail.tipPlaceholder}
+                        aria-label={t.detail.tipAmountAria}
+                        disabled={busy}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          setTipPercent(null);
+                          setTipTyped(e.target.value);
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
                 {billing ? (
                   <ul className="dp-breakdown">
                     {/* The booked service on its own line — by its own name, since the add-ons
@@ -630,7 +713,14 @@ export function QueueDetailSheet({
                         <span>{formatMoney(billing.suggestedAmount)}</span>
                       </li>
                     ) : null}
-                    {/* The box, live: exactly what Complete will charge. */}
+                    {/* The tip, beside the bill — only when there is one. */}
+                    {tipOn && tipPaise !== null && tipPaise > 0 ? (
+                      <li className="total">
+                        <span>{t.detail.tipLine}</span>
+                        <span>{formatMoney({ ...billing.serviceAmount, amount: tipPaise })}</span>
+                      </li>
+                    ) : null}
+                    {/* The box plus the tip, live: exactly what the customer is charged. */}
                     <li className="grand">
                       <span>{t.detail.totalToCharge}</span>
                       <span>

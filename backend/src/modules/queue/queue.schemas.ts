@@ -35,6 +35,10 @@ export const checkoutSchema = z
     // only for the app builds already on phones, which send no method. Which methods a store may
     // use depends on its currency — checked in the service, which knows the store.
     paymentMethod: z.enum(PAYMENT_METHODS).optional().nullable(),
+    // The tip (0046, docs/checkout-tips.md): NOT part of `amountPaise`. The bill stays the bill —
+    // it is what revenue, commission and the customer's spend read — and the tip is kept beside it,
+    // for the chair that served the visit. Optional for every client that predates tips.
+    tipPaise: z.coerce.number().int().min(0).max(100_000_000).optional().nullable(),
   })
   .strict()
   .optional();
