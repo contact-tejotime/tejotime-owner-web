@@ -31,6 +31,7 @@ interface CardPaymentRow {
   status: 'pending' | 'paid' | 'failed' | 'refunded';
   amount_paise: string;
   charged_amount_paise: string | null;
+  tip_paise: string | null;
   currency: string;
   needs_review: boolean;
   card_brand: string | null;
@@ -52,6 +53,8 @@ function toDTO(r: CardPaymentRow) {
     status: r.status,
     amount: money(Number(r.amount_paise), r.currency),
     chargedAmount: r.charged_amount_paise == null ? null : money(Number(r.charged_amount_paise), r.currency),
+    // The tip inside `amount` (0046); 0 for a charge with none.
+    tip: money(Number(r.tip_paise ?? 0), r.currency),
     // Paid, but its visit could not be completed with it (finished or cancelled meanwhile), or the
     // reader charged a different amount. The owner decides: refund it or keep it.
     needsReview: r.needs_review,
@@ -178,7 +181,17 @@ export async function disconnect(businessId: string) {
   return getSettings(businessId);
 }
 
-export async function start(businessId: string, userId: string, entryId: string, amountPaise: number) {
+/**
+ * `amountPaise` is the whole charge (bill + tip); `tipPaise` is the tip inside it. The reader is
+ * asked for the whole; completing the payment banks the bill and the tip separately (0046).
+ */
+export async function start(
+  businessId: string,
+  userId: string,
+  entryId: string,
+  amountPaise: number,
+  tipPaise?: number | null,
+) {
   // Before any money can move: a store that is no longer a US store cannot start a charge, even
   // with the flag still set from before its currency changed.
   if (!isUsStore((await storeRow(businessId)).currency)) throw usOnly();
@@ -187,6 +200,7 @@ export async function start(businessId: string, userId: string, entryId: string,
     p_entry_id: entryId,
     p_amount_paise: amountPaise,
     p_user_id: userId,
+    p_tip_paise: tipPaise ?? 0,
   });
   const row = await getRow(businessId, r.id);
   announce(businessId, row);

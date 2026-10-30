@@ -499,6 +499,11 @@ export interface CheckoutInput {
   amountPaise?: number | null;
   /** "Paid by" (0042). Null from app builds that predate the question. */
   paymentMethod?: PaymentMethod | null;
+  /**
+   * The tip (0046). Kept apart from `amountPaise`, which stays the bill: only the bill earns
+   * commission and counts as revenue. Every store, every role, always: there is no switch.
+   */
+  tipPaise?: number | null;
   isSuperOwner?: boolean;
 }
 
@@ -533,6 +538,7 @@ export async function checkout(businessId: string, entryId: string, input: Check
     p_entry_id: entryId,
     p_amount_paise: input.amountPaise ?? null,
     p_payment_method: method,
+    p_tip_paise: input.tipPaise ?? null,
   });
   return afterCheckout(businessId, entryId, r);
 }

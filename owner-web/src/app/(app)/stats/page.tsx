@@ -101,8 +101,17 @@ function Tile({ icon, label, value }: { icon: IconName; label: string; value: st
 
 /** A stylist's commission inside their breakdown card: the figure, then the period rate by rate. */
 function StaffCommission({ row }: { row: CommissionStaffRow }) {
+  // The tip sits ABOVE commission (client 2026-10-30) and is never part of it
+  // (docs/checkout-tips.md). Always shown, even at zero: there is no Tips switch. Commission stays
+  // directly above its own "$12 × 10% = $1.20" line.
   return (
     <div className="rp-comm">
+      {row.tips ? (
+        <div className="rp-comm-row rp-comm-tip">
+          <span className="rp-comm-label">{t.stats.colTips}</span>
+          <span className="rp-comm-value">{formatMoney(row.tips)}</span>
+        </div>
+      ) : null}
       <div className="rp-comm-row">
         <span className="rp-comm-label">{t.stats.colCommission}</span>
         <span className="rp-comm-value">{formatMoney(row.commission)}</span>
@@ -216,6 +225,7 @@ export default async function StatsPage({
 
   // Commission, owner's view: the store's totals, and each stylist's line for the breakdown cards.
   const storeCommission = commission?.scope === "store" && commission.staff.length > 0 ? commission : null;
+  const storeTips = storeCommission?.totals.tips?.amount ?? 0;
   const commissionByStaff = new Map((storeCommission?.staff ?? []).map((row) => [row.staffId, row]));
   const unrated = storeCommission?.staff.reduce((n, row) => n + row.unratedVisits, 0) ?? 0;
   const noRatesAnywhere =
@@ -357,9 +367,12 @@ export default async function StatsPage({
             <Tile icon="percent" label={t.stats.commissionTotal} value={formatMoney(storeCommission.totals.commission)} />
             <Tile icon="wallet" label={t.stats.salonKeeps} value={formatMoney(storeCommission.totals.salonKeeps)} />
           </div>
-          {noRatesAnywhere || unrated > 0 || (storeCommission.unassigned?.visits ?? 0) > 0 ? (
+          {noRatesAnywhere || unrated > 0 || (storeCommission.unassigned?.visits ?? 0) > 0 || storeTips > 0 ? (
             <ul className="rp-comm-notes">
               {noRatesAnywhere ? <li>{t.stats.commissionNoRates}</li> : null}
+              {storeTips > 0 && storeCommission.totals.tips ? (
+                <li>{format(t.stats.tipsTotalNote, { tips: formatMoney(storeCommission.totals.tips) })}</li>
+              ) : null}
               {!noRatesAnywhere && unrated > 0 ? (
                 <li>{plural(unrated, t.stats.commissionUnratedOne, t.stats.commissionUnrated)}</li>
               ) : null}
@@ -494,6 +507,13 @@ export default async function StatsPage({
                   : t.stats.yourRateNone}
               </p>
               {own.segments.length ? <p className="rp-comm-break">{segmentBreakdown(own.segments)}</p> : null}
+              {/* The tip earned, apart from commission: it is the stylist's in full. */}
+              {own.tips ? (
+                <div className="rp-earn-tip">
+                  <p className="rp-earn-tip-value">{formatMoney(own.tips)}</p>
+                  <p className="rp-earn-label">{t.stats.tipsEarned}</p>
+                </div>
+              ) : null}
             </article>
           ) : (
             <ReportEmpty icon="percent" title={t.stats.yourRateNone} />

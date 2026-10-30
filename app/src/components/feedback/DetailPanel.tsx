@@ -28,9 +28,13 @@ import {
   missingLabels,
   paidByChoices,
   parseRupees,
+  parseTip,
   requiredItems,
   SERVICE_KEY,
   suggestionDiffers,
+  TIP_PERCENTS,
+  tipTextFor,
+  totalWithTip,
   type PaymentMethod,
 } from '@/lib/checkout-amount';
 import { cardReader, isCardReaderAvailable } from '@/lib/card-reader';
@@ -170,6 +174,10 @@ export function DetailPanel() {
   const [raised, setRaised] = useState(false);
   /** "Paid by". Nothing is pre-picked: a guessed method is a wrong record nobody notices. */
   const [method, setMethod] = useState<PaymentMethod | null>(null);
+  /** The % quick pick in force (null: none). While set, the tip follows the bill. */
+  const [tipPercent, setTipPercent] = useState<number | null>(null);
+  /** The tip as typed. Typing takes over from a % chip and lets go of it. */
+  const [tipTyped, setTipTyped] = useState('');
   /** This phone is signed in to PayPal, so Card can be charged on the reader from here. */
   const [readerReady, setReaderReady] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -330,16 +338,20 @@ export function DetailPanel() {
   const onConfirm = () => {
     // The button is disabled until this holds; checked again so a stale render cannot send a bill
     // that is empty, unreadable, missing a service's price, or not marked paid.
-    if (!billing || !canComplete(amount, billing, typed, method)) return;
-    // Paise on the wire — money crosses the API as an integer minor unit.
-    store.checkout(card!.id, parseRupees(amount)!, method);
+    if (!billing || !canComplete(amount, billing, typed, method, tipText)) return;
+    // Paise on the wire — money crosses the API as an integer minor unit. The bill and the tip
+    // go separately: only the bill is revenue and earns commission.
+    store.checkout(card!.id, parseRupees(amount)!, method, tipPaise || null);
   };
 
-  /** Charge the bill on the PayPal reader; the visit is completed with it (store.chargeCard). */
+  /**
+   * Charge the bill + tip on the PayPal reader; the visit is completed with it (store.chargeCard).
+   * The reader takes the sum; the API banks the bill and the tip apart.
+   */
   const onCharge = () => {
     const paise = parseRupees(amount);
-    if (!billing || !canComplete(amount, billing, typed, 'card') || !paise) return;
-    void store.chargeCard(card!.id, paise);
+    if (!billing || !canComplete(amount, billing, typed, 'card', tipText) || !paise) return;
+    void store.chargeCard(card!.id, paise, tipPaise ?? 0);
   };
 
   const serviceName = billing?.serviceName ?? null;
@@ -347,8 +359,12 @@ export function DetailPanel() {
   const symbol = currencySymbol(currency);
   const missing = billing ? missingLabels(billing, typed) : [];
   const pendingCard = billing?.pendingCardPayment ?? null;
-  const ready = !!billing && canComplete(amount, billing, typed, method) && !pendingCard;
-  const totalPaise = parseRupees(amount);
+  // The Tip row is always there, for every store and every role (docs/checkout-tips.md): no switch.
+  const tipOn = !!billing;
+  const tipText = tipOn ? tipTextFor(amount, tipPercent, tipTyped) : '';
+  const tipPaise = parseTip(tipText);
+  const ready = !!billing && canComplete(amount, billing, typed, method, tipText) && !pendingCard;
+  const totalPaise = totalWithTip(amount, tipText);
   // Card and Cash on a US store that has switched Card payments on; empty otherwise, which hides
   // "Paid by" entirely and leaves the old checkout (client 2026-10-16). Read off the billing only
   // (not the session's store), so the list never shows before billing lands.
@@ -614,6 +630,59 @@ export function DetailPanel() {
                     })}
                   </View>
 
+                  {/* Tip — only while the owner has Tips on (docs/checkout-tips.md). Its own
+                      figure beside the bill, never inside the box: the box is revenue and
+                      commission, the tip goes to the chair. A % chip fills the field and follows
+                      the bill; typing takes over. */}
+                  {billing && tipOn ? (
+                    <View style={s.tipBlock}>
+                      <TText variant="bodySm" weight="semibold" color="textBody">
+                        {t.detail.tip}
+                      </TText>
+                      <View style={s.chipWrap}>
+                        {[null, ...TIP_PERCENTS].map((p) => {
+                          const on = p === null ? tipPercent === null && tipTyped.trim() === '' : tipPercent === p;
+                          return (
+                            <Pressable
+                              key={p ?? 'none'}
+                              disabled={busy}
+                              onPress={() => {
+                                setTipPercent(p);
+                                setTipTyped('');
+                              }}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: on, disabled: busy }}
+                              style={[s.chip, on && s.chipOn]}>
+                              <TText variant="bodySm" weight="semibold" color={on ? 'textOnBrand' : 'textBody'}>
+                                {p === null ? t.detail.tipNone : format(t.detail.tipPercent, { percent: p })}
+                              </TText>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      <View style={[s.tipRow, tipPaise === null && s.tipRowInvalid]}>
+                        <TText variant="bodyLg" color="textMuted" weight="bold">
+                          {symbol}
+                        </TText>
+                        <TextInput
+                          maxFontSizeMultiplier={MAX_FONT_SCALE}
+                          style={s.tipInput}
+                          value={tipText}
+                          onChangeText={(v) => {
+                            setTipPercent(null);
+                            setTipTyped(v);
+                          }}
+                          placeholder={t.detail.tipPlaceholder}
+                          placeholderTextColor={theme.colors.textMuted}
+                          keyboardType="numeric"
+                          selectTextOnFocus
+                          editable={!busy}
+                          accessibilityLabel={t.detail.tipAmountAria}
+                        />
+                      </View>
+                    </View>
+                  ) : null}
+
                   {billing ? (
                     <View style={s.breakdown}>
                       {/* The booked service on its own line — by its own name, since the add-ons
@@ -660,7 +729,18 @@ export function DetailPanel() {
                           </TText>
                         </View>
                       ) : null}
-                      {/* The box, live: exactly what Complete will charge. */}
+                      {/* The tip, beside the bill — only when there is one. */}
+                      {tipOn && tipPaise !== null && tipPaise > 0 ? (
+                        <View style={s.breakdownRow}>
+                          <TText variant="caption" color="textBody" weight="semibold">
+                            {t.detail.tipLine}
+                          </TText>
+                          <TText variant="caption" color="textBody" weight="semibold">
+                            {formatMoney({ amount: tipPaise, currency: billing.serviceAmount.currency })}
+                          </TText>
+                        </View>
+                      ) : null}
+                      {/* The box plus the tip, live: exactly what the customer is charged. */}
                       <View style={[s.breakdownRow, s.grandRow]}>
                         <TText variant="bodyMd" color="textStrong" weight="bold">
                           {t.detail.totalToCharge}
@@ -1037,6 +1117,28 @@ const createDetailPanelStyles = ({ colors, radius }: ThemeStyleProps) => {
     chipDisabled: { opacity: 0.55 },
     // "Paid by" under the bill: its own question, so a little air above it.
     paidBy: { gap: moderateScale(8), marginTop: moderateScale(8) },
+    // Tip (docs/checkout-tips.md): the same chips as the add-ons, then a smaller amount field than
+    // the bill's — the tip is the second figure on this sheet, not the first.
+    tipBlock: { gap: moderateScale(8) },
+    tipRow: {
+      ...styles.flexRow,
+      ...styles.itemsCenter,
+      gap: moderateScale(6),
+      paddingHorizontal: moderateScale(14),
+      paddingVertical: moderateScale(6),
+      borderWidth: moderateScale(1),
+      borderColor: colors.borderDefault,
+      borderRadius: moderateScale(radius.lg),
+      backgroundColor: colors.surfaceCard,
+    },
+    tipRowInvalid: { borderColor: colors.error },
+    tipInput: {
+      ...styles.flex,
+      fontSize: moderateScale(18),
+      fontWeight: '700',
+      color: colors.textStrong,
+      paddingVertical: moderateScale(4),
+    },
     chipDot: { width: moderateScale(9), height: moderateScale(9), borderRadius: moderateScale(4.5) },
     busyNote: { lineHeight: moderateScale(20) },
   });

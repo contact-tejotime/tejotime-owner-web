@@ -630,6 +630,28 @@
   font-weight: 600;
   color: var(--text-muted);
 }
+/* The tip above commission (docs/checkout-tips.md): the same row, a touch lighter, so it reads as
+   a separate figure and not as part of the commission below it. */
+.rp-comm-tip {
+  margin-bottom: 4px;
+}
+.rp-comm-tip .rp-comm-value {
+  font-size: 14px;
+  font-weight: 700;
+}
+/* "Tips earned" in a stylist's own earnings card, under the commission figure. */
+.rp-earn-tip {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle, var(--border-default));
+}
+.rp-earn-tip-value {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
 .rp-earn-rate {
   margin: 10px 0 0;
   font-size: 13px;

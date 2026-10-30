@@ -143,6 +143,10 @@ export default function Stats() {
         storeCommission.unassigned && storeCommission.unassigned.visits > 0
           ? format(t.stats.commissionUnassigned, { revenue: formatMoney(storeCommission.unassigned.revenue) })
           : null,
+        // Tips are not revenue and earn no commission; say where they went (docs/checkout-tips.md).
+        storeCommission.totals.tips && storeCommission.totals.tips.amount > 0
+          ? format(t.stats.tipsTotalNote, { tips: formatMoney(storeCommission.totals.tips) })
+          : null,
       ].filter((n): n is string => !!n)
     : [];
   // A stylist's own view (a staff login the owner has shown its earnings to).
@@ -485,6 +489,18 @@ export default function Stats() {
 
                       {earned ? (
                         <View style={[s.comm, { borderTopColor: colors.borderSubtle }]}>
+                          {/* The tip sits ABOVE commission (client 2026-10-30) and is never part of
+                              it (docs/checkout-tips.md). Always shown, even at zero: no Tips switch. */}
+                          {earned.tips ? (
+                            <View style={s.commRow}>
+                              <TText variant="caption" color="textMuted" weight="semibold">
+                                {t.stats.colTips}
+                              </TText>
+                              <TText variant="bodySm" color="textStrong" weight="bold">
+                                {formatMoney(earned.tips)}
+                              </TText>
+                            </View>
+                          ) : null}
                           <View style={s.commRow}>
                             <TText variant="caption" color="textMuted" weight="semibold">
                               {t.stats.colCommission}
@@ -553,6 +569,17 @@ export default function Stats() {
                   <TText variant="caption" color="textMuted" style={s.earnBreak}>
                     {segmentBreakdown(own.segments)}
                   </TText>
+                ) : null}
+                {/* The tip earned, apart from commission: it is the stylist's in full. */}
+                {own.tips ? (
+                  <View style={[s.earnTip, { borderTopColor: colors.borderSubtle }]}>
+                    <TText variant="h4" color="textStrong" weight="extrabold">
+                      {formatMoney(own.tips)}
+                    </TText>
+                    <TText variant="caption" color="textMuted" weight="semibold">
+                      {t.stats.tipsEarned}
+                    </TText>
+                  </View>
                 ) : null}
               </View>
             ) : (
@@ -720,6 +747,8 @@ const createReportStyles = ({ colors, radius, shadow }: ThemeStyleProps) =>
     // The card's commission line, then the period rate by rate.
     comm: { borderTopWidth: moderateScale(1), paddingTop: moderateScale(10), gap: moderateScale(4) },
     commRow: { ...styles.flexRow, ...styles.itemsCenter, ...styles.justifyBetween },
+    // "Tips earned" under a stylist's own commission figure.
+    earnTip: { borderTopWidth: moderateScale(1), marginTop: moderateScale(12), paddingTop: moderateScale(10), gap: moderateScale(2) },
     earn: {
       borderWidth: moderateScale(1),
       borderRadius: moderateScale(12),

@@ -41,7 +41,8 @@ export default function Settings() {
   // cannot run (docs/card-payments-paypal.md).
   const showCards =
     store.session?.isSuperOwner === true && isUsStore(biz?.currency) && Platform.OS !== 'web';
-  const showBookings = can(access, 'notifications') || can(access, 'profile') || showRecurring || showCards;
+  const showBookings =
+    can(access, 'notifications') || can(access, 'profile') || showRecurring || showCards;
   const storeLabel = biz?.name ?? t.common.brand;
   // No name on the session → drop the clause rather than fall back. The old fallback was the demo
   // tenant's handle ('sharpcuts'), so a real owner could be told they were signed in as someone else.

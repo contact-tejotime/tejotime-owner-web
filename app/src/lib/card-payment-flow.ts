@@ -57,11 +57,14 @@ export type ChargeOutcome =
 /**
  * Charge an in-service customer's card for the whole bill, and complete the visit with it.
  *
- * `amountPaise` is the checkout box (minor units, > 0). Tipping is always off: the reader charges
- * the final amount and nothing else (client decision 2026-10-15).
+ * `billPaise` is the checkout box (minor units); `tipPaise` the tip beside it (0 for none, 0046,
+ * docs/checkout-tips.md). The reader charges the sum and nothing else: PayPal's own on-reader
+ * tipping stays off (client decision 2026-10-15) — the tip is chosen on the checkout sheet. The API
+ * banks the bill and the tip separately when it completes the payment.
  */
-export async function chargeVisit(entryId: string, amountPaise: number): Promise<ChargeOutcome> {
-  const { payment, resumed } = await api.startCardPayment(entryId, amountPaise);
+export async function chargeVisit(entryId: string, billPaise: number, tipPaise = 0): Promise<ChargeOutcome> {
+  const amountPaise = billPaise + tipPaise;
+  const { payment, resumed } = await api.startCardPayment(entryId, amountPaise, tipPaise);
 
   // This visit already had an attempt in flight (a lost response, a crash). Before charging that
   // reference again, ask the reader whether it went through — charging twice is the one mistake

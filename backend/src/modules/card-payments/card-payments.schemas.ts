@@ -18,9 +18,16 @@ export const startSchema = z
   .object({
     queueEntryId: z.string().uuid(),
     // A card charge of nothing is not a charge; the reader refuses it anyway.
+    // The WHOLE charge: the bill plus the tip (docs/checkout-tips.md).
     amountPaise: z.coerce.number().int().min(1).max(100_000_000),
+    // The part of `amountPaise` that is the tip. Optional for builds that predate tips.
+    tipPaise: z.coerce.number().int().min(0).max(100_000_000).optional().nullable(),
   })
-  .strict();
+  .strict()
+  .refine((v) => (v.tipPaise ?? 0) <= v.amountPaise, {
+    message: 'The tip cannot be more than the charge',
+    path: ['tipPaise'],
+  });
 
 /**
  * What the reader reported for an approved card. Everything but the id is informational, and all

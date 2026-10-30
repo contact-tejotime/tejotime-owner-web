@@ -162,6 +162,30 @@ function BookingQrRow({
  * and are managed from Appointments → Regulars.
  */
 function RecurringRow({ initial }: { initial: boolean }) {
+  return (
+    <BusinessSwitchRow
+      initial={initial}
+      field="recurringEnabled"
+      icon="repeat"
+      label={t.settings.recurring}
+      sub={t.settings.recurringSub}
+    />
+  );
+}
+
+function BusinessSwitchRow({
+  initial,
+  field,
+  icon,
+  label,
+  sub,
+}: {
+  initial: boolean;
+  field: "recurringEnabled";
+  icon: IconName;
+  label: string;
+  sub: string;
+}) {
   const router = useRouter();
   const [on, setOn] = useState(initial);
   const [saving, setSaving] = useState(false);
@@ -174,7 +198,7 @@ function RecurringRow({ initial }: { initial: boolean }) {
       const res = await fetch("/api/business", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ recurringEnabled: next }),
+        body: JSON.stringify({ [field]: next }),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
@@ -195,16 +219,16 @@ function RecurringRow({ initial }: { initial: boolean }) {
   return (
     <div className="st-row">
       <RowContent
-        icon="repeat"
-        label={t.settings.recurring}
-        sub={t.settings.recurringSub}
+        icon={icon}
+        label={label}
+        sub={sub}
         trailing={
           <button
             type="button"
             role="switch"
             className={`st-switch${on ? " is-on" : ""}`}
             aria-checked={on}
-            aria-label={t.settings.recurring}
+            aria-label={label}
             aria-busy={saving || undefined}
             disabled={saving}
             onClick={toggle}

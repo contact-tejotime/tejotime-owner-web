@@ -69,7 +69,11 @@
     "myEarningsLead": "Your commission for this period — every visit at the rate in force when it was checked out.",
     "yourRate": "Your rate: {rate} since {day}",
     "yourRateNone": "No rate is set for your chair yet.",
-    "earned": "Earned"
+    "earned": "Earned",
+    "colTips": "Tips",
+    "tipsEarned": "Tips earned",
+    "tipsTotalNote": "{tips} in tips. They go to the stylists and are not part of revenue or commission.",
+    "visitTip": "Tip {tip}"
   },
   "commission": {
     "title": "Commission rates",
@@ -767,6 +771,13 @@
     "chargedOutside": "Charged outside TejoTime",
     "chargedOutsideHint": "Records a card you already charged, for when the reader is not to hand.",
     "readerSignIn": "Sign in to PayPal in Settings → Card payments to charge cards here.",
+    "tip": "Tip",
+    "tipNone": "No tip",
+    "tipPercent": "{percent}%",
+    "tipAmountAria": "Tip amount",
+    "tipPlaceholder": "Or enter an amount",
+    "tipLine": "Tip",
+    "errTip": "Enter a valid tip, or leave it empty.",
     "chargeNeedsAmount": "Enter the amount to charge first."
   },
   "paymentMethod": {

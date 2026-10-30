@@ -483,6 +483,11 @@ export interface CommissionStaffRow {
   visits: number;
   revenue: Money;
   commission: Money;
+  /**
+   * What customers tipped this chair (0046, docs/checkout-tips.md). Not in `revenue`, and it never
+   * earns commission. Optional for an API older than the migration.
+   */
+  tips?: Money;
   /** Visits with no rate in force — they earn nothing. */
   unratedVisits: number;
   currentRateBp: number | null;
@@ -500,10 +505,10 @@ export interface CommissionSummary {
   periodLabel: string;
   /** `self` = a staff login reading its own earnings. */
   scope: "store" | "self";
-  totals: { visits: number; revenue: Money; commission: Money; salonKeeps: Money | null };
+  totals: { visits: number; revenue: Money; commission: Money; tips?: Money; salonKeeps: Money | null };
   staff: CommissionStaffRow[];
   /** Visits with no stylist. Owners only. */
-  unassigned: { visits: number; revenue: Money } | null;
+  unassigned: { visits: number; revenue: Money; tips?: Money } | null;
 }
 
 export interface CommissionVisit {
@@ -523,6 +528,8 @@ export interface CommissionVisit {
    * response from an API older than card payments still type-checks.
    */
   refunded?: boolean;
+  /** What the customer tipped on this visit (0046); 0 once refunded. Not in `amount`. */
+  tip?: Money;
 }
 
 export interface CommissionVisits {
@@ -532,7 +539,7 @@ export interface CommissionVisits {
   today: string;
   periodLabel: string;
   staff: { staffId: string; name: string; isActive: boolean };
-  totals: { visits: number; revenue: Money; commission: Money };
+  totals: { visits: number; revenue: Money; commission: Money; tips?: Money };
   segments: CommissionSegment[];
   data: CommissionVisit[];
   meta: { shown: number; total: number; limit: number };

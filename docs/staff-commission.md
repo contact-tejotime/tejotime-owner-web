@@ -126,6 +126,19 @@ return `from`, `to`, `today`; `/by-staff` now keeps a stylist removed mid-period
 
 Never put rates on `GET /staff`: staff logins can read it, and would see colleagues' rates.
 
+## Tips are not commission (0046)
+
+A tip ([checkout-tips.md](./checkout-tips.md)) is stored in `visit.tip_paise`, beside
+`visit.amount_paise`. `commission_paise` is still `round(amount_paise × rate)`, so **a tip is never in
+the base, whatever the rate**. The `visit_commission` view gained `tip_paise` at the end, only so the
+reports can show it. Both reports return it apart from commission:
+
+- `GET /commission/summary`: `tips` on each staff row, on `totals` and on `unassigned`, .
+  `salonKeeps` is still revenue - commission (the salon never keeps a tip).
+- `GET /commission/visits`: `tip` per visit and `totals.tips`.
+- Tips are summed with `refunded_at is null`: a refunded card visit earns neither commission nor tip.
+- A staff login is `scope: 'self'`, so it gets its own chair's tips and nobody else's.
+
 ## Screens
 
 | | owner-web | app (iOS + Android) |
@@ -135,6 +148,7 @@ Never put rates on `GET /staff`: staff logins can read it, and would see colleag
 | Reports period | Today / This week / This month / Custom (GET form, two date boxes) | same four; Custom opens `DateRangeSheet` |
 | Owner report | Commission + Salon keeps tiles; each stylist card shows commission, the rate today and the period rate by rate; tap → visits sheet | same |
 | Stylist | "My earnings" card + visits sheet, for every staff login | same |
+| Tips (0046) | a **Tips** row above Commission on each stylist card, "Tips earned" under My earnings, a `Tip $x` line per visit | same |
 | Team logins | no commission row — it is not a permission | same |
 | Admin panel | Store → Visits: Rate and Commission columns, totals, "Commission by stylist" (read-only) | — |
 

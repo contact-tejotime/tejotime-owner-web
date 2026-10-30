@@ -632,7 +632,11 @@
     "myEarningsLead": "Your commission for this period — every visit at the rate in force when it was checked out.",
     "yourRate": "Your rate: {rate} since {day}",
     "yourRateNone": "No rate is set for your chair yet.",
-    "earned": "Earned"
+    "earned": "Earned",
+    "colTips": "Tips",
+    "tipsEarned": "Tips earned",
+    "tipsTotalNote": "{tips} in tips. They go to the stylists and are not part of revenue or commission.",
+    "visitTip": "Tip {tip}"
   },
   "commission": {
     "title": "Commission rates",
@@ -768,7 +772,14 @@
     "paidBy": "Paid by",
     "paidByRequired": "Choose how the customer paid to complete.",
     "cardOwnerOnly": "Card payments are taken on the owner's phone.",
-    "cardOnWeb": "Records a card you already charged. To charge a card, use the TejoTime app.",
+    "cardOnWeb": "Records a card you already charged. To charge a card, use the TejoTime app. If the customer tipped, charge the bill plus the tip.",
+    "tip": "Tip",
+    "tipNone": "No tip",
+    "tipPercent": "{percent}%",
+    "tipAmountAria": "Tip amount",
+    "tipPlaceholder": "Or enter an amount",
+    "tipLine": "Tip",
+    "errTip": "Enter a valid tip, or leave it empty.",
     "cardInProgress": "The owner is taking this customer's card payment ({amount}). This customer can be completed once it finishes."
   },
   "paymentMethod": {

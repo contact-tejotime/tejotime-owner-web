@@ -197,6 +197,51 @@ for (const [name, lib] of [
   // The Card payments settings row is offered on a US store whether or not it is switched on yet.
   eq(lib.isUsStore('USD'), true, at('a dollar store is a US store'));
   eq(lib.isUsStore('INR'), false, at('a rupee store is not'));
+  // ---- tips (0046, docs/checkout-tips.md) ---------------------------------------------------------
+  // The tip is its own figure beside the bill; a % chip is only a shortcut that fills the field.
+  eq([...lib.TIP_PERCENTS], [10, 15], at('quick picks are 10% and 15%'));
+  eq(lib.tipFromPercent(35000, 10), 3500, at('10% of $350'));
+  eq(lib.tipFromPercent(35000, 15), 5250, at('15% of $350'));
+  eq(lib.tipFromPercent(1999, 15), 300, at('rounds to the nearest paisa (299.85 → 300)'));
+  eq(lib.tipFromPercent(5, 10), 1, at('half a paisa rounds up'));
+  eq(lib.tipFromPercent(-100, 10), 0, at('a negative bill tips nothing'));
+  eq(lib.parseTip(''), 0, at('an empty tip field is no tip'));
+  eq(lib.parseTip('  '), 0, at('blank is no tip'));
+  eq(lib.parseTip('10'), 1000, at('a typed $10'));
+  eq(lib.parseTip('2.5'), 250, at('a typed $2.50'));
+  eq(lib.parseTip('abc'), null, at('junk is refused'));
+  eq(lib.parseTip('-1'), null, at('a negative tip is refused'));
+  eq(lib.parseTip('1000000.01'), null, at('over the API cap is refused'));
+  eq(lib.tipTextFor('350', 10, ''), '35', at('10% chip fills 10% of the box'));
+  eq(lib.tipTextFor('350', 15, ''), '52.5', at('15% chip fills 15% of the box'));
+  eq(lib.tipTextFor('400', 15, ''), '60', at('the chip follows a hand-corrected bill'));
+  eq(lib.tipTextFor('', 15, ''), '', at('no bill yet: nothing to take a percent of'));
+  eq(lib.tipTextFor('0', 10, ''), '', at('a free visit tips nothing'));
+  eq(lib.tipTextFor('350', 10, '99'), '35', at('an active chip wins over stale typed text'));
+  eq(lib.tipTextFor('350', null, '10'), '10', at('no chip: exactly what was typed ($10)'));
+  eq(lib.tipTextFor('999', null, '10'), '10', at('a typed amount ignores the bill'));
+  eq(lib.tipTextFor('350', null, ''), '', at('no chip, nothing typed: no tip'));
+  eq(lib.totalWithTip('350', '35'), 38500, at('total = bill + tip'));
+  eq(lib.totalWithTip('350', ''), 35000, at('no tip: the total is the bill'));
+  eq(lib.totalWithTip('', '35'), null, at('no bill: no total'));
+  eq(lib.totalWithTip('350', 'x'), null, at('unreadable tip: no total'));
+  eq(lib.totalWithTip('1000000', '1'), null, at('a sum above the API cap is not a charge'));
+  eq(lib.totalWithTip('999999', '1'), 100_000_000, at('exactly the cap is a charge'));
+  eq(lib.tipOk('350', ''), true, at('empty tip is fine'));
+  eq(lib.tipOk('350', 'x'), false, at('junk tip is not'));
+  eq(lib.tipOk('', '10'), true, at('an unreadable bill is the box’s problem, not the tip’s'));
+  eq(lib.tipOk('1000000', '1'), false, at('bill + tip over the cap is refused'));
+  // Complete: a tip never blocks it unless it cannot be sent, and it never excuses the rest.
+  eq(lib.canComplete('350', fixed, {}, null, ''), true, at('no tip: Complete as before'));
+  eq(lib.canComplete('350', fixed, {}, null, '35'), true, at('a tip does not block Complete'));
+  eq(lib.canComplete('350', fixed, {}, null, 'x'), false, at('a junk tip blocks Complete'));
+  eq(lib.canComplete('350', fixed, {}, null, '-5'), false, at('a negative tip blocks Complete'));
+  eq(lib.canComplete('1000000', fixed, {}, null, '1'), false, at('bill + tip over the cap blocks Complete'));
+  eq(lib.canComplete('', fixed, {}, null, '35'), false, at('a tip does not excuse an empty box'));
+  eq(lib.canComplete('300', unpriced, {}, 'cash', '35'), false, at('nor an unpriced service'));
+  eq(lib.canComplete('350', cardsOn(fixed), {}, null, '35'), false, at('nor an unanswered Paid by'));
+  eq(lib.canComplete('350', fixed, {}, null), true, at('the old four-argument call still works'));
+
   for (const cur of ['USD', 'usd', 'INR', 'EUR', 'CAD', null]) {
     eq(lib.paymentMethodsFor(cur), [...backendEnums.paymentMethodsFor(cur)], at(`${cur} list matches the API's`));
     eq(lib.isUsStore(cur), backendEnums.isUsStore(cur), at(`${cur}: US store agrees with the API`));

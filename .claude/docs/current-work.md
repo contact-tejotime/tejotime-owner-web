@@ -1,6 +1,6 @@
 # Current work
 
-**Last updated:** 2026-10-28 · branch `paypal`.
+**Last updated:** 2026-10-30 · branch `paypal`.
 
 This is the living document. Update it when the state of play changes; the other five docs describe
 the system as designed, this one describes where it actually is.
@@ -8,6 +8,28 @@ the system as designed, this one describes where it actually is.
 ---
 
 ## 1. What is in flight
+
+### Checkout tips (2026-10-30)
+
+- **What:** the checkout sheet gets a separate **Tip** (`No tip | 10% | 15%` + a typed amount),
+  always there: **no Settings switch, no permission** (client 2026-10-30; the switch built first was removed).
+  Every store, own currency.
+  On owner-web and the app (iOS + Android). Full write-up: [docs/checkout-tips.md](../../docs/checkout-tips.md).
+- **Rule:** a tip is **not** part of the bill. `visit.tip_paise` sits beside `visit.amount_paise`, so
+  revenue, commission, customer spend and admin analytics are untouched. It goes to the visit's chair
+  and shows **above Commission** in the Staff breakdown (client 2026-10-30), and in a staff login's My
+  earnings and the visits sheet (under the figure there).
+- **Card:** the reader charges bill + tip; `card_payment_complete` splits it; a refund takes the tip
+  out too.
+- **Migration 0046 must run before the new backend image.** Applied to the preprod DB on 2026-10-30;
+  `business.tip_enabled` was added by it and is now unused.
+- **Verified (run):** `npm test` in `backend/` (677 pass, incl. the new `checkout-tips.test.ts`),
+  `npm run test:checkout` (272 checks) and `npm run test:commission` (119), `tsc --noEmit` for the app
+  and owner-web, eslint on the owner-web files touched.
+- **NOT verified:** `backend/scripts/smoke-tips.mjs` was never run: it needs a throwaway DB, and
+  `backend/.env` points at preprod. Run it (migrate, seed, `npm run dev`, then `node scripts/smoke-tips.mjs`)
+  before shipping. The sheets and reports were also
+  not looked at on a device, a simulator or in a browser (iOS and Android both still to check).
 
 ### Appointments "+" books an appointment (2026-10-28)
 

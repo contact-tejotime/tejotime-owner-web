@@ -234,6 +234,11 @@ and renamed "Established year" to "Year opened (optional)", shown on the page on
   table and `card_payment_start|complete|refund`. It also adds the pending-card guard on
   `queue_checkout` / `queue_no_show`, and refund-aware `visit_commission` and 0010 admin functions.
 
+0046 is checkout tips ([docs/checkout-tips.md](docs/checkout-tips.md)): `business.tip_enabled` (unused: the client dropped the switch),
+`visit.tip_paise`, `card_payment.tip_paise`; `queue_checkout` and `card_payment_start` gain a trailing
+tip parameter (old signatures dropped); `card_payment_complete` splits the charge into bill and tip;
+`visit_commission` is recreated with `tip_paise` appended.
+
 0045 is "Due to come back" ([docs/customer-due-list.md](docs/customer-due-list.md)):
 - `customer_followup`: one current-state row per customer recording what a call achieved
   (no_answer / call_later with `snooze_until`, or not_interested), tied to `about_last_visit`.
@@ -435,6 +440,21 @@ the app (`npm run test:checkout`).
   - a lost result stays `pending` until the reader is asked again.
 - **A refund** (whole amount, card only) takes the visit's money out of revenue, commission and
   customer spend on its own day. The visit still counts.
+
+**Checkout tips** ([docs/checkout-tips.md](docs/checkout-tips.md), 0046, client 2026-10-29) — the
+checkout sheet has a separate **Tip** (`No tip | 10% | 15%` chips plus a typed amount). **There is no
+switch and no permission** (client 2026-10-30): every store, every role, always, in its own currency.
+- **A tip is not part of the bill.** `visit.amount_paise` stays the bill; `visit.tip_paise` is beside
+  it. Revenue, `visit_commission`, customer spend and admin analytics read the bill, so a tip never
+  earns commission. The tip goes to the visit's chair.
+- **Checkout** sends `{ amountPaise: bill, tipPaise }`; the arithmetic is `lib/checkout-amount.ts`
+  (the Tip field is the source of truth; a % chip fills it and follows the bill; typing takes over).
+  The server does not check the tip against the switch, so a stale sheet's tip still lands.
+- **Card:** the reader charges bill + tip; `card_payment.amount_paise` is the whole charge and
+  `tip_paise` the tip inside it. A refund returns the whole charge, so reports sum tips with
+  `refunded_at is null`.
+- **Reports:** the tip shows **above Commission** in the Staff breakdown (client 2026-10-30), and below it in a staff login's My
+  earnings (its own chair only) and in the visits sheet; commission and Salon keeps never include it.
 
 **ETA-15 alert** (`lib/eta-notify.ts` + `queue.service.ts` `processTicketBroadcasts`) — one-shot
 per ticket, for **online live-queue joins only** (not walk-ins, not checked-in appointments),
@@ -821,7 +841,7 @@ Checklist for any owner-facing change:
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **51 vitest files, 667 tests** (2026-10-28), run with `npm test` in `backend/`
+- `backend/tests/unit/` — **52 vitest files, 678 tests** (2026-10-30), run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
   Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
   `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
@@ -895,7 +915,12 @@ Checklist for any owner-facing change:
   Both need a running API, a seeded throwaway DB and an admin login: each creates its own US store
   through the admin API (`SMOKE_ADMIN_*`, defaulting to the migrate demo admin) and deactivates it at
   the end. The card script spends five logins.
-  `backend/scripts/smoke-whatsapp.mjs` proves WhatsApp for +91 customers: the templates reach Meta
+  `backend/scripts/smoke-tips.mjs` proves checkout tips ([docs/checkout-tips.md](docs/checkout-tips.md)): there is no
+ switch, a tip stays out of revenue / commission / customer spend, a staff login sees its own
+ tips only, bad tips are 400, and a card charge of bill + tip splits and
+ refunds cleanly (the card half needs an admin login, like `smoke-card-payments.mjs`). A running API + a
+ seeded throwaway DB; makes and removes its own chairs and a US store; spends three logins.
+ `backend/scripts/smoke-whatsapp.mjs` proves WhatsApp for +91 customers: the templates reach Meta
   with their variables in order, +1 stays SMS, the webhook's signed statuses and STOP work, and
   (`--expect-disabled`) that `WHATSAPP_ENABLED=false` sends nothing. It needs a running API + a seeded
   throwaway DB it also reads (`SMOKE_DATABASE_URL`). It runs its own stand-in for Meta's Graph API,

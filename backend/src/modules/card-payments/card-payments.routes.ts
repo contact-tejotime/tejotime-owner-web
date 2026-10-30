@@ -67,7 +67,9 @@ cardPaymentsRouter.post(
   validate({ body: startSchema }),
   asyncHandler(async (req, res) => {
     const p = req.principal!;
-    res.status(201).json(await cards.start(p.businessId, p.userId, req.body.queueEntryId, req.body.amountPaise));
+    res
+      .status(201)
+      .json(await cards.start(p.businessId, p.userId, req.body.queueEntryId, req.body.amountPaise, req.body.tipPaise));
   }),
 );
 
