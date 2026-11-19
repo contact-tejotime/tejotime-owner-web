@@ -121,7 +121,7 @@ describe('whatsappSender', () => {
     await whatsappSender.send('+919824470182', 'appointment_reminder', ['Darshil', 'Sharp Cuts', 'MG Road']);
 
     expect(fetchMock.mock.calls[0][0]).toContain('/v23.0/');
-    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).template.name).toBe('appointment_reminder');
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).template.name).toBe('reminder');
   });
 
   it('sends to WHATSAPP_TEST_TO instead of the customer when it is set', async () => {
