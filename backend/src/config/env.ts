@@ -131,9 +131,9 @@ const schema = z.object({
   ),
   /** The approved templates' names and language in WhatsApp Manager (same ids as the SMS by default). */
   WHATSAPP_TEMPLATE_LANGUAGE: blankAsUnset(z.string().trim().default('en')),
-  WHATSAPP_TEMPLATE_BOOKING_CONFIRMED: blankAsUnset(z.string().trim().default('booking_confirmed')),
-  WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER: blankAsUnset(z.string().trim().default('appointment_reminder')),
-  WHATSAPP_TEMPLATE_REVIEW_REQUEST: blankAsUnset(z.string().trim().default('review_request')),
+  WHATSAPP_TEMPLATE_BOOKING_CONFIRMED: blankAsUnset(z.string().trim().default('booking_cofirm')),
+  WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER: blankAsUnset(z.string().trim().default('reminder')),
+  WHATSAPP_TEMPLATE_REVIEW_REQUEST: blankAsUnset(z.string().trim().default('review')),
   /**
    * Calling codes whose customers get WhatsApp instead of SMS, comma-separated. Unset or blank
    * means "91". Routing reads the customer's own number; the sender then checks the number that
