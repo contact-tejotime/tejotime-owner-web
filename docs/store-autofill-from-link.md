@@ -9,6 +9,11 @@ Scope: **admin panel only.** owner-web and the mobile app only have edit-only pr
 were deliberately left out of v1 (CLAUDE.md §11.1). If they get it later, the backend endpoint is
 reusable as is (it is admin-JWT-gated today, so an owner-side route would be a new thin wrapper).
 
+> **Sibling feature:** ["autofill from a business name"](store-autofill-from-name.md) fills the same
+> form from Google Places (New) instead of a pasted URL — it reuses this feature's review dialog, the
+> `ImportedFields` shape, the Groq seam and the `AUTOFILL_*` flags, and (unlike this one) it also copies
+> photos into our bucket. This link flow is unchanged by it.
+
 ## Flow
 
 ```

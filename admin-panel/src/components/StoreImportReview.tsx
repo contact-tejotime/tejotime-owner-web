@@ -122,7 +122,17 @@ export default function StoreImportReview({
                             <span className="import-tag">{format(t.storeImport.existingCount, { n: item.existingCount })}</span>
                           ) : null}
                         </span>
-                        <span className="import-found">{item.found}</span>
+                        {item.group === "media" ? (
+                          <span className="import-thumbs">
+                            {item.found.split("\n").filter(Boolean).map((url, i) => (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img key={i} src={url} alt="" className="import-thumb" />
+                            ))}
+                          </span>
+                        ) : (
+                          <span className="import-found">{item.found}</span>
+                        )}
+                        {item.key === "reviews" && <span className="import-current">{t.storeImport.reviewsCaption}</span>}
                         {item.replaces && item.current && (
                           <span className="import-current">{format(t.storeImport.current, { value: item.current })}</span>
                         )}
