@@ -68,6 +68,29 @@ export async function signUpload(contentType: string, keyPrefix: string): Promis
   return { uploadUrl, fileKey, publicUrl: mediaUrl(fileKey) };
 }
 
+export interface UploadedObject {
+  fileKey: string;
+  publicUrl: string; // stable /media/... URL, safe to persist
+}
+
+/**
+ * Upload bytes to a new object straight from the server (no presigned round-trip). Used by
+ * "autofill store from a business name" to copy a Google Places photo into our own bucket — the
+ * admin-panel never sees the bytes, so a presigned PUT it would have to perform is pointless here.
+ * Mirrors signUpload's key shape (`<keyPrefix>/<uuid>.<ext>`) and content-type allow-list.
+ */
+export async function uploadBuffer(contentType: string, keyPrefix: string, bytes: Buffer): Promise<UploadedObject> {
+  const ext = IMAGE_MIME_EXT[contentType];
+  if (!ext) throw new Error('Unsupported content type');
+  if (bytes.length > MAX_IMAGE_BYTES) throw new Error('File too large');
+
+  const fileKey = `${keyPrefix}/${randomUUID()}.${ext}`;
+  await s3.send(
+    new PutObjectCommand({ Bucket: env.S3_BUCKET, Key: fileKey, ContentType: contentType, Body: bytes }),
+  );
+  return { fileKey, publicUrl: mediaUrl(fileKey) };
+}
+
 /** Sign a short-lived GET for an existing object — used by the /media redirect. */
 export function signDownload(fileKey: string): Promise<string> {
   return getSignedUrl(s3, new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: fileKey }), {

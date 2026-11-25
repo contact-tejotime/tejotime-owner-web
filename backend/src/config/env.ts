@@ -185,6 +185,25 @@ const schema = z.object({
   /** Page fetch is capped separately (10s in safe-fetch); this bounds the model call. */
   AUTOFILL_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
 
+  /**
+   * Admin-panel "autofill store from a business NAME" (docs/store-autofill-from-name.md). Shares the
+   * AUTOFILL_ENABLED flag and the Groq AUTOFILL_* keys above (the category copy writer uses the same
+   * model), but the data source is Google Places API (New), gated by its own key below. With the flag
+   * on but no Google key the name endpoints answer 503 AUTOFILL_DISABLED — there is no key-free path
+   * (the groq/compound web-search fallback is designed but not built; see the doc). Server-side only,
+   * never a NEXT_PUBLIC_* variable, and the key travels in a header so pino never logs it.
+   */
+  GOOGLE_MAPS_API_KEY: z.string().default(''),
+  /**
+   * Soft daily cap on billable Google lookups (a "fill" = one Place Details call + photo downloads),
+   * counted in process. A backstop against runaway cost; set a HARD quota in Google Cloud too. The
+   * backend runs a single replica (CLAUDE.md §9), so an in-memory day counter is consistent; it
+   * resets on deploy, which is acceptable for a soft cap.
+   */
+  AUTOFILL_DAILY_LIMIT: z.coerce.number().int().positive().default(30),
+  /** Reserved for the (not-yet-built) no-Google-key web-search fallback. Groq's web-search model. */
+  AUTOFILL_FALLBACK_MODEL: z.string().default('groq/compound'),
+
   OTP_LENGTH: z.coerce.number().int().min(4).max(8).default(4),
   OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),

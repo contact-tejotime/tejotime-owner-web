@@ -39,10 +39,13 @@ import {
   type ImportedFields,
   type ImportItem,
   type ImportKey,
+  type PlaceCandidate,
   type StoreImportResponse,
+  type StoreNameSearchResponse,
 } from "@/lib/store-import";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import StoreImportReview from "@/components/StoreImportReview";
+import StoreNameCandidates from "@/components/StoreNameCandidates";
 
 /** The page as one fetch saw it: the link and the fields it yielded (whole page, not a diff). */
 type ImportSnapshot = { url: string; fields: ImportedFields };
@@ -188,6 +191,11 @@ export default function StoreForm({
   const draftGone = useRef(false);
   const [newOwnerPassword, setNewOwnerPassword] = useState("");
   const [showOwnerPassword, setShowOwnerPassword] = useState(false);
+  // The owner login (phone + password) is pre-filled from the store phone for a NEW store — the
+  // common case is "the owner logs in with the shop's number" — and keeps following it until the
+  // admin edits either field by hand. A field that already has a value (e.g. a restored draft)
+  // counts as touched, so it is never overwritten.
+  const ownerLoginTouched = useRef({ phone: Boolean(form.ownerPhone), password: Boolean(form.ownerPassword) });
   const [resettingOwnerPassword, setResettingOwnerPassword] = useState(false);
   const [ownerResetError, setOwnerResetError] = useState("");
   const [ownerResetNotice, setOwnerResetNotice] = useState("");
@@ -210,7 +218,20 @@ export default function StoreForm({
     /** True when `response.fields` is a diff against the previous fetch, not the whole page. */
     changesOnly: boolean;
     snapshot: ImportSnapshot;
+    /** True when the dialog came from name-autofill — then the apply must not record the link snapshot. */
+    fromName?: boolean;
   } | null>(null);
+  // Autofill from a business name (Google Places). Its own state; it reuses the review dialog and
+  // applyImportFields, but never touches the link flow's `lastImport` diff (see applyImportFields).
+  const [nameQuery, setNameQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [filling, setFilling] = useState(false);
+  const [nameError, setNameError] = useState("");
+  const [nameNotice, setNameNotice] = useState("");
+  const [candidates, setCandidates] = useState<PlaceCandidate[] | null>(null);
+  // Amenities the name-autofill SUGGESTS for the category but no source confirmed. UI state only —
+  // never part of `form`, so they are not saved (or written to a draft) unless the admin taps one.
+  const [amenitySuggestions, setAmenitySuggestions] = useState<string[]>([]);
 
   const set = <K extends keyof StoreFormState>(key: K, value: StoreFormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -303,6 +324,23 @@ export default function StoreForm({
   useEffect(() => {
     formRef.current = form;
   }, [form]);
+
+  // Keep the owner login synced to the store phone (full `<cc><national>`) for a new store, until the
+  // admin edits those fields. Covers every way the phone can be set — typed, picked, or autofilled —
+  // because it watches the phone, not the event. Returns the same form object when nothing changes, so
+  // it neither re-renders nor triggers the draft autosave on an unrelated edit.
+  useEffect(() => {
+    if (mode !== "create") return;
+    const national = form.phoneNumber.replace(/\D/g, "");
+    if (!national) return;
+    const full = `${form.countryCode}${national}`.replace(/\D/g, "");
+    setForm((f) => {
+      const ownerPhone = ownerLoginTouched.current.phone ? f.ownerPhone : full;
+      const ownerPassword = ownerLoginTouched.current.password ? f.ownerPassword : full;
+      if (ownerPhone === f.ownerPhone && ownerPassword === f.ownerPassword) return f;
+      return { ...f, ownerPhone, ownerPassword };
+    });
+  }, [form.countryCode, form.phoneNumber, mode]);
 
   /** PUT the current form into the open draft, if it changed since the last write. */
   const runDraftSave = useCallback(
@@ -536,7 +574,7 @@ export default function StoreForm({
     }
   }
 
-  function applyImportFields(fields: ImportedFields, selected: Set<ImportKey>, snapshot: ImportSnapshot) {
+  function applyImportFields(fields: ImportedFields, selected: Set<ImportKey>, snapshot: ImportSnapshot, recordSnapshot = true) {
     setForm((f) => {
       const next = applyImport(f, fields, selected);
       // Same rule as the category <select>: suggest a theme preset for a NEW store, until the admin
@@ -558,14 +596,102 @@ export default function StoreForm({
     }
     hasImported.current = true;
     // Recorded on APPLY, not on fetch: a dialog the admin cancelled applied nothing, so the next
-    // fetch should still offer those values rather than treat them as already seen.
-    lastImport.current = snapshot;
+    // fetch should still offer those values rather than treat them as already seen. The name-autofill
+    // flow passes recordSnapshot=false — its snapshot is URL-keyed and would poison the link flow's
+    // "only what changed since last fetch" diff.
+    if (recordSnapshot) lastImport.current = snapshot;
   }
 
   function applyImportSelection(selected: Set<ImportKey>) {
     if (!importReview) return;
-    applyImportFields(importReview.response.fields, selected, importReview.snapshot);
+    applyImportFields(importReview.response.fields, selected, importReview.snapshot, !importReview.fromName);
+    // Only a name autofill carries suggestions; they are offered once the admin applies the review.
+    if (importReview.fromName) setAmenitySuggestions(importReview.response.fields.suggestedAmenities ?? []);
     setImportReview(null);
+  }
+
+  /** Tapping a suggested amenity adds it for real (and drops the chip); untapped ones are never saved. */
+  function addSuggestedAmenity(name: string) {
+    setForm((f) => {
+      const have = f.amenities.some((a) => a.trim().toLowerCase() === name.toLowerCase());
+      return have ? f : { ...f, amenities: [...f.amenities.filter((a) => a.trim()), name].slice(0, 30) };
+    });
+    setAmenitySuggestions((s) => s.filter((a) => a !== name));
+  }
+
+  async function runNameSearch() {
+    if (searching || filling) return;
+    const query = nameQuery.trim();
+    if (query.length < 2) {
+      setNameError(t.storeNameImport.invalidQuery);
+      return;
+    }
+    setSearching(true);
+    setNameError("");
+    setNameNotice("");
+    try {
+      const res = await fetch("/api/store-name-search", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNameError(json?.error?.message ?? t.storeNameImport.failed);
+        return;
+      }
+      const list = (json as StoreNameSearchResponse).candidates ?? [];
+      if (list.length === 0) {
+        setNameNotice(t.storeNameImport.noMatch);
+      } else if (list.length === 1) {
+        await runNameFill(list[0]!.placeId);
+      } else {
+        setCandidates(list);
+      }
+    } catch {
+      setNameError(t.storeNameImport.unreachable);
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function runNameFill(placeId: string) {
+    if (filling) return;
+    setCandidates(null);
+    setFilling(true);
+    setNameError("");
+    setNameNotice("");
+    try {
+      const res = await fetch("/api/store-name-fill", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ placeId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNameError(json?.error?.message ?? t.storeNameImport.failed);
+        return;
+      }
+      const response = json as StoreImportResponse;
+      // Self-filled AUTO_FIELDS (headline/About) read as empty, exactly as in runImport, so the
+      // page's own copy shows as a ticked fill rather than an unticked "Replaces" row.
+      const base = { ...form };
+      for (const key of AUTO_FIELDS) if (isAuto(form, key)) base[key] = "";
+      const items = buildImportItems(base, response.fields, { phoneLocked: mode === "edit" && !!initial?.phoneNumber });
+      if (items.length === 0) {
+        setNameNotice(t.storeImport.nothingNew);
+        // Nothing to review, but the category suggestions are still worth offering.
+        setAmenitySuggestions(response.fields.suggestedAmenities ?? []);
+        return;
+      }
+      // Always review — never the silent pristine auto-apply the link flow uses. Photos, reviews and
+      // rating are higher-stakes, and routing through the dialog keeps runImport untouched.
+      setImportReview({ response, items, changesOnly: false, snapshot: { url: "", fields: response.fields }, fromName: true });
+    } catch {
+      setNameError(t.storeNameImport.unreachable);
+    } finally {
+      setFilling(false);
+    }
   }
 
   async function resetOwnerPassword() {
@@ -746,11 +872,49 @@ export default function StoreForm({
   // What the page will put above the photos: "" (or a blank custom box) saves as the type default.
   const shownHeading = form.galleryHeading.trim() || defaultHeading;
 
+  /** Clear everything the admin (or an autofill) has filled, back to an empty new-store form. */
+  function resetForm() {
+    const fresh: StoreFormState = {
+      ...EMPTY_FORM,
+      currency: currencyForCountry(countryByDial(EMPTY_FORM.countryCode)?.iso2 ?? DEFAULT_ISO2) ?? EMPTY_FORM.currency,
+    };
+    setForm(fresh);
+    setSavedTheme(fresh.theme);
+    setPhoneIso2(countryByDial(EMPTY_FORM.countryCode)?.iso2 ?? DEFAULT_ISO2);
+    presetTouched.current = false;
+    currencyTouched.current = false;
+    autoTouched.current = new Set();
+    ownerLoginTouched.current = { phone: false, password: false };
+    hasImported.current = false;
+    lastImport.current = null;
+    setHeadlineError(false);
+    setCustomHeading(false);
+    // Clear both autofill cards and any open dialog.
+    setImportReview(null);
+    setCandidates(null);
+    setImportUrl("");
+    setImportError("");
+    setImportNotice("");
+    setNameQuery("");
+    setNameError("");
+    setNameNotice("");
+    setAmenitySuggestions([]);
+    setError(null);
+    setDetails([]);
+    setResult(null);
+  }
+
   return (
     <div className={embedded ? undefined : "wrap"}>
       {!embedded && (
-        <div className="page-head">
+        <div className="page-head" style={mode === "create" ? { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 } : undefined}>
           <h1>{mode === "create" ? t.storeForm.createTitle : format(t.storeForm.editTitle, { name: form.name || t.storeForm.storeFallback })}</h1>
+          {mode === "create" && (
+            <button type="button" className="btn-reset" onClick={resetForm} title={t.storeForm.resetForm} aria-label={t.storeForm.resetForm}>
+              <Icon name="rotateCcw" size={15} />
+              <span>{t.storeForm.resetFormShort}</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -806,6 +970,55 @@ export default function StoreForm({
         </div>
       )}
 
+      {/* Autofill from a business name (Google Places). OUTSIDE the <form> for the same reason as
+          the link card below — Enter in the box must never submit the store. */}
+      <section className="section import-card-form">
+        <h2>{t.storeNameImport.title}</h2>
+        <p className="hint" style={{ marginTop: 0 }}>
+          {t.storeNameImport.hint}
+        </p>
+        <div className="import-row-inputs">
+          <input
+            aria-label={t.storeNameImport.queryLabel}
+            type="text"
+            placeholder={t.storeNameImport.queryPlaceholder}
+            value={nameQuery}
+            maxLength={200}
+            disabled={searching || filling}
+            onChange={(e) => {
+              setNameQuery(e.target.value);
+              if (nameError) setNameError("");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void runNameSearch();
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => void runNameSearch()}
+            disabled={searching || filling || !nameQuery.trim()}
+            aria-busy={searching || filling || undefined}
+          >
+            {(searching || filling) && <Spinner className="btn-spinner" />}
+            {filling ? t.storeNameImport.filling : searching ? t.storeNameImport.searching : t.storeNameImport.button}
+          </button>
+        </div>
+        {nameError && (
+          <p className="import-err" role="alert">
+            {nameError}
+          </p>
+        )}
+        {nameNotice && (
+          <div className="alert info" role="status" style={{ marginTop: 12, marginBottom: 0 }}>
+            {nameNotice}
+          </div>
+        )}
+      </section>
+
       {/* Autofill from a link — deliberately OUTSIDE the <form>, so Enter in the URL box can never
           submit (and so create/save) the store. */}
       <section className="section import-card-form">
@@ -859,6 +1072,14 @@ export default function StoreForm({
           busy={discarding}
           onConfirm={() => void confirmDiscardDraft()}
           onCancel={() => setConfirmingDiscard(false)}
+        />
+      )}
+
+      {candidates && (
+        <StoreNameCandidates
+          candidates={candidates}
+          onPick={(placeId) => void runNameFill(placeId)}
+          onCancel={() => setCandidates(null)}
         />
       )}
 
@@ -1171,6 +1392,29 @@ export default function StoreForm({
           <button type="button" className="btn-add" onClick={() => set("amenities", [...form.amenities, ""])}>
             {t.storeForm.addAmenity}
           </button>
+          {/* Category suggestions from the name autofill — unconfirmed, so they are offered, not
+              filled. Hidden once already in the list (typed, confirmed by autofill, or tapped). */}
+          {(() => {
+            const visible = amenitySuggestions.filter(
+              (s) => !form.amenities.some((a) => a.trim().toLowerCase() === s.toLowerCase()),
+            );
+            if (visible.length === 0) return null;
+            return (
+              <div className="amenity-suggest-box">
+                <p className="amenity-suggest-title">{t.storeForm.suggestedAmenitiesTitle}</p>
+                <p className="hint" style={{ marginTop: 0 }}>
+                  {t.storeForm.suggestedAmenitiesHint}
+                </p>
+                <div className="chip-row">
+                  {visible.map((s) => (
+                    <button key={s} type="button" className="amenity-suggest" onClick={() => addSuggestedAmenity(s)}>
+                      + {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </section>
 
         {/* Photos (hero + about) --------------------------------------- */}
@@ -1482,7 +1726,10 @@ export default function StoreForm({
                 <input
                   id="sf-ownerPhone"
                   value={form.ownerPhone}
-                  onChange={(e) => set("ownerPhone", e.target.value.replace(/\D/g, ""))}
+                  onChange={(e) => {
+                    ownerLoginTouched.current.phone = true;
+                    set("ownerPhone", e.target.value.replace(/\D/g, ""));
+                  }}
                   placeholder={phoneFull}
                   inputMode="numeric"
                 />
@@ -1490,7 +1737,17 @@ export default function StoreForm({
               </div>
               <div className="field">
                 <label htmlFor="sf-ownerPassword">{t.storeForm.password}</label>
-                <input id="sf-ownerPassword" type="text" value={form.ownerPassword} onChange={(e) => set("ownerPassword", e.target.value)} minLength={6} required />
+                <input
+                  id="sf-ownerPassword"
+                  type="text"
+                  value={form.ownerPassword}
+                  onChange={(e) => {
+                    ownerLoginTouched.current.password = true;
+                    set("ownerPassword", e.target.value);
+                  }}
+                  minLength={6}
+                  required
+                />
                 {draftId && <p className="hint">{t.storeDraft.passwordNotSaved}</p>}
               </div>
             </div>

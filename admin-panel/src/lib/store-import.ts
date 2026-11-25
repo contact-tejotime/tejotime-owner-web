@@ -57,6 +57,21 @@ export interface ImportedFields {
   services?: ImportedService[];
   staff?: Array<{ name: string; roleLabel: string }>;
   faqs?: FaqRow[];
+  // ---- set only by "autofill from a business NAME" (Google Places); the link flow leaves these
+  //      undefined, so buildImportItems/applyImport below behave identically for a link import. ----
+  rating?: number;
+  reviewCount?: number;
+  googleReviewUrl?: string;
+  heroImageUrl?: string;
+  aboutImageUrl?: string;
+  logoUrl?: string;
+  gallery?: Array<{ url: string; alt?: string }>;
+  reviews?: Array<{ stars: number; text: string; authorName: string }>;
+  /**
+   * Typical amenities for the category that no source confirmed. NOT a review row and never applied
+   * by `applyImport` — StoreForm shows them as yellow tap-to-add chips; only a tapped one is saved.
+   */
+  suggestedAmenities?: string[];
 }
 
 export interface StoreImportResponse {
@@ -65,14 +80,31 @@ export interface StoreImportResponse {
   warnings: string[];
 }
 
+/** One match from "autofill from a business name" search — rendered by StoreNameCandidates. */
+export interface PlaceCandidate {
+  placeId: string;
+  name: string;
+  formattedAddress: string;
+  primaryType?: string;
+  primaryTypeDisplayName?: string;
+  types?: string[];
+  businessStatus?: string;
+}
+
+export interface StoreNameSearchResponse {
+  candidates: PlaceCandidate[];
+}
+
 /** One tickable row in the review dialog. `key` is what `applyImport` switches on. */
 export type ImportKey =
   | "name" | "category" | "tagline" | "heroSubtitle" | "address" | "area" | "city" | "phone"
   | "aboutHeading" | "description" | "establishedYear"
   | "instagramUrl" | "facebookUrl" | "twitterUrl" | "linkedinUrl" | "yelpUrl"
-  | "hours" | "services" | "staff" | "faqs" | "amenities" | "payments";
+  | "hours" | "services" | "staff" | "faqs" | "amenities" | "payments"
+  // name-autofill only:
+  | "rating" | "reviewCount" | "googleReviewUrl" | "heroImage" | "aboutImage" | "logo" | "gallery" | "reviews";
 
-export type ImportGroup = "basics" | "address" | "about" | "social" | "hours" | "services" | "team" | "faqs" | "extras";
+export type ImportGroup = "basics" | "address" | "about" | "social" | "hours" | "services" | "team" | "faqs" | "extras" | "ratings" | "media";
 
 export interface ImportItem {
   key: ImportKey;
@@ -86,9 +118,11 @@ export interface ImportItem {
   replaces: boolean;
   /** Lists append rather than overwrite; the row says how many are already there. */
   existingCount?: number;
+  /** Unticked by default even though it only fills a gap (e.g. Google review text — see ToS note). */
+  defaultOff?: boolean;
 }
 
-export const IMPORT_GROUP_ORDER: ImportGroup[] = ["basics", "address", "about", "social", "hours", "services", "team", "faqs", "extras"];
+export const IMPORT_GROUP_ORDER: ImportGroup[] = ["basics", "address", "about", "media", "social", "hours", "services", "team", "faqs", "ratings", "extras"];
 
 export const IMPORT_GROUP_LABEL: Record<ImportGroup, string> = {
   basics: t.storeImport.groupBasics,
@@ -100,6 +134,8 @@ export const IMPORT_GROUP_LABEL: Record<ImportGroup, string> = {
   team: t.storeImport.groupTeam,
   faqs: t.storeImport.groupFaqs,
   extras: t.storeImport.groupExtras,
+  ratings: t.storeImport.groupRatings,
+  media: t.storeImport.groupMedia,
 };
 
 /** Monday-first, like the form's own hours table. */
@@ -121,6 +157,10 @@ const SCALARS: Array<{ key: Extract<ImportKey, keyof StoreForm & keyof ImportedF
   { key: "twitterUrl", group: "social", label: t.storeImport.fieldTwitter },
   { key: "linkedinUrl", group: "social", label: t.storeImport.fieldLinkedin },
   { key: "yelpUrl", group: "social", label: t.storeImport.fieldYelp },
+  // name-autofill only (Google Places). Scalars that map 1:1 to a string form field.
+  { key: "rating", group: "ratings", label: t.storeImport.fieldRating },
+  { key: "reviewCount", group: "ratings", label: t.storeImport.fieldReviewCount },
+  { key: "googleReviewUrl", group: "ratings", label: t.storeImport.fieldGoogleReview },
 ];
 
 const clock = (h: ImportedHour | HourRow) => (h.isClosed ? t.storeImport.closed : `${h.opensAt}–${h.closesAt}`);
@@ -239,12 +279,54 @@ export function buildImportItems(form: StoreForm, fields: ImportedFields, opts: 
     }
   }
 
+  // ---- name-autofill: photos (copied into our bucket) and Google reviews ----
+  // A media row's `found` holds the image URL(s), newline-separated; StoreImportReview renders them
+  // as thumbnails for the "media" group rather than as text.
+  const photoRow = (key: ImportKey, had: string, url: string | undefined) => {
+    if (!url || url === had) return;
+    items.push({ key, group: "media", label: PHOTO_LABEL[key] ?? key, found: url, current: "", replaces: had !== "" });
+  };
+  photoRow("heroImage", form.heroImageUrl, fields.heroImageUrl);
+  photoRow("aboutImage", form.aboutImageUrl, fields.aboutImageUrl);
+  photoRow("logo", form.logoUrl, fields.logoUrl);
+
+  if (fields.gallery?.length) {
+    const have = new Set(form.gallery.map((g) => g.url));
+    const fresh = fields.gallery.filter((g) => g.url && !have.has(g.url));
+    if (fresh.length) {
+      items.push({
+        key: "gallery", group: "media", label: t.storeImport.fieldGallery,
+        found: fresh.map((g) => g.url).join("\n"),
+        current: "", replaces: false, existingCount: form.gallery.length || undefined,
+      });
+    }
+  }
+
+  if (fields.reviews?.length) {
+    items.push({
+      key: "reviews", group: "ratings", label: t.storeImport.fieldReviews,
+      found: fields.reviews.map((r) => `★${r.stars} ${r.authorName}: ${clip(r.text, 160)}`).join("\n\n"),
+      // Unticked by default: showing someone else's Google review text as this store's own is a ToS
+      // and accuracy concern (the old link importer skipped reviews entirely) — the admin opts in.
+      current: "", replaces: false, existingCount: form.reviews.length || undefined, defaultOff: true,
+    });
+  }
+
   return items;
 }
 
-/** Tick the rows that only fill gaps; leave the ones that overwrite for the admin to opt into. */
+const PHOTO_LABEL: Partial<Record<ImportKey, string>> = {
+  heroImage: t.storeImport.fieldHeroPhoto,
+  aboutImage: t.storeImport.fieldAboutPhoto,
+  logo: t.storeImport.fieldLogo,
+};
+
+/** Form cap on gallery photos (mirrors ImageUpload's GALLERY_MAX). */
+const GALLERY_MAX = 12;
+
+/** Tick the rows that only fill gaps; leave the ones that overwrite (or opt-in) for the admin. */
 export function defaultSelection(items: ImportItem[]): Set<ImportKey> {
-  return new Set(items.filter((i) => !i.replaces).map((i) => i.key));
+  return new Set(items.filter((i) => !i.replaces && !i.defaultOff).map((i) => i.key));
 }
 
 /** A blank placeholder row (the form ships one empty service and staff row) is not user data. */
@@ -325,6 +407,23 @@ export function applyImport(form: StoreForm, fields: ImportedFields, selected: R
   }
 
   if (selected.has("payments") && fields.payments) next.payments = fields.payments.join(", ");
+
+  // ---- name-autofill: photos (URL strings — already copied into our bucket), gallery, reviews.
+  // rating / reviewCount / googleReviewUrl are plain scalars, set by the SCALARS loop above.
+  if (selected.has("heroImage") && fields.heroImageUrl) next.heroImageUrl = fields.heroImageUrl;
+  if (selected.has("aboutImage") && fields.aboutImageUrl) next.aboutImageUrl = fields.aboutImageUrl;
+  if (selected.has("logo") && fields.logoUrl) next.logoUrl = fields.logoUrl;
+
+  if (selected.has("gallery") && fields.gallery) {
+    const have = new Set(form.gallery.map((g) => g.url));
+    const added = fields.gallery.filter((g) => g.url && !have.has(g.url)).map((g) => ({ url: g.url, alt: g.alt ?? "" }));
+    next.gallery = [...form.gallery, ...added].slice(0, GALLERY_MAX);
+  }
+
+  if (selected.has("reviews") && fields.reviews) {
+    const added = fields.reviews.map((r) => ({ stars: r.stars, text: r.text, authorName: r.authorName }));
+    next.reviews = [...form.reviews, ...added].slice(0, 50);
+  }
 
   return next;
 }

@@ -244,6 +244,25 @@ a {
   font-size: 24px;
   color: var(--text-strong);
 }
+/* Small "clear the form" button beside the Create-a-store title. */
+.btn-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  cursor: pointer;
+}
+.btn-reset:hover {
+  color: var(--text-strong);
+  border-color: var(--text-muted);
+}
 .page-head p {
   margin: 0 0 20px;
   color: var(--text-muted);
@@ -2913,4 +2932,83 @@ a:focus-visible,
 .import-tag.replace {
   background: var(--warning-soft);
   color: var(--warning);
+}
+
+/* Unconfirmed amenity suggestions (autofill from a business name): yellow tap-to-add chips. */
+.amenity-suggest-box {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px dashed var(--amber-200);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--warning-soft);
+}
+.amenity-suggest-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--warning);
+}
+.amenity-suggest {
+  padding: 5px 11px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--warning);
+  background: var(--surface);
+  border: 1px solid var(--amber-200);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.amenity-suggest:hover,
+.amenity-suggest:focus-visible {
+  border-color: var(--warning);
+}
+
+/* Photo thumbnails shown for a "media" review row (autofill from a business name). */
+.import-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.import-thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+}
+
+/* The "which business is it?" picker (autofill from a business name). */
+.candidate-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--surface);
+  cursor: pointer;
+}
+.candidate-row:hover,
+.candidate-row:focus-visible {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.candidate-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-strong);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.candidate-addr {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.candidate-type {
+  font-size: 12px;
+  color: var(--text-muted);
 }

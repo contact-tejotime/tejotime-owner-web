@@ -2,7 +2,7 @@ import { logger } from '../../config/logger';
 import { AppError } from '../../domain/errors';
 import { storeExtractor } from '../../integrations/store-extract';
 import { dayOf, extractPage, hhmm, socialFromUrl, SOCIAL_KEYS, type PageFacts, type SocialKey } from '../../lib/html-extract';
-import { safeFetchText, SafeFetchError } from '../../lib/safe-fetch';
+import { safeFetchText, isSafeFetchError } from '../../lib/safe-fetch';
 import { listLookups } from './admin.service';
 
 /**
@@ -31,7 +31,13 @@ export interface ImportedService {
   priceMaxRupees: number | null;
 }
 
-/** Hand-mirrored in admin-panel/src/lib/types.ts (`ImportedFields`) — change both together. */
+/**
+ * Hand-mirrored in admin-panel/src/lib/store-import.ts (`ImportedFields`) — change both together.
+ *
+ * The fields below `faqs` are populated ONLY by "autofill from a business NAME"
+ * (store-autofill.service.ts, docs/store-autofill-from-name.md). The link importer never sets them,
+ * so its behaviour — and buildImportItems/applyImport for the link flow — is unchanged.
+ */
 export interface ImportedFields {
   name?: string;
   category?: string;
@@ -56,6 +62,21 @@ export interface ImportedFields {
   services?: ImportedService[];
   staff?: Array<{ name: string; roleLabel: string }>;
   faqs?: Array<{ q: string; a: string }>;
+  // ---- name-autofill only (Google Places) ----
+  rating?: number;
+  reviewCount?: number;
+  /** Google "write a review" link; https, lands in the owner-side Google review field. */
+  googleReviewUrl?: string;
+  heroImageUrl?: string;
+  aboutImageUrl?: string;
+  logoUrl?: string;
+  gallery?: Array<{ url: string; alt?: string }>;
+  reviews?: Array<{ stars: number; text: string; authorName: string }>;
+  /**
+   * Typical amenities for the business's category that NO source confirmed. Never applied to the
+   * form by the review step — the admin panel offers them as tap-to-add chips.
+   */
+  suggestedAmenities?: string[];
 }
 
 export interface StoreImportResult {
@@ -66,7 +87,8 @@ export interface StoreImportResult {
 
 // Limits mirror storeFieldsSchema in admin.routes.ts. They are clamped here (not rejected) because
 // an over-long tagline from a model should be trimmed for the admin to review, not fail the import.
-const LIMITS = {
+// Exported so store-autofill.service.ts (name autofill) reuses the exact same clamps and trust rules.
+export const LIMITS = {
   name: 120, category: 80, area: 120, address: 300, city: 80, tagline: 160, aboutHeading: 160,
   description: 2000, heroSubtitle: 200, serviceName: 80, staffName: 80, staffRole: 80,
   faqQ: 200, faqA: 1000, amenity: 60, payment: 60,
@@ -75,7 +97,7 @@ const LIMITS = {
 } as const;
 
 /** Strip markup and control characters; collapse whitespace; clamp. Undefined when nothing is left. */
-function text(v: unknown, max: number): string | undefined {
+export function text(v: unknown, max: number): string | undefined {
   if (typeof v !== 'string' && typeof v !== 'number') return undefined;
   const s = String(v)
     // Drop executable/style blocks WITH their contents first; stripping just the tags would leave
@@ -92,7 +114,7 @@ function text(v: unknown, max: number): string | undefined {
 
 const asList = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
-function uniqueStrings(v: unknown, max: number, count: number): string[] | undefined {
+export function uniqueStrings(v: unknown, max: number, count: number): string[] | undefined {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const item of asList(v)) {
@@ -105,7 +127,7 @@ function uniqueStrings(v: unknown, max: number, count: number): string[] | undef
   return out.length ? out : undefined;
 }
 
-function num(v: unknown): number | null {
+export function num(v: unknown): number | null {
   const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v.replace(/[^\d.]/g, '')) : NaN;
   return Number.isFinite(n) ? n : null;
 }
@@ -145,7 +167,7 @@ function toHour(dayOfWeek: number, r: Record<string, unknown>): ImportedHour {
   return { dayOfWeek, opensAt: isClosed ? null : opensAt, closesAt: isClosed ? null : closesAt, isClosed };
 }
 
-function sanitizeServices(v: unknown, warnings: string[]): ImportedService[] {
+export function sanitizeServices(v: unknown, warnings: string[]): ImportedService[] {
   const seen = new Set<string>();
   const out: ImportedService[] = [];
   let missingDuration = 0;
@@ -301,7 +323,7 @@ export async function importStoreFromLink(rawUrl: string): Promise<StoreImportRe
   try {
     page = await safeFetchText(rawUrl);
   } catch (err) {
-    if (err instanceof SafeFetchError) throw new AppError(422, `LINK_${err.code}`, err.message);
+    if (isSafeFetchError(err)) throw new AppError(422, `LINK_${err.code}`, err.message);
     logger.warn({ err }, 'store import fetch failed unexpectedly');
     throw new AppError(422, 'LINK_NETWORK', 'Could not read that page');
   }

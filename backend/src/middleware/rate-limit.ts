@@ -60,5 +60,21 @@ export const limiters = {
     limit: 10,
     keyGenerator: (req: Request) => req.admin?.id ?? req.ip ?? 'anon',
   }),
+  // Admin "autofill from a business name" (docs/store-autofill-from-name.md). Search is cheap (one
+  // Google Text Search); fill is as expensive as a link import (a billed Place Details call, photo
+  // downloads and an LLM call), so it gets the same 10/hour bucket as storeImport. Both keyed by
+  // admin id, like storeImport. A separate daily cost guard (AUTOFILL_DAILY_LIMIT) sits behind fill.
+  storeAutofillNameSearch: rateLimit({
+    ...base,
+    windowMs: 60 * 60_000,
+    limit: 30,
+    keyGenerator: (req: Request) => req.admin?.id ?? req.ip ?? 'anon',
+  }),
+  storeAutofillNameFill: rateLimit({
+    ...base,
+    windowMs: 60 * 60_000,
+    limit: 10,
+    keyGenerator: (req: Request) => req.admin?.id ?? req.ip ?? 'anon',
+  }),
   global: rateLimit({ ...base, windowMs: 60_000, limit: 600 }),
 };
