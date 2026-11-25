@@ -335,11 +335,21 @@ describe('admin store name autofill', { timeout: 30_000 }, () => {
     expect(second.body.error.code).toBe('AUTOFILL_DAILY_LIMIT_REACHED');
   });
 
-  it('rate-limits fill to 10 per hour per admin', async () => {
+  it('rate-limits fill to 100 per hour per admin', async () => {
+    // Daily cap set above 100 so the hourly limiter, not the cost guard, is what trips.
+    setEnv({ AUTOFILL_ENABLED: 'true', AUTOFILL_API_KEY: 'k', GOOGLE_MAPS_API_KEY: 'k', AUTOFILL_DAILY_LIMIT: '1000' });
     const a = await app();
     const statuses: number[] = [];
-    for (let i = 0; i < 11; i++) statuses.push((await authed(a, FILL, { placeId: 'place-us' })).status);
-    expect(statuses.slice(0, 10).every((s) => s === 200)).toBe(true);
-    expect(statuses[10]).toBe(429);
+    for (let i = 0; i < 101; i++) statuses.push((await authed(a, FILL, { placeId: 'place-us' })).status);
+    expect(statuses.slice(0, 100).every((s) => s === 200)).toBe(true);
+    expect(statuses[100]).toBe(429);
+  });
+
+  it('rate-limits search to 100 per hour per admin', async () => {
+    const a = await app();
+    const statuses: number[] = [];
+    for (let i = 0; i < 101; i++) statuses.push((await authed(a, SEARCH, { query: 'barber austin' })).status);
+    expect(statuses.slice(0, 100).every((s) => s === 200)).toBe(true);
+    expect(statuses[100]).toBe(429);
   });
 });

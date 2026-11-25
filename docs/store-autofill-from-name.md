@@ -147,8 +147,11 @@ of which **must carry a source URL or be dropped**, with **no photos** and a pro
 | `AUTOFILL_DAILY_LIMIT` | `30` | Soft, in-process cap on billable lookups per day (one per fill). Resets on deploy; set a HARD quota in Google Cloud too. |
 | `AUTOFILL_FALLBACK_MODEL` | `groq/compound` | Reserved for the not-yet-built web-search fallback. |
 
-Rate limits (`middleware/rate-limit.ts`, keyed by admin id): `storeAutofillNameSearch` 30/hour,
-`storeAutofillNameFill` 10/hour.
+Rate limits (`middleware/rate-limit.ts`, keyed by admin id, in memory — a backend restart resets
+them): `storeAutofillNameSearch` **100/hour** and `storeAutofillNameFill` **100/hour** (raised from
+30 and 10 on 2026-11-25 — a "Find & fill" with one match spends a search and a fill). Hitting one
+answers 429 `RATE_LIMITED` ("Too many requests"). Billed Google usage is capped separately by
+`AUTOFILL_DAILY_LIMIT`.
 
 Error codes (standard envelope): `AUTOFILL_DISABLED` 503 · `AUTOFILL_DAILY_LIMIT_REACHED` 503 ·
 `PLACE_NOT_FOUND` 422 · `VALIDATION_ERROR` 400 · `RATE_LIMITED` 429. (A website read during a fill is
