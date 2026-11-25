@@ -640,6 +640,7 @@ it in the Appearance panel with a live `?preview=1` iframe of the microsite (gat
 | OTP | — | **Deferred stub** (`OTP_ENABLED=false`) |
 | In-store card payments | **PayPal POS Card Reader** via PayPal's native Zettle SDK (iOS 4.70.4 CocoaPods, Android 2.52.0 GitHub Packages) in `app/modules/paypal-reader` — the app only, main owner only | **Written, not yet built on a device** — [docs/card-payments-paypal.md](docs/card-payments-paypal.md) |
 | Help chat (store microsite + marketing landing page) | **Gemini / Groq free tier** behind `CHATBOT_PROVIDER`; a key-free FAQ/facts matcher underneath | **Shipped**, `CHATBOT_ENABLED` default false |
+| Admin store autofill **from a business name** | **Google Places API (New)** behind `AUTOFILL_ENABLED` + `GOOGLE_MAPS_API_KEY` (copy writer reuses the Groq `AUTOFILL_*`) | **Shipped**, flag-gated ([docs/store-autofill-from-name.md](docs/store-autofill-from-name.md)) |
 
 Every integration is a **seam**: an interface plus a flag-gated implementation that logs and
 returns `{ id: null }` when disabled. Wire a provider behind the existing interface rather than
@@ -729,7 +730,10 @@ campaign's Messaging Service instead of `TWILIO_FROM`; see [docs/sms-opt-in-a2p.
 `EMAIL_ENABLED`, `CHATBOT_ENABLED` (+ `CHATBOT_PROVIDER` `none|gemini|groq|openai`,
 `CHATBOT_API_KEY`, `CHATBOT_MODEL` — server-side only; no key needed for the FAQ-only mode),
 `AUTOFILL_ENABLED` (+ `AUTOFILL_API_KEY` — a Groq key, `AUTOFILL_MODEL`, `AUTOFILL_TIMEOUT_MS`; admin
-"autofill store from a link", see [docs/store-autofill-from-link.md](docs/store-autofill-from-link.md)).
+"autofill store from a link", see [docs/store-autofill-from-link.md](docs/store-autofill-from-link.md); the
+same flag also gates "autofill store from a **business name**" via **`GOOGLE_MAPS_API_KEY`** +
+`AUTOFILL_DAILY_LIMIT` (default 30) + `AUTOFILL_FALLBACK_MODEL`, see
+[docs/store-autofill-from-name.md](docs/store-autofill-from-name.md)).
 
 Client vars: `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_SOCKET_URL`, `NEXT_PUBLIC_ASSET_PREFIX`,
 `NEXT_PUBLIC_ADMIN_ORIGIN`, `NEXT_PUBLIC_OWNER_ORIGIN`, `NEXT_PUBLIC_FRONTEND_URL` (frontend/
@@ -841,11 +845,11 @@ Checklist for any owner-facing change:
 
 ### 12.1 What exists today
 
-- `backend/tests/unit/` — **52 vitest files, 678 tests** (2026-10-30), run with `npm test` in `backend/`
+- `backend/tests/unit/` — **56 vitest files, 765 tests** (2026-11-25), run with `npm test` in `backend/`
   (`vitest run`; there is **no `vitest.config.*`** — it runs on defaults).
-  Eight cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
+  Ten cover **pure functions** (`queue-engine`, `eta-notify`, `ttl-cache`, `sms`,
   `service-pricing`, `chat-faq`, `chat-platform`, `open-status` — the microsite's open/closed + next-opening arithmetic, clock frozen with
-  `vi.setSystemTime`, no DB).
+  `vi.setSystemTime`, no DB — and `category-content` + `amenities` for store-autofill-from-name).
   `public-chat.test.ts` (followed by `chatbot.test.ts` for the
   help chat, with `fetch` stubbed) is different and is **the pattern to copy**: it mounts a
   real router into a throwaway `express()` app and drives it with **`supertest`**, using
@@ -883,6 +887,14 @@ Checklist for any owner-facing change:
 
   It needs a running API and a seeded throwaway DB. It spends one login and two public writes, and
   it is re-runnable, because it makes its own chair and services.
+  "Autofill a store from a business name" ([docs/store-autofill-from-name.md](docs/store-autofill-from-name.md))
+  has four unit tests — `amenities.test.ts` (the canonical amenity names and how Google flags and
+  website text map onto them), `category-content.test.ts` (the copy presets + the forbidden-claim guard),
+  `store-autofill-map.test.ts` (the pure `mapPlaceToFields` over sample Google JSON: an Indian beauty
+  parlour and a US barbershop), and `store-autofill-name.test.ts` (the admin router with Google, the
+  website fetch, photo upload and Groq all stubbed) — plus `backend/scripts/smoke-store-autofill-name.mjs`
+  (running API; negatives need no credentials, the real search+fill is opt-in via `SMOKE_PLACES_QUERY`
+  and spends billed Google calls).
   `backend/scripts/smoke-no-overlap-db.ts` (`npx tsx`; a **migrated** throwaway DB; makes and
   deletes its own store; refuses `backend/.env`'s DB) proves a stylist never gets two overlapping
   bookings through ANY path:

@@ -15,6 +15,7 @@ import * as admin from './admin.service';
 import * as analytics from './admin-analytics.service';
 import * as inquiries from './admin-inquiries.service';
 import { importStoreFromLink } from './store-import.service';
+import { fillStoreFromPlace, searchStoresByName } from './store-autofill.service';
 import * as drafts from './store-draft.service';
 
 /**
@@ -362,6 +363,28 @@ adminRouter.post(
   validate({ body: z.object({ url: z.string().trim().min(1).max(2048) }).strict() }),
   asyncHandler(async (req: Request, res: Response) => {
     res.json(await importStoreFromLink(req.body.url));
+  }),
+);
+
+// Autofill a store from a business NAME via Google Places (docs/store-autofill-from-name.md).
+// Two steps: search returns candidates (cheap); fill reads the picked place, its website and photos
+// (expensive and billed), so the daily cost guard sits inside fillStoreFromPlace. Read-only; open to
+// employees and owners alike, like /store-import.
+adminRouter.post(
+  '/store-name-search',
+  limiters.storeAutofillNameSearch,
+  validate({ body: z.object({ query: z.string().trim().min(2).max(200), regionCode: z.string().trim().length(2).optional() }).strict() }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await searchStoresByName(req.body.query, req.body.regionCode));
+  }),
+);
+
+adminRouter.post(
+  '/store-name-fill',
+  limiters.storeAutofillNameFill,
+  validate({ body: z.object({ placeId: z.string().trim().min(1).max(512) }).strict() }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.json(await fillStoreFromPlace(req.body.placeId));
   }),
 );
 

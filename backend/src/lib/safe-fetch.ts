@@ -42,6 +42,19 @@ export class SafeFetchError extends Error {
   }
 }
 
+/**
+ * Duplication-proof check. A plain `instanceof SafeFetchError` can fail when this module is realised
+ * more than once in the same process (it happens under some test runners/bundlers), silently turning
+ * a precise guard error into a generic one. The `name`/`code` fallback keeps the mapping correct even
+ * then — callers map `err.code` to a readable HTTP error, so the identity of the class must not matter.
+ */
+export function isSafeFetchError(e: unknown): e is SafeFetchError {
+  return (
+    e instanceof SafeFetchError ||
+    (typeof e === 'object' && e !== null && (e as { name?: unknown }).name === 'SafeFetchError' && typeof (e as { code?: unknown }).code === 'string')
+  );
+}
+
 export const SAFE_FETCH_MAX_BYTES = 1_500_000;
 export const SAFE_FETCH_TIMEOUT_MS = 10_000;
 const MAX_REDIRECTS = 3;
@@ -165,6 +178,12 @@ export interface SafeFetchOptions {
   /** Tests only — routes never pass these. They exist so a loopback fixture server is reachable. */
   isBlocked?: (ip: string) => boolean;
   allowedPorts?: number[];
+  /**
+   * Content-type substrings the response must match (checked against a lower-cased `content-type`).
+   * Defaults to the text/HTML set so `safeFetchText` is unchanged; `safeFetchBuffer` passes image
+   * types. An empty 2xx `content-type` is allowed through either way (some servers omit it).
+   */
+  accept?: string[];
 }
 
 export interface SafeFetchResult {
@@ -172,6 +191,12 @@ export interface SafeFetchResult {
   finalUrl: string;
   contentType: string;
   body: string;
+}
+
+export interface SafeFetchRawResult {
+  finalUrl: string;
+  contentType: string;
+  body: Buffer;
 }
 
 const defaultResolve: ResolveFn = async (hostname) =>
@@ -222,7 +247,7 @@ interface Hop {
   body: Buffer;
 }
 
-function requestOnce(url: URL, opts: Required<Pick<SafeFetchOptions, 'maxBytes' | 'resolve' | 'isBlocked'>>, deadline: number): Promise<Hop> {
+function requestOnce(url: URL, opts: Required<Pick<SafeFetchOptions, 'maxBytes' | 'resolve' | 'isBlocked' | 'accept'>>, deadline: number): Promise<Hop> {
   return new Promise<Hop>((resolve, reject) => {
     const remaining = deadline - Date.now();
     if (remaining <= 0) return reject(new SafeFetchError('TIMEOUT', 'The site took too long to respond'));
@@ -262,10 +287,10 @@ function requestOnce(url: URL, opts: Required<Pick<SafeFetchOptions, 'maxBytes' 
           return resolve({ status, headers: res.headers, body: Buffer.alloc(0) });
         }
         const type = String(res.headers['content-type'] ?? '').toLowerCase();
-        if (status >= 200 && status < 300 && type && !ACCEPTED_TYPES.some((t) => type.includes(t))) {
+        if (status >= 200 && status < 300 && type && !opts.accept.some((t) => type.includes(t))) {
           res.destroy();
           clearTimeout(timer);
-          return reject(new SafeFetchError('BAD_TYPE', 'That link is not a web page'));
+          return reject(new SafeFetchError('BAD_TYPE', 'That link is not the expected type'));
         }
         const chunks: Buffer[] = [];
         let size = 0;
@@ -302,11 +327,17 @@ function requestOnce(url: URL, opts: Required<Pick<SafeFetchOptions, 'maxBytes' 
   });
 }
 
-export async function safeFetchText(rawUrl: string, options: SafeFetchOptions = {}): Promise<SafeFetchResult> {
+/**
+ * The shared SSRF-guarded GET: parse + validate, follow up to MAX_REDIRECTS redirects re-validating
+ * every hop, and return the raw bytes. `safeFetchText` (text/HTML, decoded) and `safeFetchBuffer`
+ * (images, raw) are thin wrappers over it, so both get identical SSRF guarantees.
+ */
+async function safeFetchRaw(rawUrl: string, options: SafeFetchOptions): Promise<SafeFetchRawResult> {
   const opts = {
     maxBytes: options.maxBytes ?? SAFE_FETCH_MAX_BYTES,
     resolve: options.resolve ?? defaultResolve,
     isBlocked: options.isBlocked ?? isBlockedIp,
+    accept: options.accept ?? ACCEPTED_TYPES,
   };
   const deadline = Date.now() + (options.timeoutMs ?? SAFE_FETCH_TIMEOUT_MS);
   const targetOpts = { isBlocked: opts.isBlocked, allowedPorts: options.allowedPorts };
@@ -330,7 +361,29 @@ export async function safeFetchText(rawUrl: string, options: SafeFetchOptions = 
       throw new SafeFetchError('HTTP_ERROR', `The site answered with an error (${res.status})`);
     }
     const contentType = String(res.headers['content-type'] ?? 'text/html');
-    return { finalUrl: url.toString(), contentType, body: decode(res.body, contentType) };
+    return { finalUrl: url.toString(), contentType, body: res.body };
   }
   throw new SafeFetchError('TOO_MANY_REDIRECTS', 'That link redirected too many times');
+}
+
+export async function safeFetchText(rawUrl: string, options: SafeFetchOptions = {}): Promise<SafeFetchResult> {
+  const { finalUrl, contentType, body } = await safeFetchRaw(rawUrl, options);
+  return { finalUrl, contentType, body: decode(body, contentType) };
+}
+
+/** Image types `safeFetchBuffer` accepts by default — matches the upload sign route (jpeg/png/webp). */
+export const IMAGE_FETCH_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+
+/**
+ * Fetch binary bytes (an image) through the same SSRF guard. Used to copy a Google Places photo (or
+ * a business website's logo) into our own bucket — the download is attacker-influenceable (the photo
+ * media endpoint 302s to googleusercontent, a website logo URL is semi-arbitrary), so every hop is
+ * re-validated exactly as for a page read. Caps at 5 MB by default, matching MAX_IMAGE_BYTES.
+ */
+export async function safeFetchBuffer(rawUrl: string, options: SafeFetchOptions = {}): Promise<SafeFetchRawResult> {
+  return safeFetchRaw(rawUrl, {
+    ...options,
+    maxBytes: options.maxBytes ?? 5_000_000,
+    accept: options.accept ?? [...IMAGE_FETCH_TYPES],
+  });
 }
