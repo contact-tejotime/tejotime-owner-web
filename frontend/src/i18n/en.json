@@ -1325,7 +1325,7 @@
     },
     "clinic": {
       "liveHeading": "Choose Your Doctor",
-      "liveCta": "Check in with Dr. {name}",
+      "liveCta": "Check in with {name}",
       "servicesHeading": "Choose a Consultation",
       "servicesNote": "Select a consultation to see the fee, duration, and available appointment times.",
       "serviceNoun": "consultation",

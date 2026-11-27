@@ -133,7 +133,7 @@ password.
 - **The owner login phone cannot be changed in the app or the admin panel.** The panel shows it read-only and `updateBusiness` never touches it. The one-off SQL below is the only way.
 - **Keep the category "Salon & Barber".**
   - It gives every store neutral page wording: "Choose Your Provider", "Choose a Service".
-  - A category containing "pet" would switch the page to clinic wording: "Check in with Dr. …" plus a hospital-emergency banner (`frontend/src/components/microsite/domains.ts`).
+  - A category containing "pet" would switch the page to clinic wording ("Choose Your Doctor", "Choose a Consultation") plus a hospital-emergency banner (`frontend/src/components/microsite/domains.ts`).
 - **These stores can't be deactivated** (409 `DEMO_STORE_ALWAYS_ON`, see above). A deactivated one would turn its homepage card into a 404. A 10th store means adding its phone to all three lists that `check:demo-stores` compares.
 - **No "demo" in any store content, and no medical, HIPAA or insurance claims** for the med spa and physio stores (`.claude/docs/current-work.md`).
 - **No `app/` folder may be named like one of the paths** (`salon`, `barber`, …). A real folder wins over the rewrite and silently takes the URL.
