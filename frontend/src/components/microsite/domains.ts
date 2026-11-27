@@ -78,6 +78,9 @@ const PROFILES: { family: Exclude<StoreFamily, "generic">; profile: DomainProfil
       // Wait time and doctors come first; marketing copy drops below them.
       order: ["live", "services", "about", "reviews", "gallery"],
       liveHeading: t.domains.clinic.liveHeading,
+      // The name is printed exactly as the store entered it. The copy used to add "Dr." itself,
+      // which read "Check in with Dr. Dr. Ranjeeta Kashyap" for a doctor whose name already
+      // carries the title, and mis-titled staff who aren't doctors (2026-11-27).
       liveCta: (name) => format(t.domains.clinic.liveCta, { name }),
       servicesHeading: t.domains.clinic.servicesHeading,
       servicesNote: t.domains.clinic.servicesNote,
