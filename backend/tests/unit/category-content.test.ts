@@ -98,6 +98,10 @@ describe('category-content presets', () => {
     expect(containsForbiddenClaim('Buy one of our packages')).toBe(true);
     expect(containsForbiddenClaim("We'll text you when it's your turn")).toBe(true);
     expect(containsForbiddenClaim('Join the queue and see your live wait')).toBe(false);
+    // Medical copy may not promise a cure — "manicure"/"pedicure" must still pass.
+    expect(containsForbiddenClaim('We cure diabetes naturally')).toBe(true);
+    expect(containsForbiddenClaim('Cured in three sittings')).toBe(true);
+    expect(containsForbiddenClaim('Manicure, pedicure and a secure locker')).toBe(false);
   });
 });
 
@@ -114,7 +118,13 @@ describe('presetFor + category mapping', () => {
     ['hair salon', ['hair_salon'], null, 'hair_salon'],
     ['beauty salon in India → parlour', ['beauty_salon'], 'IN', 'beauty_parlour'],
     ['beauty salon in US → hair salon', ['beauty_salon'], 'US', 'hair_salon'],
-    ['hospital → none', ['hospital'], null, null],
+    // Hospitals and clinics used to return null, so the fill wrote no category and no copy at all.
+    ['hospital', ['hospital'], 'IN', 'hospital'],
+    ['general hospital', ['general_hospital'], null, 'hospital'],
+    ['doctor → clinic', ['doctor'], null, 'clinic'],
+    ['medical clinic', ['medical_clinic'], null, 'clinic'],
+    ['dentist → clinic', ['dentist'], null, 'clinic'],
+    ['unrelated → none', ['store'], null, null],
   ])('%s', (_label, types, region, expected) => {
     expect(presetFor(types, 'Some Place', region)).toBe(expected);
   });
@@ -128,12 +138,39 @@ describe('presetFor + category mapping', () => {
     expect(presetFor([], 'Carpet World')).toBeNull();
   });
 
+  it('matches clinics and hospitals by name, behind the more specific presets', () => {
+    // The place that came back unmatched (2026-11-28): Google gave only generic types.
+    expect(presetFor(['health', 'point_of_interest', 'establishment'], 'Shuddhi Ayurveda and Panchakarma Clinics by Acharya Manish Ji', 'IN')).toBe('clinic');
+    expect(presetFor([], 'Skin Clinic Bhatar', 'IN')).toBe('clinic');
+    expect(presetFor([], 'City Care Hospital', 'IN')).toBe('hospital');
+    expect(presetFor([], 'Sunrise Nursing Home', 'IN')).toBe('hospital');
+    expect(presetFor([], 'Smile Dental Care')).toBe('clinic');
+    expect(presetFor([], 'Shree Homoeopathy Centre', 'IN')).toBe('clinic');
+    // A specific medical preset still wins over the generic clinic one.
+    expect(presetFor([], 'Glow Aesthetic Clinic')).toBe('medspa');
+    expect(presetFor([], 'Active Physio Clinic')).toBe('physio');
+    // "Ayurveda" alone is a weak signal: Kerala-style spas and massage centres use it too.
+    expect(presetFor(['spa'], 'Kerala Ayurvedic Spa', 'IN')).toBe('spa');
+    expect(presetFor([], 'Ayurvedic Massage Centre', 'IN')).toBe('massage');
+  });
+
   it('maps presets to the three real categories (pet has none)', () => {
     expect(categoryForPreset('hair_salon')).toBe('Salon & Barber');
     expect(categoryForPreset('barbershop')).toBe('Salon & Barber');
     expect(categoryForPreset('beauty_parlour')).toBe('Salon & Barber');
     expect(categoryForPreset('medspa')).toBe('Hospital');
     expect(categoryForPreset('physio')).toBe('Hospital');
+    expect(categoryForPreset('clinic')).toBe('Hospital');
+    expect(categoryForPreset('hospital')).toBe('Hospital');
     expect(categoryForPreset('pet')).toBe('');
+  });
+
+  it('clinic and hospital copy names doctors and keeps emergencies off the online queue', () => {
+    expect(staffRoleFor('clinic', false)).toBe('Doctor');
+    expect(staffRoleFor('hospital', true)).toBe('Doctor');
+    const hospital = templateCopy('hospital', ctx());
+    expect(hospital.description).toContain('Test Business is a hospital in Mota Varachha, Surat.');
+    expect(hospital.faqs.some((f) => /emergenc/i.test(f.q) && /call the hospital directly/i.test(f.a))).toBe(true);
+    expect(templateCopy('clinic', ctx()).description).toContain('Test Business is a clinic in Mota Varachha, Surat.');
   });
 });
