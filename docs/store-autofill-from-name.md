@@ -37,7 +37,7 @@ admin actually picks, and the daily cost guard sits in front of it.
 
 The admin Category dropdown has only **three** seeded values (`Salon & Barber`, `Hospital`,
 `Restaurant`; `master_data`, migration 0005). The copy, though, needs to read like the specific trade.
-So `lib/category-content.ts` defines **ten content presets** that drive the generated copy and starter
+So `lib/category-content.ts` defines **twelve content presets** that drive the generated copy and starter
 services, each mapping to one real category (or to '' when none fits — the admin is told to pick):
 
 | Preset | Real category | | Preset | Real category |
@@ -46,13 +46,32 @@ services, each mapping to one real category (or to '' when none fits — the adm
 | barbershop | Salon & Barber | | tattoo | Salon & Barber |
 | nail | Salon & Barber | | beauty_parlour | Salon & Barber |
 | spa | Salon & Barber | | medspa | **Hospital** |
-| | | | physio | **Hospital** |
-| | | | **pet** | **'' → "pick a category"** |
+| clinic | **Hospital** | | physio | **Hospital** |
+| hospital | **Hospital** | | **pet** | **'' → "pick a category"** |
 
-`presetFor(types, name, country)` picks from the Google Places type first, then name keywords. Region
-matters for one case: a `beauty_salon` is a **beauty parlour in India** but reads as a **hair salon in
-the US/Canada**. India vs US wording (queue/line, parlour/salon, physiotherapist/physical therapist,
-INR/USD) switches on the store's country.
+`presetFor(types, name, country)` checks the presets in order, each by a Google Places type or a name
+keyword, and the first match wins. Region matters for one case: a `beauty_salon` is a **beauty parlour
+in India** but reads as a **hair salon in the US/Canada**. India vs US wording (queue/line,
+parlour/salon, physiotherapist/physical therapist, INR/USD) switches on the store's country.
+
+**Clinics and hospitals** (added 2026-11-28). Before then they matched no preset, so a fill for one
+came back with "We couldn't match this to one of your store categories". It also had no headline,
+hero subtitle, About text, FAQs or starter services. The order is:
+1. **medspa** and **physio** first, so "Glow Aesthetic Clinic" and "Active Physio Clinic" keep their own copy.
+2. **hospital**: "hospital(s)" or "nursing home" in the name, or the `hospital` / `general_hospital` type.
+3. **clinic**: "clinic(s)", "polyclinic", "dental" or "dentist" in the name, or the `doctor`,
+   `medical_clinic`, `medical_center`, `dental_clinic` or `dentist` type.
+4. The salon, spa, massage and beauty presets.
+5. Last, **clinic** again for "Ayurveda/Ayurvedic", "Panchakarma" or "Homeopathy/Homoeopathy" in the
+   name. These words are weak signals, because Kerala-style spas and massage centres use them too, so a
+   spa or massage match wins over them.
+
+The bare words "doctor" or "Dr" in a name are deliberately **not** a signal: "Mobile Doctor" and
+"Dent Doctor" are repair shops. A real doctor's practice carries Google's `doctor` type. Both presets
+name staff "Doctor" and start with two unpriced services (Consultation 15 min, Follow-up visit 10 min).
+The hospital FAQ says to call the hospital directly in an emergency, matching the microsite's own
+clinic banner. Places with no match still warn the admin to pick a category, and they get no copy;
+diagnostic labs and restaurants are among them.
 
 ## What is filled — and from where
 
@@ -109,8 +128,12 @@ The templates **and** the LLM prompt may reference only real features: the live 
 booking ahead, choosing a specific staff member, live wait times, combining services, repeat visits,
 tips, and the live "it's your turn" update on the customer's phone. They must **never** claim features
 this product lacks: **deposits, pet notes, service packages/bundles, or a per-turn SMS** ("we'll text
-you when it's your turn" — only an opt-in ~15-minute ETA text exists). `containsForbiddenClaim()` is the
-backstop: model copy that trips it is discarded and the compliant template is used instead.
+you when it's your turn" — only an opt-in ~15-minute ETA text exists). For medical stores (clinic,
+hospital, med spa, physio) they also make **no medical claims, no promised results and no cures**, and
+never present the online queue as a way into emergency care. `containsForbiddenClaim()` is the
+backstop: model copy that trips it is discarded and the compliant template is used instead. Since
+2026-11-28 it also rejects "cure / cures / cured / curing", because clinic websites, which the model
+reads, often claim cures. It is word-bounded, so "manicure" and "pedicure" still pass.
 
 > The spec's Pet-grooming "add notes about your pet" was rewritten, because that feature does not exist:
 > **Q:** "How do I book my pet's grooming?" **A:** "Book a time online or join the walk-in list — choose
@@ -170,7 +193,9 @@ best-effort — any failure is a warning, not an error.)
 ## Tests
 
 - `backend/tests/unit/category-content.test.ts` — every preset's distinct copy and price-free starter
-  services; the forbidden-phrase guard (both markets); six canonical amenity suggestions per preset.
+  services; the forbidden-phrase guard (both markets, including "cure"); six canonical amenity
+  suggestions per preset; the clinic/hospital matching order (by type and by name, specific presets
+  first, "Ayurvedic" losing to a spa or massage match).
 - `backend/tests/unit/amenities.test.ts` — the canonical vocabulary: every Google flag, website
   phrasings that map ("AC", "Free WiFi", "Bridal suite"…) and ones that must not ("Parking available",
   "Lash lift"), the A-then-B order, the cap of 8, and suggestions minus confirmed.
@@ -180,7 +205,9 @@ best-effort — any failure is a warning, not an error.)
 - `backend/tests/unit/store-autofill-name.test.ts` — the real admin router with the DB, Google and Groq
   stubbed: auth, validation, 503 gating, employee access, search 1-vs-many, the fill mapping, photos
   copied to `/media`, template fallback when the copy model is down, `PLACE_NOT_FOUND`, the daily limit,
-  and the per-admin hourly limits.
+  and the per-admin hourly limits. It also has the 2026-11-28 regression: an Indian clinic whose only
+  Google types are generic fills **Hospital** with clinic copy and no "couldn't match" warning, while a
+  hardware store still gets the warning and no copy.
 - `backend/scripts/smoke-store-autofill-name.mjs` — against a running API; negatives need no credentials,
   the real search+fill is opt-in via `SMOKE_PLACES_QUERY`.
 - **Not automated:** the admin-panel dialog itself — the repo has no browser test runner.

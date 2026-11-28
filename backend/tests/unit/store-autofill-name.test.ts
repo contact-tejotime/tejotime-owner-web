@@ -267,6 +267,47 @@ describe('admin store name autofill', { timeout: 30_000 }, () => {
     expect(fields.reviews).toEqual([{ stars: 5, text: 'Best cuts in town.', authorName: 'Sam' }]);
   });
 
+  it('a clinic snaps to Hospital and gets its copy (it used to come back "couldn\'t match", with no copy)', async () => {
+    // The real place from 2026-11-28: Google gave only generic types, so only the name says "clinic".
+    detailsData = {
+      id: 'place-in-clinic',
+      displayName: { text: 'Shuddhi Ayurveda and Panchakarma Clinics by Acharya Manish Ji' },
+      formattedAddress: 'Surya Mansion, Kaushalya Park, Hauz Khas, New Delhi, Delhi 110016, India',
+      addressComponents: [
+        { longText: 'Kaushalya Park', shortText: 'Kaushalya Park', types: ['neighborhood', 'political'] },
+        { longText: 'New Delhi', shortText: 'New Delhi', types: ['locality', 'political'] },
+        { longText: 'India', shortText: 'IN', types: ['country', 'political'] },
+      ],
+      internationalPhoneNumber: '+91 72280 13131',
+      types: ['health', 'point_of_interest', 'establishment'],
+      googleMapsUri: 'https://maps.google.com/?cid=2',
+      photos: [{ name: 'places/place-in-clinic/photos/Xyz_1' }],
+    };
+    copyData = null; // template copy, so the assertions are deterministic
+
+    const res = await authed(await app(), FILL, { placeId: 'place-in-clinic' });
+    expect(res.status).toBe(200);
+    const { fields, warnings } = res.body;
+    expect(fields.category).toBe('Hospital');
+    expect(fields.tagline).toBe('See your doctor without the long wait');
+    expect(fields.heroSubtitle).toBe('Book a consultation or join the queue from your phone · Kaushalya Park');
+    expect(fields.aboutHeading).toBe('About Shuddhi Ayurveda and Panchakarma Clinics by Acharya Manish Ji');
+    expect(fields.description).toMatch(/is a clinic in Kaushalya Park, New Delhi\./);
+    expect(fields.faqs.length).toBeGreaterThan(0);
+    expect(fields.services.map((s: any) => s.name)).toEqual(['Consultation', 'Follow-up visit']);
+    expect(fields.heroImageUrl).toMatch(/\/media\/admin\/hero\//);
+    expect(warnings.join(' ')).not.toMatch(/couldn't match/i);
+  });
+
+  it('a place that fits no category still says so, and gets no invented copy', async () => {
+    detailsData = { ...US_BARBER_DETAILS, displayName: { text: 'Main Street Hardware' }, types: ['hardware_store'] };
+    const res = await authed(await app(), FILL, { placeId: 'place-us' });
+    expect(res.status).toBe(200);
+    expect(res.body.fields.category).toBeUndefined();
+    expect(res.body.fields.tagline).toBeUndefined();
+    expect(res.body.warnings[0]).toMatch(/couldn't match/i);
+  });
+
   it('falls back to the compliant template when the copy model is rate-limited (no throw)', async () => {
     copyData = null; // 429 from the copy call
     const res = await authed(await app(), FILL, { placeId: 'place-us' });
