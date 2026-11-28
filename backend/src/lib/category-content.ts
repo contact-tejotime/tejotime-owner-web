@@ -4,7 +4,7 @@
  *
  * WHY A "CONTENT PRESET" IS NOT A CATEGORY. The admin Create-a-store Category dropdown has only
  * three real values (`Salon & Barber`, `Hospital`, `Restaurant`; seeded in master_data, 0005). The
- * ten presets below are finer-grained than that on purpose: they drive the generated *copy* (a
+ * twelve presets below are finer-grained than that on purpose: they drive the generated *copy* (a
  * barbershop reads differently from a nail studio), and each snaps to one of the three real
  * categories via PRESET_CATEGORY — or to '' ("pick a category") when none fits (pet grooming).
  *
@@ -28,7 +28,9 @@ export type ContentPreset =
   | 'physio'
   | 'tattoo'
   | 'pet'
-  | 'beauty_parlour';
+  | 'beauty_parlour'
+  | 'clinic'
+  | 'hospital';
 
 /** One of the three real master_data categories, or '' when none fits and the admin must choose. */
 export type StoreCategory = 'Salon & Barber' | 'Hospital' | 'Restaurant' | '';
@@ -312,6 +314,48 @@ const PRESETS: Record<ContentPreset, PresetSpec> = {
     ],
     amenitySuggestions: ['Air conditioned', 'Free Wi-Fi', 'Waiting area', 'Separate ladies section', 'Bridal room', 'Complimentary tea/coffee'],
   },
+  // Clinics and hospitals used to have no preset, so a fill for one wrote no category and no copy
+  // at all (2026-11-28). The copy stays on what the queue does: no treatments, no outcomes, no cures.
+  clinic: {
+    category: 'Hospital',
+    staffRole: 'Doctor',
+    categoryWord: 'clinic',
+    headlineIdeas: ['See your doctor without the long wait', 'Book your consultation in minutes', '{name} — wait from home, not the waiting room'],
+    heroSubtitle: 'Book a consultation or join the {queue} from your phone · {area}',
+    aboutHeading: 'About {name}',
+    aboutExtra: 'See our doctors for a consultation or a follow-up visit.',
+    galleryHeading: 'Our Clinic',
+    services: [
+      { name: 'Consultation', durationMinutes: 15 },
+      { name: 'Follow-up visit', durationMinutes: 10 },
+    ],
+    faqExtras: [
+      { q: 'Can I choose my doctor?', a: 'Yes — pick your doctor when you book or join.' },
+      { q: 'What should I bring to my visit?', a: 'Please bring any earlier prescriptions and reports you have.' },
+    ],
+    amenitySuggestions: ['Waiting area', 'Air conditioned', 'Consultation room', 'Free Wi-Fi', 'Phone charging', 'Lift/elevator'],
+  },
+  hospital: {
+    category: 'Hospital',
+    staffRole: 'Doctor',
+    categoryWord: 'hospital',
+    headlineIdeas: ['Know your wait before you leave home', 'Book your doctor visit in seconds', '{name} — easier visits, shorter waits'],
+    heroSubtitle: 'Book a consultation and follow your live wait · {area}',
+    aboutHeading: 'About {name}',
+    aboutExtra: 'Book a consultation with our doctors, or come back for a follow-up visit.',
+    galleryHeading: 'Our Hospital',
+    services: [
+      { name: 'Consultation', durationMinutes: 15 },
+      { name: 'Follow-up visit', durationMinutes: 10 },
+    ],
+    // The emergency answer matches the microsite's own clinic banner ("For emergencies call the
+    // hospital directly"): the online queue must never look like a way into emergency care.
+    faqExtras: [
+      { q: 'What if it is an emergency?', a: `Please call the hospital directly — don't use the online ${QUEUE} for an emergency.` },
+      { q: 'Can I choose my doctor?', a: 'Yes — pick your doctor when you book or join.' },
+    ],
+    amenitySuggestions: ['Waiting lounge', 'Air conditioned', 'Lift/elevator', 'Consultation room', 'Private rooms', 'Free Wi-Fi'],
+  },
 };
 
 export const CONTENT_PRESETS = Object.keys(PRESETS) as ContentPreset[];
@@ -345,10 +389,20 @@ export function amenitySuggestionsFor(preset: ContentPreset): string[] {
   return [...PRESETS[preset].amenitySuggestions];
 }
 
+// Strong medical signals: a "clinic" or "hospital" in the name, or a medical Google type. Checked
+// after medspa and physio, so "Glow Aesthetic Clinic" and "Active Physio Clinic" keep their own copy.
+const HOSPITAL_NAME = /\b(hospitals?|nursing home)\b/;
+const HOSPITAL_TYPES = ['hospital', 'general_hospital'];
+const CLINIC_NAME = /\b(clinics?|polyclinic|dental|dentists?|dentistry)\b/;
+const CLINIC_TYPES = ['doctor', 'medical_clinic', 'medical_center', 'dental_clinic', 'dentist'];
+// Weak signals: Kerala-style spas and massage centres call themselves "Ayurvedic" too, so these
+// only decide when no salon, spa or massage signal has matched.
+const CLINIC_NAME_WEAK = /\b(ayurved(a|ic)|panchakarma|homo?eopath(y|ic))\b/;
+
 /**
  * Pick a preset from Google Places types first, then the business name. Region matters for one case:
  * a `beauty_salon` is a beauty parlour in India but reads as a hair salon in the US/Canada (spec).
- * Returns null when nothing fits (e.g. a hospital), so the caller can warn "pick a category".
+ * Returns null when nothing fits, so the caller can warn "pick a category".
  */
 export function presetFor(types: string[] | undefined, name: string, region?: string | null): ContentPreset | null {
   const typeSet = new Set((types ?? []).map((x) => x.toLowerCase()));
@@ -362,6 +416,8 @@ export function presetFor(types: string[] | undefined, name: string, region?: st
   if (inName(/\b(pet|pets|dog|dogs|cat|cats|paws|groom|grooming|groomer|groomers)\b/)) return 'pet';
   if (inName(/\b(med ?spa|medspa|aesthetic|aesthetics|laser|botox)\b/) || hasType('skin_care_clinic')) return 'medspa';
   if (inName(/\b(physio|physiotherapy|physical therapy|rehab|rehabilitation)\b/) || hasType('physiotherapist', 'chiropractor')) return 'physio';
+  if (inName(HOSPITAL_NAME) || hasType(...HOSPITAL_TYPES)) return 'hospital';
+  if (inName(CLINIC_NAME) || hasType(...CLINIC_TYPES)) return 'clinic';
   if (inName(/\bmassage\b/) || hasType('massage')) return 'massage';
   if (inName(/\bnails?\b/) || hasType('nail_salon')) return 'nail';
   if (inName(/\bbarber\b/) || hasType('barber_shop')) return 'barbershop';
@@ -370,6 +426,7 @@ export function presetFor(types: string[] | undefined, name: string, region?: st
   if (hasType('beauty_salon', 'beautician', 'make_up_artist', 'makeup_artist') || inName(/\b(beauty|parlour|parlor)\b/)) {
     return india ? 'beauty_parlour' : 'hair_salon';
   }
+  if (inName(CLINIC_NAME_WEAK)) return 'clinic';
   return null;
 }
 
@@ -380,8 +437,11 @@ export const FORBIDDEN_PHRASES: readonly RegExp[] = [
   /\bpackages?\b/i,
   /\bbundles?\b/i,
   /\b(text|sms|message)[^.]{0,30}when it'?s your turn/i,
-  // No promised medical outcomes for med spa / physio.
+  // No promised medical outcomes for med spa / physio / clinic / hospital.
   /\bguaranteed? results?\b/i,
+  // No promised cures. Clinic websites (which the model reads) often claim them, and a booking page
+  // must not repeat that. Word-bounded, so "manicure", "pedicure" and "secure" still pass.
+  /\bcur(e|es|ed|ing)\b/i,
 ];
 
 export function containsForbiddenClaim(text: string): boolean {
